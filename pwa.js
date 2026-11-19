@@ -3,6 +3,12 @@
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   let registration;
   let refreshing = false;
+  let knownRevision = null;
+  let revisionCheckInFlight = false;
+  let lastCheck = 0;
+  const REVISION_FILES = ['./index.html','./game.js','./styles/tokens.css',
+    './styles/hud.css','./styles/menus-and-overlays.css','./styles/responsive.css',
+    './styles/world-map.css','./assets/ui-icons.svg'];
   let updateNotice;
   const notice = () => {
     if (updateNotice) return updateNotice;
@@ -18,10 +24,15 @@
     button.setAttribute('aria-label', '게임 새 버전 적용');
     button.style.cssText = 'flex:none;border:1px solid rgba(255,255,255,.33);border-radius:8px;padding:8px 12px;background:rgba(255,255,255,.13);color:inherit;font:inherit;cursor:pointer;min-height:40px';
     button.addEventListener('click', () => {
-      if (!registration?.waiting) return;
-      button.disabled = true;
-      button.textContent = '적용 중…';
-      registration.waiting.postMessage({type: 'SKIP_WAITING'});
+      if (registration?.waiting) {
+        button.disabled = true;
+        button.textContent = '적용 중…';
+        registration.waiting.postMessage({type: 'SKIP_WAITING'});
+      } else {
+        // For normal asset-only deployments the SW source may be unchanged;
+        // network-first navigation obtains the latest files directly.
+        location.reload();
+      }
     });
     panel.append(label, button);
     (document.body || document.documentElement).append(panel);
@@ -40,11 +51,37 @@
     // Reload only after the user explicitly requests activation, never in the middle of play.
     location.reload();
   });
-  const check = () => {
-    if (navigator.onLine) registration?.update().catch(() => {});
+  const check = async () => {
+    if (!navigator.onLine || revisionCheckInFlight) return;
+    if (Date.now() - lastCheck < 15000) return;
+    revisionCheckInFlight = true;
+    lastCheck = Date.now();
+    try {
+      await registration?.update();
+      // Detect deployments even when sw.js itself has not changed.
+      // HEAD avoids downloading the 3 MB game bundle just to inspect freshness.
+      const parts = await Promise.all(REVISION_FILES.map(async path => {
+        const response = await fetch(path, {method: 'HEAD', cache: 'no-store'});
+        if (!response.ok) throw new Error('Update check HTTP ' + response.status);
+        const headers = response.headers;
+        return headers.get('etag') || [headers.get('last-modified'),
+          headers.get('content-length')].join(':');
+      }));
+      if (parts.every(p => p && p !== ':')) {
+        const nextRevision = parts.join('|');
+        if (knownRevision && nextRevision !== knownRevision) notice();
+        else if (!knownRevision) knownRevision = nextRevision;
+      }
+    } catch {
+      // Don't disrupt play or mark a new deployment while temporarily offline.
+    } finally {
+      revisionCheckInFlight = false;
+    }
   };
   window.addEventListener('online', check);
   window.addEventListener('pageshow', check);
+  window.addEventListener('focus', check);
+  window.setInterval(check, 10 * 60 * 1000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') check();
   });
