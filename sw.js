@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-3';
+const VERSION = 'sernbeld-pwa-4';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -10,6 +10,7 @@ const BASE = new URL(self.registration.scope);
 const OFFLINE_FILES = [
   './', './index.html', './game.js', './pwa.js', './manifest.webmanifest',
   './src/core/game-events.js', './src/core/entity-registry.js', './src/core/inventory.js',
+  './src/core/region-lifecycle.js',
   './assets/pwa-icon.svg', './assets/pwa-icon-192.png',
   './assets/pwa-icon-512.png', './assets/ui-icons.svg',
   './styles/tokens.css', './styles/hud.css',

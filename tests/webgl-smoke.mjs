@@ -39,8 +39,28 @@ try {
     return {webgl:!!gl,sceneObjects:d.scene.children.length,drawCalls:info.render.calls,triangles:info.render.triangles,player:[d.player.pos.x,d.player.pos.y,d.player.pos.z],canvas:[d.renderer.domElement.width,d.renderer.domElement.height],hasMap:!!d.fullMap,hasCollision:typeof d.collidersAt==='function',iconUses:document.querySelectorAll('svg use').length};
   });
   const path='test-results/'+label+'.png';await page.screenshot({path});
+  const lifecycle=label==='refactor' ? await page.evaluate(() => {
+    const d=window.__dev, id=d.region.id, c=d.wildlife.list[0];
+    const before=d.entities.list({region:id}).length, initial=c.hp;
+    if (!before || !c) throw Error('No registered region entities');
+    c.hp=Math.max(0,initial-1);
+    d.Save.write();
+    const key='wildlife:'+id+':'+c.id;
+    const saved=d.Save.data.regionEntities?.[id]?.[key]?.hp===c.hp;
+    const changed=c.hp;
+    d.regions.suspend(id);
+    d.frame();
+    const paused=!d.regions.isActive(id) && d.entities.list({region:id}).length===0 && !c.m.mesh.visible;
+    c.hp=initial;
+    d.regions.resume(id);
+    d.frame();
+    const restored=d.regions.isActive(id) && c.hp===changed && d.entities.list({region:id}).length===before;
+    c.hp=initial;
+    d.Save.write();
+    return {before,saved,paused,restored,after:d.entities.list({region:id}).length};
+  }) : null;
   await context.close();
-  return {stats,path,logs};
+  return {stats,path,logs,lifecycle};
  }
  const results={main:await capture('main',ports[0]),refactor:await capture('refactor',ports[1])};
  const pngA=PNG.sync.read(await readFile(results.main.path));
@@ -56,6 +76,8 @@ try {
  const report={main:results.main.stats,refactor:results.refactor.stats,diff,errors:[errSummary('main',results.main.logs),errSummary('refactor',results.refactor.logs)]};
  await writeFile('test-results/report.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(report,null,2));
+ if (!results.refactor.lifecycle?.saved || !results.refactor.lifecycle?.paused || !results.refactor.lifecycle?.restored)
+   throw new Error('Region lifecycle browser regression failed: '+JSON.stringify(results.refactor.lifecycle));
  const a=results.main.stats,b=results.refactor.stats;
  if(!a.webgl||!b.webgl||a.drawCalls<1||b.drawCalls<1)throw new Error('WebGL did not render');
  if(results.refactor.logs.some(x=>x.type==='error'))throw new Error('Refactored page emitted errors');

@@ -1,6 +1,7 @@
 import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createInventory} from './src/core/inventory.js';
+import {createRegionLifecycle} from './src/core/region-lifecycle.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -3072,6 +3073,7 @@ var Save = {
   },
   write() {
     try {
+      this.beforeWrite?.();
       localStorage.setItem(KEY, JSON.stringify(this.data));
     } catch {
     }
@@ -3101,6 +3103,8 @@ var Wallet = {
 var GameEvents = createGameEvents();
 var WorldEntities = createEntityRegistry();
 var Inventory = createInventory(Save, GameEvents);
+var WorldRegions = createRegionLifecycle({registry: WorldEntities, save: Save, events: GameEvents});
+Save.beforeWrite = () => WorldRegions.checkpointActive();
 var DISCOVER_R = 7;
 var REACH = 2.6;
 var Explore = class {
@@ -3111,6 +3115,7 @@ var Explore = class {
     this.providers = [];
   }
   update() {
+    if (!WorldRegions.isActive(this.region.id)) { this.candidate = null; this.ui.setPrompt(null); return; }
     const p = this.player.pos;
     for (const w of this.region.waypoints) {
       if (Save.data.waypoints.includes(w.name)) continue;
@@ -3138,7 +3143,7 @@ var Explore = class {
     this.ui.setPrompt(c);
   }
   interact() {
-    this.candidate?.act();
+    if (WorldRegions.isActive(this.region.id)) this.candidate?.act();
   }
   itemName(n) {
     return this.ui.itemName(GATHER[n.type].item);
@@ -4277,6 +4282,7 @@ var Townsfolk = class {
     n.ch.talk = 2.4;
     n.path && (n.wait = 0);
     this.onSay?.(n.def, line);
+    Save.write();
   }
   // keep the player from walking through people
   pushPlayer(p) {
@@ -4800,6 +4806,7 @@ var Wildlife = class {
   }
   // weapons: everything inside the cone and reach of a swing
   hits(px2, pz2, py2, yaw, reach, cosCone = 0.5) {
+    if (this.active === false) return [];
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw), out2 = [];
     for (const c of this.list) {
       if (c.dead) continue;
@@ -4830,6 +4837,7 @@ var Wildlife = class {
       c.t = 7;
     } else if (c.state !== "flee") this.alertPack(c);
     if (c.hp <= 0) this.kill(c, onKill);
+    else Save.write();
   }
   kill(c, onKill) {
     var _a;
@@ -4855,6 +4863,7 @@ var Wildlife = class {
       if (c.dead >= 4) {
         c.m.mesh.visible = false;
         c.respawn = now + 5 + c.rnd() * 3;
+        Save.write();
       }
     } else if (now >= c.respawn) {
       c.dead = 0;
@@ -4864,6 +4873,7 @@ var Wildlife = class {
       c.z = c.home.z + (c.rnd() - 0.5) * c.home.r;
       c.y = sample(c.x, c.z);
       c.m.bones[0].rotation.z = 0;
+      Save.write();
     }
   }
   present(c, dt, t, cam) {
@@ -5960,9 +5970,6 @@ async function boot() {
   const clock = new GameClock(Save.data.clock.day, Save.data.clock.hour);
   clock.apply();
   const folk = new Townsfolk(scene, region);
-  folk.list.forEach((n, i) => WorldEntities.register({
-    id: 'resident:' + region.id + ':' + i, kind: 'resident', region: region.id, ref: n
-  }));
   folk.settle(clock.hour);
   const society = new Society({ ui, clock, folk, region });
   Guild.advanceRival(clock.day);
@@ -5972,9 +5979,29 @@ async function boot() {
   explore.providers.push((p) => folk.candidate(p), (p) => society.boardCandidate(p));
   scene.add(camera);
   const wildlife = new Wildlife(scene, region);
-  wildlife.list.forEach(c => WorldEntities.register({
-    id: 'wildlife:' + region.id + ':' + c.id, kind: 'wildlife', region: region.id, ref: c
-  }));
+  const regionEntries = [
+    ...folk.list.map((n, i) => ({
+      id: 'resident:' + region.id + ':' + i, kind: 'resident', ref: n,
+      getState: () => ({lineI: n.lineI}),
+      setState: state => { if (Number.isSafeInteger(state.lineI) && state.lineI >= 0) n.lineI = state.lineI; },
+      setActive: active => { n.ch.group.visible = active && !n.hidden; }
+    })),
+    ...wildlife.list.map(c => ({
+      id: 'wildlife:' + region.id + ':' + c.id, kind: 'wildlife', ref: c,
+      getState: () => ({hp: Math.max(0, c.hp), dead: c.dead, respawn: c.respawn}),
+      setState: state => {
+        if (Number.isFinite(state.hp) && state.hp >= 0 && state.hp <= c.sp.hp) c.hp = state.hp;
+        if (Number.isFinite(state.dead) && state.dead >= 0) c.dead = state.dead;
+        if (Number.isFinite(state.respawn) && state.respawn >= 0) c.respawn = state.respawn;
+        if (c.dead > 0) { c.state = 'dead'; c.speed = 0; }
+      },
+      setActive: active => {
+        wildlife.active = active;
+        c.m.mesh.visible = active && !c.dead;
+      }
+    }))
+  ];
+  WorldRegions.mount(region.id, regionEntries);
   const view = new ViewModel(camera);
   const combat = new Combat({ player, rig, wildlife, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
@@ -6141,10 +6168,12 @@ async function boot() {
     cutstoneBridge.update(player.pos.x, player.pos.z, now);
     miniMap.update(player, now);
     fullMap.update(now);
-    folk.pushPlayer(player);
+    if (WorldRegions.isActive(region.id)) folk.pushPlayer(player);
     rig.update(dt, player);
-    folk.update(dt, t, clock.hour, player, camera.position);
-    wildlife.update(dt, t, clock, player, combat, camera.position);
+    if (WorldRegions.isActive(region.id)) {
+      folk.update(dt, t, clock.hour, player, camera.position);
+      wildlife.update(dt, t, clock, player, combat, camera.position);
+    }
     combat.update(dt);
     if (player.mode === "walk") maktwoAttackCamera(camera, combat.swing, rig.motion);
     view.update(dt, combat.swing, Math.hypot(player.vel.x, player.vel.z) > 0.5, player.mode === "walk");
@@ -6163,10 +6192,10 @@ async function boot() {
     hud.tick(dt, renderer.info.render, player.pos);
     ui.setClock(clock.label);
     ui.setGoal(society.goal());
-    ui.setLabels(folk.labels(camera, player), camera);
+    ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, wildlife, combat, frame: () => tick(performance.now()) };
+  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, wildlife, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
