@@ -13,7 +13,7 @@ export function validateFemaleBaseData(data) {
   if (data.bones.length !== 47 || data.parts.length !== 17 || data.hands.length !== 2) throw new Error('Unexpected original rig or mesh part count');
   if (data.p.length !== 278496 || data.n.length !== 139248 || data.f.length !== 556448 ||
       data.wi.length !== 185664 || data.ww.length !== 185664) throw new Error('Original packed geometry length mismatch');
-  const maxIndices = data.f.length / 4;
+  const maxIndices = data.f.length * 3 / 8; // base64 UTF-8 chars -> uint16 index count (no padding in source)
   const vertices = data.p.length / 8;
   const partsEnd = data.parts.reduce((last, part) => {
     if (part.start !== last || part.count <= 0 || part.count % 3 !== 0 ||
