@@ -9,7 +9,8 @@ const RUNTIME = VERSION + '-runtime';
 const BASE = new URL(self.registration.scope);
 const OFFLINE_FILES = [
   './', './index.html', './game.js', './pwa.js', './manifest.webmanifest',
-  './assets/pwa-icon.svg', './assets/ui-icons.svg',
+  './assets/pwa-icon.svg', './assets/pwa-icon-192.png',
+  './assets/pwa-icon-512.png', './assets/ui-icons.svg',
   './styles/tokens.css', './styles/hud.css',
   './styles/menus-and-overlays.css', './styles/responsive.css',
   './styles/world-map.css', './styles.css',
