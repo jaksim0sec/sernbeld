@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const baseline='/tmp/sernbeld-main/';
+const text=async path=>readFile(path,'utf8');
+const cssParts=['tokens','hud','menus-and-overlays','responsive','world-map'];
+const css= (await Promise.all(cssParts.map(n=>text('styles/'+n+'.css')))).join('');
+assert.equal(css,await text(baseline+'styles.css'),'CSS concatenation changed original stylesheet');
+const mainHTML=await text(baseline+'index.html');
+let currentHTML=await text('index.html');
+const sprite=await text('assets/ui-icons.svg');
+const symbols=new Map([...sprite.matchAll(/<symbol id="([^"]+)" viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)].map(m=>[m[1],m[3]]));
+let count=0;
+currentHTML=currentHTML.replace(/<svg\b([^>]*)><use href="\.\/assets\/ui-icons\.svg#([^"]+)"><\/use><\/svg>/g,(_all,attrs,id)=>{
+ assert(symbols.has(id),'Unresolved SVG sprite symbol '+id);count++;
+ return '<svg'+attrs+'>'+symbols.get(id)+'</svg>';
+});
+assert.equal(count,15,'Expected all 15 inline SVGs replaced');
+const styles=cssParts.map(n=>'<link rel="stylesheet" href="./styles/'+n+'.css">').join('\n');
+assert(currentHTML.includes(styles),'CSS links changed order');
+currentHTML=currentHTML.replace(styles,'<link rel="stylesheet" href="./styles.css">');
+assert.equal(currentHTML,mainHTML,'Unexpected DOM/HTML change beyond CSS/SVG extraction');
+const mainJS=await readFile(baseline+'game.js');
+const branchJS=await readFile('game.js');
+assert(mainJS.equals(branchJS),'Browser runtime game.js differs from main');
+console.log('PASS: original HTML reconstructed exactly, CSS cascade exact, 15 icons valid, game.js unchanged');
