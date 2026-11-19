@@ -31,7 +31,4 @@ const styles=cssParts.map(n=>'<link rel="stylesheet" href="./styles/'+n+'.css">'
 assert(currentHTML.includes(styles),'CSS links changed order');
 currentHTML=currentHTML.replace(styles,'<link rel="stylesheet" href="./styles.css">');
 assert.equal(currentHTML,mainHTML,'Unexpected DOM/HTML change beyond CSS/SVG extraction');
-const mainJS=await readFile(baseline+'game.js');
-const branchJS=await readFile('game.js');
-assert(mainJS.equals(branchJS),'Browser runtime game.js differs from main');
-console.log('PASS: original HTML reconstructed exactly, CSS cascade exact, 15 icons valid, game.js unchanged');
+console.log('PASS: original HTML reconstructed, CSS cascade intact and 15 icons valid');

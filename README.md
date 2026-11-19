@@ -21,7 +21,8 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 - `assets/models/characters/female-base-v1.mesh.json`: 여성 기본 인체 원본 스키닝 메시 (47관절)
 - `src/render/materials/standard-skin.js`: 사람 캐릭터용 표준 2톤 툰 스킨 재질
 - `src/entities/character/`: 여성 기본 모델 로더 및 공용 모델·스킨 레지스트리
-- `src/`: 재조립 가능한 JS 번들 **소스 조각**. 독립 ES 모듈은 아님
+- `src/core/`: 독립 ES 모듈로 구현한 공통 사건·활성 엔티티 식별·혼합형 아이템 보관 기반
+- `src/`: 재조립 가능한 JS 번들 **소스 조각**. 독립 ES 모듈은 아님 (`src/core/`는 예외)
 - `game.js`: 기존 게임을 실제로 실행하는 단일 번들 (분리 전후 유지)
 - `tools/build-game.mjs`: JS 소스 재조립과 바이트 동일성 검증
 - `tests/webgl-smoke.mjs`: main/리팩터링 브랜치 Chromium WebGL 비교 스크립트
@@ -35,6 +36,7 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 ```bash
 node tools/build-game.mjs --check
 node --check game.js
+node tests/foundation.mjs
 ```
 
 브라우저 회귀 검증은 `.github/workflows/refactor-regression.yml`과 `tests/webgl-smoke.mjs`로 준비했다. 실제 결과 확인 전에는 동작이 완전히 같다고 판정하지 않는다.

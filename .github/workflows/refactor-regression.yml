@@ -23,6 +23,8 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright pngjs three
           npx playwright install --with-deps chromium
+      - name: Validate foundation entity, event and inventory behavior
+        run: node tests/foundation.mjs
       - name: Validate registered female mesh, rig and standard skin
         run: node tests/character-assets.mjs
       - name: Render female model with standard skin in Chromium

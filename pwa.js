@@ -6,7 +6,8 @@
   let knownRevision = null;
   let revisionCheckInFlight = false;
   let lastCheck = 0;
-  const REVISION_FILES = ['./index.html','./game.js','./styles/tokens.css',
+  const REVISION_FILES = ['./index.html','./game.js','./src/core/game-events.js',
+    './src/core/entity-registry.js','./src/core/inventory.js','./styles/tokens.css',
     './styles/hud.css','./styles/menus-and-overlays.css','./styles/responsive.css',
     './styles/world-map.css','./assets/ui-icons.svg'];
   let updateNotice;

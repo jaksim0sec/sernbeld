@@ -46467,6 +46467,9 @@ function occupiedAt(x, z, g, margin = 0.4) {
 function collidersAt(x, z, margin = 0) {
   return query(x, z, margin + 1).filter((o) => inside(o, x, z, margin)).map((o) => ({ type: o.type, top: +o.top.toFixed(2), bot: +o.bot.toFixed(2), walk: o.walk, c: [o.cx ?? o.x, o.cz ?? o.z].map((v) => +v.toFixed(1)) }));
 }
+import {createGameEvents} from './src/core/game-events.js';
+import {createEntityRegistry} from './src/core/entity-registry.js';
+import {createInventory} from './src/core/inventory.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -49508,6 +49511,8 @@ var fresh = () => ({
   pos: null,
   yaw: 0,
   inv: {},
+  uniqueItems: [],
+  nextItemSerial: 1,
   waypoints: [],
   picked: {},
   playtime: 0,
@@ -49562,24 +49567,9 @@ var Wallet = {
     return true;
   }
 };
-var Inventory = {
-  take(id, n) {
-    if ((Save.data.inv[id] || 0) < n) return false;
-    Save.data.inv[id] -= n;
-    if (!Save.data.inv[id]) delete Save.data.inv[id];
-    return true;
-  },
-  add(id, n = 1) {
-    Save.data.inv[id] = (Save.data.inv[id] || 0) + n;
-    return Save.data.inv[id];
-  },
-  count(id) {
-    return Save.data.inv[id] || 0;
-  },
-  entries() {
-    return Object.entries(Save.data.inv).filter(([, n]) => n > 0);
-  }
-};
+var GameEvents = createGameEvents();
+var WorldEntities = createEntityRegistry();
+var Inventory = createInventory(Save, GameEvents);
 var DISCOVER_R = 7;
 var REACH = 2.6;
 var Explore = class {
@@ -49629,6 +49619,7 @@ var Explore = class {
     this.gatherables.refresh();
     this.ui.pickup(def.item, amount, total);
     Save.write();
+    GameEvents.emit('world.gathered', {nodeId: n.id, itemId: def.item, quantity: amount});
   }
   travelTo(name) {
     const w = this.waypoints.userData.list.find((v) => v.name === name);
@@ -52438,6 +52429,9 @@ async function boot() {
   const clock = new GameClock(Save.data.clock.day, Save.data.clock.hour);
   clock.apply();
   const folk = new Townsfolk(scene, region);
+  folk.list.forEach((n, i) => WorldEntities.register({
+    id: 'resident:' + region.id + ':' + i, kind: 'resident', region: region.id, ref: n
+  }));
   folk.settle(clock.hour);
   const society = new Society({ ui, clock, folk, region });
   Guild.advanceRival(clock.day);
@@ -52447,6 +52441,9 @@ async function boot() {
   explore.providers.push((p) => folk.candidate(p), (p) => society.boardCandidate(p));
   scene.add(camera);
   const wildlife = new Wildlife(scene, region);
+  wildlife.list.forEach(c => WorldEntities.register({
+    id: 'wildlife:' + region.id + ':' + c.id, kind: 'wildlife', region: region.id, ref: c
+  }));
   const view = new ViewModel(camera);
   const combat = new Combat({ player, rig, wildlife, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
@@ -52638,7 +52635,7 @@ async function boot() {
     ui.setLabels(folk.labels(camera, player), camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, wildlife, combat, frame: () => tick(performance.now()) };
+  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, wildlife, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

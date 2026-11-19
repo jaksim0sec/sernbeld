@@ -35,6 +35,7 @@ try {
   const controller=await page.evaluate(async()=>{
     const reg=await navigator.serviceWorker.ready;
     const expected=['index.html','game.js','pwa.js','manifest.webmanifest','assets/ui-icons.svg',
+      'src/core/game-events.js','src/core/entity-registry.js','src/core/inventory.js',
       'assets/pwa-icon-192.png','assets/pwa-icon-512.png',
       'assets/kael-cutstone-v7.glb.gz','assets/models/characters/female-base-v1.mesh.json',
       'styles/tokens.css','styles/hud.css','styles/menus-and-overlays.css',
@@ -76,7 +77,7 @@ try {
   await page.waitForFunction(()=>!!window.__dev,{timeout:120000});
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   const offline=await page.evaluate(async()=>{
-    const urls=['./game.js','./styles/hud.css','./assets/ui-icons.svg',
+    const urls=['./game.js','./src/core/game-events.js','./src/core/entity-registry.js','./src/core/inventory.js','./styles/hud.css','./assets/ui-icons.svg',
       './assets/kael-cutstone-v7.glb.gz','./assets/models/characters/female-base-v1.mesh.json'];
     const checks=[];
     for(const url of urls){
