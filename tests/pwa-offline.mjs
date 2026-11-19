@@ -47,6 +47,22 @@ try {
       cacheKeys:cachesFound,missing};
   });
   assert.deepEqual(controller.missing,[],'Offline install missing essential game assets');
+  // Confirm the installable manifest actually points to decodable, correctly sized PNGs.
+  const icons=await page.evaluate(async()=>{
+    const response=await fetch('./manifest.webmanifest');
+    const manifest=await response.json();
+    const sizes=[];
+    for(const expected of [192,512]){
+      const entry=manifest.icons.find(i=>i.sizes===expected+'x'+expected && i.type==='image/png');
+      if(!entry)throw Error('Missing raster app icon '+expected);
+      const img=new Image(); img.src=new URL(entry.src,location.href).href;
+      await img.decode();
+      sizes.push([img.naturalWidth,img.naturalHeight]);
+    }
+    return {name:manifest.name,display:manifest.display,sizes};
+  });
+  assert.equal(icons.display,'standalone');
+  assert.deepEqual(icons.sizes,[[192,192],[512,512]]);
   const readProbe=()=>page.evaluate(async()=> {
     const response=await fetch('./test-results/pwa-probe.txt');
     return {status:response.status,text:await response.text()};
@@ -79,7 +95,7 @@ try {
   assert.equal(removed.status,404,'Stale cached response concealed a server 404');
   assert.deepEqual(errors,[],'Browser runtime errors: '+errors.join(' | '));
   await page.screenshot({path:'test-results/pwa-offline.png'});
-  const report={controller,offline,probe:{old:'offline-probe-v1',onlineNew:'offline-probe-v2',
+  const report={controller,icons,offline,probe:{old:'offline-probe-v1',onlineNew:'offline-probe-v2',
     offlineCached:'offline-probe-v2',serverDeleted:removed.status},errors};
   await writeFile('test-results/pwa-report.json',JSON.stringify(report,null,2));
   console.log('PASS PWA: complete install, offline WebGL restart, local assets, network-first refresh, no stale 404');
