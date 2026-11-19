@@ -1,0 +1,31 @@
+name: Sernbeld refactor regression
+on:
+  push:
+    branches: [refactor/structure-phase1]
+  workflow_dispatch:
+jobs:
+  webgl-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct original game bundle byte-for-byte
+        run: |
+          node tools/build-game.mjs --check
+          node --check game.js
+      - name: Prepare main baseline
+        run: git worktree add --detach /tmp/sernbeld-main origin/main
+      - name: Install headless browser tooling
+        run: |
+          npm install --no-save --no-package-lock playwright pngjs
+          npx playwright install --with-deps chromium
+      - name: Compare main and branch in WebGL Chromium
+        run: node tests/webgl-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webgl-regression-captures
+          path: test-results/
+          if-no-files-found: ignore
