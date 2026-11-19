@@ -21,8 +21,12 @@ jobs:
         run: node tests/structure-check.mjs
       - name: Install headless browser tooling
         run: |
-          npm install --no-save --no-package-lock playwright pngjs
+          npm install --no-save --no-package-lock playwright pngjs three
           npx playwright install --with-deps chromium
+      - name: Validate registered female mesh, rig and standard skin
+        run: node tests/character-assets.mjs
+      - name: Render female model with standard skin in Chromium
+        run: node tests/character-webgl.mjs
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
       - name: Verify emulated mobile touch, map, inventory and SVG rendering
