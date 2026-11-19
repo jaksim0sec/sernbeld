@@ -59,8 +59,14 @@ self.addEventListener('fetch', event => {
       // Bypass the browser HTTP cache, including for navigations, JS and CSS.
       const fresh = await fetch(request, {cache: 'no-store'});
       if (fresh.ok && fresh.type !== 'opaque') {
-        const update = caches.open(RUNTIME).then(cache => cache.put(request, fresh.clone()));
-        event.waitUntil(update.catch(() => {})); // Cache quota errors must not break online play.
+        try {
+          // Persist the newer response before resolving the fetch, so switching
+          // offline immediately afterward cannot race an unfinished cache write.
+          const cache = await caches.open(RUNTIME);
+          await cache.put(request, fresh.clone());
+        } catch {
+          // Storage quota must not prevent an otherwise healthy online response.
+        }
       }
       // A real 404/500 must not be replaced by a hidden stale successful response.
       return fresh;
