@@ -8,6 +8,17 @@ const css= (await Promise.all(cssParts.map(n=>text('styles/'+n+'.css')))).join('
 assert.equal(css,await text(baseline+'styles.css'),'CSS concatenation changed original stylesheet');
 const mainHTML=await text(baseline+'index.html');
 let currentHTML=await text('index.html');
+// The PWA adds metadata and a deferred registration script without touching the game UI.
+for (const entry of [
+  '<link rel="manifest" href="./manifest.webmanifest">\\n',
+  '<link rel="icon" href="./assets/pwa-icon.svg" type="image/svg+xml">\\n',
+  '<meta name="theme-color" content="#102332">\\n',
+  '<script src="./pwa.js" defer></script>\\n'
+]) {
+  const literal = entry.replaceAll('\\n', '\n');
+  assert(currentHTML.includes(literal), 'Missing PWA integration: '+literal.trim());
+  currentHTML = currentHTML.replace(literal, '');
+}
 const sprite=await text('assets/ui-icons.svg');
 const symbols=new Map([...sprite.matchAll(/<symbol id="([^"]+)" viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)].map(m=>[m[1],m[3]]));
 let count=0;
