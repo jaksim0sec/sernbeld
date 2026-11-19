@@ -12,6 +12,13 @@ export function createInventory(save, events) {
     if (!Array.isArray(data().uniqueItems)) data().uniqueItems = [];
     return data().uniqueItems;
   }
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const committed = (action, itemId, instanceId) => {
+    // Detailed-item mutations are standalone operations. Legacy bulk
+    // transactions continue to write once in their existing game handlers.
+    save.write?.();
+    events?.emit('inventory.changed', {action, itemId, quantity: 1, instanceId});
+  };
   const notify = (action, itemId, quantity, instanceId = null) =>
     events?.emit('inventory.changed', {action, itemId, quantity, instanceId});
   function nextId() {
@@ -25,15 +32,15 @@ export function createInventory(save, events) {
   function allocateUnique(itemId, state = {}) {
     if (!validId(itemId)) throw new TypeError('Invalid item ID');
     if (!state || typeof state !== 'object' || Array.isArray(state)) throw new TypeError('Unique state must be an object');
-    const snapshot = JSON.parse(JSON.stringify(state));
+    const snapshot = clone(state);
     const item = {id: nextId(), itemId, state: snapshot};
     uniques().push(item);
     return item;
   }
   function makeUnique(itemId, state = {}) {
     const item = allocateUnique(itemId, state);
-    notify('unique-added', itemId, 1, item.id);
-    return item;
+    committed('unique-added', itemId, item.id);
+    return clone(item);
   }
   const ownCount = itemId => Object.hasOwn(stacks(), itemId) && Number.isSafeInteger(stacks()[itemId]) && stacks()[itemId] > 0 ? stacks()[itemId] : 0;
   return {
@@ -58,22 +65,32 @@ export function createInventory(save, events) {
     count(itemId) { return validId(itemId) ? ownCount(itemId) : 0; },
     entries() { return Object.entries(stacks()).filter(([,n]) => Number.isSafeInteger(n) && n > 0); },
     makeUnique,
-    getUnique(id) { return uniques().find(item => item.id === id) ?? null; },
-    uniqueEntries() { return [...uniques()]; },
+    getUnique(id) { const item = uniques().find(item => item.id === id); return item ? clone(item) : null; },
+    uniqueEntries() { return uniques().map(clone); },
+    updateUnique(id, state) {
+      if (!state || typeof state !== 'object' || Array.isArray(state))
+        throw new TypeError('Unique state patch must be an object');
+      const item = uniques().find(entry => entry.id === id);
+      if (!item) return null;
+      const patch = clone(state);
+      item.state = {...item.state, ...patch};
+      committed('unique-updated', item.itemId, item.id);
+      return clone(item);
+    },
     promote(itemId, state = {}) {
       if (!validId(itemId) || ownCount(itemId) < 1) return null;
       // Persist both sides before broadcasting their shared outcome.
       const item = allocateUnique(itemId, state);
       stacks()[itemId]--;
       if (!stacks()[itemId]) delete stacks()[itemId];
-      notify('promoted', itemId, 1, item.id);
-      return item;
+      committed('promoted', itemId, item.id);
+      return clone(item);
     },
     removeUnique(id) {
       const list = uniques(), index = list.findIndex(item => item.id === id);
       if (index < 0) return false;
       const [item] = list.splice(index, 1);
-      notify('unique-removed', item.itemId, 1, id);
+      committed('unique-removed', item.itemId, id);
       return true;
     }
   };
