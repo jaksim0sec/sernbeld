@@ -40,24 +40,26 @@ try {
   });
   const path='test-results/'+label+'.png';await page.screenshot({path});
   const lifecycle=label==='refactor' ? await page.evaluate(() => {
-    const d=window.__dev, id=d.region.id, c=d.wildlife.list[0];
-    const before=d.entities.list({region:id}).length, initial=c.hp;
-    if (!before || !c) throw Error('No registered region entities');
-    c.hp=Math.max(0,initial-1);
+    const d=window.__dev, id=d.region.id, npc=d.folk.list[0];
+    const before=d.entities.list({region:id}).length, initial=npc.lineI;
+    if (!before || !npc) throw Error('No registered region entities');
+    npc.lineI=initial+1;
     d.Save.write();
-    const key='wildlife:'+id+':'+c.id;
-    const saved=d.Save.data.regionEntities?.[id]?.[key]?.hp===c.hp;
-    const changed=c.hp;
+    const key='resident:'+id+':0';
+    const saved=d.Save.data.regionEntities?.[id]?.[key]?.lineI===npc.lineI;
+    const changed=npc.lineI;
     d.regions.suspend(id);
     d.frame();
-    const paused=!d.regions.isActive(id) && d.entities.list({region:id}).length===0 && !c.m.mesh.visible;
-    c.hp=initial;
+    const paused=!d.regions.isActive(id) && d.entities.list({region:id}).length===0 && !npc.ch.group.visible;
+    npc.lineI=initial;
     d.regions.resume(id);
     d.frame();
-    const restored=d.regions.isActive(id) && c.hp===changed && d.entities.list({region:id}).length===before;
-    c.hp=initial;
+    const restored=d.regions.isActive(id) && npc.lineI===changed && d.entities.list({region:id}).length===before;
+    npc.lineI=initial;
     d.Save.write();
-    return {before,saved,paused,restored,after:d.entities.list({region:id}).length};
+    const noWildlife=!('wildlife' in d) && !('habitats' in d.region) &&
+      d.entities.list({kind:'wildlife'}).length===0;
+    return {before,saved,paused,restored,noWildlife,after:d.entities.list({region:id}).length};
   }) : null;
   await context.close();
   return {stats,path,logs,lifecycle};
@@ -76,14 +78,13 @@ try {
  const report={main:results.main.stats,refactor:results.refactor.stats,diff,errors:[errSummary('main',results.main.logs),errSummary('refactor',results.refactor.logs)]};
  await writeFile('test-results/report.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(report,null,2));
- if (!results.refactor.lifecycle?.saved || !results.refactor.lifecycle?.paused || !results.refactor.lifecycle?.restored)
+ if (!results.refactor.lifecycle?.saved || !results.refactor.lifecycle?.paused || !results.refactor.lifecycle?.restored || !results.refactor.lifecycle?.noWildlife)
    throw new Error('Region lifecycle browser regression failed: '+JSON.stringify(results.refactor.lifecycle));
  const a=results.main.stats,b=results.refactor.stats;
  if(!a.webgl||!b.webgl||a.drawCalls<1||b.drawCalls<1)throw new Error('WebGL did not render');
  if(results.refactor.logs.some(x=>x.type==='error'))throw new Error('Refactored page emitted errors');
  if(b.iconUses!==15)throw new Error('Missing external SVG icon uses');
- if(a.sceneObjects!==b.sceneObjects)throw new Error('Scene graph root count changed');
- if(a.drawCalls!==b.drawCalls||a.triangles!==b.triangles)throw new Error('Rendering geometry stats differ');
+ if(b.sceneObjects>=a.sceneObjects)throw new Error('Legacy creature scene objects were not removed');
  // Pixel comparison is informational because world animations and timing may differ.
- console.log('PASS: WebGL initialized, render statistics match, icons linked');
+ console.log('PASS: WebGL initialized, wildlife removed, resident lifecycle and icons intact');
 } finally {if(browser)await browser.close();for(const p of servers)p.kill();}

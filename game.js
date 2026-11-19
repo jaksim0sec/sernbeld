@@ -49954,41 +49954,34 @@ var REQUEST_TEMPLATES = [
   { id: "pebble_wall", title: "\uBD80\uB463\uAC00 \uBC30\uC218\uB85C \uC790\uAC08", giver: "\uBE0C\uB780", item: "river_pebble", qty: [5, 8], risk: 1, desc: "\uBB3C\uAE38\uC5D0 \uAE54 \uB9E4\uB048\uD55C \uB3CC. \uD574\uBCC0\uC774\uB098 \uAC15\uAC00." },
   { id: "crystal_survey", title: "\uC808\uBCBD \uACB0\uC815 \uD45C\uBCF8", giver: "\uCE74\uC2A4\uD154 \uBC15\uC0AC", item: "clear_crystal", qty: [1, 2], risk: 2, desc: "\uC808\uBCBD \uBC11\uC5D0\uC11C \uC790\uB77C\uB294 \uACB0\uC815. \uB099\uC11D \uC870\uC2EC. \uAE68\uC9C4 \uAC74 \uC548 \uBC1B\uC2B5\uB2C8\uB2E4." },
   { id: "aether_sample", title: "\uB300\uC218 \uAF43\uC78E \uD45C\uBCF8", giver: "\uCE74\uC2A4\uD154 \uBC15\uC0AC", item: "aether_petal", qty: [1, 1], risk: 3, desc: "\uC5D0\uD14C\uB974 \uB300\uC218 \uC544\uB798. \uD559\uD68C\uC5D0 \uC815\uC2DD \uD45C\uBCF8\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \uB4E4\uAC1C \uCD9C\uBAB0 \uC9C0\uC5ED." },
-  { id: "hunt_dogs", title: "\uD48D\uCC28 \uB18D\uAC00 \uB4E4\uAC1C \uD1F4\uCE58", giver: "\uB178 \uB8E8\uD39C", hunt: "mane_dog", qty: [2, 4], risk: 2, desc: "\uD574 \uC9C0\uBA74 \uC591 \uC6B0\uB9AC\uB97C \uB178\uB9BD\uB2C8\uB2E4. \uBB34\uB9AC\uB85C \uB2E4\uB2C8\uB2C8 \uD63C\uC790 \uAE4A\uC774 \uB4E4\uC5B4\uAC00\uC9C0 \uB9C8\uC138\uC694." },
-  { id: "wool_bundle", title: "\uC591\uD138 \uD55C \uC9D0", giver: "\uD56D\uAD6C \uC0C1\uD68C", item: "wool", qty: [3, 5], risk: 1, desc: "\uB4E4\uD310 \uC19C\uD138\uC591. \uAC81\uC774 \uB9CE\uC544 \uB6F0\uBA74 \uD769\uC5B4\uC9D1\uB2C8\uB2E4." },
-  { id: "hide_smith", title: "\uB300\uC7A5\uAC04 \uC190\uC7A1\uC774 \uAC00\uC8FD", giver: "\uACE0\uB78C", item: "dog_hide", qty: [2, 3], risk: 2, desc: "\uAC08\uAE30\uB4E4\uAC1C \uAC00\uC8FD. \uCC22\uC5B4\uC9C4 \uAC74 \uC4F8 \uB370 \uC5C6\uB2E4." }
 ];
-var RISK = { 1: { name: "\uB0AE\uC74C", mult: 1 }, 2: { name: "\uBCF4\uD1B5", mult: 1.6 }, 3: { name: "\uB192\uC74C", mult: 2.4 } };
-var SPECIES = {
-  fluff_sheep: {
-    name: "\uC19C\uD138\uC591",
-    hp: 18,
-    speed: 1,
-    run: 5.2,
-    radius: 0.7,
-    temper: "timid",
-    active: [0, 24],
-    sense: 9,
-    drops: [["wool", 1, 2, 1], ["mutton", 1, 1, 0.6]],
-    look: { body: [0.96, 0.93, 0.86], dark: [0.24, 0.21, 0.2], size: 1 }
-  },
-  mane_dog: {
-    name: "\uAC08\uAE30\uB4E4\uAC1C",
-    hp: 40,
-    speed: 1.6,
-    run: 6.4,
-    radius: 0.55,
-    temper: "pack",
-    active: [17, 7],
-    // hunts from dusk to morning; rests at the den by day
-    sense: 24,
-    senseRest: 8,
-    attack: { dmg: 6, range: 1.7, windup: 0.45, cooldown: 1.9 },
-    fleeAt: 0.22,
-    drops: [["dog_hide", 1, 1, 0.8], ["dog_fang", 1, 1, 0.15]],
-    look: { body: [0.66, 0.56, 0.42], dark: [0.3, 0.24, 0.2], size: 1 }
+var OBSOLETE_ANIMAL_TEMPLATES = new Set(["hunt_dogs", "wool_bundle", "hide_smith"]);
+function discardLegacyAnimalTasks(data) {
+  const obsolete = q => !!q?.hunt || OBSOLETE_ANIMAL_TEMPLATES.has(q?.tpl) ||
+    q?.item === "wool" || q?.item === "dog_hide";
+  let changed = false;
+  if (Array.isArray(data.requests)) {
+    const kept = data.requests.filter(q => !obsolete(q));
+    if (kept.length !== data.requests.length) { data.requests = kept; changed = true; }
   }
-};
+  if (Array.isArray(data.board?.list)) {
+    const kept = data.board.list.filter(q => !obsolete(q));
+    if (kept.length !== data.board.list.length) { data.board.list = kept; changed = true; }
+  }
+  if (data.regionEntities && typeof data.regionEntities === "object" && !Array.isArray(data.regionEntities)) {
+    for (const region of Object.keys(data.regionEntities)) {
+      const states = data.regionEntities[region];
+      if (!states || typeof states !== "object" || Array.isArray(states)) continue;
+      for (const id of Object.keys(states)) {
+        if (id.startsWith("wildlife:")) { delete states[id]; changed = true; }
+      }
+      if (!Object.keys(states).length) delete data.regionEntities[region];
+    }
+    if (!Object.keys(data.regionEntities).length) delete data.regionEntities;
+  }
+  return changed;
+}
+var RISK = { 1: { name: "\uB0AE\uC74C", mult: 1 }, 2: { name: "\uBCF4\uD1B5", mult: 1.6 }, 3: { name: "\uB192\uC74C", mult: 2.4 } };
 var el = (tag, cls, html) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -50161,10 +50154,10 @@ var GameUI = class {
     $2("boardMoney").textContent = `\uC740\uD654 ${Wallet.get()}`;
     const mine = new Set(this.activeIds?.() ?? []);
     this.boardP.querySelector(".body").replaceChildren(...list.map((q) => {
-      const it = q.hunt ? { name: SPECIES[q.hunt].name } : ITEMS[q.item], ico = q.hunt ? "dog_fang" : q.item, d = el("article", "req"), rk = ["", "#9fd8a4", "#ffd27a", "#ff9a8a"][q.risk];
+      const it = ITEMS[q.item], ico = q.item, d = el("article", "req"), rk = ["", "#9fd8a4", "#ffd27a", "#ff9a8a"][q.risk];
       d.innerHTML = `<h3>${q.title}<span class="risk" style="--rk:${rk}">\uC704\uD5D8 ${RISK[q.risk].name} ${"\u25C6".repeat(q.risk)}${"\u25C7".repeat(3 - q.risk)}</span></h3>
         <p>${q.giver} \u2014 ${q.desc}</p>
-        <div class="row"><img alt="" src="${iconURL(ico)}">${q.hunt ? "\uD1A0\uBC8C " : ""}${it.name} \xD7${q.qty}<span class="pay">\uC740\uD654 ${q.reward}</span></div>`;
+        <div class="row"><img alt="" src="${iconURL(ico)}">${it.name} \xD7${q.qty}<span class="pay">\uC740\uD654 ${q.reward}</span></div>`;
       const b = el("button", "", mine.has(q.id) ? "\uBC1B\uC740 \uC758\uB8B0" : "\uBC1B\uAE30");
       b.type = "button";
       b.disabled = mine.has(q.id) || mine.size >= 3;
@@ -50790,21 +50783,21 @@ var Guild = {
     const taken = new Set(Save.data.requests.map((q) => q.tpl));
     const list = pool.filter((t) => !taken.has(t.id)).slice(0, 5).map((t, k) => {
       const qty = t.qty[0] + Math.floor(r() * (t.qty[1] - t.qty[0] + 1));
-      const base = t.hunt ? 4 + qty * 5 : 2 + ITEMS[t.item].value * qty * 1.5;
+      const base = 2 + ITEMS[t.item].value * qty * 1.5;
       const reward = Math.round(base * RISK[t.risk].mult);
-      return { id: `d${day}_${k}`, tpl: t.id, title: t.title, giver: t.giver, item: t.item, hunt: t.hunt, qty, risk: t.risk, reward, desc: t.desc };
+      return { id: `d${day}_${k}`, tpl: t.id, title: t.title, giver: t.giver, item: t.item, qty, risk: t.risk, reward, desc: t.desc };
     });
     Save.data.board = { day, list };
     return list;
   },
   accept(q) {
     if (Save.data.requests.length >= MAX_ACTIVE || Save.data.requests.some((a) => a.id === q.id)) return false;
-    Save.data.requests.push(q.hunt ? { ...q, start: (Save.data.kills ?? {})[q.hunt] ?? 0 } : q);
+    Save.data.requests.push(q);
     Save.write();
     return true;
   },
   progress(q) {
-    return q.hunt ? ((Save.data.kills ?? {})[q.hunt] ?? 0) - q.start : Inventory.count(q.item);
+    return Inventory.count(q.item);
   },
   isAccepted(q) {
     return Save.data.requests.some((a) => a.id === q.id);
@@ -50940,431 +50933,11 @@ var Society = class {
     const ready = Guild.readyList();
     if (ready.length) return `\uC138\uB77C\uC5D0\uAC8C \uC758\uB8B0 \uBCF4\uACE0\uD558\uAE30 (${ready.length}\uAC74)`;
     const q = Save.data.requests[0];
-    if (q) return `${q.title} \xB7 ${q.hunt ? SPECIES[q.hunt].name : ITEMS[q.item].name} ${Math.max(0, Math.min(Guild.progress(q), q.qty))}/${q.qty}`;
+    if (q) return `${q.title} \xB7 ${ITEMS[q.item].name} ${Math.max(0, Math.min(Guild.progress(q), q.qty))}/${q.qty}`;
     if (!Save.data.equip?.right && !Save.data.equip?.left && G.done >= 1) return "\uACE0\uB78C\uC758 \uB300\uC7A5\uAC04\uC5D0\uC11C \uBB34\uAE30 \uB9C8\uB828\uD558\uAE30";
     if (h >= 18 && Wallet.get() < INN_PRICE) return `\uC624\uB298 \uBC24 \uC219\uBC15\uBE44 \uB9C8\uB828\uD558\uAE30 (\uC740\uD654 ${INN_PRICE})`;
     if (h >= 20) return "\uC5EC\uAD00 \uBC14\uB78C\uB9C9\uC774\uC5D0\uC11C \uBB35\uAE30";
     return "\uC870\uD569 \uC758\uB8B0\uD310\uC5D0\uC11C \uC77C\uAC70\uB9AC \uBC1B\uAE30";
-  }
-};
-var V2 = (x, y, z) => new Vector3(x, y, z);
-var Build = class {
-  constructor() {
-    this.p = [];
-    this.n = [];
-    this.c = [];
-    this.j = [];
-    this.i = [];
-  }
-  vert(p, n, col, bone) {
-    this.p.push(p.x, p.y, p.z);
-    this.n.push(n.x, n.y, n.z);
-    this.c.push(...col);
-    this.j.push(bone, 0, 0, 0);
-    return this.p.length / 3 - 1;
-  }
-  tube(P2, R, col, bone, sides = 7) {
-    let nrm = Math.abs(P2[1].clone().sub(P2[0]).normalize().y) < 0.95 ? V2(0, 1, 0) : V2(1, 0, 0);
-    const rings = [];
-    for (let i = 0; i < P2.length; i++) {
-      const T2 = (i < P2.length - 1 ? P2[i + 1].clone().sub(P2[i]) : P2[i].clone().sub(P2[i - 1])).normalize();
-      nrm.sub(T2.clone().multiplyScalar(nrm.dot(T2))).normalize();
-      const bin = V2(0, 0, 0).crossVectors(T2, nrm), ring2 = [];
-      for (let s = 0; s <= sides; s++) {
-        const a = s / sides * Math.PI * 2, d = nrm.clone().multiplyScalar(Math.cos(a)).addScaledVector(bin, Math.sin(a));
-        ring2.push(this.vert(P2[i].clone().addScaledVector(d, R[i]), d, col, bone));
-      }
-      rings.push(ring2);
-    }
-    for (let i = 0; i < rings.length - 1; i++) for (let s = 0; s < sides; s++) {
-      const a = rings[i][s], b = rings[i][s + 1], c = rings[i + 1][s], d = rings[i + 1][s + 1];
-      this.i.push(a, b, c, b, d, c);
-    }
-    const capEnd = (ring2, P0, dir) => {
-      const ci = this.vert(P0, dir, col, bone);
-      for (let s = 0; s < sides; s++) this.i.push(ci, ring2[s + 1], ring2[s]);
-    };
-    capEnd(rings[rings.length - 1], P2[P2.length - 1], P2[P2.length - 1].clone().sub(P2[P2.length - 2]).normalize());
-  }
-  blob(c, r, col, bone, seed, squash = [1, 1, 1]) {
-    const g = new IcosahedronGeometry(r, 1), p = g.attributes.position, rnd = mulberry32(seed), base = this.p.length / 3;
-    const v = V2(0, 0, 0);
-    for (let k = 0; k < p.count; k++) {
-      v.fromBufferAttribute(p, k);
-      const n = v.clone().normalize();
-      v.multiplyScalar(1 + (rnd() - 0.5) * 0.18);
-      v.multiply(V2(...squash));
-      this.vert(v.add(c), n, col, bone);
-    }
-    for (let k = 0; k < p.count; k += 3) this.i.push(base + k, base + k + 1, base + k + 2);
-  }
-  geometry() {
-    const g = new BufferGeometry();
-    g.setAttribute("position", new Float32BufferAttribute(this.p, 3));
-    g.setAttribute("normal", new Float32BufferAttribute(this.n, 3));
-    g.setAttribute("aCol", new Float32BufferAttribute(this.c, 3));
-    g.setAttribute("skinIndex", new Uint8BufferAttribute(this.j, 4));
-    const w = new Uint8Array(this.j.length);
-    for (let k = 0; k < w.length; k += 4) w[k] = 255;
-    g.setAttribute("skinWeight", new BufferAttribute(w, 4, true));
-    g.setIndex(this.i);
-    g.computeBoundingSphere();
-    g.boundingSphere.radius += 0.6;
-    return g;
-  }
-};
-function sheep(L) {
-  const b = new Build(), W = L.body, D = L.dark, rnd = mulberry32(3);
-  for (const [x, z, bone] of [[0.17, 0.33, 2], [-0.17, 0.33, 3], [0.17, -0.3, 4], [-0.17, -0.3, 5]]) b.tube([V2(x, 0.58, z), V2(x, 0.3, z + 0.01), V2(x, 0.03, z)], [0.055, 0.045, 0.04], D, bone, 6);
-  for (let k = 0; k < 13; k++) {
-    const a = rnd() * Math.PI * 2, u = rnd() * 2 - 1, s = Math.sqrt(1 - u * u);
-    b.blob(V2(Math.cos(a) * s * 0.24, 0.76 + u * 0.16, Math.sin(a) * s * 0.42), 0.2 + rnd() * 0.09, W.map((c) => c * (0.94 + rnd() * 0.08)), 0, k * 7);
-  }
-  b.tube([V2(0, 0.86, 0.5), V2(0, 0.84, 0.66), V2(0, 0.75, 0.8)], [0.1, 0.09, 0.06], D, 1, 8);
-  b.blob(V2(0, 0.95, 0.56), 0.12, W, 1, 91, [1, 0.8, 1.1]);
-  for (const s of [-1, 1]) b.blob(V2(s * 0.12, 0.88, 0.58), 0.05, D, 1, 40 + s, [1.6, 0.5, 0.8]);
-  b.blob(V2(0, 0.8, -0.48), 0.09, W, 6, 77);
-  return { geo: b.geometry(), bones: [[0, 0.6, 0], [0, 0.84, 0.48], [0.17, 0.58, 0.33], [-0.17, 0.58, 0.33], [0.17, 0.58, -0.3], [-0.17, 0.58, -0.3], [0, 0.78, -0.45]] };
-}
-function dog(L) {
-  const b = new Build(), C2 = L.body, D = L.dark, rnd = mulberry32(9);
-  b.tube([V2(0, 0.62, -0.46), V2(0, 0.64, -0.12), V2(0, 0.69, 0.22), V2(0, 0.68, 0.42)], [0.13, 0.16, 0.19, 0.16], C2, 0, 9);
-  for (const [x, z, bone, front] of [[0.11, 0.36, 2, 1], [-0.11, 0.36, 3, 1], [0.12, -0.36, 4, 0], [-0.12, -0.36, 5, 0]])
-    b.tube([V2(x, 0.62, z), V2(x, 0.34, z + (front ? 0.03 : -0.07)), V2(x, 0.03, z + (front ? 0.02 : 0.03))], [0.06, 0.045, 0.035], front ? C2 : C2.map((c) => c * 0.92), bone, 6);
-  b.tube([V2(0, 0.72, 0.42), V2(0, 0.84, 0.58), V2(0, 0.86, 0.68), V2(0, 0.82, 0.92)], [0.12, 0.1, 0.09, 0.035], C2, 1, 8);
-  for (const s of [-1, 1]) b.tube([V2(s * 0.06, 0.93, 0.62), V2(s * 0.08, 1.05, 0.6)], [0.04, 8e-3], D, 1, 4);
-  for (let k = 0; k < 12; k++) {
-    const a = k / 12 * Math.PI * 2, r0 = V2(Math.cos(a) * 0.1, 0.78 + Math.sin(a) * 0.1, 0.48);
-    b.tube([r0, r0.clone().add(V2(Math.cos(a) * 0.12, Math.sin(a) * 0.1 + 0.06, -0.12 - rnd() * 0.08))], [0.05, 6e-3], D, Math.sin(a) > -0.2 ? 1 : 0, 4);
-  }
-  b.tube([V2(0, 0.63, -0.46), V2(0, 0.6, -0.66), V2(0, 0.5, -0.85)], [0.05, 0.04, 0.012], D, 6, 6);
-  return { geo: b.geometry(), bones: [[0, 0.62, 0], [0, 0.76, 0.46], [0.11, 0.62, 0.36], [-0.11, 0.62, 0.36], [0.12, 0.62, -0.36], [-0.12, 0.62, -0.36], [0, 0.62, -0.46]] };
-}
-var BUILDERS2 = { fluff_sheep: sheep, mane_dog: dog };
-var cache2 = {};
-function makeCreatureMesh(id, look) {
-  const proto = cache2[id] ?? (cache2[id] = BUILDERS2[id](look));
-  const bones = proto.bones.map(() => new Bone());
-  proto.bones.forEach((p, i) => {
-    const parent = i === 0 ? [0, 0, 0] : proto.bones[0];
-    bones[i].position.set(p[0] - parent[0], p[1] - parent[1], p[2] - parent[2]);
-    if (i > 0) bones[0].add(bones[i]);
-  });
-  const mat2 = makeLitMaterial({
-    uniforms: { uFlash: { value: 0 } },
-    vhead: (
-      /* glsl */
-      `attribute vec3 aCol; varying vec3 vCol;`
-    ),
-    vbody: (
-      /* glsl */
-      `vCol=aCol;`
-    ),
-    head: (
-      /* glsl */
-      `uniform float uFlash; varying vec3 vCol;`
-    ),
-    body: (
-      /* glsl */
-      `alb=vCol*(1.+(texture2D(uNoise,vObj.xz*2.3+vObj.y).b-.5)*.18); ao=mix(.75,1.,smoothstep(.1,.7,vObj.y)); extra=vec3(uFlash);`
-    )
-  });
-  const m = new SkinnedMesh(proto.geo, mat2);
-  m.add(bones[0]);
-  m.bind(new Skeleton(bones));
-  m.castShadow = m.receiveShadow = true;
-  return { mesh: m, bones, rest0: bones[0].position.clone() };
-}
-var SHOW2 = 140;
-var angDiff = (a, b) => ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-var inHours = (h, [a, b]) => a < b ? h >= a && h < b : h >= a || h < b;
-var Wildlife = class {
-  constructor(scene, region) {
-    const r = mulberry32(404);
-    this.list = [];
-    region.habitats.forEach((H, hi) => {
-      const sp = SPECIES[H.species];
-      for (let k = 0; k < H.n; k++) {
-        const a = r() * 6.28, d = Math.sqrt(r()) * H.r * 0.6, m = makeCreatureMesh(H.species, sp.look);
-        scene.add(m.mesh);
-        const c = {
-          id: `${H.species}${hi}_${k}`,
-          sp,
-          kind: H.species,
-          home: H,
-          group: hi,
-          m,
-          x: H.x + Math.cos(a) * d,
-          z: H.z + Math.sin(a) * d,
-          y: 0,
-          yaw: r() * 6.28,
-          hp: sp.hp,
-          state: "idle",
-          t: r() * 5,
-          phase: r() * 6,
-          speed: 0,
-          tx: 0,
-          tz: 0,
-          flash: 0,
-          kx: 0,
-          kz: 0,
-          cool: 0,
-          rnd: mulberry32(hi * 100 + k),
-          dead: 0,
-          respawn: 0
-        };
-        c.y = sample(c.x, c.z);
-        this.list.push(c);
-      }
-    });
-  }
-  // world clock in hours (monotonic) for respawn timing
-  update(dt, t, clock, player, combat, cam) {
-    const hour = clock.hour, now = clock.day * 24 + hour;
-    for (const c of this.list) {
-      if (c.dead) {
-        this.updateDead(c, dt, now);
-        continue;
-      }
-      const dxp = player.pos.x - c.x, dzp = player.pos.z - c.z, dp = Math.hypot(dxp, dzp);
-      c.cool -= dt;
-      c.t -= dt;
-      c.flash = Math.max(0, c.flash - dt * 6);
-      if (c.sp.temper === "timid") this.sheepAI(c, dt, dp, dxp, dzp, player);
-      else this.packAI(c, dt, dp, dxp, dzp, inHours(hour, c.sp.active), player, combat);
-      const mx = c.tx - c.x, mz = c.tz - c.z, md = Math.hypot(mx, mz);
-      let vx = 0, vz = 0;
-      if (md > 0.2 && c.speed > 0) {
-        vx = mx / md * c.speed;
-        vz = mz / md * c.speed;
-        c.yaw += angDiff(c.yaw, Math.atan2(mx, mz)) * Math.min(1, dt * 7);
-      }
-      vx += c.kx;
-      vz += c.kz;
-      c.kx *= Math.exp(-dt * 6);
-      c.kz *= Math.exp(-dt * 6);
-      const nx = c.x + vx * dt, nz = c.z + vz * dt, ny = sample(nx, nz);
-      if (ny > waterLevel(nx, nz, ny) + 0.2 && Math.abs(ny - c.y) < 0.8) {
-        c.x = nx;
-        c.z = nz;
-        c.y = ny;
-      } else {
-        c.t = 0;
-      }
-      c.moving = Math.hypot(vx, vz);
-      this.present(c, dt, t, cam);
-    }
-  }
-  sheepAI(c, dt, dp, dxp, dzp, player) {
-    const threat = dp < c.sp.sense && player.running || dp < 1.5;
-    if (threat && c.state !== "flee") {
-      c.state = "flee";
-      c.t = 4 + c.rnd() * 3;
-      this.alertHerd(c);
-    }
-    if (c.state === "flee") {
-      if (c.t <= 0) c.state = "idle";
-      const away = Math.atan2(-dxp, -dzp) + (c.rnd() - 0.5) * 0.4;
-      c.tx = c.x + Math.sin(away) * 6;
-      c.tz = c.z + Math.cos(away) * 6;
-      c.speed = c.sp.run;
-      return;
-    }
-    if (c.t <= 0) {
-      c.t = 3 + c.rnd() * 8;
-      if (c.rnd() < 0.45) {
-        const a = c.rnd() * 6.28, d = c.rnd() * c.home.r * 0.6;
-        c.tx = c.home.x + Math.cos(a) * d;
-        c.tz = c.home.z + Math.sin(a) * d;
-        c.speed = c.sp.speed;
-      } else {
-        c.tx = c.x;
-        c.tz = c.z;
-        c.speed = 0;
-      }
-    }
-    c.state = c.speed > 0 ? "walk" : "graze";
-  }
-  alertHerd(c) {
-    for (const o of this.list) if (o !== c && o.group === c.group && !o.dead && o.sp.temper === "timid") {
-      o.state = "flee";
-      o.t = 3 + o.rnd() * 3;
-    }
-  }
-  packAI(c, dt, dp, dxp, dzp, active, player, combat) {
-    const A = c.sp.attack, homeD = Math.hypot(c.x - c.home.x, c.z - c.home.z);
-    if (c.state === "flee") {
-      c.speed = c.sp.run;
-      const away = Math.atan2(-dxp, -dzp);
-      c.tx = c.x + Math.sin(away) * 8;
-      c.tz = c.z + Math.cos(away) * 8;
-      if (c.t <= 0) {
-        c.state = "return";
-      }
-      return;
-    }
-    const sense = active ? c.sp.sense : c.sp.senseRest;
-    const hunting = c.state === "chase" || c.state === "windup" || c.state === "recover";
-    if (!hunting && dp < sense && player.mode === "walk") {
-      this.alertPack(c);
-    }
-    if (hunting && (dp > 34 || homeD > c.home.r + 70 || player.mode !== "walk")) {
-      c.state = "return";
-    }
-    switch (c.state) {
-      case "chase": {
-        const d = Math.max(0, dp - 1.3);
-        c.tx = c.x + dxp / dp * d;
-        c.tz = c.z + dzp / dp * d;
-        c.speed = dp > 3 ? c.sp.run : 2;
-        if (dp < A.range + 0.2 && c.cool <= 0) {
-          c.state = "windup";
-          c.t = A.windup;
-          c.speed = 0;
-          c.tx = c.x;
-          c.tz = c.z;
-        }
-        break;
-      }
-      case "windup":
-        c.yaw += angDiff(c.yaw, Math.atan2(dxp, dzp)) * Math.min(1, dt * 10);
-        if (c.t <= 0) {
-          c.kx += Math.sin(c.yaw) * 5;
-          c.kz += Math.cos(c.yaw) * 5;
-          if (dp < A.range + 0.6) combat.hurt(A.dmg, c);
-          c.state = "recover";
-          c.t = 0.6 + c.rnd() * 0.5;
-          c.cool = A.cooldown;
-          const side = (c.rnd() < 0.5 ? -1 : 1) * 1.2, a = Math.atan2(-dxp, -dzp) + side;
-          c.tx = player.pos.x + Math.sin(a) * 4;
-          c.tz = player.pos.z + Math.cos(a) * 4;
-          c.speed = c.sp.run * 0.7;
-        }
-        break;
-      case "recover":
-        if (c.t <= 0) c.state = "chase";
-        break;
-      case "return":
-        c.tx = c.home.x;
-        c.tz = c.home.z;
-        c.speed = c.sp.speed * 1.5;
-        if (homeD < c.home.r * 0.5) {
-          c.state = "idle";
-          c.t = 0;
-        }
-        break;
-      default:
-        if (c.t <= 0) {
-          c.t = 4 + c.rnd() * 9;
-          if (active || c.rnd() < 0.25) {
-            const a = c.rnd() * 6.28, d = c.rnd() * c.home.r;
-            c.tx = c.home.x + Math.cos(a) * d;
-            c.tz = c.home.z + Math.sin(a) * d;
-            c.speed = c.sp.speed;
-          } else {
-            c.tx = c.x;
-            c.tz = c.z;
-            c.speed = 0;
-          }
-        }
-        c.state = c.speed > 0 ? "walk" : active ? "idle" : "rest";
-    }
-  }
-  alertPack(c) {
-    for (const o of this.list) if (!o.dead && o.group === c.group && o.state !== "flee" && Math.hypot(o.x - c.x, o.z - c.z) < 45) o.state = "chase";
-  }
-  // weapons: everything inside the cone and reach of a swing
-  hits(px2, pz2, py2, yaw, reach, cosCone = 0.5) {
-    if (this.active === false) return [];
-    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), out2 = [];
-    for (const c of this.list) {
-      if (c.dead) continue;
-      const dx = c.x - px2, dz = c.z - pz2, d = Math.hypot(dx, dz);
-      if (d > reach + c.sp.radius || Math.abs(c.y - py2) > 2) continue;
-      if (d > 0.4 && (dx * fx + dz * fz) / d < cosCone) continue;
-      out2.push(c);
-    }
-    return out2;
-  }
-  damage(c, dmg, fromYaw, onKill) {
-    c.hp -= dmg;
-    c.flash = 1;
-    const k = c.sp.temper === "timid" ? 3.5 : 2.2;
-    c.kx -= Math.sin(fromYaw) * k;
-    c.kz -= Math.cos(fromYaw) * k;
-    if (c.state === "windup") {
-      c.state = "recover";
-      c.t = 0.5;
-      c.cool = c.sp.attack.cooldown * 0.6;
-    }
-    if (c.sp.temper === "timid") {
-      c.state = "flee";
-      c.t = 6;
-      this.alertHerd(c);
-    } else if (c.sp.fleeAt && c.hp < c.sp.hp * c.sp.fleeAt) {
-      c.state = "flee";
-      c.t = 7;
-    } else if (c.state !== "flee") this.alertPack(c);
-    if (c.hp <= 0) this.kill(c, onKill);
-    else Save.write();
-  }
-  kill(c, onKill) {
-    var _a;
-    c.dead = 1e-3;
-    c.speed = 0;
-    c.state = "dead";
-    (_a = Save.data).kills ?? (_a.kills = {});
-    Save.data.kills[c.kind] = (Save.data.kills[c.kind] || 0) + 1;
-    const loot = [];
-    for (const [id, a, b, p] of c.sp.drops) if (c.rnd() < p) {
-      const n = a + Math.floor(c.rnd() * (b - a + 1));
-      loot.push([id, n, Inventory.add(id, n)]);
-    }
-    Save.write();
-    onKill?.(c, loot);
-  }
-  updateDead(c, dt, now) {
-    if (c.dead < 4) {
-      c.dead += dt;
-      const k = Math.min(1, c.dead / 0.4);
-      c.m.bones[0].rotation.z = k * 1.45;
-      c.m.mesh.position.y = c.y - k * 0.25;
-      if (c.dead >= 4) {
-        c.m.mesh.visible = false;
-        c.respawn = now + 5 + c.rnd() * 3;
-        Save.write();
-      }
-    } else if (now >= c.respawn) {
-      c.dead = 0;
-      c.hp = c.sp.hp;
-      c.state = "idle";
-      c.x = c.home.x + (c.rnd() - 0.5) * c.home.r;
-      c.z = c.home.z + (c.rnd() - 0.5) * c.home.r;
-      c.y = sample(c.x, c.z);
-      c.m.bones[0].rotation.z = 0;
-      Save.write();
-    }
-  }
-  present(c, dt, t, cam) {
-    const d = Math.hypot(c.x - cam.x, c.z - cam.z), m = c.m.mesh;
-    m.visible = d < SHOW2;
-    if (!m.visible) return;
-    m.position.set(c.x, c.y, c.z);
-    m.rotation.y = c.yaw;
-    m.castShadow = d < 40;
-    m.material.uniforms.uFlash.value = c.flash * 0.8;
-    const B2 = c.m.bones, sp = c.moving ?? 0, w = Math.min(1, sp / 2);
-    c.phase += dt * (3 + sp * 2.2);
-    const s = Math.sin(c.phase) * 0.55 * w;
-    B2[2].rotation.x = s;
-    B2[5].rotation.x = s;
-    B2[3].rotation.x = -s;
-    B2[4].rotation.x = -s;
-    B2[0].position.y = c.m.rest0.y + Math.abs(Math.cos(c.phase)) * 0.03 * w - (c.state === "windup" ? 0.1 : c.state === "rest" ? 0.3 : 0);
-    B2[0].rotation.x = c.state === "windup" ? 0.12 : 0;
-    const graze = c.state === "graze" ? 0.75 + Math.sin(t * 2 + c.phase) * 0.08 : c.state === "chase" ? 0.15 : c.state === "windup" ? 0.35 : 0;
-    B2[1].rotation.x += (graze - B2[1].rotation.x) * Math.min(1, dt * 4);
-    B2[6].rotation.y = Math.sin(t * (c.state === "chase" ? 9 : 3) + c.phase) * 0.35;
   }
 };
 var COL = { steel: [0.8, 0.84, 0.88], dark: [0.36, 0.3, 0.26], wood: [0.5, 0.38, 0.26], brass: [0.72, 0.58, 0.34] };
@@ -51610,9 +51183,9 @@ var ViewModel = class {
   }
 };
 var Combat = class {
-  constructor({ player, rig, wildlife, ui, view, onDown }) {
+  constructor({ player, rig, ui, view, onDown }) {
     var _a;
-    Object.assign(this, { player, rig, wildlife, ui, view, onDown });
+    Object.assign(this, { player, rig, ui, view, onDown });
     this.max = 100;
     this.hp = Save.data.hp ?? 100;
     this.swing = null;
@@ -51659,7 +51232,7 @@ var Combat = class {
     else if (L !== FISTS && R === FISTS) hand = "left";
     this.next = hand === "right" ? "left" : "right";
     const w = this.weapon(hand), dur = 1.15 / w.rate;
-    this.swing = { hand, w, t: 0, dur, spec: maktwoAttackSpec(w.model, dur), contact: null, hit: false, targets: /* @__PURE__ */ new Set() };
+    this.swing = { hand, w, t: 0, dur, spec: maktwoAttackSpec(w.model, dur), contact: null, hit: false };
   }
   strike(a, progress) {
     const p = this.player, spec = a.spec, side = a.hand === "right" ? 1 : -1;
@@ -51669,33 +51242,8 @@ var Combat = class {
     const origin = { x: p.pos.x, y: p.pos.y + PLAYER.height - 0.18, z: p.pos.z };
     const reach = a.w.reach * (0.84 + 0.16 * Math.sin(progress * Math.PI));
     const solid = maktwoWorldRay(origin, dir, reach);
-    let nearest = null, distance = solid;
-    for (const c of this.wildlife.list) {
-      if (c.dead || a.targets.has(c)) continue;
-      const dx = c.x - origin.x, dz = c.z - origin.z;
-      const along = dx * dir.x + dz * dir.z;
-      if (along < 0 || along > distance + c.sp.radius) continue;
-      const horizontal = Math.hypot(dx - dir.x * along, dz - dir.z * along);
-      if (horizontal > c.sp.radius + 0.13) continue;
-      const cy = origin.y + dir.y * along;
-      if (cy < c.y - 0.15 || cy > c.y + Math.max(1.8, c.sp.radius * 2)) continue;
-      if (along < distance) {
-        distance = along;
-        nearest = c;
-      }
-    }
-    if (!nearest && solid >= reach - 1e-3) return false;
-    a.contact = { time: a.t, arc, distance, extension: clamp2((distance - a.w.reach * 0.75) / 0.62, 0, 0.85) };
-    if (nearest) {
-      a.hit = true;
-      a.targets.add(nearest);
-      this.wildlife.damage(
-        nearest,
-        a.w.dmg * (0.9 + Math.random() * 0.2),
-        p.yaw + Math.PI,
-        (cc, loot) => this.onKill?.(cc, loot)
-      );
-    }
+    if (solid >= reach - 1e-3) return false;
+    a.contact = { time: a.t, arc, distance: solid, extension: clamp2((solid - a.w.reach * 0.75) / 0.62, 0, 0.85) };
     return true;
   }
   hurt(dmg, src) {
@@ -52358,6 +51906,7 @@ async function boot() {
   shared.uStroke.value.anisotropy = anisotropy;
   const region = SERNBELD;
   Save.load();
+  if (discardLegacyAnimalTasks(Save.data)) Save.write();
   if (!Save.data.combatDemoSwordGranted) {
     if (Inventory.count("apprentice_sword") === 0) Inventory.add("apprentice_sword", 1);
     Save.data.combatDemoSwordGranted = true;
@@ -52447,32 +51996,15 @@ async function boot() {
   ui.activeIds = () => Save.data.requests.map((q) => q.id);
   explore.providers.push((p) => folk.candidate(p), (p) => society.boardCandidate(p));
   scene.add(camera);
-  const wildlife = new Wildlife(scene, region);
-  const regionEntries = [
-    ...folk.list.map((n, i) => ({
-      id: 'resident:' + region.id + ':' + i, kind: 'resident', ref: n,
-      getState: () => ({lineI: n.lineI}),
-      setState: state => { if (Number.isSafeInteger(state.lineI) && state.lineI >= 0) n.lineI = state.lineI; },
-      setActive: active => { n.ch.group.visible = active && !n.hidden; }
-    })),
-    ...wildlife.list.map(c => ({
-      id: 'wildlife:' + region.id + ':' + c.id, kind: 'wildlife', ref: c,
-      getState: () => ({hp: Math.max(0, c.hp), dead: c.dead, respawn: c.respawn}),
-      setState: state => {
-        if (Number.isFinite(state.hp) && state.hp >= 0 && state.hp <= c.sp.hp) c.hp = state.hp;
-        if (Number.isFinite(state.dead) && state.dead >= 0) c.dead = state.dead;
-        if (Number.isFinite(state.respawn) && state.respawn >= 0) c.respawn = state.respawn;
-        if (c.dead > 0) { c.state = 'dead'; c.speed = 0; }
-      },
-      setActive: active => {
-        wildlife.active = active;
-        c.m.mesh.visible = active && !c.dead;
-      }
-    }))
-  ];
+  const regionEntries = folk.list.map((n, i) => ({
+    id: 'resident:' + region.id + ':' + i, kind: 'resident', ref: n,
+    getState: () => ({lineI: n.lineI}),
+    setState: state => { if (Number.isSafeInteger(state.lineI) && state.lineI >= 0) n.lineI = state.lineI; },
+    setActive: active => { n.ch.group.visible = active && !n.hidden; }
+  }));
   WorldRegions.mount(region.id, regionEntries);
   const view = new ViewModel(camera);
-  const combat = new Combat({ player, rig, wildlife, ui, view, onDown: (lost) => {
+  const combat = new Combat({ player, rig, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
     teleport({ x: m[0], z: m[1], lookAt: [m[0], m[1] - 12] });
     clock.hour += 6;
@@ -52485,9 +52017,6 @@ async function boot() {
     ui.say({ name: "\uC5D0\uB2E4 \uC218\uB140", title: "\uC218\uB3C4\uC6D0 \uC57D\uCD08\uD559\uC790" }, lost ? `\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uCE58\uB8CC\uBE44\uB85C \uC740\uD654 ${lost}\uB2E2 \uBC1B\uC558\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.` : "\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.");
     Save.write();
   } });
-  combat.onKill = (c, loot) => {
-    for (const [id, n, total] of loot) ui.pickup(id, n, total);
-  };
   society.onBought = (id, hand) => {
     if (hand) combat.equip(id, hand);
   };
@@ -52641,7 +52170,6 @@ async function boot() {
     rig.update(dt, player);
     if (WorldRegions.isActive(region.id)) {
       folk.update(dt, t, clock.hour, player, camera.position);
-      wildlife.update(dt, t, clock, player, combat, camera.position);
     }
     combat.update(dt);
     if (player.mode === "walk") maktwoAttackCamera(camera, combat.swing, rig.motion);
@@ -52664,7 +52192,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, wildlife, combat, frame: () => tick(performance.now()) };
+  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

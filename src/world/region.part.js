@@ -186,16 +186,6 @@ var SERNBELD = {
     { kind: "arch", x: 330, z: 640, yaw: 0.1 },
     { kind: "arch", x: -330, z: 330, yaw: -0.5 }
   ],
-  // creature habitats: herds and packs live around a centre
-  habitats: [
-    { species: "fluff_sheep", x: -860, z: -560, r: 60, n: 6 },
-    { species: "fluff_sheep", x: -560, z: -640, r: 50, n: 5 },
-    { species: "fluff_sheep", x: -700, z: -430, r: 45, n: 4 },
-    { species: "fluff_sheep", x: -480, z: 40, r: 55, n: 5 },
-    { species: "mane_dog", x: -990, z: -470, r: 60, n: 4 },
-    { species: "mane_dog", x: -330, z: -690, r: 50, n: 3 },
-    { species: "mane_dog", x: -440, z: 390, r: 60, n: 4 }
-  ],
   // spots that NPC schedules refer to
   places: {
     plaza: [397, -432],

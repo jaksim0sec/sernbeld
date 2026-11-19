@@ -29,6 +29,8 @@ jobs:
         run: node tests/durable-items.mjs
       - name: Validate region activation and compact state restoration
         run: node tests/region-lifecycle.mjs
+      - name: Validate wildlife removal and saved quest compatibility
+        run: node tests/wildlife-removal.mjs
       - name: Validate registered female mesh, rig and standard skin
         run: node tests/character-assets.mjs
       - name: Render female model with standard skin in Chromium
