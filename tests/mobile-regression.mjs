@@ -33,14 +33,24 @@ try {
    for(let n=0;n<5;n++){if(await page.locator('#intro').isVisible())await page.locator('#intro').tap({timeout:8000});else break;}
    assert.equal(await page.locator('#intro').isVisible(),false,label+' intro not dismissed');
    // Compare tangible SVG shapes, not just the existence of <use> tags.
+   // External <symbol> + outer <svg> must not apply the viewBox origin twice:
+   // compare the actual painted <use> bounds to its circular button center.
    const icons=await page.evaluate(()=>{
-    return ['#bagBtn svg','#tpBtn svg'].map(sel=>{
-      const node=document.querySelector(sel),r=node.getBoundingClientRect(),g=node.getBBox();
-      return {visible:r.width>0&&r.height>0,geometry:g.width>0&&g.height>0,rect:[Math.round(r.width),Math.round(r.height)]};
+    return ['#bagBtn','#tpBtn','#atk','#jump'].map(sel=>{
+      const button=document.querySelector(sel),node=button.querySelector('svg');
+      const r=node.getBoundingClientRect(),g=node.getBBox(),b=button.getBoundingClientRect();
+      const use=node.querySelector('use'),painted=use?.getBoundingClientRect();
+      const centerOffset=painted&&b.width&&b.height
+        ? [+(painted.x+painted.width/2-b.x-b.width/2).toFixed(2),
+           +(painted.y+painted.height/2-b.y-b.height/2).toFixed(2)] : null;
+      return {id:sel,visible:r.width>0&&r.height>0,geometry:g.width>0&&g.height>0,
+        rect:[Math.round(r.width),Math.round(r.height)],centerOffset};
     });
    });
-   assert(icons.every(i=>i.visible&&i.geometry),'HUD SVG icon is not geometrically rendered');
+   assert(icons.slice(0,2).every(i=>i.visible&&i.geometry),'HUD SVG icon is not geometrically rendered');
    if(label==='refactor'){
+     assert(icons.filter(i=>i.centerOffset).every(i=>i.centerOffset.every(v=>Math.abs(v)<=2)),
+       'A HUD icon is visibly off-center: '+JSON.stringify(icons));
      assert.equal(assetResponses.length,1,'SVG sprite was not fetched exactly once');
      assert.equal(assetResponses[0].status,200,'External SVG file failed');
      assert(assetResponses[0].mime.includes('svg'),'External SVG MIME is incorrect');
@@ -101,7 +111,11 @@ try {
    await context.close();
   }
   const a=results[viewport.id].main,b=results[viewport.id].refactor;
-  assert.deepEqual(b.icons,a.icons,'Visible HUD SVG geometry differs');
+  assert.deepEqual(
+    b.icons.slice(0,2).map(({visible,geometry,rect})=>({visible,geometry,rect})),
+    a.icons.slice(0,2).map(({visible,geometry,rect})=>({visible,geometry,rect})),
+    'Visible HUD SVG geometry differs'
+  );
   assert.deepEqual(b.bagState,a.bagState,'Bag behavior differs');
   assert.deepEqual(b.mapState,a.mapState,'Map state differs');
   assert.equal(b.directMapClose,a.directMapClose,'Map touch close regression');
