@@ -6,6 +6,12 @@
 정적 HTTP 서버에서 `index.html`을 연다. 예: `python -m http.server 8000` 또는 GitHub Pages.
 `file://` 직접 실행 시 GLB 및 외부 SVG 아이콘 로딩이 브라우저 정책에 의해 차단될 수 있다.
 
+## 오프라인 PWA
+HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라인 게임 파일을 저장해.
+최초 접속을 온라인에서 완료하면 설치 후 네트워크가 없어도 다시 실행할 수 있어.
+온라인에서는 새 버전을 캐시보다 우선하고, 파일 변경이 감지되면 **업데이트** 버튼으로 안전하게 새로고침할 수 있어.
+자세한 내용과 테스트 범위는 [docs/PWA.md](docs/PWA.md)를 참고해.
+
 ## 구조
 - `index.html`: 게임 DOM과 화면 진입점
 - `styles/`: HUD·메뉴·지도·반응형·디자인 토큰 CSS
