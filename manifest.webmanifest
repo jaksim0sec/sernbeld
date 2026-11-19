@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "세른벨드",
+  "short_name": "세른벨드",
+  "description": "세른벨드 오픈월드 3D 게임. 설치 후 오프라인에서도 탐험할 수 있어.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#102332",
+  "theme_color": "#102332",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "./assets/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
