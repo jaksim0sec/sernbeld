@@ -12,6 +12,9 @@
 - `styles.css`: 기존 호환용 CSS 진입점
 - `assets/ui-icons.svg`: 11종 공용 UI 아이콘, HTML에서 15번 사용
 - `assets/kael-cutstone-v7.glb.gz`: 압축 3D 에셋
+- `assets/models/characters/female-base-v1.mesh.json`: 여성 기본 인체 원본 스키닝 메시 (47관절)
+- `src/render/materials/standard-skin.js`: 사람 캐릭터용 표준 2톤 툰 스킨 재질
+- `src/entities/character/`: 여성 기본 모델 로더 및 공용 모델·스킨 레지스트리
 - `src/`: 재조립 가능한 JS 번들 **소스 조각**. 독립 ES 모듈은 아님
 - `game.js`: 기존 게임을 실제로 실행하는 단일 번들 (분리 전후 유지)
 - `tools/build-game.mjs`: JS 소스 재조립과 바이트 동일성 검증
@@ -19,6 +22,8 @@
 - `세른벨드_게임_컨셉_종합.md`: 방향 기획 문서, 예시는 콘텐츠의 상한선이 아님
 
 자세한 설명과 제약은 [docs/STRUCTURE.md](docs/STRUCTURE.md) 참고.
+
+캐릭터 모델, 표준 피부 및 사용법은 [docs/CHARACTERS.md](docs/CHARACTERS.md) 참고. 등록만 했으며 게임 내 기존 NPC와 플레이어 외형은 변경하지 않았다.
 
 ## 검증
 ```bash
