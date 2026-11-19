@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>세른벨드 | 카엘 항구 입체구도 v2</title>
+<!-- Kael art direction v2: nonparallel masonry platforms, lateral stairs, diagonal viewpoints. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<canvas id="view" aria-label="세른벨드 3D 월드"></canvas>
+<aside class="hud-rail" id="hudRail" aria-label="탐험 정보">
+  <button type="button" class="hud-map hud-map-button" id="hudMapOpen" aria-controls="worldMap" aria-haspopup="dialog" aria-label="전체 지도 열기" title="전체 지도 열기">
+    <canvas id="miniMap" width="128" height="128" aria-hidden="true"></canvas><span class="hud-map-north" aria-hidden="true">N</span><span class="hud-map-open-hint" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></span>
+  </button>
+  <div class="hud-context">
+    <div class="hud-world" aria-label="월드 시간">
+      <span class="hud-world-kicker">세른벨드 · 탐험</span>
+      <div class="clock" id="clock" aria-live="off"></div>
+    </div>
+    <button type="button" class="perf min" id="perf" title="눌러서 성능 정보 펼치기" aria-label="성능 정보"><span id="fps">— fps</span><span id="tris"></span><span id="calls"></span><span id="pos"></span></button>
+  </div>
+  <section class="hud-objective" aria-label="현재 목표">
+    <div class="hud-objective-kicker">현재 목표</div>
+    <div class="goal" id="goal"></div>
+  </section>
+</aside>
+<div class="bar" id="bar">
+  <button type="button" class="pill hud-btn" id="bagBtn" aria-controls="bag" aria-label="가방" title="가방"><svg class="hud-icon" viewBox="26 28 160 160" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M 56.73 113.50 L 54.52 123.50 L 54.48 131.50 L 53.52 134.50 L 54.73 146.50 L 58.52 154.50 L 63.50 159.27 L 71.50 162.48 L 142.50 162.48 L 151.50 158.48 L 156.27 153.50 L 159.48 145.50 L 159.48 124.50 L 156.25 111.50 L 154.50 110.00 L 147.50 115.25 L 142.50 116.73 L 139.75 118.52 L 139.25 133.50 L 135.50 136.48 L 133.50 136.25 L 130.75 133.50 L 130.48 119.50 L 129.48 117.75 L 83.75 117.75 L 83.27 132.50 L 81.48 135.27 L 78.50 136.47 L 74.75 133.50 L 74.25 118.52 L 63.50 113.27 L 60.27 109.77 L 58.52 110.52 Z M 59.53 94.50 L 60.73 100.50 L 63.52 105.50 L 66.50 108.27 L 74.50 111.48 L 139.50 111.48 L 148.50 107.48 L 151.27 104.50 L 153.48 99.50 L 153.48 91.50 L 150.48 84.50 L 146.50 80.73 L 140.50 77.73 L 134.50 77.48 L 132.52 76.48 L 131.52 74.50 L 131.27 70.50 L 129.25 65.50 L 126.48 61.50 L 120.50 56.73 L 114.50 54.52 L 99.50 54.52 L 95.50 55.73 L 90.50 58.73 L 84.75 65.50 L 82.25 75.48 L 80.50 76.48 L 72.50 77.73 L 64.52 82.52 L 60.73 89.50 Z M 91.52 73.50 L 93.73 68.50 L 97.50 64.75 L 101.50 63.52 L 112.50 63.52 L 117.50 65.73 L 119.48 67.50 L 122.27 72.50 L 122.25 75.48 L 120.50 76.48 L 93.50 76.48 L 91.75 75.48 Z"/></svg></button>
+  <button type="button" class="pill hud-btn" id="tpBtn" aria-controls="travel" aria-label="이동" title="이동"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M 149.50 64.73 L 142.50 64.73 L 107.50 80.73 L 68.50 99.75 L 64.73 105.50 L 65.75 110.50 L 69.50 113.27 L 97.50 116.52 L 101.48 119.50 L 103.48 127.50 L 103.52 134.50 L 104.48 137.50 L 104.52 143.50 L 105.73 150.50 L 106.73 152.48 L 109.50 154.27 L 112.50 155.03 L 115.50 154.25 L 119.25 150.50 L 153.27 74.50 L 153.27 68.50 L 152.27 66.52 Z"/></svg></button>
+</div>
+<section class="panel" id="bag" hidden aria-label="가방"><aside class="ui-menu-sidebar" aria-label="메뉴 탐색"><div class="ui-menu-brand"><span class="ui-menu-brand-name">SERNBELD</span></div><nav class="ui-menu-nav" aria-label="메뉴"><button type="button" class="ui-nav-link" data-ui-panel="bag" aria-current="page" aria-label="가방" title="가방"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 9h14v11H5zM9 9V6a3 3 0 0 1 6 0v3M9 13h6"/></svg><span>가방</span></button><button type="button" class="ui-nav-link" data-ui-panel="travel" aria-label="이동" title="이동"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 2 8 8-8 12-8-12 8-8Zm0 5-3 6 6-3-3-3Z"/></svg><span>이동</span></button></nav><div class="ui-nav-divider"></div><span class="ui-nav-caption">물품 분류</span><button type="button" class="ui-category-link" data-ui-filter="all" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span>전체</span></button><button type="button" class="ui-category-link" data-ui-filter="weapon" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 19 5-5m2-2 7-7-4-1-7 7m3 3 3 3-5 5-4-4 5-5"/></svg><span>무기</span></button><button type="button" class="ui-category-link" data-ui-filter="material" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 4c-8 0-15 4-15 12a5 5 0 0 0 5 5c8 0 12-7 10-17ZM6 19l10-10"/></svg><span>재료</span></button><div class="ui-sidebar-footer">SERNBELD</div></aside><div class="ui-page-main"><header><h2>가방</h2><span class="coin" id="bagMoney"></span><button type="button" class="close" aria-label="닫기" title="닫기">닫기</button></header><div class="ui-bag-content"><div class="ui-bag-catalog"><div class="ui-page-kicker">보유 아이템</div><div class="grid"></div></div><aside class="ui-bag-detail"><div class="ui-page-kicker">아이템 상세</div><div class="info"></div></aside></div></div></section>
+<section class="panel" id="travel" hidden aria-label="이동"><aside class="ui-menu-sidebar" aria-label="메뉴 탐색"><div class="ui-menu-brand"><span class="ui-menu-brand-name">SERNBELD</span></div><nav class="ui-menu-nav" aria-label="메뉴"><button type="button" class="ui-nav-link" data-ui-panel="bag" aria-label="가방" title="가방"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 9h14v11H5zM9 9V6a3 3 0 0 1 6 0v3M9 13h6"/></svg><span>가방</span></button><button type="button" class="ui-nav-link" data-ui-panel="travel" aria-current="page" aria-label="이동" title="이동"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 2 8 8-8 12-8-12 8-8Zm0 5-3 6 6-3-3-3Z"/></svg><span>이동</span></button></nav><div class="ui-sidebar-footer">SERNBELD</div></aside><div class="ui-page-main"><header><h2>이동</h2><button type="button" class="close" aria-label="닫기" title="닫기">닫기</button></header><div class="ui-page-scroll"><div class="ui-page-kicker">발견한 지점과 탐험 설정</div><div class="body"></div></div></div></section>
+<section class="world-map-screen" id="worldMap" role="dialog" aria-modal="true" aria-label="세른벨드 전체 지도" hidden>
+  <header class="world-map-top"><div class="world-map-heading"><strong>세른벨드 지도</strong><small>탐험 · 항로 · 웨이포인트</small></div><button type="button" id="mapClose" class="world-map-close" aria-label="지도 닫기">×</button></header>
+  <div class="world-map-content">
+    <div class="world-map-stage" id="worldMapStage" aria-label="드래그하여 이동, 두 손가락으로 확대하는 월드 지도">
+      <canvas id="worldMapCanvas" aria-label="월드 지형 지도"></canvas>
+      <div class="world-map-axis">북쪽</div>
+      <div class="world-map-scale" id="mapScale">전체 섬 · 북쪽 ↑</div>
+      <div class="world-map-controls">
+        <button type="button" id="mapZoomIn" aria-label="지도 확대">+</button>
+        <button type="button" id="mapZoomOut" aria-label="지도 축소">−</button>
+        <button type="button" id="mapRecenter" aria-label="현재 위치로 이동" title="내 위치">⌖</button>
+      </div>
+    </div>
+    <aside class="world-map-aside" aria-label="지도 정보">
+      <div class="world-map-section-label">현재 위치</div>
+      <div class="world-map-status"><span id="mapPosition">위치 확인 중</span><span id="mapDiscovered">발견 지점 0</span></div>
+      <div class="world-map-section-label">발견한 웨이포인트</div>
+      <div id="mapWaypoints" class="world-map-waypoints" aria-label="이동 가능한 발견 지점"></div>
+      <div class="world-map-section-label">선택한 지점</div>
+      <div class="world-map-details"><h3 id="mapSelectedName">지도를 눌러 선택</h3><p id="mapSelectedDesc">발견한 지점을 누르거나 지도에 임시 표식을 남길 수 있어</p><div class="world-map-actions"><button type="button" id="mapTargetBtn" class="primary" disabled>목적지 표시</button><button type="button" id="mapTravelBtn" disabled>빠른 이동</button></div></div>
+      <div class="world-map-aside-footer">지도는 실제 지형 데이터를 사용해 표시돼. 미발견 웨이포인트는 나타나지 않아.</div>
+    </aside>
+  </div>
+</section>
+
+<button type="button" class="prompt" id="prompt" hidden></button>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="banner" id="banner" aria-live="polite"></div>
+
+<div class="labels" id="labels" aria-hidden="true"></div>
+<div class="speech" id="speech" hidden role="status"><b id="speechName"></b><small id="speechTitle"></small><p id="speechLine"></p><div class="opts" id="speechOpts"></div></div>
+
+<section class="panel" id="board" hidden aria-label="의뢰판"><aside class="ui-menu-sidebar" aria-label="메뉴 탐색"><div class="ui-menu-brand"><span class="ui-menu-brand-name">SERNBELD</span></div><nav class="ui-menu-nav" aria-label="메뉴"><button type="button" class="ui-nav-link" data-ui-panel="bag" aria-label="가방" title="가방"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 9h14v11H5zM9 9V6a3 3 0 0 1 6 0v3M9 13h6"/></svg><span>가방</span></button><button type="button" class="ui-nav-link" data-ui-panel="travel" aria-label="이동" title="이동"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 2 8 8-8 12-8-12 8-8Zm0 5-3 6 6-3-3-3Z"/></svg><span>이동</span></button><span class="ui-nav-link" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12v18l-6-4-6 4V3Zm6 3v6m0 3h.01"/></svg><span>의뢰</span></span></nav><div class="ui-sidebar-footer">SERNBELD</div></aside><div class="ui-page-main"><header><h2>의뢰판</h2><span class="coin" id="boardMoney"></span><button type="button" class="close" aria-label="닫기" title="닫기">닫기</button></header><div class="ui-page-scroll"><div class="ui-page-kicker">항구 조합의 의뢰</div><div class="body"></div></div></div></section>
+<div class="fade" id="fade" hidden><span id="fadeText"></span></div>
+<div class="intro" id="intro" hidden><p id="introLine"></p><small>눌러서 계속</small></div>
+<div class="toast" id="toast"><b id="toastTitle"></b><span id="toastSub"></span><i></i></div>
+<div class="hint" id="hint"></div>
+<div class="stick" id="stick"><i></i></div>
+<button type="button" class="jump pill" id="jump" hidden aria-label="점프"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M 78.52 151.50 L 80.73 157.27 L 85.50 159.48 L 141.50 159.48 L 146.27 157.27 L 148.48 153.50 L 148.48 150.50 L 147.27 147.50 L 145.50 145.73 L 142.50 144.52 L 85.50 144.52 L 80.73 146.73 Z M 111.50 68.52 L 107.50 70.52 L 86.52 92.50 L 84.73 95.50 L 84.52 99.50 L 86.52 103.27 L 89.50 104.48 L 93.50 104.48 L 96.50 103.27 L 106.48 95.00 L 107.25 95.53 L 107.52 129.50 L 109.50 132.27 L 114.50 133.48 L 118.48 131.48 L 119.48 129.50 L 119.52 103.50 L 120.75 96.53 L 121.52 95.98 L 123.50 96.73 L 130.50 103.27 L 133.50 104.48 L 137.50 104.48 L 140.48 103.27 L 142.27 100.50 L 142.48 97.50 L 141.27 94.50 L 137.48 89.50 L 119.50 70.52 L 116.50 68.73 Z"/></svg></button>
+<button type="button" class="atk pill" id="atk" hidden aria-label="공격"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M 113.75 129.50 L 113.75 131.48 L 119.50 136.25 L 123.50 135.53 L 125.00 136.52 L 118.73 144.50 L 118.73 146.50 L 121.50 150.25 L 126.50 150.25 L 132.50 145.00 L 138.48 151.50 L 139.75 154.50 L 145.50 161.27 L 151.50 163.25 L 157.27 160.48 L 158.50 155.50 L 157.27 150.50 L 153.50 146.73 L 141.50 139.27 L 140.00 137.50 L 144.27 132.50 L 145.48 129.50 L 145.25 127.50 L 142.50 124.75 L 138.50 124.73 L 132.50 129.23 L 131.52 129.23 L 130.52 127.50 L 130.25 123.50 L 125.50 119.00 L 119.50 123.52 Z M 155.48 70.50 L 153.50 68.75 L 147.50 68.52 L 138.50 72.52 L 92.52 119.50 L 88.75 124.50 L 88.25 128.48 L 87.48 129.23 L 86.50 129.23 L 81.50 124.75 L 77.50 124.52 L 75.52 125.52 L 73.75 129.50 L 78.27 135.50 L 79.24 138.48 L 72.50 141.73 L 67.50 145.52 L 61.73 151.50 L 60.52 156.50 L 62.52 160.50 L 64.50 162.25 L 68.50 163.47 L 72.50 162.25 L 76.27 159.48 L 81.73 150.50 L 86.52 144.77 L 88.50 145.52 L 93.50 150.25 L 97.50 150.48 L 99.48 149.48 L 100.48 147.50 L 100.25 143.50 L 94.00 136.50 L 95.50 135.00 L 97.50 136.25 L 99.50 136.25 L 105.50 131.48 L 134.50 105.48 L 151.48 88.50 L 156.27 79.50 L 156.48 72.50 Z M 64.52 69.73 L 62.73 72.50 L 62.52 77.50 L 64.73 83.50 L 67.73 88.50 L 91.50 111.48 L 93.50 112.23 L 105.48 100.50 L 106.23 98.50 L 97.50 88.50 L 84.50 75.52 L 79.50 71.73 L 71.50 68.52 L 67.50 68.52 Z"/></svg></button>
+<div class="hud-vitals" aria-label="플레이어 상태"><span class="hud-vitals-kicker">체력</span><div class="hp" id="hp" aria-label="체력"></div></div>
+<div class="vignette" id="vig"></div>
+<div class="loading" id="loading"><h1>세른벨드</h1><p id="loadText">불러오는 중</p><div class="track"><b id="loadBar"></b></div></div>
+<div class="err" id="err" role="alert"></div>
+
+<!-- Three.js and GLTFLoader
+The MIT License
+
+Copyright © 2010-2025 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-->
+<script type="module" src="./game.js"></script>
+</body>
+</html>
