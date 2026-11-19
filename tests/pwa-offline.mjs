@@ -35,6 +35,7 @@ try {
   const controller=await page.evaluate(async()=>{
     const reg=await navigator.serviceWorker.ready;
     const expected=['index.html','game.js','pwa.js','manifest.webmanifest','assets/ui-icons.svg',
+      'assets/pwa-icon-192.png','assets/pwa-icon-512.png',
       'assets/kael-cutstone-v7.glb.gz','assets/models/characters/female-base-v1.mesh.json',
       'styles/tokens.css','styles/hud.css','styles/menus-and-overlays.css',
       'styles/responsive.css','styles/world-map.css'];
