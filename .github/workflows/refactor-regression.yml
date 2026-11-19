@@ -17,6 +17,8 @@ jobs:
           node --check game.js
       - name: Prepare main baseline
         run: git worktree add --detach /tmp/sernbeld-main origin/main
+      - name: Validate original HTML, CSS, assets and unchanged JavaScript
+        run: node tests/structure-check.mjs
       - name: Install headless browser tooling
         run: |
           npm install --no-save --no-package-lock playwright pngjs
