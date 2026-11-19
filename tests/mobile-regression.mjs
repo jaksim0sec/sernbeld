@@ -71,8 +71,11 @@ try {
      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
      await cdp.detach();
    }
+   await page.waitForTimeout(180); // settle synthetic touch/click after manual CDP gesture
    await page.locator('#mapClose').tap();
-   assert.equal(await page.locator('#worldMap').isVisible(),false,'Map failed to close');
+   await page.waitForFunction(()=>document.getElementById('worldMap').hidden,{timeout:3000}).catch(()=>{});
+   const mapClosed=await page.evaluate(()=>({hidden:document.getElementById('worldMap').hidden,isOpen:window.__dev.fullMap.isOpen(),active:document.activeElement?.id}));
+   assert.equal(mapClosed.hidden,true,'Map failed to close: '+JSON.stringify(mapClosed));
    // Real touch sequence on the gameplay canvas to exercise the pointer-based input path.
    const cdp=await context.newCDPSession(page);
    const x=65,y=viewport.height-65;
