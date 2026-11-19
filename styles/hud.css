@@ -1,0 +1,62 @@
+/* ============ Shared material grammar ============ */
+.ui-hud-surface{background:var(--ui-world-wash);border:1px solid var(--ui-stroke);box-shadow:var(--ui-shadow-floating);color:var(--ui-ink)}
+.ui-control-surface{background:var(--ui-control-wash);border:1px solid var(--ui-stroke-control);box-shadow:var(--ui-shadow-control);color:var(--ui-glyph)}
+.ui-dialog-surface{background:var(--ui-panel-wash);border:1px solid var(--ui-stroke);box-shadow:var(--ui-shadow-panel);color:var(--ui-ink)}
+.ui-inset-surface{background:var(--ui-layer-wash);border:1px solid var(--ui-stroke);color:var(--ui-ink)}
+.pill{border-radius:var(--ui-radius-pill)}
+
+/* ============ World minimap: same HUD grammar, game terrain data ============ */
+.hud-map{position:relative;flex:none;width:var(--ui-map-size);height:var(--ui-map-size);border-radius:50%;overflow:hidden;border:1px solid var(--ui-map-rim);background:var(--ui-map-wash);box-shadow:var(--ui-map-shadow);pointer-events:none;isolation:isolate}
+.hud-map::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;box-shadow:inset 0 0 0 5px rgba(250,255,253,.055),inset 0 0 14px rgba(4,18,28,.28)}
+.hud-map canvas{display:block;width:100%;height:100%;opacity:.98}
+.hud-map-north{position:absolute;z-index:1;top:4px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:750;letter-spacing:.04em;color:rgba(250,255,252,.95);text-shadow:0 1px 3px rgba(2,12,19,.9)}
+
+/* ============ In-world HUD: purpose first, no opaque cards ============ */
+.hud-rail{position:fixed;z-index:2;top:calc(env(safe-area-inset-top,0px) + var(--ui-top));left:calc(env(safe-area-inset-left,0px) + var(--ui-edge));width:min(262px,calc(100vw - 142px));display:flex;flex-direction:column;gap:8px;align-items:flex-start;pointer-events:none;color:var(--ui-ink);text-shadow:var(--ui-hud-text-shadow)}
+.hud-context{display:flex;align-items:center;flex-wrap:wrap;gap:5px 12px;max-width:100%}
+.hud-world{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;background:none;border:0;box-shadow:none;padding:0}
+.hud-world-kicker{display:none}
+.clock{position:static;display:block;min-width:0;color:var(--ui-ink);font-size:.76rem;font-weight:600;white-space:nowrap;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.perf{position:static;display:flex;gap:6px;align-items:center;min-height:20px;max-width:100%;padding:2px 4px;font-size:.63rem;font-variant-numeric:tabular-nums;cursor:pointer;pointer-events:auto;border-radius:var(--ui-radius-micro);border:0;background:transparent;color:var(--ui-ink-soft);box-shadow:none;text-shadow:var(--ui-hud-text-shadow)}
+.perf.min span:not(:first-child){display:none}
+.perf:not(.min){position:fixed;top:calc(env(safe-area-inset-top,0px) + 53px);left:calc(env(safe-area-inset-left,0px) + var(--ui-edge));max-width:min(310px,calc(100vw - 24px));z-index:11;display:flex;flex-wrap:wrap;padding:9px 11px;background:var(--ui-panel-wash);border:1px solid var(--ui-stroke);border-radius:var(--ui-radius-card);color:var(--ui-ink);box-shadow:var(--ui-shadow-floating)}
+.hud-objective{display:flex;flex-direction:column;gap:2px;padding:2px 0 2px 12px;max-width:100%;width:min(246px,100%);background:transparent;border:0;border-left:2px solid rgba(245,249,246,.72);box-shadow:none;border-radius:0}
+.hud-objective:has(.goal:empty){display:none}
+.hud-objective-kicker{font-size:.61rem;letter-spacing:.09em;font-weight:700;color:var(--ui-ink-soft);text-transform:uppercase}
+.goal{position:static;max-width:100%;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere;margin:0;padding:0;color:var(--ui-ink);font-size:.77rem;line-height:1.42;font-weight:550;text-shadow:var(--ui-hud-text-shadow)}
+.goal:empty{display:none}
+/* Center-bottom vitals: separate gameplay status, not another sidebar badge. */
+.hud-vitals{position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);min-width:156px;display:flex;align-items:center;gap:7px;padding:4px 9px;border-radius:var(--ui-radius-pill);background:rgba(18,31,42,.34);border:1px solid rgba(255,255,255,.11);box-shadow:0 3px 12px rgba(0,0,0,.13);pointer-events:none;color:var(--ui-ink)}
+.hud-vitals:has(.hp.full),.hud-vitals:has(.hp:empty){display:none}
+.hud-vitals-kicker{font-size:.64rem;color:var(--ui-ink-soft)}
+.hp{position:static;display:flex;align-items:center;gap:6px;transition:opacity 240ms}
+.hp.full{opacity:0}
+.hp i{width:10px;height:10px;transform:rotate(45deg);border:1px solid var(--ui-danger);background:linear-gradient(0deg,var(--ui-danger) var(--f),transparent var(--f))}
+
+/* ============ In-world actions: white icon, translucent support only ============ */
+.bar{position:fixed;z-index:3;top:calc(env(safe-area-inset-top,0px) + var(--ui-top));right:calc(env(safe-area-inset-right,0px) + var(--ui-edge));display:flex;align-items:center;gap:7px}
+.bar button.hud-btn,.atk,.jump{display:grid;place-items:center;gap:0;padding:0;width:var(--ui-control-size);height:var(--ui-control-size);min-width:var(--ui-touch);min-height:var(--ui-touch);border-radius:var(--ui-radius-control);background:var(--ui-control-wash);border:1px solid var(--ui-stroke-control);box-shadow:var(--ui-action-glow),var(--ui-shadow-control);color:var(--ui-glyph);font-size:0;line-height:1;cursor:pointer;touch-action:manipulation;transition:background var(--ui-trans-fast),transform var(--ui-trans-fast)}
+.bar button.hud-btn i{display:none}
+.bar button.hud-btn[aria-pressed="true"],.bar button.hud-btn:active,.atk:active,.jump:active{background:var(--ui-control-press);transform:scale(.96)}
+.hud-icon{display:block;width:91%;height:91%;flex:none;pointer-events:none;overflow:visible;filter:drop-shadow(0 1px 2px rgba(2,16,28,.76))}
+.bar .hud-icon{width:90%;height:90%}
+.atk,.jump{position:fixed;z-index:3;width:var(--ui-action-size);height:var(--ui-action-size);min-width:50px;min-height:50px}
+.atk{right:calc(env(safe-area-inset-right,0px) + 91px);bottom:calc(env(safe-area-inset-bottom,0px) + 74px)}
+.jump{right:calc(env(safe-area-inset-right,0px) + 17px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+.atk .hud-icon,.jump .hud-icon{width:92%;height:92%}
+body:has(.speech:not([hidden])) .atk,body:has(.speech:not([hidden])) .jump,
+body:has(.panel:not([hidden])) .atk,body:has(.panel:not([hidden])) .jump{opacity:0;pointer-events:none}
+body:has(.panel:not([hidden])) .bar,body:has(.panel:not([hidden])) .hud-rail,body:has(.panel:not([hidden])) .hud-vitals{opacity:0;pointer-events:none}
+body:has(.speech:not([hidden])) .prompt{opacity:0;pointer-events:none}
+
+/* ============ Context action & guidance ============ */
+.prompt{position:fixed;z-index:4;left:58%;top:58%;display:flex;align-items:center;gap:var(--ui-space-2);max-width:min(340px,76vw);min-height:39px;padding:7px 12px 7px 8px;border-radius:var(--ui-radius-pill);background:var(--ui-panel-wash);border:1px solid var(--ui-stroke);box-shadow:var(--ui-shadow-floating);color:var(--ui-ink);font-size:var(--ui-type-body);cursor:pointer;touch-action:manipulation}
+.prompt .verb{flex:none;font-weight:700;color:var(--ui-accent)}
+.prompt .what{color:var(--ui-ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prompt kbd{font-family:var(--ui-font);display:grid;place-items:center;width:25px;height:25px;flex:none;border-radius:var(--ui-radius-micro);color:var(--ui-accent);background:var(--ui-layer-wash);border:1px solid var(--ui-stroke);font-size:var(--ui-type-caption)}
+.hint{position:fixed;z-index:2;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);padding:7px 12px;border-radius:var(--ui-radius-pill);background:var(--ui-world-wash);border:1px solid var(--ui-stroke);font-size:var(--ui-type-caption);color:var(--ui-ink-soft);line-height:1.4;text-align:center;text-shadow:0 1px 4px rgba(0,14,22,.42);pointer-events:none;transition:opacity 600ms}
+.hint.gone{opacity:0}
+.hint:empty{display:none}
+.stick{position:fixed;width:112px;height:112px;margin:-56px 0 0 -56px;border:1px solid var(--ui-stroke);border-radius:50%;background:var(--ui-control-wash);pointer-events:none;display:none}
+.stick i{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(245,253,249,.35);border:1px solid rgba(255,255,255,.35)}
+
