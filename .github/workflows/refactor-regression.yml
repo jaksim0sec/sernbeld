@@ -25,6 +25,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
+      - name: Verify emulated mobile touch, map, inventory and SVG rendering
+        run: node tests/mobile-regression.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
