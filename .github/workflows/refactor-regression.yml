@@ -31,6 +31,8 @@ jobs:
         run: node tests/webgl-smoke.mjs
       - name: Verify emulated mobile touch, map, inventory and SVG rendering
         run: node tests/mobile-regression.mjs
+      - name: Verify PWA offline install, startup and fresh resource loading
+        run: node tests/pwa-offline.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
