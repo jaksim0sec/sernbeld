@@ -31,6 +31,7 @@ jobs:
         run: |
           node tests/skill-engine.mjs
           node tests/skill-library.mjs
+          node tests/skill-runner.mjs
       - name: Validate region activation and compact state restoration
         run: node tests/region-lifecycle.mjs
       - name: Validate wildlife removal and saved quest compatibility
