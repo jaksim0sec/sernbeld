@@ -65,6 +65,6 @@
 - `src/core/skill-engine.js`: `validateSkill(config,actor)`, `compileSkill(config,actor)`로 물리 찌르기 조합의 검증·자원 비용·타격 시간을 계산한다. **자원을 차감하거나 메시를 생성하지 않는다.**
 - `src/core/skill-library.js`: `createSkillLibrary(Save,GameEvents)`의 `list/get/put/remove`로 사용자 기술을 저장·재로드한다. 알 수 없는 미래 버전 기술은 보존하되 지금 편집하지 않는다. `skill.saved`/`skill.removed`는 저장 이후 발생한다.
 - `src/core/skill-runner.js`: `createSkillRunner({spend,onStep,onComplete})`로 한 번만 자원을 소비하고 타격 스텝을 프레임 누락이나 취소 상황에서도 중복 발행하지 않는다. **아직 실제 `Combat` 및 3D 타격 판정에는 연결하지 않았다.**
-- 게임 내 로드 경로: `gameplay.part.js` → `game.js`에 스킬 엔진 및 라이브러리 import. 개발 훅 `window.__dev.skills`에서 계산·저장 API를 확인할 수 있다. 새 모듈은 PWA 셸 캐시에도 추가했다.
+- 게임 내 로드 경로: `gameplay.part.js` → `game.js`에 스킬 엔진 및 라이브러리 import. 개발 훅 `window.__dev.skills`에서 계산·저장 API를 확인할 수 있다. 런타임에서 가져오는 스킬 엔진·라이브러리 2개 모듈은 PWA 셸 캐시에 추가했다. 아직 `Combat`에 연결되지 않은 실행기(`skill-runner.js`)는 사전 캐시 대상이 아니다.
 - 테스트: `tests/skill-engine.mjs`, `tests/skill-library.mjs`, `tests/skill-runner.mjs`, `tests/custom-skills-browser.mjs` 및 기존 모바일·오프라인 회귀.
 - **미완성:** 실시간 3D 찌르기 충돌·공격 애니메이션 연결, 스킬 편집 UI, 마법진/마법어, 숙련도 실제 성장, 직업·NPC·사건 콘텐츠. 데이터를 만들었다는 이유로 베타가 플레이 가능해졌다고 주장하지 않는다.
