@@ -46461,6 +46461,8 @@ import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createInventory} from './src/core/inventory.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
+import {validateSkill, compileSkill} from './src/core/skill-engine.js';
+import {createSkillLibrary} from './src/core/skill-library.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -49504,6 +49506,9 @@ var fresh = () => ({
   inv: {},
   uniqueItems: [],
   nextItemSerial: 1,
+  customSkills: [],
+  mastery: {physicalControl: 0, magicControl: 0},
+  vitals: {stamina: 30, mana: 20, maxMana: 30},
   waypoints: [],
   picked: {},
   playtime: 0,
@@ -49562,6 +49567,7 @@ var Wallet = {
 var GameEvents = createGameEvents();
 var WorldEntities = createEntityRegistry();
 var Inventory = createInventory(Save, GameEvents);
+var SkillLibrary = createSkillLibrary(Save, GameEvents);
 var WorldRegions = createRegionLifecycle({registry: WorldEntities, save: Save, events: GameEvents});
 Save.beforeWrite = () => WorldRegions.checkpointActive();
 var DISCOVER_R = 7;
@@ -50918,16 +50924,13 @@ var Society = class {
     return { dist: d, verb: "\uBCF4\uAE30", label: "\uC758\uB8B0\uD310", act: () => this.openBoard() };
   }
   goal() {
-    const G = Guild.state, h = this.clock.hour;
-    if (!G.registered) return "\uBC14\uB78C\uAE38 \uC870\uD569\uC5D0\uC11C \uACAC\uC2B5 \uB4F1\uB85D\uD558\uAE30";
+    const G = Guild.state;
     const ready = Guild.readyList();
-    if (ready.length) return `\uC138\uB77C\uC5D0\uAC8C \uC758\uB8B0 \uBCF4\uACE0\uD558\uAE30 (${ready.length}\uAC74)`;
+    if (ready.length) return `의뢰 보고하기 (${ready.length}건)`;
     const q = Save.data.requests[0];
-    if (q) return `${q.title} \xB7 ${ITEMS[q.item].name} ${Math.max(0, Math.min(Guild.progress(q), q.qty))}/${q.qty}`;
-    if (!Save.data.equip?.right && !Save.data.equip?.left && G.done >= 1) return "\uACE0\uB78C\uC758 \uB300\uC7A5\uAC04\uC5D0\uC11C \uBB34\uAE30 \uB9C8\uB828\uD558\uAE30";
-    if (h >= 18 && Wallet.get() < INN_PRICE) return `\uC624\uB298 \uBC24 \uC219\uBC15\uBE44 \uB9C8\uB828\uD558\uAE30 (\uC740\uD654 ${INN_PRICE})`;
-    if (h >= 20) return "\uC5EC\uAD00 \uBC14\uB78C\uB9C9\uC774\uC5D0\uC11C \uBB35\uAE30";
-    return "\uC870\uD569 \uC758\uB8B0\uD310\uC5D0\uC11C \uC77C\uAC70\uB9AC \uBC1B\uAE30";
+    if (q) return `${q.title} · ${ITEMS[q.item].name} ${Math.max(0, Math.min(Guild.progress(q), q.qty))}/${q.qty}`;
+    if (G.registered && !Save.data.equip?.right && !Save.data.equip?.left && G.done >= 1) return "선택: 고람의 대장간에서 무기 마련하기";
+    return "자유 탐험 · 채집·거래·대화·모험 중 원하는 활동을 해보자";
   }
 };
 var COL = { steel: [0.8, 0.84, 0.88], dark: [0.36, 0.3, 0.26], wood: [0.5, 0.38, 0.26], brass: [0.72, 0.58, 0.34] };
@@ -52111,9 +52114,9 @@ async function boot() {
   terrain.update(player.pos.x, player.pos.z, player.pos.y);
   hud.ready(region);
   if (firstLaunch) ui.intro([
-    "\uBE5A \uBB38\uC11C \uD55C \uC7A5, \uC9D0 \uBCF4\uB530\uB9AC \uD558\uB098.",
-    "\uD654\uBB3C\uC120 \uB2A6\uBC14\uB78C\uD638\uAC00 \uCE74\uC5D8 \uD56D\uAD6C\uC5D0 \uB2FF\uC558\uB2E4.",
-    "\uC774 \uC12C\uC5D0\uC120 \uB204\uAD6C\uB3C4 \uB098\uB97C \uAE30\uB2E4\uB9AC\uC9C0 \uC54A\uB294\uB2E4. \uBA3C\uC800 \uBC14\uB78C\uAE38 \uC870\uD569\uC5D0 \uC774\uB984\uBD80\uD130 \uC62C\uB824\uC57C \uD55C\uB2E4."
+    "바닷바람을 따라 도착한 카엘 항구.",
+    "이곳 사람들은 저마다 만들고, 거래하고, 자신의 길을 찾아 나선다.",
+    "어떤 삶을 살지는 정해져 있지 않다. 먼저 주변을 둘러봐도 좋다."
   ], () => {
     Save.data.intro = true;
     Save.write();
@@ -52182,7 +52185,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
