@@ -41,6 +41,8 @@ jobs:
         run: node tests/character-webgl.mjs
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
+      - name: Verify optional custom skill save in browser
+        run: node tests/custom-skills-browser.mjs
       - name: Verify emulated mobile touch, map, inventory and SVG rendering
         run: node tests/mobile-regression.mjs
       - name: Verify PWA offline install, startup and fresh resource loading
