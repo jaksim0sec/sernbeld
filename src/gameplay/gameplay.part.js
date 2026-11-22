@@ -4,6 +4,7 @@ import {createInventory} from './src/core/inventory.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
+import {createCharacterRuntime} from './src/entities/character/studio-integration.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -5623,6 +5624,12 @@ async function boot() {
     ui.say({ name: "\uC5D0\uB2E4 \uC218\uB140", title: "\uC218\uB3C4\uC6D0 \uC57D\uCD08\uD559\uC790" }, lost ? `\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uCE58\uB8CC\uBE44\uB85C \uC740\uD654 ${lost}\uB2E2 \uBC1B\uC558\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.` : "\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.");
     Save.write();
   } });
+  const avatars = createCharacterRuntime({
+    THREE:{Group,Vector3,Quaternion,Euler,Box3}, scene,camera,player,folk,Save,GLTFLoader,
+    createCharacter:()=>new Character({lods:false}),
+    makeWeapon:(id)=>ITEMS[id]?.model ? new Mesh(MODELS[ITEMS[id].model](),view.mat) : null,
+    attackPose:maktwoAttackPose,worldCameraShift:shiftCameraWithinWorld
+  });
   society.onBought = (id, hand) => {
     if (hand) combat.equip(id, hand);
   };
@@ -5671,6 +5678,18 @@ async function boot() {
       Save.write();
       ui.renderTravel();
     });
+    const viewMode = document.createElement("button");
+    viewMode.type = "button";
+    viewMode.innerHTML = `시점 전환<small>${avatars.mode === "third" ? "3인칭 · 공격 카메라 반동 잠금" : "1인칭 · 기존 반동 유지"}</small>`;
+    viewMode.addEventListener("click", () => {
+      avatars.setThird(avatars.mode !== "third");ui.renderTravel();
+    });
+    const characterButton = document.createElement("button");
+    characterButton.type = "button";
+    characterButton.innerHTML = "내 캐릭터<small>전신 모델 · 얼굴 설정</small>";
+    characterButton.addEventListener("click", () => {
+      ui.close(ui.travel);avatars.openChooser();
+    });
     const reset = document.createElement("button");
     reset.type = "button";
     reset.innerHTML = "\uCC98\uC74C\uBD80\uD130 \uB2E4\uC2DC<small>\uC800\uC7A5 \uC0AD\uC81C</small>";
@@ -5692,7 +5711,7 @@ async function boot() {
       p.textContent = t;
       return p;
     };
-    body.replaceChildren(sec("\uC6E8\uC774\uD3EC\uC778\uD2B8"), list(wp), sec("\uC124\uC815"), list([motion]), sec("\uAC80\uC218\uC6A9"), list([...dev, fly, reset]));
+    body.replaceChildren(sec("\uC6E8\uC774\uD3EC\uC778\uD2B8"), list(wp), sec("\uC124\uC815"), list([motion, viewMode, characterButton]), sec("\uAC80\uC218\uC6A9"), list([...dev, fly, reset]));
   });
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
@@ -5778,8 +5797,10 @@ async function boot() {
       folk.update(dt, t, clock.hour, player, camera.position);
     }
     combat.update(dt);
-    if (player.mode === "walk") maktwoAttackCamera(camera, combat.swing, rig.motion);
-    view.update(dt, combat.swing, Math.hypot(player.vel.x, player.vel.z) > 0.5, player.mode === "walk");
+    if (player.mode === "walk" && avatars.mode === "first") maktwoAttackCamera(camera, combat.swing, rig.motion);
+    avatars.update(dt,t,combat);
+    if (avatars.mode === "third") avatars.applyThirdCamera();
+    view.update(dt, combat.swing, Math.hypot(player.vel.x, player.vel.z) > 0.5, player.mode === "walk" && avatars.mode === "first");
     explore.update();
     terrain.update(camera.position.x, camera.position.z, camera.position.y);
     sun.update(camera.position.x, camera.position.z, player.yaw);
@@ -5798,7 +5819,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, avatars, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
