@@ -101,7 +101,7 @@ try{
    assert(stats.bladeRise>.3,'The sword points into the wrist instead of away from the grip: '+stats.bladeRise);
    assert.deepEqual(stats.rootPosition,stats.playerPosition,'Player body is not attached to the physics actor');
    const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
-   assert(stats.poses.some(p=>distance(p.tip,stats.idleTip)>.4),'Sword never made a real sweep');
+   assert(stats.poses.some(p=>distance(p.tip,stats.idleTip)>.4),'Sword never made a real sweep: '+JSON.stringify({idleTip:stats.idleTip,poses:stats.poses.map(p=>({t:p.t,tip:p.tip,elbow:p.elbow}))}));
    assert(stats.poses.every(p=>distance(p.camera,stats.before)<.003&&distance(p.q,stats.q)<.00001),'3P camera follows attack recoil');
    assert(distance(stats.firstIdle.q,stats.firstAttack.q)>.01,'Original 1P recoil disappeared');
    assert(stats.firstArmOnly,'1P arms were not rendered from the real character');
