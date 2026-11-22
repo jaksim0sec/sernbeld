@@ -14,6 +14,9 @@ for(const body of ['male','female']){
  assert.equal(actor.bones.length,47);assert.equal(actor.units>1,true);
  assert(actor.mesh.userData.studioFeatures.some(f=>f.eyeStyle==='neutral'&&f.iris));
  const count=g.index.count;actor.setLOD(1);assert(g.index.count<count*.5,'Distance LOD must reduce actual triangles');actor.setLOD(0);
+ actor.setFirst(true);
+ assert(g.index.count>0&&g.index.count<count*.8,'First-person mode must cull hidden body triangles');
+ actor.setFirst(false);assert.equal(g.index.count,count,'Third-person mode must restore full body geometry');
  const angles={head:[22,12],upper_arm_right:[65,20],forearm_right:[82,20],thigh_left:[20,0]};
  actor.pose(angles);actor.group.updateMatrixWorld(true);actor.skeleton.update();
  const transforms=calculateFemalePose(actor.data.bones,angles),pos=g.attributes.position,skin=g.attributes.skinIndex,weights=g.attributes.skinWeight;
