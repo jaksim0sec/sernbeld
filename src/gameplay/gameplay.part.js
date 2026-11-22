@@ -1189,11 +1189,21 @@ function buildKaelRoads(G, region) {
     World.kaelPaths.push({ id: road.id, from: road.from, to: road.to, width: road.width, pts: clean, pavedSegments: painted, reachable: true });
   }
 }
+// The monastery's eastern tower blocks the 78 m terrace. Preserve the
+// building and existing flights: this slim stone promenade follows the high
+// side of the stair cut to connect the monastery forecourt to its east lane.
+// It is walkable at the top level; the lower staircase remains clear below.
+function buildUpperPromenade(G) {
+  box2(G, 410, 77.76, -485.15, 22, 0.32, 2.4, 0,
+    C.stoneL, PAT.cobble, true, true,
+    { topCol: C.cap, topPat: PAT.cobble });
+}
 function buildKael(region) {
   const G = new Geo(), rnd = mulberry32(42), homes = [];
   buildWalls(G);
   buildTerraceFrontages(G);
   buildStairs(G);
+  buildUpperPromenade(G);
   buildScenicWings(G, rnd);
   for (const B2 of [...BUILDINGS, ...SKYLINE_BUILDINGS]) {
     const r = (SPECIAL[B2.type] || house)(G, B2, rnd, {});
@@ -4013,7 +4023,7 @@ var NavGrid = class {
     }
     // Do not delete an otherwise valid cell just because ONE neighbor is on
     // a different terrace. Height differences are checked per traversed edge.
-    this.maxRise = 1.4;
+    this.maxRise = 1.65; // 0.825 m/m per 2m cell, beneath PLAYER step limit
   }
   idx(x, z) {
     const i = Math.floor((x - this.x0) / this.cell), j = Math.floor((z - this.z0) / this.cell);

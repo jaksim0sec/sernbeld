@@ -68,3 +68,10 @@
 - 게임 내 로드 경로: `gameplay.part.js` → `game.js`에 스킬 엔진 및 라이브러리 import. 개발 훅 `window.__dev.skills`에서 계산·저장 API를 확인할 수 있다. 런타임에서 가져오는 스킬 엔진·라이브러리 2개 모듈은 PWA 셸 캐시에 추가했다. 아직 `Combat`에 연결되지 않은 실행기(`skill-runner.js`)는 사전 캐시 대상이 아니다.
 - 테스트: `tests/skill-engine.mjs`, `tests/skill-library.mjs`, `tests/skill-runner.mjs`, `tests/custom-skills-browser.mjs` 및 기존 모바일·오프라인 회귀.
 - **미완성:** 실시간 3D 찌르기 충돌·공격 애니메이션 연결, 스킬 편집 UI, 마법진/마법어, 숙련도 실제 성장, 직업·NPC·사건 콘텐츠. 데이터를 만들었다는 이유로 베타가 플레이 가능해졌다고 주장하지 않는다.
+
+## 2026-11-22: 카엘 항구 접근로와 NPC 경로
+- `SERNBELD.kaelRoads`에 기존 항만·부두·시장·작업장·수도원·북문을 연결하는 경로 요구사항을 등록한다. 기존 시설과 지역 데이터는 보존한다.
+- `buildKaelRoads`는 충돌체 등록 후 `NavGrid`에서 이동 가능한 경로를 계산한다. 기존 `Geo`에 마모된 석재 패턴으로 포장한다. 장애물·급경사 구간에 포장은 추가하지 않는다.
+- 수도원 측면 탑과 상층 계단 사이 단절은 상층 석재 보행로 `buildUpperPromenade`로 연결한다. 아래 계단은 통과할 수 있도록 다른 높이로 분리한다.
+- `Townsfolk.nav`는 도시 렌더 구축 시 생성한 격자를 재사용하며, 경로 탐색과 직선화는 같은 단차·장애물 검사를 적용한다. NPC 경사 한도는 2m 간격당 1.65m다.
+- `tests/kael-roads.mjs`는 모바일 에뮬레이션 Chromium에서 11개 경로의 연결, 지형 높이, 렌더링, NPC 통행을 검사한다. 실제 기기 프레임 타임은 별도 측정이 필요하다.
