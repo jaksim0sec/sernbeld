@@ -37,6 +37,7 @@ export function createCharacterRuntime({THREE,scene,camera,player,folk,Save,crea
  }
  let studioRoot=null,studioBones=new Map(),studioRest=new Map(),studioHeight=1;
  let third=Save.data.settings.view==='third',activeAsset=false;
+ fallbackRoot.visible=third;
  let weaponNodes={right:null,left:null},weaponTypes={right:null,left:null};
  const defaultProfile=normalizeStudioCharacter(Save.data.character||EXAMPLE);
  Save.data.character=defaultProfile;
@@ -104,7 +105,7 @@ export function createCharacterRuntime({THREE,scene,camera,player,folk,Save,crea
   if(bones.size<10)throw new Error('전신 스키닝 관절이 있는 캐릭터 GLB가 필요해.');
   disposeImported();
   studioRoot=root;studioBones=bones;studioRest=rests;studioHeight=height;
-  scene.add(root);activeAsset=true;fallbackRoot.visible=false;
+  root.visible=third;scene.add(root);activeAsset=true;fallbackRoot.visible=false;
   if(gltf.parser?.json?.extras?.character){
    Save.data.character=normalizeStudioCharacter(gltf.parser.json.extras.character);
    el('character-body').value=Save.data.character.body;
