@@ -51,9 +51,19 @@ female.setPose({head:[20,0], upper_arm_left:[15,0]});
 
 The loader accepts a `fetchImpl` for unit tests and a `pose` object. It uses the registered asset URL relative to the repository so a subpath deployment works.
 
-## Integration boundary / no automatic visual changes
+## Studio/Live character integration (2026-11-22)
 
-**Registering** this model and material is not the same as **replacing live NPCs/players**. The active game still loads `game.js`, whose runtime is kept bit-for-bit unchanged on this branch. `src/entities/character/*.js` contains standalone ESM modules; when integrating into the actual game, use the existing bundling strategy or establish a proper source build. The user-supplied model should be visually verified (front, oblique, side and motion) before any NPC default replacement.
+- `src/entities/character/appearance.js` normalizes 30 facial shape values and studio style IDs, registers named residents' gender metadata, and generates deterministic faces by NPC ID + name + title (not by occupational stereotypes). The profile is stable across sessions.
+- `src/entities/character/studio-integration.js` attaches a full-body 47-joint character to the player, with a skinned right/left hand weapon attachment. The original first-person camera weapon, footstep sway, landing dip and attack recoil are **preserved**.
+- In the Travel screen, **시점 전환** selects first-person or behind-the-player third-person. Third-person uses a world-occluded camera offset and **locks only the attack-specific camera kick**; walking/landing camera motion still follows the existing CameraRig.
+- **내 캐릭터** accepts studio JSON settings and exported rigged GLB. The JSON saves shape/style preferences. The GLB provides the actual baked face geometry and skinning, and its binary is stored locally with IndexedDB for future visits.
+- Imported GLB replaces the player's visual body, never the existing physics, interaction position or combat hit logic. The 3D weapon follows the animated `hand_right`/`hand_left` joint. Empty/invalid GLBs are rejected.
+- Without an imported studio GLB, the player uses the old rigged mannequin as a temporary third-person fallback. NPCs have deterministic gender, all 30 profile values, and head proportions tied to those values, **but do not yet display fully sculpted per-NPC studio faces or hairstyles**. Adding a face profile is not the same as runtime 3D face deformation.
+- Both male/female custom studio models have been exported separately for manual player import; model binaries are not yet packaged in this Git repository. Local user models are not uploaded to a server by the game.
+
+## Existing standalone character assets
+
+The legacy registered female-base adapter remains available but is not used as an automatic replacement for live NPC bodies. The new live avatar bridge is imported by the executable `game.js`; its source remains `src/gameplay/gameplay.part.js`. `src/entities/character/*.js` contains standalone ESM modules; when integrating into the actual game, use the existing bundling strategy or establish a proper source build. The user-supplied model should be visually verified (front, oblique, side and motion) before any NPC default replacement.
 
 ## Validation
 
