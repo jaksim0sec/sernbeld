@@ -30,7 +30,7 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 
 자세한 설명과 제약은 [docs/STRUCTURE.md](docs/STRUCTURE.md) 참고.
 
-캐릭터 모델, 표준 피부 및 사용법은 [docs/CHARACTERS.md](docs/CHARACTERS.md) 참고. 게임 내 이동 메뉴에서 1·3인칭 전환 및 캐릭터 JSON/GLB 불러오기를 지원한다. 기존 1인칭 전투 연출은 유지하며, NPC별 성별·얼굴 프로필을 생성한다. 완전한 NPC 3D 얼굴 조형과 기본 남성·여성 GLB 자동 배포는 아직 미완성이다.
+캐릭터 모델, 표준 피부 및 사용법은 [docs/CHARACTERS.md](docs/CHARACTERS.md) 참고. 등록만 했으며 게임 내 기존 NPC와 플레이어 외형은 변경하지 않았다.
 
 ## 검증
 ```bash
