@@ -40,8 +40,20 @@ try{
    for(let i=0;i<5&&await page.locator('#intro').isVisible();i++)await page.locator('#intro').click();
    const stats=await page.evaluate(()=>{
     const d=__dev,a=d.avatars,T=d.characterTypes;d.renderer.setAnimationLoop(null);
-    // Stable open ground eliminates unrelated terrace walls from the motion comparison.
-    d.player.teleport(-600,-440,0,0);d.player.onGround=true;d.player.vel.set(0,0,0);a.setThird(true);d.rig.reset(d.player);d.frame();
+    // Find genuine camera clearance: the previous fixed hillside compressed the boom
+    // below one metre and hid the very hands/framing that these captures should verify.
+    a.setThird(true);
+    const places=Object.values(d.region.places).filter(p=>Array.isArray(p)&&p.length>=2);
+    const candidates=[[60,-60],...places.flatMap(([x,z])=>[[x+8,z],[x-8,z],[x,z+8],[x,z-8]])];
+    let clear=false;
+    for(const [x,z] of candidates){
+     d.player.teleport(x,z,0,0);d.player.onGround=true;d.player.vel.set(0,0,0);
+     d.rig.reset(d.player);d.rig.update(0,d.player);a.update(0,1,d.combat);a.applyThirdCamera(0,d.rig);
+     if(d.camera.position.distanceTo(d.player.pos.clone().add(new T.Vector3(0,1.02,0)))>2.9){clear=true;break;}
+    }
+    if(!clear)throw Error('No unobstructed third-person capture location');
+    d.frame();
+    const projectedBody=[0,1.76].map(y=>d.player.pos.clone().add(new T.Vector3(0,y,0)).project(d.camera).toArray());
     const root=a.bodyRoot,before=d.camera.position.toArray(),q=d.camera.quaternion.toArray();
     const npc=d.folk.list.map(n=>({id:n.def.id,gender:n.def.gender,body:n.ch.profile.body,vertices:n.ch.mesh.geometry.attributes.position.count,features:n.ch.mesh.userData.studioFeatures.length,values:n.ch.profile.values}));
     const grip=a.handWeapons.right;
@@ -62,8 +74,19 @@ try{
     d.combat.attack();d.combat.swing.t=d.combat.swing.spec.windup;d.frame();
     const firstAttack={position:d.camera.position.toArray(),q:d.camera.quaternion.toArray()};
     const firstArmOnly=a.actor.mesh.material.uniforms.uFirst.value===1&&Object.values(d.combat.view.hands).every(h=>!h.g.visible);
+    function visibleArmVertices(){
+     const mesh=a.actor.mesh,g=mesh.geometry;let count=0;d.camera.updateMatrixWorld(true);mesh.updateWorldMatrix(true,false);
+     for(let i=0;i<g.attributes.position.count;i+=5){
+      if(g.attributes.aArm.getX(i)<.6)continue;
+      const p=mesh.applyBoneTransform(i,new T.Vector3().fromBufferAttribute(g.attributes.position,i)).applyMatrix4(mesh.matrixWorld).project(d.camera);
+      if(Math.abs(p.x)<.95&&Math.abs(p.y)<.95&&Math.abs(p.z)<1)count++;
+     }
+     return count;
+    }
+    d.combat.swing=null;d.rig.reset(d.player);d.frame();
+    const visibleArms=visibleArmVertices();
     d.combat.swing=null;a.setThird(true);d.frame();
-    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,poses,idleTip,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
+    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,poses,idleTip,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
    });
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
    assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>30000),'NPCs must use actual studio body/face');
@@ -74,6 +97,8 @@ try{
    assert(stats.poses.every(p=>distance(p.camera,stats.before)<.003&&distance(p.q,stats.q)<.00001),'3P camera follows attack recoil');
    assert(distance(stats.firstIdle.q,stats.firstAttack.q)>.01,'Original 1P recoil disappeared');
    assert(stats.firstArmOnly,'1P arms were not rendered from the real character');
+   assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+stats.visibleArms);
+   assert(stats.projectedBody.every(p=>Math.abs(p[1])<.9),'Third-person framing crops head or feet: '+JSON.stringify(stats.projectedBody));
    await page.screenshot({path:`${root}/${label}-third-person.png`});
    await page.evaluate(()=>{
     const d=__dev,T=d.characterTypes,a=d.avatars;

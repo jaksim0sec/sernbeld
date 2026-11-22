@@ -2,6 +2,7 @@
 // Mobile Chromium regression: main baseline vs structure-only refactor.
 // The target is an emulated touch-enabled browser, NOT a physical Android device.
 import assert from 'node:assert/strict';
+import {completeCharacterCreation} from './character-start.mjs';
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -29,6 +30,7 @@ try {
    const url='http://127.0.0.1:'+ports[label]+'/index.html';
    await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
    await page.waitForFunction(()=>!!window.__dev,{timeout:180000});
+   await completeCharacterCreation(page);
    await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
    for(let n=0;n<5;n++){if(await page.locator('#intro').isVisible())await page.locator('#intro').tap({timeout:8000});else break;}
    assert.equal(await page.locator('#intro').isVisible(),false,label+' intro not dismissed');

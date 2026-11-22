@@ -30,7 +30,7 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 
 자세한 설명과 제약은 [docs/STRUCTURE.md](docs/STRUCTURE.md) 참고.
 
-캐릭터 모델, 표준 피부 및 사용법은 [docs/CHARACTERS.md](docs/CHARACTERS.md) 참고. 등록만 했으며 게임 내 기존 NPC와 플레이어 외형은 변경하지 않았다.
+캐릭터 모델, 표준 피부 및 사용법은 [docs/CHARACTERS.md](docs/CHARACTERS.md) 참고. 첫 접속에서 만든 캐릭터가 플레이어 몸체로 연결되고, NPC도 같은 모델과 개별 얼굴 설정을 사용한다. 이동 메뉴의 설정에서 시점을 전환하거나 캐릭터를 다시 편집할 수 있다.
 
 ## 검증
 ```bash

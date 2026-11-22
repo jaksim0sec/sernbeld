@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Browser smoke/regression test: compare unchanged main with current branch.
 import { chromium } from 'playwright';
+import {completeCharacterCreation} from './character-start.mjs';
 import { PNG } from 'pngjs';
 import { spawn } from 'node:child_process';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -33,6 +34,7 @@ try {
   page.on('requestfailed',r=>logs.push({type:'error',message:r.url()+' '+r.failure()?.errorText}));
   await page.goto('http://127.0.0.1:'+port+'/index.html',{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(()=>!!window.__dev,{timeout:180000});
+  await completeCharacterCreation(page);
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   const stats=await page.evaluate(()=>{
     const d=window.__dev,gl=d.renderer.getContext(),info=d.renderer.info;

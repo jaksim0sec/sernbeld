@@ -2,6 +2,7 @@
 // Browser-level PWA assertions: initial full offline install, offline restart,
 // and network-first refresh of resources that were already cached.
 import assert from 'node:assert/strict';
+import {completeCharacterCreation} from './character-start.mjs';
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,unlink} from 'node:fs/promises';
@@ -29,6 +30,7 @@ try {
   const home='http://127.0.0.1:'+port+'/';
   await page.goto(home,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>!!window.__dev,{timeout:180000});
+  await completeCharacterCreation(page);
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   // Service worker must control the current page after installing ALL game assets.
   await page.waitForFunction(()=>navigator.serviceWorker.controller!==null,{timeout:90000});
@@ -37,6 +39,10 @@ try {
     const expected=['index.html','game.js','pwa.js','manifest.webmanifest','assets/ui-icons.svg',
       'src/core/game-events.js','src/core/entity-registry.js','src/core/inventory.js',
       'src/core/region-lifecycle.js','src/core/skill-engine.js','src/core/skill-library.js',
+      'src/entities/character/studio-source.js','src/entities/character/studio-geometry.js',
+      'src/entities/character/studio-model.js','src/entities/character/studio-integration.js',
+      'src/entities/character/avatar-motion.js','src/entities/character/appearance.js',
+      'src/entities/character/studio.html','assets/models/characters/studio-v1.json.gz',
       'assets/pwa-icon-192.png','assets/pwa-icon-512.png',
       'assets/kael-cutstone-v7.glb.gz','assets/models/characters/female-base-v1.mesh.json',
       'styles/tokens.css','styles/hud.css','styles/menus-and-overlays.css',
@@ -79,7 +85,8 @@ try {
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   const offline=await page.evaluate(async()=>{
     const urls=['./game.js','./src/core/game-events.js','./src/core/entity-registry.js','./src/core/inventory.js','./src/core/region-lifecycle.js','./src/core/skill-engine.js','./src/core/skill-library.js','./styles/hud.css','./assets/ui-icons.svg',
-      './assets/kael-cutstone-v7.glb.gz','./assets/models/characters/female-base-v1.mesh.json'];
+      './assets/kael-cutstone-v7.glb.gz','./assets/models/characters/female-base-v1.mesh.json',
+      './src/entities/character/studio.html','./assets/models/characters/studio-v1.json.gz'];
     const checks=[];
     for(const url of urls){
       const response=await fetch(url);

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Browser integration: a new player can live freely and v1 saves accept optional custom skills.
 import assert from 'node:assert/strict';
+import {completeCharacterCreation} from './character-start.mjs';
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
 const port=8798;
@@ -18,6 +19,7 @@ try {
   page.on('pageerror',error=>errors.push(String(error)));
   await page.goto('http://127.0.0.1:'+port+'/index.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>!!window.__dev,{timeout:180000});
+  await completeCharacterCreation(page);
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   const initial=await page.evaluate(()=>({
     guild:window.__dev.Guild.state.registered,

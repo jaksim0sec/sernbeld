@@ -63,7 +63,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    camera.updateMatrixWorld(true);
    for(const side of ['right','left']){
     const h=view.hands[side],weapon=weapons[side];
-    const target=h.g.getWorldPosition(new T.Vector3());
+    // The old prop pivot sits beyond the anatomical arm reach. Keep its motion,
+    // but bring the grip into the visible, reachable part of the same camera view.
+    const target=h.g.position.clone();
+    const horizontal=Math.min(.55,Math.max(.18,camera.aspect*.42));
+    target.multiply(new T.Vector3(horizontal,.5,.7));
+    camera.localToWorld(target);
     const desired=h.g.getWorldQuaternion(new T.Quaternion());
     if(weapon){
      const wristQ=desired.clone().multiply(weapon.quaternion.clone().invert());
@@ -99,7 +104,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(!third||player.mode!=='walk')return;
   const yaw=rig.yaw,pitch=rig.pitch;
   const locomotion=camera.position.clone().sub(player.pos);locomotion.y-=height;
-  const target=new T.Vector3(player.pos.x,player.pos.y+1.28,player.pos.z).addScaledVector(locomotion,.35);
+  const target=new T.Vector3(player.pos.x,player.pos.y+1.02,player.pos.z).addScaledVector(locomotion,.35);
   const direction=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
   const desired=3.1,margin=.22;
   let room=desired;

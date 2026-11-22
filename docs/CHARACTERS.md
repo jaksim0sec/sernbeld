@@ -51,14 +51,22 @@ female.setPose({head:[20,0], upper_arm_left:[15,0]});
 
 The loader accepts a `fetchImpl` for unit tests and a `pose` object. It uses the registered asset URL relative to the repository so a subpath deployment works.
 
-## Integration boundary / no automatic visual changes
+## Active character runtime
 
-**Registering** this model and material is not the same as **replacing live NPCs/players**. The active game still loads `game.js`, whose runtime is kept bit-for-bit unchanged on this branch. `src/entities/character/*.js` contains standalone ESM modules; when integrating into the actual game, use the existing bundling strategy or establish a proper source build. The user-supplied model should be visually verified (front, oblique, side and motion) before any NPC default replacement.
+The game imports the supplied neck-seam-fixed Character Studio through `studio-source.js`, `studio-geometry.js`, `studio-model.js` and `studio-integration.js`. `studio-v1.json.gz` holds both original body meshes and the editor data. The original 30 face controls, eyes, brows, mouth, ears and accessories remain available in the first-launch creator (`studio.html`). The older registered female asset above remains available as a standalone resource.
+
+The selected profile is stored in `Save.data.character`; `characterCreated` records completion, including for existing v1 saves that have not created a character yet. The player uses the actual 47-bone skinned body at the physics actor position. NPC gender is assigned through explicit cast/name metadata (with a stable fallback), and the name, ID and title seed a repeatable face profile. Equipment is parented to each real hand bone and the fingers close around the grip.
+
+The travel menu contains **시점 전환** and **내 캐릭터**. First-person uses the original attack timing, wall retraction and camera recoil to drive the real arms; the old floating props stay hidden. Third-person animates the whole body and uses a collision-constrained camera boom without attack recoil. Movement camera motion remains controlled by the existing motion setting. First-person targets are adjusted to anatomical reach and viewport aspect ratio.
+
+The service worker caches the creator, its modules and the compressed source so saved characters and character editing remain available offline after a complete online installation.
 
 ## Validation
 
 `node tests/character-assets.mjs` uses the `three` package to check asset topology, rig palette counts, pose updates and the standard material factory.
 
 `tests/character-fixture.html` and `tests/character-webgl.mjs` cover rendering in real Chromium WebGL when the development dependencies are installed. Desktop/mobile world regression remains in the existing workflow.
+
+`node tests/studio-model.mjs` checks both original bodies, face deformation, bone skinning, grip and arm solving. `node tests/character-runtime-browser.mjs` exercises actual creation and reload, all 25 NPCs, hand-held weapon motion, first-person visible arm geometry, third-person framing and recoil isolation in landscape and portrait. The general UI regression tests complete the same creation flow before checking existing controls.
 
 Do not change the original mesh, reinterpret the skin colors, or silently apply the new material to terrain/architecture.
