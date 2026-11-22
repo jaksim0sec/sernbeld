@@ -42,8 +42,24 @@ try {
       return { id:route.id, reachable:route.reachable, waypoints:route.pts.length,
         paved:route.pavedSegments, violations };
     });
+
+    const probes = [
+      [397,-430],[397,-440],[397,-448],[397,-450],[397,-452],[397,-454],[397,-464],[397,-470],
+      [398,-474],[398,-478],[398,-480],[398,-482],[398,-484],[398,-486],[398,-492],
+      [389,-448],[393,-448],[399,-448],[401,-448],[407,-448],[441,-448],[443,-448],
+      [389,-480],[393,-480],[399,-480],[401,-480],[407,-480],[443,-480],[445,-480],
+      [392,-490],[392,-498],[410,-490],[410,-500],[480,-500],[480,-509],
+    ].map(([x,z])=>{
+      const o=nav.idx(x,z), xy=o>=0?nav.center(o):null;
+      return {at:[x,z],cell:xy,ground:+d.groundAt(x,z,400).toFixed(2),navH:o>=0?+nav.g[o].toFixed(2):null,ok:o>=0?!!nav.ok[o]:false,cols:d.collidersAt(x,z).filter(k=>!k.walk).slice(0,2)};
+    });
+    const segments=[
+      ["market-homes-a",[397,-432],[397,-470]],["market-homes-b",[445,-435],[440,-465]],
+      ["homes-upper-a",[393,-467],[393,-490]],["homes-upper-b",[442,-465],[443,-491]],
+      ["upper-north",[393,-495],[480,-500]]
+    ].map(([id,a,b])=>({id,path:nav.path(...a,...b)?.length||0}));
     return { grades, npcPaths, vertices: geometry?.attributes?.position?.count || 0,
-      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext() };
+      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), probes, segments };
   });
   console.log('KAEL ROADS '+JSON.stringify(result));
   assert(result.webgl && result.vertices > 10000, 'Existing Kael render geometry missing');
