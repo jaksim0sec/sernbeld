@@ -84,13 +84,30 @@ try {
       const i=nav.idx(x,z);
       northEntrance.push([x,z,+(nav.g[i]||0).toFixed(1),nav.ok[i]?1:0]);
     }
+    nav.maxRise=1.65;
+    const localPaths = [
+      ["monastery-to-corridor",[392,-488],[413,-488]],
+      ["monastery-to-x419",[392,-488],[419,-492]],
+      ["monastery-to-backstreet",[392,-488],[423,-506]],
+      ["corridor-to-backstreet",[413,-488],[423,-506]],
+      ["backstreet-to-ramp",[423,-506],[439,-508]],
+      ["ramp-to-northgate",[439,-508],[480,-500]],
+      ["north-by-roof",[419,-492],[480,-500]],
+      ["east-monastery",[392,-488],[420,-488]]
+    ].map(([id,a,b])=>({id,path:nav.path(...a,...b)}));
+    nav.maxRise=1.4;
+    const monasteryGap=[];
+    for(let x=391;x<=425;x+=2)for(const z of [-482,-484,-486,-488,-490,-492,-494,-496,-500,-504,-506]){
+      const o=nav.idx(x,z);
+      monasteryGap.push([x,z,+(nav.g[o]||0).toFixed(1),nav.ok[o]?1:0]);
+    }
     const segments=[
       ["market-homes-a",[397,-432],[397,-470]],["market-homes-b",[445,-435],[440,-465]],
       ["homes-upper-a",[393,-467],[393,-490]],["homes-upper-b",[442,-465],[443,-491]],
       ["upper-north",[393,-495],[480,-500]]
     ].map(([id,a,b])=>({id,path:nav.path(...a,...b)?.length||0}));
     return { grades, npcPaths, vertices: geometry?.attributes?.position?.count || 0,
-      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), probes, segments, riseTrials, stairEntrance, upperToGate, highJumps, northEntrance };
+      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), probes, segments, riseTrials, stairEntrance, upperToGate, highJumps, northEntrance, localPaths, monasteryGap };
   });
   console.log('KAEL ROADS '+JSON.stringify(result));
   assert(result.webgl && result.vertices > 10000, 'Existing Kael render geometry missing');
