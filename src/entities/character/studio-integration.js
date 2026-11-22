@@ -66,8 +66,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     // The old prop pivot sits beyond the anatomical arm reach. Keep its motion,
     // but bring the grip into the visible, reachable part of the same camera view.
     const target=h.g.position.clone();
-    const horizontal=Math.min(.55,Math.max(.18,camera.aspect*.42));
-    target.multiply(new T.Vector3(horizontal,.5,.7));
+    const horizontal=Math.min(.43,Math.max(.08,camera.aspect*.22));
+    target.multiply(new T.Vector3(horizontal,.18,.9));
     camera.localToWorld(target);
     const desired=h.g.getWorldQuaternion(new T.Quaternion());
     if(weapon){

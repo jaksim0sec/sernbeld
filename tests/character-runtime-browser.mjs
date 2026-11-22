@@ -44,10 +44,10 @@ try{
     // below one metre and hid the very hands/framing that these captures should verify.
     a.setThird(true);
     const places=Object.values(d.region.places).filter(p=>Array.isArray(p)&&p.length>=2);
-    const candidates=[[60,-60],...places.flatMap(([x,z])=>[[x+8,z],[x-8,z],[x,z+8],[x,z-8]])];
+    const candidates=[[-600,-440,Math.PI],[-600,-440,-Math.PI/2],[-600,-440,Math.PI/2],...places.flatMap(([x,z])=>[[x+8,z],[x-8,z],[x,z+8],[x,z-8]])];
     let clear=false;
-    for(const [x,z] of candidates){
-     d.player.teleport(x,z,0,0);d.player.onGround=true;d.player.vel.set(0,0,0);
+    for(const [x,z,yaw=0] of candidates){
+     d.player.teleport(x,z,yaw,0);d.player.onGround=true;d.player.vel.set(0,0,0);
      d.rig.reset(d.player);d.rig.update(0,d.player);a.update(0,1,d.combat);a.applyThirdCamera(0,d.rig);
      if(d.camera.position.distanceTo(d.player.pos.clone().add(new T.Vector3(0,1.02,0)))>2.9){clear=true;break;}
     }
@@ -85,9 +85,11 @@ try{
     }
     d.combat.swing=null;d.rig.reset(d.player);d.frame();
     const visibleArms=visibleArmVertices();
+    const wrist=a.actor.B.hand_right.getWorldPosition(new T.Vector3()).project(d.camera).toArray();
     d.combat.swing=null;a.setThird(true);d.frame();
-    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,poses,idleTip,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
+    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
    });
+   await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
    assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>30000),'NPCs must use actual studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
@@ -98,6 +100,7 @@ try{
    assert(distance(stats.firstIdle.q,stats.firstAttack.q)>.01,'Original 1P recoil disappeared');
    assert(stats.firstArmOnly,'1P arms were not rendered from the real character');
    assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+stats.visibleArms);
+   assert(stats.wrist.every(v=>Math.abs(v)<.95),'Equipped hand is outside the first-person viewport: '+JSON.stringify(stats.wrist));
    assert(stats.projectedBody.every(p=>Math.abs(p[1])<.9),'Third-person framing crops head or feet: '+JSON.stringify(stats.projectedBody));
    await page.screenshot({path:`${root}/${label}-third-person.png`});
    await page.evaluate(()=>{
