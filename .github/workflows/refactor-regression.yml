@@ -1,7 +1,7 @@
 name: Sernbeld refactor regression
 on:
   push:
-    branches: [refactor/structure-phase1]
+    branches: [refactor/structure-phase1, fix/character-runtime-rebuild]
   workflow_dispatch:
 jobs:
   webgl-comparison:
