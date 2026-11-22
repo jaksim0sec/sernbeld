@@ -1,3 +1,8 @@
+import {loadStudioSource} from './src/entities/character/studio-source.js';
+import {createStudioGeometry} from './src/entities/character/studio-geometry.js';
+import {createStudioModel} from './src/entities/character/studio-model.js';
+import {resolveNpcAppearance} from './src/entities/character/appearance.js';
+import {createCharacterRuntime} from './src/entities/character/studio-integration.js';
 import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createInventory} from './src/core/inventory.js';
@@ -4207,13 +4212,16 @@ var LOD0 = 26;
 var SHADOW = 34;
 var ANIM = 90;
 var Townsfolk = class {
-  constructor(scene, region) {
+  constructor(scene, region, makeCharacter) {
     this.places = region.places;
     const B2 = BOUNDS;
     this.nav = World.kaelNav || new NavGrid(B2.x0, B2.z0, B2.x1, B2.z1, 2);
     const r = mulberry32(5), houses = [...TOWN.houses].sort(() => r() - 0.5);
     this.list = [...NAMED, ...townsfolk()].map((def, i) => {
-      const ch = new Character({ scale: def.scale ?? 1 });
+      const appearance = resolveNpcAppearance(def);
+      def.gender = appearance.gender;
+      def.character = appearance.character;
+      const ch = makeCharacter(appearance.character, {scale:def.scale ?? 1});
       scene.add(ch.group);
       const home = houses[i % Math.max(1, houses.length)]?.door ?? this.places.plaza;
       const a = r() * Math.PI * 2, rad = 1.2 + r() * 2.2;
@@ -5593,7 +5601,13 @@ async function boot() {
   await nextFrame2();
   const clock = new GameClock(Save.data.clock.day, Save.data.clock.hour);
   clock.apply();
-  const folk = new Townsfolk(scene, region);
+  const characterTypes={Group,Bone,Skeleton,SkinnedMesh,BufferGeometry,BufferAttribute,ShaderMaterial,Vector3,Quaternion,Euler,Color,DoubleSide};
+  hud.progress(.988,"캐릭터를 준비하는 중");
+  await nextFrame2();
+  const studioSource=await loadStudioSource();
+  const studioFactory=createStudioGeometry(studioSource);
+  const makeCharacter=(profile,options)=>createStudioModel(characterTypes,studioFactory,profile,options);
+  const folk = new Townsfolk(scene, region, makeCharacter);
   folk.settle(clock.hour);
   const society = new Society({ ui, clock, folk, region });
   Guild.advanceRival(clock.day);
@@ -5623,6 +5637,9 @@ async function boot() {
     ui.say({ name: "\uC5D0\uB2E4 \uC218\uB140", title: "\uC218\uB3C4\uC6D0 \uC57D\uCD08\uD559\uC790" }, lost ? `\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uCE58\uB8CC\uBE44\uB85C \uC740\uD654 ${lost}\uB2E2 \uBC1B\uC558\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.` : "\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.");
     Save.write();
   } });
+  const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save,makeCharacter,view,height:PLAYER.height,
+    makeWeapon:id=>ITEMS[id]?.model?new Mesh(MODELS[ITEMS[id].model](),view.mat):null,
+    attackPose:maktwoAttackPose,worldRay:maktwoWorldRay});
   society.onBought = (id, hand) => {
     if (hand) combat.equip(id, hand);
   };
@@ -5671,6 +5688,12 @@ async function boot() {
       Save.write();
       ui.renderTravel();
     });
+    const viewMode=document.createElement('button');viewMode.type='button';
+    viewMode.innerHTML=`시점 전환<small>${avatars.mode==='third'?'3인칭 · 공격 반동 잠금':'1인칭'}</small>`;
+    viewMode.onclick=()=>{avatars.setThird(avatars.mode!=='third');ui.renderTravel();};
+    const characterButton=document.createElement('button');characterButton.type='button';
+    characterButton.innerHTML='내 캐릭터<small>얼굴 · 체형 · 장식</small>';
+    characterButton.onclick=()=>{ui.close(ui.travel);avatars.openChooser();};
     const reset = document.createElement("button");
     reset.type = "button";
     reset.innerHTML = "\uCC98\uC74C\uBD80\uD130 \uB2E4\uC2DC<small>\uC800\uC7A5 \uC0AD\uC81C</small>";
@@ -5692,7 +5715,7 @@ async function boot() {
       p.textContent = t;
       return p;
     };
-    body.replaceChildren(sec("\uC6E8\uC774\uD3EC\uC778\uD2B8"), list(wp), sec("\uC124\uC815"), list([motion]), sec("\uAC80\uC218\uC6A9"), list([...dev, fly, reset]));
+    body.replaceChildren(sec("\uC6E8\uC774\uD3EC\uC778\uD2B8"), list(wp), sec("\uC124\uC815"), list([motion,viewMode,characterButton]), sec("\uAC80\uC218\uC6A9"), list([...dev, fly, reset]));
   });
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
@@ -5734,11 +5757,17 @@ async function boot() {
     Save.data.intro = true;
     Save.write();
   });
+  if(!Save.data.characterCreated) avatars.openChooser(true);
   let last = performance.now();
   const tick = (now) => {
     const dt = Math.min(0.1, (now - last) / 1e3);
     last = now;
     const t = now / 1e3;
+    if(avatars.isOpen){
+      input.keys.clear();input.stick.x=input.stick.y=0;
+      input.consumeLook();input.consumeAttack();input.consumeToggles();input.jumpQueued=false;
+      return;
+    }
     shared.uTime.value = t;
     for (const code of input.consumeToggles()) {
       if (fullMap.isOpen() && code !== "Escape" && code !== "KeyM") continue;
@@ -5778,8 +5807,11 @@ async function boot() {
       folk.update(dt, t, clock.hour, player, camera.position);
     }
     combat.update(dt);
-    if (player.mode === "walk") maktwoAttackCamera(camera, combat.swing, rig.motion);
+    if (player.mode === "walk" && avatars.mode === "first") maktwoAttackCamera(camera, combat.swing, rig.motion);
     view.update(dt, combat.swing, Math.hypot(player.vel.x, player.vel.z) > 0.5, player.mode === "walk");
+    avatars.update(dt,t,combat);
+    avatars.applyThirdCamera(dt,rig);
+    avatars.updateTrail(combat);
     explore.update();
     terrain.update(camera.position.x, camera.position.z, camera.position.y);
     sun.update(camera.position.x, camera.position.z, player.yaw);
@@ -5798,7 +5830,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

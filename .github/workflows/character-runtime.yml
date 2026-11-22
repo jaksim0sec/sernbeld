@@ -1,0 +1,33 @@
+name: Character runtime integration
+on:
+  push:
+    branches: [refactor/structure-phase1, fix/character-runtime-rebuild]
+  workflow_dispatch:
+jobs:
+  characters:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate build and original studio rig
+        run: |
+          node tools/build-game.mjs --check
+          node --check game.js
+          node tests/studio-model.mjs
+          node tests/foundation.mjs
+          node tests/region-lifecycle.mjs
+      - name: Install browser
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install chromium
+      - name: Validate character creation, actors, weapon motion and camera in WebGL
+        run: node tests/character-runtime-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: character-runtime-evidence
+          path: test-results/characters/
+          if-no-files-found: ignore

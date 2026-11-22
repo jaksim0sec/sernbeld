@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>세른벨드 · 캐릭터 만들기</title>
+<style>
+:root{font:16px/1.45 system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#262831;background:#f5f4f0;--ink:#262831;--muted:#757982;--line:#dedfdc;--accent:#365b4b;--paper:#fff}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer;color:inherit}button:disabled{opacity:.35;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:.16rem solid #517e68;outline-offset:.15rem}button{touch-action:manipulation}button[aria-pressed=true]{color:var(--accent);border-color:var(--accent);background:#eaf0e9}button svg{pointer-events:none}header{height:4.6rem;display:flex;align-items:center;justify-content:space-between;padding:0 1.1rem;gap:.7rem;background:var(--paper);border-bottom:1px solid var(--line)}header h1{margin:0;font-size:1.05rem;letter-spacing:-.04em}header small{display:block;font-size:.65rem;letter-spacing:.12em;color:var(--muted);font-weight:600}.header-actions{display:flex;gap:.4rem}button{border:1px solid var(--line);border-radius:.6rem;min-height:2.65rem;background:#fff;padding:.5rem .8rem;font-size:.78rem;font-weight:650}.primary{background:var(--accent);border-color:var(--accent);color:white}main{display:grid;grid-template-columns:minmax(0,1fr) 23rem;max-width:88rem;margin:auto;min-height:calc(100svh - 4.6rem)}.viewer{position:sticky;top:0;height:calc(100svh - 4.6rem);min-height:28rem;background:radial-gradient(ellipse at 50% 38%,#f1f1ec,#dddfda);overflow:hidden}.viewer-top{position:absolute;top:1rem;left:1rem;right:1rem;display:flex;align-items:start;justify-content:space-between;gap:.7rem;z-index:4}.segmented{display:flex;padding:.2rem;background:#ffffffd9;border:1px solid #ffffff;border-radius:.75rem;gap:.2rem;backdrop-filter:blur(.8rem)}.segmented button{border-color:transparent;background:transparent;min-height:2.45rem;padding:.4rem 1rem}.segmented button[aria-pressed=true]{background:#fff;border-color:#e0e4dc;box-shadow:0 .15rem .3rem #23352c0b}.view-actions{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:end}.view-actions button{background:#ffffffd9;font-weight:550}.stage{position:absolute;inset:0;touch-action:none;outline:none}.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}.handles{position:absolute;inset:0;pointer-events:none}.handle{position:absolute;min-height:0;width:1.15rem;height:1.15rem;padding:0;border:.12rem solid white;border-radius:50%;background:#597b67c9;box-shadow:0 0 0 .08rem #42644e66;pointer-events:auto;transform:translate(-50%,-50%);touch-action:none}.handle[aria-pressed=true]{background:#355c48;box-shadow:0 0 0 .3rem #fff6}.handle-label{position:absolute;font-size:.65rem;font-weight:650;background:#ffffffd9;padding:.22rem .4rem;border-radius:.3rem;white-space:nowrap;transform:translate(1rem,-50%);pointer-events:none}.view-bottom{position:absolute;bottom:1rem;left:1rem;right:1rem;z-index:4;display:flex;justify-content:space-between;align-items:end;gap:.5rem}.angle-bar{display:flex;gap:.25rem;background:#ffffffd9;border:1px solid #fff;padding:.2rem;border-radius:.75rem}.angle-bar button{border:0;min-height:2.3rem;background:transparent;font-size:.7rem;padding:.4rem .8rem}.angle-bar button[aria-pressed=true]{background:#fff;color:var(--accent)}.zoom{display:flex;gap:.25rem}.zoom button{background:#ffffffd9;min-width:2.7rem}#feedback{position:absolute;bottom:4.5rem;left:1rem;right:1rem;text-align:center;font-size:.71rem;color:#68746a;pointer-events:none;z-index:3}.editor{background:var(--paper);border-left:1px solid var(--line);min-width:0}.tabs{display:flex;gap:.2rem;border-bottom:1px solid var(--line);padding:.65rem .7rem;overflow:auto;scrollbar-width:none}.tabs button{border:0;background:none;white-space:nowrap;padding:.5rem .65rem;min-height:2.7rem;font-size:.76rem;border-radius:.45rem}.tabs button[aria-selected=true]{background:#eaf0e9;color:var(--accent)}.panel{padding:1.25rem}.panel-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:.5rem}.panel h2{margin:0;font-size:.96rem;letter-spacing:-.02em}.panel-top button{border:0;min-height:2rem;padding:.2rem;background:none;color:var(--muted);font-weight:500}.hint{font-size:.76rem;color:var(--muted);margin:.3rem 0 1rem;line-height:1.55}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.card{padding:.3rem .3rem .5rem;min-height:4.5rem;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.25rem;overflow:hidden}.card canvas{width:100%;height:auto;aspect-ratio:24/11;display:block;background:#f2f3ef;border-radius:.4rem}.card span{font-size:.69rem;white-space:normal}.face-presets{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem}.face-presets button{font-weight:550}.part-list{display:flex;gap:.3rem;flex-wrap:wrap;margin:.8rem 0}.part-list button{font-size:.7rem;padding:.45rem .65rem;min-height:2.4rem}.pad-wrap{margin-top:1rem;border-top:1px solid var(--line);padding-top:1rem}.pad-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;font-size:.78rem}.pad-title .segmented{border-color:var(--line);padding:.1rem;backdrop-filter:none}.pad-title button{padding:.25rem .65rem;font-size:.65rem;min-height:2rem}.pad{height:8rem;border:1px solid #d5dcd3;border-radius:.8rem;background:linear-gradient(to right,transparent calc(50% - .5px),#dbe0d8 50%,transparent calc(50% + .5px)),linear-gradient(to bottom,transparent calc(50% - .5px),#dbe0d8 50%,transparent calc(50% + .5px)),#f8faf6;position:relative;touch-action:none;cursor:move}.pad::after{content:"";position:absolute;left:50%;top:50%;width:.7rem;height:.7rem;border-radius:50%;background:#55705d;transform:translate(-50%,-50%);pointer-events:none}.pad small{position:absolute;color:#8b968b;font-size:.62rem;pointer-events:none}.pad .left{left:.65rem;top:45%}.pad .right{right:.65rem;top:45%}.pad .top{top:.45rem;left:45%}.pad .bottom{bottom:.45rem;left:45%}.step-buttons{display:flex;justify-content:space-between;gap:.3rem;margin-top:.5rem}.step-buttons button{min-width:2.5rem;padding:.4rem .6rem;font-size:.7rem}.step-buttons .reset-part{flex:1;color:var(--muted)}.palette-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.swatch{display:flex;flex-direction:column;gap:.4rem;align-items:center;justify-content:center;font-size:.68rem;font-weight:550;min-height:4.5rem}.swatch i{width:2.4rem;height:2.4rem;display:block;border-radius:50%;box-shadow:inset 0 0 0 1px #0001}.color-heading{font-size:.82rem;margin:1.35rem 0 .6rem}.iris-colors{display:flex;gap:.45rem;flex-wrap:wrap}.iris-colors button{min-height:2.4rem;width:2.4rem;padding:0;border-radius:50%;border:.18rem solid #fff;box-shadow:0 0 0 1px #dedfdc}.iris-colors button[aria-pressed=true]{box-shadow:0 0 0 .12rem #416c53}.color-input{display:flex;align-items:center;gap:.65rem;font-size:.76rem;margin:1rem 0}.color-input input{width:3rem;height:2.7rem;background:none;border:1px solid var(--line);border-radius:.5rem;padding:.2rem}.footer-actions{display:flex;gap:.4rem;justify-content:end;padding:1rem;border-top:1px solid var(--line)}.footer-actions button{font-size:.7rem}.pose-select{width:100%;min-height:2.75rem;border:1px solid var(--line);border-radius:.5rem;background:white;color:var(--ink);padding:.4rem}.pose-axis{display:flex;justify-content:space-between;align-items:center;margin:.65rem 0;gap:.4rem;font-size:.75rem}.pose-axis div{display:flex;gap:.4rem;align-items:center}.pose-axis output{width:2.8rem;text-align:center;font-variant-numeric:tabular-nums}.pose-axis button{width:2.5rem;padding:.4rem}.error{padding:1rem;color:#9a463c;font-size:.8rem}#file-input{display:none}[hidden]{display:none!important}
+@media(max-width:55rem){header{height:4.1rem;padding:0 .8rem}header h1{font-size:.94rem}.header-actions button{min-height:2.5rem;padding:.4rem .65rem}main{display:block;min-height:calc(100svh - 4.1rem)}.viewer{height:clamp(22rem,51svh,32rem);min-height:0;position:relative}.viewer-top{top:.65rem;left:.65rem;right:.65rem}.segmented button{padding:.35rem .8rem}.view-actions button{font-size:.66rem;padding:.4rem .6rem;min-height:2.45rem}.view-bottom{bottom:.65rem;left:.65rem;right:.65rem}.angle-bar button{padding:.35rem .7rem}.editor{border-left:0;border-top:1px solid var(--line)}.tabs{position:sticky;top:0;z-index:5;background:white;padding:.4rem .6rem}.tabs button{flex:1;padding:.4rem .45rem;font-size:.72rem}.panel{padding:1rem}.cards{grid-template-columns:repeat(3,minmax(0,1fr))}.card{min-height:5.4rem}.card canvas{height:auto}.pad{height:7rem}.panel-top{margin-bottom:.75rem}.footer-actions{padding:.8rem}#feedback{bottom:4rem;font-size:.65rem}.face-presets{grid-template-columns:repeat(4,minmax(0,1fr));gap:.35rem}.face-presets button{padding:.45rem .25rem;font-size:.68rem}}
+@media(prefers-reduced-motion:no-preference){button{transition:background .12s,color .12s,border-color .12s}}
+@media(max-width:55rem) and (orientation:landscape){
+ header{height:3rem}main{display:grid;grid-template-columns:48% 52%;height:calc(100svh - 3rem);min-height:0}
+ .viewer{height:100%;position:relative}.editor{height:100%;overflow:auto;border-top:0;border-left:1px solid var(--line)}
+ .tabs{top:0}.panel{padding:.7rem}.header-actions button{font-size:.66rem;padding:.3rem .5rem;min-height:2.3rem}
+ .viewer-top{flex-wrap:wrap}.cards{gap:.25rem}.card{min-height:4rem}.pad{height:5.5rem}
+}</style>
+</head>
+<body>
+<header><h1><small>SERNBELD</small>캐릭터 만들기</h1><div class="header-actions"><button id="save-project">설정 저장</button><button id="export">GLB 내보내기</button><button class="primary" id="play">이 캐릭터로 시작</button></div></header>
+<main>
+<section class="viewer" aria-label="캐릭터 미리보기">
+<div class="viewer-top"><div class="segmented" aria-label="성별"><button data-body="male" aria-pressed="true">남성</button><button data-body="female" aria-pressed="false">여성</button></div><div class="view-actions"><button id="focus" aria-pressed="false">얼굴 확대</button><button id="rotate-mode" aria-pressed="false">회전</button></div></div>
+<div class="stage" id="stage" tabindex="0" aria-label="드래그로 회전, 얼굴 부위 선택 후 드래그로 편집"><canvas id="viewport"></canvas><div class="handles" id="handles"></div></div>
+<p id="feedback" aria-live="polite">드래그로 회전 · 두 손가락으로 확대</p>
+<div class="view-bottom"><div class="angle-bar" aria-label="시점"><button data-angle="front" aria-pressed="true">정면</button><button data-angle="quarter" aria-pressed="false">사선</button><button data-angle="side" aria-pressed="false">측면</button></div><div class="zoom"><button id="zoom-out" aria-label="축소">−</button><button id="zoom-in" aria-label="확대">＋</button></div></div>
+</section>
+<section class="editor" aria-label="커스터마이징">
+<nav class="tabs" role="tablist" aria-label="편집 종류"><button role="tab" data-tab="face" aria-selected="true">얼굴형</button><button role="tab" data-tab="eye" aria-selected="false">눈</button><button role="tab" data-tab="brow" aria-selected="false">눈썹</button><button role="tab" data-tab="mouth" aria-selected="false">입</button><button role="tab" data-tab="color" aria-selected="false">색상</button><button role="tab" data-tab="decoration" aria-selected="false">장식</button><button role="tab" data-tab="pose" aria-selected="false">자세</button></nav>
+<div class="panel" id="panel" role="tabpanel"></div>
+<div class="footer-actions"><button id="undo" disabled>되돌리기</button><button id="load-project">설정 불러오기</button><button id="reset-all">전체 초기화</button></div>
+<input id="file-input" type="file" accept=".json,application/json">
+</section>
+</main>
+
+<script type="module">
+import {loadStudioSource} from "./studio-source.js";
+const studioSource=await loadStudioSource();
+"use strict";
+const groups = {
+  head:'두상 · 이마 · 관자', eye:'눈자리 · 눈썹뼈', cheek:'광대 · 볼',
+  nose:'미간 · 코', mouth:'입 주변 · 인중', jaw:'턱각 · 턱선 · 턱끝'
+};
+const controls = [
+  ['head','headWidth','전체 너비','좁게','넓게',.10,'두상 전체의 X 폭'],
+  ['head','headHeight','전체 높이','낮게','높게',.08,'두상 전체의 Y 길이'],
+  ['head','skull','뒤통수 깊이','얕게','깊게',.055,'뒤통수와 정수리 뒤쪽'],
+  ['head','forehead','이마 돌출','뒤로','앞으로',.052,'이마 곡면 전체와 미간 위쪽'],
+  ['head','foreheadHeight','이마 높이','낮게','높게',.045,'이마 상단과 두상 위쪽'],
+  ['head','temple','관자 폭','좁게','넓게',.035,'관자에서 이마 옆면과 광대로 전이'],
+  ['eye','brow','눈썹뼈 돌출','뒤로','앞으로',.030,'눈자리 위쪽의 융기'],
+  ['eye','socket','눈자리 깊이','얕게','깊게',.023,'눈자리의 오목한 면과 양쪽 테두리'],
+  ['eye','eyeHeight','눈자리 위치','아래로','위로',.033,'눈자리와 눈썹뼈·눈 밑의 높이'],
+  ['eye','eyeGap','눈자리 간격','가깝게','멀게',.022,'좌우 눈자리 영역을 대칭 이동'],
+  ['eye','eyeSpan','눈자리 폭','좁게','넓게',.18,'각 눈자리 중심을 기준으로 가로로 조정'],
+  ['eye','eyeTilt','눈 바깥 기울기','낮게','높게',.17,'눈자리 안팎 높이차 조정'],
+  ['eye','under','눈 밑 볼륨','낮게','도톰하게',.017,'눈 아래와 앞볼의 연결면'],
+  ['cheek','zygoma','광대 폭','좁게','넓게',.041,'바깥 광대와 관자·턱 사이의 옆면'],
+  ['cheek','cheek','앞볼 볼륨','납작하게','도톰하게',.042,'광대 아래의 전방 볼륨'],
+  ['cheek','cheekLift','볼 위치','낮게','높게',.027,'볼 중심과 주변 곡면을 함께 이동'],
+  ['nose','bridge','콧대 돌출','낮게','높게',.034,'코뿌리와 코끝 사이의 콧대'],
+  ['nose','bridgeW','콧대 폭','좁게','넓게',.25,'콧대 중앙과 양옆 경사'],
+  ['nose','tip','코끝 돌출','뒤로','앞으로',.040,'코끝부터 코밑까지 이어지는 면'],
+  ['nose','noseY','코끝 높이','아래로','위로',.025,'코끝과 코밑을 함께 이동'],
+  ['nose','wing','코 옆면 너비','좁게','넓게',.23,'코 옆면을 대칭 확대·축소'],
+  ['mouth','mouthY','입자리 높이','아래로','위로',.033,'인중 아래와 입 주변 면의 Y 위치'],
+  ['mouth','mouthZ','입 주변 돌출','뒤로','앞으로',.026,'입술이 놓일 전체 곡면과 턱 위쪽'],
+  ['mouth','mouthW','입 주변 폭','좁게','넓게',.18,'입자리와 좌우 가이드 폭'],
+  ['mouth','philtrum','인중 길이','짧게','길게',.023,'코밑 기준으로 입 위 영역 길이 조정'],
+  ['jaw','jawWidth','턱각 너비','좁게','넓게',.041,'턱선 바깥과 뒤쪽 연결면'],
+  ['jaw','jawY','턱선 높이','아래로','위로',.038,'턱각부터 턱밑까지의 Y 위치'],
+  ['jaw','chinY','턱 길이','짧게','길게',.051,'턱끝과 아래턱 전체의 길이'],
+  ['jaw','chinZ','턱끝 돌출','뒤로','앞으로',.051,'턱끝 앞면과 턱밑의 전후 위치'],
+  ['jaw','chinWidth','턱끝 너비','좁게','넓게',.25,'턱끝 양옆과 아래턱의 폭']
+].map(([group,key,label,minus,plus,limit,note])=>({group,key,label,minus,plus,limit,note}));
+
+function smooth(lo,hi,value) {
+  const t=Math.min(1,Math.max(0,(value-lo)/(hi-lo)));
+  return t*t*t*(10+t*(-15+6*t));
+}
+function region(x,y,z,cx,cy,cz,rx,ry,rz) {
+  const squared=((x-cx)/rx)**2+((y-cy)/ry)**2+((z-cz)/rz)**2;
+  return Math.max(0,1-squared*.57)**3;
+}
+function buildFields(vertices, anchors) {
+  const a=Object.fromEntries(anchors.filter(p=>p.side===1).map(p=>[p.id,p.p]));
+  const fields=controls.map(()=>new Float32Array(vertices.length));
+  for(let j=0;j<vertices.length;j+=3){
+    const x=vertices[j], y=vertices[j+1], z=vertices[j+2], ax=Math.abs(x), s=Math.sign(x);
+    const local=(id,rx,ry,rz)=>region(ax,y,z,...a[id],rx,ry,rz);
+    const front=smooth(.07,.30,z);
+    const symmetry=s*smooth(0,.10,ax);
+    const eye=local('socket',.159,.141,.19)*front*smooth(.010,.092,ax);
+    const cheek=local('cheek',.168,.157,.24)*front;
+    const outer=local('zygoma',.174,.185,.31);
+    const jaw=local('jaw',.206,.182,.39);
+    const chin=local('chin',.231,.197,.34);
+    const bridge=local('bridge',.107,.146,.163)*front;
+    const tip=local('tip',.133,.104,.177)*front;
+    const mouth=local('mouth',.225,.137,.24)*front;
+    const philtrum=local('base',.112,.127,.18)*front*smooth(-.458,-.538,y);
+    const back=(1-smooth(-.43,-.06,z))*smooth(-.54,-.18,y);
+    const forehead=local('forehead',.45,.34,.33)*front;
+    const temple=local('temple',.15,.21,.45);
+    const brow=region(ax,y,z,a.socket[0],a.brow[1]+.004,a.brow[2]-.022,.175,.087,.23)*front;
+    const under=local('under',.160,.110,.22)*front;
+    const targets=[
+      [x,0,0], [0,y+.132,0], [0,0,-back],
+      [0,0,forehead], [0,smooth(-.14,.37,y),0], [symmetry*temple,0,0],
+      [0,0,brow], [0,0,-eye], [0,eye,0], [symmetry*eye,0,0],
+      [s*(ax-a.socket[0])*eye,0,0], [0,(ax-a.socket[0])*eye,0], [.12*symmetry*under,0,under],
+      [symmetry*outer,0,.18*outer], [.32*symmetry*cheek,0,cheek], [0,cheek,0],
+      [0,0,bridge], [x*bridge,0,0], [0,.08*tip,tip], [0,tip,0], [x*tip,0,0],
+      [0,mouth,0], [0,0,mouth], [x*mouth,0,0], [0,-philtrum,0],
+      [symmetry*jaw,0,.09*jaw], [0,jaw,0], [0,-chin,0], [0,0,chin], [x*chin,0,0]
+    ];
+    for(let k=0;k<fields.length;k++)fields[k].set(targets[k],j);
+  }
+  return fields;
+}
+function displace(base, output, fields, values, strength=1) {
+  output.set(base);
+  for(let k=0;k<fields.length;k++){
+    const amount=values[k]*controls[k].limit*strength;
+    if(!amount)continue;
+    const field=fields[k];
+    for(let i=0;i<output.length;i++)output[i]+=field[i]*amount;
+  }
+}
+function triangleCross(p, i, ix, out) {
+  const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3;
+  const ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2];
+  const vx=p[c]-p[a],vy=p[c+1]-p[a+1],vz=p[c+2]-p[a+2];
+  out[0]=uy*vz-uz*vy;out[1]=uz*vx-ux*vz;out[2]=ux*vy-uy*vx;
+}
+function makeDeformer(base, indices, fields) {
+  const rest=new Float64Array(indices.length);
+  const cross=[0,0,0];
+  for(let i=0;i<indices.length;i+=3){
+    triangleCross(base,i,indices,cross);rest.set(cross,i);
+  }
+  function withinLimit(pose){
+    for(let i=0;i<indices.length;i+=3){
+      const x=rest[i],y=rest[i+1],z=rest[i+2],squared=x*x+y*y+z*z;
+      if(squared<1e-22)continue;
+      triangleCross(pose,i,indices,cross);
+      const [a,b,c]=cross;
+      if(a*x+b*y+c*z<=0||a*a+b*b+c*c<squared*.04)return false;
+    }
+    return true;
+  }
+  return (pose,values)=>{
+    displace(base,pose,fields,values);
+    if(withinLimit(pose))return 1;
+    let low=0,high=1;
+    for(let i=0;i<8;i++){
+      const mid=(low+high)*.5;
+      displace(base,pose,fields,values,mid);
+      if(withinLimit(pose))low=mid;else high=mid;
+    }
+    displace(base,pose,fields,values,low);
+    return low;
+  };
+}
+function normalsFor(p, indices, normals) {
+  normals.fill(0);
+  for(let i=0;i<indices.length;i+=3){
+    const a=3*indices[i],b=3*indices[i+1],c=3*indices[i+2];
+    const ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2];
+    const vx=p[c]-p[a],vy=p[c+1]-p[a+1],vz=p[c+2]-p[a+2];
+    const x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx;
+    for(const j of [a,b,c]){normals[j]+=x;normals[j+1]+=y;normals[j+2]+=z;}
+  }
+  for(let j=0;j<normals.length;j+=3){
+    const length=Math.hypot(normals[j],normals[j+1],normals[j+2])||1;
+    normals[j]/=length;normals[j+1]/=length;normals[j+2]/=length;
+  }
+  return normals;
+}
+
+function rotate(m,[x,y,z]) {
+  return [m[0]*x+m[3]*y+m[6]*z,m[1]*x+m[4]*y+m[7]*z,m[2]*x+m[5]*y+m[8]*z];
+}
+
+function multiply(left,right) {
+  return [0,3,6].flatMap(start => rotate(left,right.slice(start,start+3)));
+}
+
+function turn([x,y,z],degrees) {
+  const angle = degrees*Math.PI/180;
+  const s = Math.sin(angle), c = Math.cos(angle), t = 1-c;
+  return [
+    c+x*x*t, y*x*t+z*s, z*x*t-y*s,
+    x*y*t-z*s, c+y*y*t, z*y*t+x*s,
+    x*z*t+y*s, y*z*t-x*s, c+z*z*t
+  ];
+}
+
+function worldTransforms(data,pose) {
+  const transforms = new Map();
+  for (const bone of data.bones) {
+    const parent = transforms.get(bone.parent) || {rotation:identity,offset:origin};
+    let local = identity;
+    bone.axes.forEach((axis,i) => {
+      const degrees = pose[bone.id][i];
+      if (degrees) local = multiply(local,turn(axis.d,degrees));
+    });
+    const pivot = bone.pivot.map(value => value/HEIGHT);
+    const movedPivot = rotate(local,pivot);
+    const displacement = rotate(parent.rotation,pivot.map((value,i) => value-movedPivot[i]));
+    transforms.set(bone.id,{
+      rotation:multiply(parent.rotation,local),
+      offset:parent.offset.map((value,i) => value+displacement[i])
+    });
+  }
+  return transforms;
+}
+
+
+function makeIntegratedFace(data,position,normal,indices) {
+  const face=data.face;
+  const base=unpack(face.positions,Float32Array), topology=unpack(face.triangles,Uint16Array);
+  const fields=buildFields(base,face.anchors);
+  const deform=makeDeformer(base,topology,fields);
+  const rest=position.slice(face.start*3), edited=base.slice(), n=new Float32Array(position.length);
+  const ids=unpack(face.sourceIds,Uint16Array), factors=unpack(face.sourceFactors,Float32Array);
+  const radialFreedom=new Float32Array(ids.length/2);
+  const [rx,rz]=face.collarRadii;
+  for(let i=0;i<radialFreedom.length;i++){
+    const r=Math.hypot(rest[i*3]/rx,(rest[i*3+2]-face.collarCenterZ)/rz);
+    const y=base[ids[i*2]*3+1];
+    const heightBlend=smooth(-.39,-.25,y);
+    const radiusBlend=smooth(1.01,1.65,r);
+    radialFreedom[i]=1-(1-heightBlend)*(1-radiusBlend);
+  }
+  // Recompute the shared collar normals with neighboring head and neck faces.
+  const affected=new Uint8Array(position.length/3);
+  for(let i=face.start;i<affected.length;i++)affected[i]=1;
+  face.rimOriginal.forEach(i=>affected[i]=1);
+  const adjacent=[];
+  for(let i=0;i<data.parts[0].count;i+=3){
+    if(affected[indices[i]]||affected[indices[i+1]]||affected[indices[i+2]]) adjacent.push(i);
+  }
+  const cross=[0,0,0];
+  return {
+    base,edited,fields,
+    values:controls.map(()=>0),strength:1,dirty:true,status:()=>{},
+    update(){
+      if(!this.dirty)return false;
+      this.strength=deform(edited,this.values);
+      for(let i=0;i<ids.length;i+=2){
+        const a=ids[i]*3,b=ids[i+1]*3,t=factors[i],influence=factors[i+1];
+        const k=i/2*3, destination=face.start*3+k;
+        for(let axis=0;axis<3;axis++){
+          const shift=(edited[a+axis]-base[a+axis])*(1-t)+(edited[b+axis]-base[b+axis])*t;
+          position[destination+axis]=rest[k+axis]+shift*influence*face.scale[axis]*(axis===1?1:radialFreedom[i/2]);
+        }
+      }
+      n.fill(0);
+      for(const i of adjacent){
+        triangleCross(position,i,indices,cross);
+        for(let j=0;j<3;j++){
+          const a=3*indices[i+j];n[a]+=cross[0];n[a+1]+=cross[1];n[a+2]+=cross[2];
+        }
+      }
+      for(let i=0;i<affected.length;i++){
+        if(!affected[i])continue;
+        const k=i*3,length=Math.hypot(n[k],n[k+1],n[k+2]);
+        if(length)for(let axis=0;axis<3;axis++)normal[k+axis]=Math.round(127*n[k+axis]/length);
+      }
+      this.dirty=false;this.status();return true;
+    }
+  };
+}
+
+const $=id=>document.getElementById(id);
+const source=studioSource;
+const HEIGHT=1428,UNIT=32*HEIGHT;
+const identity=[1,0,0,0,1,0,0,0,1],origin=[0,0,0];
+const names={
+ eye:{neutral:'기본',wide:'또렷한 눈',narrow:'가느다란 눈',round:'둥근 눈',almond:'아몬드형',sleepy:'반쯤 감은 눈',sharp:'날카로운 눈',droop:'처진 눈',closed:'감은 눈',smiling:'실눈 · 상하반전'},
+ brow:{soft:'완만한 눈썹',straight:'일자 눈썹',angled:'각진 눈썹',thick:'굵은 눈썹',thin:'가는 눈썹',worried:'처진 눈썹',raised:'둥근 아치',short:'짧은 눈썹'},
+ mouth:{closed:'다문 입',smile:'미소',parted:'살짝 벌림',frown:'시무룩한 입',smirk:'한쪽 미소',cat:'고양이 입',small:'작은 입',surprised:'놀란 입',grin:'활짝 웃는 입'}
+};
+names.glasses={none:'없음',round:'얇은 동그란 테',square:'네모난 안경',biground:'큰 완전 원형 안경'};
+names.moustache={none:'없음',classic:'클래식 수염',box:'네모 수염',pencil:'가는 일자 수염'};
+names.blush=Object.fromEntries(source.blushes.map(b=>[b.id,b.name]));
+const titles={decoration:'안경과 얼굴 장식',face:'얼굴형',eye:'눈매',brow:'눈썹',mouth:'입',color:'피부와 눈동자',pose:'관절 조작'};
+const presetFaces={
+ base:{label:'기본',values:{}},
+ round:{label:'부드러운',values:{headWidth:.18,cheek:.24,jawWidth:.18,chinY:-.22}},
+ slim:{label:'갸름한',values:{headWidth:-.16,jawWidth:-.28,chinWidth:-.24,chinY:.16}},
+ angular:{label:'각진',values:{jawWidth:.32,chinWidth:.27,cheek:-.12,chinY:.05}}
+};
+const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(()=>0),pose:{}});
+let state=defaults();
+let tab='face',focus=false,part='outline',plane='shape',rotateMode=false;
+let yaw=0,pitch=0,zoom=1,view='front',activeBone='head',pending=false,geometryDirty=true,colorDirty=true;
+let lastView={u:[1,0,0],v:[0,1,0],d:[0,0,1],center:[0,0,0],scale:1,width:1,height:1};
+const undoStack=[],pointers=new Map(),bodyCache=new Map();
+const parts={
+ outline:{label:'윤곽',anchor:'temple',x:'headWidth',y:'headHeight',z:'forehead'},
+ forehead:{label:'이마',anchor:'forehead',x:'temple',y:'foreheadHeight',z:'forehead'},
+ eye:{label:'눈',anchor:'socket',x:'eyeSpan',y:'eyeHeight',z:'socket'},
+ nose:{label:'코',anchor:'tip',x:'wing',y:'noseY',z:'tip'},
+ mouth:{label:'입',anchor:'mouth',x:'mouthW',y:'mouthY',z:'mouthZ'},
+ jaw:{label:'턱선',anchor:'jaw',x:'jawWidth',y:'jawY',z:'chinZ'},
+ chin:{label:'턱끝',anchor:'chin',x:'chinWidth',y:'chinY',z:'chinZ'}
+};
+const controlIndex=new Map(controls.map((control,i)=>[control.key,i]));
+const stage=$('stage'),canvas=$('viewport'),handleLayer=$('handles');
+function unpack(encoded,Type){
+ const binary=atob(encoded),bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ return new Type(bytes.buffer);
+}
+function clone(value){return JSON.parse(JSON.stringify(value));}
+function snapshot(){return clone(state);}
+function remember(){
+ undoStack.push(snapshot());if(undoStack.length>30)undoStack.shift();
+ $('undo').disabled=false;
+}
+function persist(){
+ try{localStorage.setItem('sernbeld.character-studio.v1',JSON.stringify({format:'SERNBELD-Character/1',character:state}));}catch{}
+}
+function validate(value){
+ if(!value||!['male','female'].includes(value.body))throw Error('체형 정보를 확인해 줘.');
+ value={glasses:'none',moustache:'none',blush:'none',...value};
+ for(const key of ['eye','brow','mouth','moustache','blush','glasses'])if(!Object.hasOwn(names[key],value[key]))throw Error('지원하지 않는 얼굴 모양이야.');
+ if(!source.palettes.some(p=>p.id===value.skin)||!/^#[0-9a-f]{6}$/i.test(value.iris))throw Error('색상 정보를 확인해 줘.');
+ if(!Array.isArray(value.values)||value.values.length!==controls.length||value.values.some(v=>!Number.isFinite(v)||Math.abs(v)>1))throw Error('얼굴형 정보를 확인해 줘.');
+ const result=clone(value);result.pose={};
+ for(const bone of source.bodies[value.body].bones){
+  const values=value.pose?.[bone.id]??bone.axes.map(()=>0);
+  if(!Array.isArray(values)||values.length!==bone.axes.length||values.some((v,i)=>!Number.isFinite(v)||v<bone.axes[i].min||v>bone.axes[i].max))throw Error('관절 정보를 확인해 줘.');
+  result.pose[bone.id]=values.slice();
+ }
+ return result;
+}
+try{
+ const previous=localStorage.getItem('sernbeld.character-studio.v1');
+ if(previous)state=validate(JSON.parse(previous).character);
+}catch{}
+function markDirty(shape=true){
+ if(shape)geometryDirty=true;
+ colorDirty=true;persist();schedule();
+}
+function linear(hex){
+ return [1,3,5].map(i=>{const v=parseInt(hex.slice(i,i+2),16)/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;});
+}
+function srgb(v){return Math.round(255*(v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055));}
+function ramp(a,b,value){const t=Math.max(0,Math.min(1,(value-a)/(b-a)));return t*t*(3-2*t);}
+function palette(){return source.palettes.find(p=>p.id===state.skin);}
+function blush(){return source.blushes.find(p=>p.id===state.blush);}
+function cheekCenter(){
+ const body=getBody(),anchor=anchors.find(a=>a.id==='cheek'&&a.side===1),point=[0,0,0];
+ for(let j=0;j<anchor.ids.length;j++)for(let axis=0;axis<3;axis++)point[axis]+=body.editor.edited[anchor.ids[j]*3+axis]*anchor.w[j];
+ return point;
+}
+function blushWeight(point,center=cheekCenter()){
+ const squared=((Math.abs(point[0])-Math.abs(center[0]))/.085)**2+((point[1]-center[1])/.065)**2;
+ return Math.exp(-squared)*ramp(.20,.30,point[2])*blush().strength;
+}
+function faceScale(data){return data.face.scale.map(v=>v/UNIT);}
+function faceOffset(data){return data.headOffset.map(v=>v/HEIGHT);}
+
+const bytes=unpack(source.faceGlb,Uint8Array),header=new DataView(bytes.buffer);
+const jsonLength=header.getUint32(12,true),binOffset=28+jsonLength;
+const faceDocument=JSON.parse(new TextDecoder().decode(bytes.subarray(20,20+jsonLength)));
+function accessor(id){
+ const a=faceDocument.accessors[id],v=faceDocument.bufferViews[a.bufferView];
+ const columns={SCALAR:1,VEC3:3,VEC4:4}[a.type],Type={5126:Float32Array,5123:Uint16Array,5125:Uint32Array}[a.componentType];
+ if(v.byteStride)throw Error('압축된 정점 배열을 읽을 수 없어.');
+ return new Type(bytes.buffer,binOffset+(v.byteOffset||0)+(a.byteOffset||0),a.count*columns).slice();
+}
+const anchors=source.bodies.female.face.anchors;
+const featureObjects=faceDocument.meshes.filter(m=>m.extras.eyeStyle!=='common').flatMap(mesh=>mesh.primitives.map(primitive=>{
+ const base=accessor(primitive.attributes.POSITION),normals=accessor(primitive.attributes.NORMAL),indices=accessor(primitive.indices);
+ const material=faceDocument.materials[primitive.material],extra=mesh.extras;
+ // Nose accent: adjust transverse stroke width only. Keep its Y/Z endpoints unchanged.
+ if(extra.feature==='nose')for(let k=0;k<base.length;k+=3)base[k]*=1.12;
+ const colors=primitive.attributes.COLOR_0===undefined?null:accessor(primitive.attributes.COLOR_0);
+ return {name:mesh.name,extra,material,base,baseNormals:normals,fields:buildFields(base,anchors),
+  edited:base.slice(),localNormals:normals.slice(),positions:new Float32Array(base.length),normals:new Float32Array(base.length),
+  indices:Uint32Array.from(indices),baseColors:colors,colors:colors?.slice()??null,skin:!!material.extras?.sernbeldSkin,
+  jointIds:new Uint8Array(base.length/3*4),weights:Uint8Array.from({length:base.length/3*4},(_,i)=>i%4===0?255:0),
+  skins:['head'],gpu:null};
+}));
+function visible(object){
+ const e=object.extra;
+ if(e.feature==='nose'||e.feature==='ear')return true;
+ if(e.feature==='glasses')return e.variant===state.glasses;
+ if(e.feature==='moustache')return e.variant===state.moustache;
+ if(e.feature==='brow')return e.variant===state.brow;
+ if(e.feature==='mouth')return e.variant===state.mouth;
+ return e.eyeStyle===state.eye;
+}
+function getBody(){
+ if(bodyCache.has(state.body))return bodyCache.get(state.body);
+ const data=source.bodies[state.body],base=unpack(data.p,Int16Array),fitted=unpack(data.face.fitted,Float32Array);
+ const position=new Float32Array(Math.max(base.length,data.face.start*3+fitted.length));
+ position.set(base);position.set(fitted,data.face.start*3);
+ const packedNormals=unpack(data.n,Int8Array),indices=unpack(data.f,data.indexType==='Uint32Array'?Uint32Array:Uint16Array);
+ const joints=unpack(data.wi,Uint8Array),weights=unpack(data.ww,Uint8Array);
+ const editor=makeIntegratedFace(data,position,packedNormals,indices);
+ const worldPositions=new Float32Array(position.length),normals=new Float32Array(position.length);
+ const result={data,position,packedNormals,indices:Uint32Array.from(indices),editor,worldPositions,normals,joints,weights,gpu:null};
+ bodyCache.set(state.body,result);return result;
+}
+function poseFor(data){
+ return Object.fromEntries(data.bones.map(b=>[b.id,state.pose[b.id]??b.axes.map(()=>0)]));
+}
+function matrices(){const body=getBody();return worldTransforms(body.data,poseFor(body.data));}
+function tintIris(object){
+ if(!object.baseColors)return null;
+ const colors=object.baseColors.slice(),target=linear(state.iris);
+ for(let i=0;i<colors.length;i+=3){
+  const r=colors[i],g=colors[i+1],b=colors[i+2],mask=ramp(.019,.11,r-g)*ramp(.028,.13,b-g),value=Math.max(r,g,b);
+  for(let axis=0;axis<3;axis++)colors[i+axis]=colors[i+axis]*(1-mask)+Math.min(1,target[axis]*value/.37)*mask;
+ }
+ return colors;
+}
+function updateGeometry(){
+ const body=getBody(),editor=body.editor;
+ editor.values=state.values.slice();editor.dirty=true;editor.update();
+ for(let i=0;i<body.position.length;i++){body.worldPositions[i]=body.position[i]/UNIT;body.normals[i]=body.packedNormals[i]/127;}
+ const scale=faceScale(body.data),offset=faceOffset(body.data);
+ for(const object of featureObjects){
+  displace(object.base,object.edited,object.fields,state.values,editor.strength);
+  if(state.values.some(Boolean))normalsFor(object.edited,object.indices,object.localNormals);
+  else object.localNormals.set(object.baseNormals);
+  // Keep the large circular lenses truly round for both body presets.
+  const objectScale=object.extra.feature==='glasses'&&object.extra.variant==='biground'?[scale[0],scale[0],scale[2]]:scale;
+  for(let i=0;i<object.edited.length;i+=3){
+   const n=object.localNormals.subarray(i,i+3),length=Math.hypot(n[0]/objectScale[0],n[1]/objectScale[1],n[2]/objectScale[2])||1;
+   for(let axis=0;axis<3;axis++){
+    object.positions[i+axis]=object.edited[i+axis]*objectScale[axis]+offset[axis];
+    object.normals[i+axis]=n[axis]/objectScale[axis]/length;
+   }
+  }
+ }
+ geometryDirty=false;
+ if(editor.strength<.99)$('feedback').textContent='면이 뒤집히지 않는 범위까지 조정했어.';
+ return body;
+}
+function updateColors(){
+ for(const object of featureObjects){
+  if(object.extra.iris)object.colors=tintIris(object);
+  if(object.extra.softInk){
+   const skin=linear(palette().light),ink=linear('#8C6D64'),strength=object.extra.feature==='nose'?.23:.23,color=skin.map((v,i)=>v*(1-strength)+ink[i]*strength);
+   object.colors=new Float32Array(object.base.length);
+   for(let i=0;i<object.colors.length;i+=3)object.colors.set(color,i);
+  }
+ }
+ colorDirty=false;
+}
+let gl=null,program=null;
+const uniforms={},attributes={};
+const VERTEX_SOURCE=`attribute vec3 aPosition,aNormal,aColor;
+attribute vec4 aJoints,aWeights;
+uniform mat4 uBones[16];
+uniform vec3 uRight,uUp,uToward,uCenter,uHeadScale,uHeadOffset;
+uniform vec2 uScale;
+varying mediump vec3 vNormal,vWorldNormal,vColor,vLocal;
+void main(){
+ mat4 bone=aWeights.x*uBones[int(aJoints.x)]+aWeights.y*uBones[int(aJoints.y)]+aWeights.z*uBones[int(aJoints.z)]+aWeights.w*uBones[int(aJoints.w)];
+ vec3 p=(bone*vec4(aPosition,1.)).xyz,n=normalize(mat3(bone)*aNormal),q=p-uCenter;
+ vNormal=vec3(dot(n,uRight),dot(n,uUp),dot(n,uToward));vWorldNormal=n;
+ vColor=aColor;vLocal=(aPosition-uHeadOffset)/uHeadScale;
+ gl_Position=vec4(dot(q,uRight)*uScale.x,dot(q,uUp)*uScale.y,-dot(q,uToward)*.6,1.);
+}`;
+const FRAGMENT_SOURCE=`precision highp float;
+varying mediump vec3 vNormal,vWorldNormal,vColor,vLocal;
+uniform vec3 uRight,uUp,uToward,uBase,uSkinLight,uSkinShadow,uHeadForward;
+uniform float uSkin,uUnlit,uBlushStrength;
+uniform vec3 uBlushColor,uCheekCenter;
+vec3 toSrgb(vec3 c){return mix(c*12.92,1.055*pow(max(c,0.),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
+void main(){
+ vec3 normal=normalize(vWorldNormal);
+ float neckMask=smoothstep(.22,.31,vLocal.z)*(1.-smoothstep(.24,.36,abs(vLocal.x)))*smoothstep(-.66,-.58,vLocal.y)*(1.-smoothstep(.02,.14,vLocal.y));
+ // Gently align only the upper neck / lower face so head and neck shading connect without a hard seam.
+ normal=normalize(mix(normal,uHeadForward,neckMask*.38));
+ vec3 shaped=vec3(dot(normal,uRight),dot(normal,uUp),dot(normal,uToward));
+ float tone=smoothstep(.158,.205,dot(shaped,normalize(vec3(-.42,.68,.61))));
+ vec3 skin=mix(uSkinShadow,uSkinLight,tone);
+ float underChin=smoothstep(.14,.30,vLocal.z)*(1.-smoothstep(.16,.34,abs(vLocal.x)))*smoothstep(.14,.26,-vLocal.y)*(1.-smoothstep(.30,.46,-vLocal.y));
+ float neckBridge=smoothstep(.18,.30,vLocal.z)*(1.-smoothstep(.24,.42,abs(vLocal.x)))*smoothstep(.34,.46,-vLocal.y)*(1.-smoothstep(.52,.66,-vLocal.y));
+ skin=mix(skin,uSkinShadow,.18*underChin+.10*neckBridge);
+ vec2 cheek=vec2((abs(vLocal.x)-abs(uCheekCenter.x))/.085,(vLocal.y-uCheekCenter.y)/.065);
+ float blush=exp(-dot(cheek,cheek))*smoothstep(.20,.30,vLocal.z)*uBlushStrength;
+ skin=mix(skin,uBlushColor,blush);
+ float diffuse=.66+.34*max(0.,dot(normalize(vNormal),normalize(vec3(-.42,.68,.61))));
+ vec3 ordinary=uBase*vColor*mix(diffuse,1.,uUnlit);
+ gl_FragColor=vec4(toSrgb(mix(ordinary,skin,uSkin)),1.);
+}`;
+function attachShader(kind,text){
+ const shader=gl.createShader(kind);gl.shaderSource(shader,text);gl.compileShader(shader);
+ if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));
+ gl.attachShader(program,shader);gl.deleteShader(shader);
+}
+function initGL(){
+ gl=canvas.getContext('webgl',{antialias:true,alpha:true});
+ if(!gl)throw Error('이 브라우저에서 WebGL을 켜야 캐릭터를 볼 수 있어.');
+ if(!gl.getExtension('OES_element_index_uint'))throw Error('32비트 메시를 지원하는 브라우저가 필요해.');
+ program=gl.createProgram();attachShader(gl.VERTEX_SHADER,VERTEX_SOURCE);attachShader(gl.FRAGMENT_SHADER,FRAGMENT_SOURCE);
+ gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+ gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
+ for(const name of ['aPosition','aNormal','aColor','aJoints','aWeights'])attributes[name]=gl.getAttribLocation(program,name);
+ for(const name of ['uBones[0]','uRight','uUp','uToward','uCenter','uHeadScale','uHeadOffset','uScale','uBase','uSkinLight','uSkinShadow','uSkin','uUnlit','uHeadForward','uBlushStrength','uBlushColor','uCheekCenter'])uniforms[name]=gl.getUniformLocation(program,name);
+ for(const body of bodyCache.values())body.gpu=null;
+ for(const object of featureObjects)object.gpu=null;
+ geometryDirty=true;colorDirty=true;schedule();
+}
+function gpuBuffer(array,target){
+ const buffer=gl.createBuffer();gl.bindBuffer(target,buffer);gl.bufferData(target,array,gl.DYNAMIC_DRAW);return buffer;
+}
+function uploadObject(object,body=false){
+ if(!object.gpu){
+  object.gpu={
+   position:gpuBuffer(body?object.worldPositions:object.positions,gl.ARRAY_BUFFER),
+   normal:gpuBuffer(object.normals,gl.ARRAY_BUFFER),
+   joints:gpuBuffer(body?object.joints:object.jointIds,gl.ARRAY_BUFFER),
+   weights:gpuBuffer(object.weights,gl.ARRAY_BUFFER),
+   color:!body&&object.colors?gpuBuffer(object.colors,gl.ARRAY_BUFFER):null,
+   indices:gpuBuffer(object.indices,gl.ELEMENT_ARRAY_BUFFER)
+  };
+  return;
+ }
+ gl.bindBuffer(gl.ARRAY_BUFFER,object.gpu.position);gl.bufferSubData(gl.ARRAY_BUFFER,0,body?object.worldPositions:object.positions);
+ gl.bindBuffer(gl.ARRAY_BUFFER,object.gpu.normal);gl.bufferSubData(gl.ARRAY_BUFFER,0,object.normals);
+ if(!body&&object.colors&&object.gpu.color){gl.bindBuffer(gl.ARRAY_BUFFER,object.gpu.color);gl.bufferSubData(gl.ARRAY_BUFFER,0,object.colors);}
+}
+function bindAttributes(object){
+ function attribute(name,buffer,type,size,normalized=false){
+  const location=attributes[name];if(location<0)return;
+  if(!buffer){gl.disableVertexAttribArray(location);gl.vertexAttrib3f(location,1,1,1);return;}
+  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,size,type,normalized,0,0);
+ }
+ const g=object.gpu;
+ attribute('aPosition',g.position,gl.FLOAT,3);attribute('aNormal',g.normal,gl.FLOAT,3);
+ attribute('aColor',g.color,gl.FLOAT,3);attribute('aJoints',g.joints,gl.UNSIGNED_BYTE,4);attribute('aWeights',g.weights,gl.UNSIGNED_BYTE,4,true);
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,g.indices);
+}
+const matrixBuffer=new Float32Array(16*16);
+function setBones(ids,transforms){
+ for(let i=0;i<ids.length;i++){
+  const transform=transforms.get(ids[i]),r=transform.rotation,t=transform.offset;
+  matrixBuffer.set([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,t[0],t[1],t[2],1],i*16);
+ }
+ gl.uniformMatrix4fv(uniforms['uBones[0]'],false,matrixBuffer.subarray(0,ids.length*16));
+}
+function schedule(){if(!pending){pending=true;requestAnimationFrame(draw);}}
+function project(world){
+ const q=world.map((v,i)=>v-lastView.center[i]);
+ return [lastView.width/2+q.reduce((sum,v,i)=>sum+v*lastView.u[i],0)*lastView.scale,
+  lastView.height/2-q.reduce((sum,v,i)=>sum+v*lastView.v[i],0)*lastView.scale];
+}
+function transformPoint(p,transform){return rotate(transform.rotation,p).map((v,i)=>v+transform.offset[i]);}
+function draw(){
+ pending=false;if(!gl)return;
+ const needGeometry=geometryDirty,needColor=colorDirty,body=needGeometry?updateGeometry():getBody();
+ if(needColor)updateColors();
+ if(!body.gpu||needGeometry)uploadObject(body,true);
+ for(const object of featureObjects)if(!object.gpu||needGeometry||needColor)uploadObject(object);
+ const width=stage.clientWidth,height=stage.clientHeight;
+ if(!width||!height)return;
+ const ratio=Math.min(devicePixelRatio||1,2);
+ if(canvas.width!==Math.round(width*ratio))canvas.width=Math.round(width*ratio);
+ if(canvas.height!==Math.round(height*ratio))canvas.height=Math.round(height*ratio);
+ const u=[Math.cos(yaw),0,-Math.sin(yaw)];
+ const v=[-Math.sin(yaw)*Math.sin(pitch),Math.cos(pitch),-Math.cos(yaw)*Math.sin(pitch)];
+ const d=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)];
+ const transforms=matrices(),head=transforms.get('head');
+ const target=focus?transformPoint(body.data.face.focus.map(x=>x/HEIGHT),head):[0,.015,.015];
+ const scale=Math.min(width/(focus ? .17 : .76),height/(focus ? .205 : 1.12))*zoom;
+ lastView={u,v,d,center:target,scale,width,height};
+ gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ for(const [name,value] of Object.entries({uRight:u,uUp:v,uToward:d,uCenter:target,uHeadScale:faceScale(body.data),uHeadOffset:faceOffset(body.data),uSkinLight:linear(palette().light),uSkinShadow:linear(palette().shadow),uHeadForward:rotate(head.rotation,[0,0,1]),uBlushColor:linear(blush().color),uCheekCenter:cheekCenter()}))gl.uniform3fv(uniforms[name],value);
+ gl.uniform1f(uniforms.uBlushStrength,blush().strength);
+ gl.uniform2f(uniforms.uScale,2*scale/width,2*scale/height);
+ bindAttributes(body);gl.uniform1f(uniforms.uSkin,1);gl.uniform1f(uniforms.uUnlit,0);gl.uniform3fv(uniforms.uBase,[1,1,1]);
+ for(const part of body.data.parts){setBones(part.skin,transforms);gl.drawElements(gl.TRIANGLES,part.count,gl.UNSIGNED_INT,part.start*4);}
+ for(const object of featureObjects){
+  if(!visible(object))continue;
+  bindAttributes(object);setBones(object.skins,transforms);
+  gl.uniform1f(uniforms.uSkin,Number(object.skin));gl.uniform1f(uniforms.uUnlit,Number(!!object.material.extensions?.KHR_materials_unlit));
+  gl.uniform3fv(uniforms.uBase,(object.material.pbrMetallicRoughness?.baseColorFactor??[1,1,1,1]).slice(0,3));
+  gl.drawElements(gl.TRIANGLES,object.indices.length,gl.UNSIGNED_INT,0);
+ }
+ placeHandles();
+}
+function anchorPosition(id,side=1){
+ const body=getBody(),anchor=anchors.find(a=>a.id===id&&a.side===side)??anchors.find(a=>a.id===id);
+ const point=[0,0,0];
+ for(let j=0;j<anchor.ids.length;j++)for(let axis=0;axis<3;axis++)point[axis]+=body.editor.edited[anchor.ids[j]*3+axis]*anchor.w[j];
+ const scale=faceScale(body.data),offset=faceOffset(body.data);
+ return transformPoint(point.map((v,i)=>v*scale[i]+offset[i]),matrices().get('head'));
+}
+function placeHandles(){
+ const show=focus&&!rotateMode&&['face','eye','mouth','brow'].includes(tab);
+ handleLayer.hidden=!show;
+ if(!show)return;
+ for(const button of handleLayer.querySelectorAll('[data-anchor]')){
+  const [key,sideText]=button.dataset.anchor.split(':');
+  const xy=project(anchorPosition(parts[key].anchor,Number(sideText)));
+  button.style.left=xy[0]+'px';button.style.top=xy[1]+'px';
+  button.hidden=Math.abs(yaw)>1.25&&Number(sideText)===1&&['eye','jaw','outline'].includes(key);
+  button.setAttribute('aria-pressed',String(key===part));
+ }
+ const label=handleLayer.querySelector('.handle-label');
+ const selected=handleLayer.querySelector('[data-anchor="'+part+':1"]')??handleLayer.querySelector('[data-anchor="'+part+':-1"]');
+ if(label&&selected){label.style.left=selected.style.left;label.style.top=selected.style.top;label.textContent=parts[part].label;}
+}
+function createHandles(){
+ handleLayer.replaceChildren();
+ for(const [key,info] of Object.entries(parts)){
+  for(const side of ['outline','eye','jaw'].includes(key)?[1,-1]:[1]){
+   const button=document.createElement('button');button.className='handle';button.type='button';button.dataset.anchor=key+':'+side;
+   button.setAttribute('aria-label',info.label+' 드래그 편집');button.onclick=()=>selectPart(key);
+   handleLayer.append(button);
+  }
+ }
+ const label=document.createElement('span');label.className='handle-label';handleLayer.append(label);
+}
+function selectPart(key){
+ part=key;if(!focus)setFocus(true);rotateMode=false;
+ $('rotate-mode').setAttribute('aria-pressed','false');
+ renderPanel();schedule();
+}
+function setFocus(on){
+ focus=on;zoom=1;$('focus').setAttribute('aria-pressed',String(on));$('focus').textContent=on?'전신 보기':'얼굴 확대';
+ $('feedback').textContent=on?'얼굴 점을 누르고 드래그 · 옆모습에서 깊이 조절':'드래그로 회전 · 두 손가락으로 확대';
+ schedule();
+}
+function setAngle(key){
+ const angles={front:[0,0],quarter:[-.60,.025],side:[-Math.PI/2,0]};
+ [yaw,pitch]=angles[key];view=key;
+ document.querySelectorAll('[data-angle]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.angle===key)));
+ schedule();
+}
+function setBody(body){
+ if(state.body===body)return;
+ remember();state.body=body;activeBone='head';geometryDirty=true;colorDirty=true;
+ document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===body)));
+ renderPanel();persist();schedule();
+}
+function setStyle(kind,value){
+ if(state[kind]===value)return;remember();state[kind]=value;
+ markDirty(false);renderPanel();
+}
+function button(text,fn,selected=false){
+ const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;b.setAttribute('aria-pressed',String(selected));return b;
+}
+function thumb(canvas,kind,value){
+ canvas.width=240;canvas.height=110;
+ const context=canvas.getContext('2d');
+ if(!context)return;
+ context.fillStyle='#f1f3ef';context.fillRect(0,0,240,110);
+ const objects=featureObjects.filter(o=>kind==='eye'?o.extra.eyeStyle===value:o.extra.feature===kind&&o.extra.variant===value);
+ const visiblePoints=objects.flatMap(o=>Array.from({length:o.base.length/3},(_,i)=>[o.base[i*3],o.base[i*3+1]]));
+ if(!visiblePoints.length)return;
+ const xmin=Math.min(...visiblePoints.map(p=>p[0])),xmax=Math.max(...visiblePoints.map(p=>p[0]));
+ const ymin=Math.min(...visiblePoints.map(p=>p[1])),ymax=Math.max(...visiblePoints.map(p=>p[1]));
+ const scale=Math.min(208/(xmax-xmin),78/Math.max(.045,ymax-ymin));
+ for(const o of objects){
+  const color=o.material.pbrMetallicRoughness?.baseColorFactor??[1,1,1,1],c=o.extra.iris?tintIris(o):o.baseColors;
+  for(let i=0;i<o.indices.length;i+=3){
+   const ids=Array.from(o.indices.subarray(i,i+3));
+   const rgb=color.slice(0,3).map((base,k)=>base*(c?ids.reduce((sum,id)=>sum+c[id*3+k],0)/3:1));
+   context.fillStyle='rgb('+rgb.map(v=>srgb(Math.max(0,Math.min(1,v)))).join(',')+')';
+   context.beginPath();
+   ids.forEach((id,j)=>{const x=120+(o.base[id*3]-(xmin+xmax)/2)*scale,y=55-(o.base[id*3+1]-(ymin+ymax)/2)*scale;if(j)context.lineTo(x,y);else context.moveTo(x,y);});
+   context.closePath();context.fill();
+  }
+ }
+}
+function panelHeading(title){
+ const header=document.createElement('div');header.className='panel-top';
+ const heading=document.createElement('h2');heading.textContent=title;header.append(heading);
+ if(['face','eye','mouth'].includes(tab))header.append(button('부위 편집',()=>{setFocus(true);rotateMode=false;renderPanel();schedule();}));
+ $('panel').append(header);
+}
+function selectionCards(kind){
+ const grid=document.createElement('div');grid.className='cards';
+ for(const [id,label] of Object.entries(names[kind])){
+  const card=button('',()=>setStyle(kind,id),state[kind]===id);card.className='card';
+  card.setAttribute('aria-label',label);card.dataset.style=kind+':'+id;
+  const preview=document.createElement('canvas');preview.setAttribute('aria-hidden','true');
+  const title=document.createElement('span');title.textContent=label;card.append(preview,title);grid.append(card);thumb(preview,kind,id);
+ }
+ $('panel').append(grid);
+}
+function partButtons(){
+ const list=document.createElement('div');list.className='part-list';
+ const keys=tab==='eye'?['eye','forehead']:tab==='mouth'?['mouth','chin']:Object.keys(parts);
+ for(const key of keys)list.append(button(parts[key].label,()=>selectPart(key),part===key));
+ $('panel').append(list);
+}
+function adjust(dx,dy){
+ const info=parts[part],side=Math.abs(yaw)>1.05||plane==='depth';
+ const xkey=side?info.z:info.x,ykey=info.y;
+ const xi=controlIndex.get(xkey),yi=controlIndex.get(ykey);
+ const xSign=xkey==='socket'?-1:1,ySign=['chinY'].includes(ykey)?-1:1;
+ if(xi!==undefined)state.values[xi]=Math.max(-1,Math.min(1,state.values[xi]+dx*xSign));
+ if(yi!==undefined)state.values[yi]=Math.max(-1,Math.min(1,state.values[yi]+dy*ySign));
+ markDirty();
+}
+function editPad(){
+ const wrap=document.createElement('div');wrap.className='pad-wrap';
+ const title=document.createElement('div');title.className='pad-title';
+ const name=document.createElement('strong');name.textContent=parts[part].label;
+ const modes=document.createElement('div');modes.className='segmented';
+ modes.append(button('정면',()=>{plane='shape';setAngle('front');renderPanel();},plane==='shape'),button('깊이',()=>{plane='depth';setAngle('side');renderPanel();},plane==='depth'));
+ title.append(name,modes);
+ const pad=document.createElement('div');pad.className='pad';pad.tabIndex=0;pad.setAttribute('role','application');pad.setAttribute('aria-label',parts[part].label+' 조정. 드래그하거나 방향키를 사용하세요.');
+ for(const [position,text] of [['left',plane==='depth'?'뒤로':'좁게'],['right',plane==='depth'?'앞으로':'넓게'],['top','위로'],['bottom','아래로']]){
+  const label=document.createElement('small');label.className=position;label.textContent=text;pad.append(label);
+ }
+ let drag=null;
+ pad.onpointerdown=e=>{e.preventDefault();remember();drag=[e.clientX,e.clientY,e.pointerId];pad.setPointerCapture(e.pointerId);};
+ pad.onpointermove=e=>{if(!drag||drag[2]!==e.pointerId)return;adjust((e.clientX-drag[0])/.145/stage.clientWidth,(drag[1]-e.clientY)/.145/stage.clientWidth);drag=[e.clientX,e.clientY,e.pointerId];};
+ pad.onpointerup=pad.onpointercancel=()=>drag=null;
+ pad.onkeydown=e=>{
+  const moves={ArrowLeft:[-.04,0],ArrowRight:[.04,0],ArrowUp:[0,.04],ArrowDown:[0,-.04]};
+  if(!moves[e.key])return;e.preventDefault();remember();adjust(...moves[e.key]);
+ };
+ const steps=document.createElement('div');steps.className='step-buttons';
+ steps.append(button('←',()=>{remember();adjust(-.04,0);}),button('↑',()=>{remember();adjust(0,.04);}));
+ const reset=button('부위 초기화',()=>{
+  remember();const info=parts[part];
+  for(const key of [info.x,info.y,info.z])state.values[controlIndex.get(key)]=0;
+  markDirty();
+ });reset.className='reset-part';steps.append(reset,button('↓',()=>{remember();adjust(0,-.04);}),button('→',()=>{remember();adjust(.04,0);}));
+ wrap.append(title,pad,steps);$('panel').append(wrap);
+}
+function renderColors(){
+ const grid=document.createElement('div');grid.className='palette-grid';
+ for(const p of source.palettes){
+  const swatch=button('',()=>{remember();state.skin=p.id;markDirty(false);renderPanel();},state.skin===p.id);swatch.className='swatch';swatch.setAttribute('aria-label',p.name);
+  const circle=document.createElement('i');circle.style.background='linear-gradient(135deg,'+p.light+' 60%,'+p.shadow+' 60%)';
+  const label=document.createElement('span');label.textContent=p.name;swatch.append(circle,label);grid.append(swatch);
+ }
+ $('panel').append(grid);
+ const heading=document.createElement('h3');heading.className='color-heading';heading.textContent='눈동자';$('panel').append(heading);
+ const colors=document.createElement('div');colors.className='iris-colors';
+ for(const [hex,name] of [['#9e71a4','보라'],['#328f91','청록'],['#4d81b5','파랑'],['#648653','초록'],['#99643c','갈색'],['#bca049','금색'],['#ab5762','붉은색'],['#43424c','흑갈색']]){
+  const swatch=button('',()=>{remember();state.iris=hex;markDirty(false);renderPanel();},state.iris===hex);swatch.style.background=hex;swatch.setAttribute('aria-label',name);colors.append(swatch);
+ }
+ $('panel').append(colors);
+ const label=document.createElement('label');label.className='color-input';label.textContent='직접 고르기';
+ const input=document.createElement('input');input.type='color';input.value=state.iris;input.id='iris-custom';
+ let editingColor=false;
+ input.oninput=()=>{if(!editingColor){remember();editingColor=true;}state.iris=input.value;markDirty(false);};
+ input.onchange=()=>{if(!editingColor)remember();state.iris=input.value;editingColor=false;markDirty(false);};
+ label.append(input);$('panel').append(label);
+}
+function renderPose(){
+ const body=getBody(),select=document.createElement('select');select.className='pose-select';select.setAttribute('aria-label','조작할 관절');
+ for(const bone of body.data.bones.filter(b=>b.selectable)){
+  const option=document.createElement('option');option.value=bone.id;option.textContent=bone.label;select.append(option);
+ }
+ select.value=activeBone;select.onchange=()=>{activeBone=select.value;renderPanel();};$('panel').append(select);
+ const bone=body.data.bones.find(b=>b.id===activeBone),values=poseFor(body.data)[bone.id];
+ bone.axes.forEach((axis,index)=>{
+  const row=document.createElement('div');row.className='pose-axis';
+  const label=document.createElement('span');label.textContent=axis.label;const actions=document.createElement('div');
+  const output=document.createElement('output');output.textContent=Math.round(values[index])+'°';
+  const edit=delta=>{
+   remember();const current=poseFor(body.data)[bone.id].slice();
+   current[index]=Math.max(axis.min,Math.min(axis.max,current[index]+delta));state.pose[bone.id]=current;persist();renderPanel();schedule();
+  };
+  actions.append(button('−',()=>edit(-5)),output,button('＋',()=>edit(5)));row.append(label,actions);$('panel').append(row);
+ });
+ $('panel').append(button('자세 초기화',()=>{remember();state.pose={};persist();renderPanel();schedule();}));
+}
+function renderPanel(){
+ $('panel').replaceChildren();panelHeading(titles[tab]);
+ if(tab==='color'){renderColors();return;}
+ if(tab==='decoration'){
+  const eyewear=document.createElement('h3');eyewear.className='color-heading';eyewear.textContent='안경';$('panel').append(eyewear);selectionCards('glasses');
+  const heading=document.createElement('h3');heading.className='color-heading';heading.textContent='볼터치';$('panel').append(heading);
+  const grid=document.createElement('div');grid.className='palette-grid';
+  for(const option of source.blushes){
+   const card=button('',()=>setStyle('blush',option.id),state.blush===option.id);card.className='swatch';card.dataset.style='blush:'+option.id;
+   const circle=document.createElement('i');circle.style.background=option.id==='none'?'#f0ece7':'radial-gradient(circle,'+option.color+',#f5d9ca 76%)';
+   const label=document.createElement('span');label.textContent=option.name;card.append(circle,label);grid.append(card);
+  }
+  $('panel').append(grid);
+  const label=document.createElement('h3');label.className='color-heading';label.textContent='인중 장식';$('panel').append(label);
+  selectionCards('moustache');return;
+ }
+ if(tab==='pose'){renderPose();return;}
+ if(tab==='face'){
+  const presets=document.createElement('div');presets.className='face-presets';
+  for(const [id,preset] of Object.entries(presetFaces)){
+   const card=button(preset.label,()=>{
+    remember();state.values=controls.map(c=>preset.values[c.key]??0);markDirty();setFocus(true);
+   });card.dataset.facePreset=id;presets.append(card);
+  }
+  $('panel').append(presets);
+  const hint=document.createElement('p');hint.className='hint';hint.textContent='얼굴을 확대하고 점을 드래그해. 아래 패드로도 선택한 부위를 조절할 수 있어.';$('panel').append(hint);
+ }else selectionCards(tab);
+ if(['face','eye','mouth'].includes(tab)){partButtons();editPad();}
+}
+function chooseTab(key){
+ tab=key;
+ if(key==='eye')part='eye';if(key==='mouth')part='mouth';if(key==='brow')part='forehead';
+ document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===key)));
+ if(key!=='pose')setFocus(true);
+ rotateMode=false;$('rotate-mode').setAttribute('aria-pressed','false');renderPanel();schedule();
+}
+document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>setBody(b.dataset.body));
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>chooseTab(b.dataset.tab));
+document.querySelectorAll('[data-angle]').forEach(b=>b.onclick=()=>setAngle(b.dataset.angle));
+$('focus').onclick=()=>setFocus(!focus);
+$('rotate-mode').onclick=()=>{rotateMode=!rotateMode;$('rotate-mode').setAttribute('aria-pressed',String(rotateMode));schedule();};
+$('zoom-in').onclick=()=>{zoom=Math.min(2.8,zoom*1.15);schedule();};$('zoom-out').onclick=()=>{zoom=Math.max(.65,zoom/1.15);schedule();};
+$('undo').onclick=()=>{
+ if(!undoStack.length)return;state=undoStack.pop();$('undo').disabled=!undoStack.length;
+ geometryDirty=true;colorDirty=true;document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===state.body)));
+ persist();renderPanel();schedule();
+};
+$('reset-all').onclick=()=>{remember();const body=state.body;state=defaults();state.body=body;markDirty();renderPanel();};
+let directDrag=null;
+stage.onpointerdown=e=>{
+ if(e.button!==undefined&&e.button!==0&&e.pointerType==='mouse')return;
+ const key=e.target.closest?.('[data-anchor]')?.dataset.anchor;
+ pointers.set(e.pointerId,[e.clientX,e.clientY]);stage.setPointerCapture(e.pointerId);
+ if(pointers.size>1){directDrag=null;return;}
+ if(key&&focus&&!rotateMode){
+  const [selected,side]=key.split(':');part=selected;remember();directDrag={id:e.pointerId,side:Number(side),x:e.clientX,y:e.clientY};renderPanel();
+ }
+};
+stage.onpointermove=e=>{
+ const previous=pointers.get(e.pointerId);if(!previous)return;
+ const next=[e.clientX,e.clientY];
+ if(pointers.size===2){
+  const other=[...pointers.entries()].find(([id])=>id!==e.pointerId)[1];
+  const a=Math.hypot(previous[0]-other[0],previous[1]-other[1]),b=Math.hypot(next[0]-other[0],next[1]-other[1]);
+  if(a>4)zoom=Math.max(.65,Math.min(2.8,zoom*b/a));pointers.set(e.pointerId,next);schedule();return;
+ }
+ pointers.set(e.pointerId,next);
+ if(directDrag&&directDrag.id===e.pointerId){
+  const scale=.145*stage.clientWidth;
+  const side=Math.abs(yaw)>1.05?1:directDrag.side;
+  adjust((next[0]-previous[0])*side/scale,(previous[1]-next[1])/scale);return;
+ }
+ yaw-=(next[0]-previous[0])*.009;pitch=Math.max(-.7,Math.min(.7,pitch+(next[1]-previous[1])*.008));view='free';
+ document.querySelectorAll('[data-angle]').forEach(b=>b.setAttribute('aria-pressed','false'));schedule();
+};
+for(const type of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(type,e=>{pointers.delete(e.pointerId);if(directDrag?.id===e.pointerId)directDrag=null;});
+stage.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.65,Math.min(2.8,zoom*Math.exp(-e.deltaY*.001)));schedule();},{passive:false});
+stage.onkeydown=e=>{
+ const keys={ArrowLeft:()=>yaw+=.12,ArrowRight:()=>yaw-=.12,ArrowUp:()=>pitch=Math.max(-.7,pitch-.1),ArrowDown:()=>pitch=Math.min(.7,pitch+.1)};
+ if(!keys[e.key])return;e.preventDefault();keys[e.key]();schedule();
+};
+function download(bytes,name,type){
+ const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+$('save-project').onclick=()=>download(JSON.stringify({format:'SERNBELD-Character/1',character:state},null,2),'SERNBELD_character.json','application/json');
+$('load-project').onclick=()=>$('file-input').click();
+$('file-input').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  const value=JSON.parse(await file.text());if(value.format!=='SERNBELD-Character/1')throw Error('이 파일은 세른벨드 캐릭터 설정이 아니야.');
+  const loaded=validate(value.character);remember();state=loaded;geometryDirty=true;colorDirty=true;
+  document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===state.body)));
+  persist();renderPanel();schedule();
+ }catch(error){$('feedback').textContent=error.message;}
+ e.target.value='';
+};
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();gl=null;$('feedback').textContent='그래픽 연결을 복구하는 중이야.';});
+canvas.addEventListener('webglcontextrestored',()=>{try{initGL();}catch(e){$('feedback').textContent=e.message;}});
+function quaternion(matrix){
+ const m00=matrix[0],m11=matrix[4],m22=matrix[8],trace=m00+m11+m22;
+ let x,y,z,w;
+ if(trace>0){
+  const scale=Math.sqrt(trace+1)*2;
+  w=.25*scale;x=(matrix[5]-matrix[7])/scale;y=(matrix[6]-matrix[2])/scale;z=(matrix[1]-matrix[3])/scale;
+ }else if(m00>m11&&m00>m22){
+  const scale=Math.sqrt(1+m00-m11-m22)*2;
+  w=(matrix[5]-matrix[7])/scale;x=.25*scale;y=(matrix[3]+matrix[1])/scale;z=(matrix[6]+matrix[2])/scale;
+ }else if(m11>m22){
+  const scale=Math.sqrt(1+m11-m00-m22)*2;
+  w=(matrix[6]-matrix[2])/scale;x=(matrix[3]+matrix[1])/scale;y=.25*scale;z=(matrix[7]+matrix[5])/scale;
+ }else{
+  const scale=Math.sqrt(1+m22-m00-m11)*2;
+  w=(matrix[1]-matrix[3])/scale;x=(matrix[6]+matrix[2])/scale;y=(matrix[7]+matrix[5])/scale;z=.25*scale;
+ }
+ return [x,y,z,w];
+}
+function exportGLB(){
+ if(geometryDirty)updateGeometry();if(colorDirty)updateColors();
+ const body=getBody(),data=body.data,pose=poseFor(data),transforms=matrices();
+ const document={
+  asset:{version:'2.0',generator:'SERNBELD Character Studio'},scene:0,scenes:[{nodes:[0]}],
+  nodes:[{name:'SERNBELD Character',children:[]}],meshes:[],skins:[],materials:[],accessors:[],bufferViews:[],buffers:[],
+  extensionsUsed:['KHR_materials_unlit'],extras:{format:'SERNBELD-Character/1',character:snapshot(),twoTone:palette(),lighting:'vertex colors baked at export view'}
+ };
+ const chunks=[];let byteLength=0;
+ function addBuffer(array,type,componentType,target,minMax=false){
+  while(byteLength%4){chunks.push(new Uint8Array(1));byteLength++;}
+  const view=document.bufferViews.length;
+  document.bufferViews.push({buffer:0,byteOffset:byteLength,byteLength:array.byteLength,...(target?{target}:{})});
+  chunks.push(new Uint8Array(array.buffer,array.byteOffset,array.byteLength));byteLength+=array.byteLength;
+  const spec={bufferView:view,componentType,count:array.length/({SCALAR:1,VEC3:3,VEC4:4,MAT4:16}[type]),type};
+  if(minMax){
+   spec.min=[Infinity,Infinity,Infinity];spec.max=[-Infinity,-Infinity,-Infinity];
+   for(let i=0;i<array.length;i++){spec.min[i%3]=Math.min(spec.min[i%3],array[i]);spec.max[i%3]=Math.max(spec.max[i%3],array[i]);}
+  }
+  document.accessors.push(spec);return document.accessors.length-1;
+ }
+ const boneIndex=new Map(data.bones.map((bone,i)=>[bone.id,i]));
+ const boneNode=new Map(data.bones.map((bone,i)=>[bone.id,i+1]));
+ for(const bone of data.bones){
+  const parent=data.bones.find(b=>b.id===bone.parent);
+  let rotation=identity;
+  bone.axes.forEach((axis,i)=>{rotation=multiply(rotation,turn(axis.d,pose[bone.id][i]));});
+  document.nodes.push({
+   name:bone.id,translation:bone.pivot.map((v,i)=>(v-(parent?.pivot[i]??0))/HEIGHT),
+   rotation:quaternion(rotation),children:[]
+  });
+ }
+ for(const bone of data.bones){
+  const parent=bone.parent?document.nodes[boneNode.get(bone.parent)]:document.nodes[0];
+  parent.children.push(boneNode.get(bone.id));
+ }
+ const bind=new Float32Array(data.bones.length*16);
+ data.bones.forEach((bone,i)=>bind.set([1,0,0,0,0,1,0,0,0,0,1,0,...bone.pivot.map(v=>-v/HEIGHT),1],i*16));
+ const bindAccessor=addBuffer(bind,'MAT4',5126);
+ document.skins.push({name:'SERNBELD Rig',joints:data.bones.map(b=>boneNode.get(b.id)),skeleton:boneNode.get('pelvis'),inverseBindMatrices:bindAccessor});
+ const materialMap=new Map();
+ function material(object){
+  const base=object.material??{name:'Skin',extensions:{KHR_materials_unlit:{}},pbrMetallicRoughness:{baseColorFactor:[1,1,1,1]}};
+  const key=object.skin?'skin':JSON.stringify(base);
+  if(materialMap.has(key))return materialMap.get(key);
+  const result=object.skin?
+   {name:'Skin • two tone',pbrMetallicRoughness:{baseColorFactor:[1,1,1,1]},extensions:{KHR_materials_unlit:{}},doubleSided:true,extras:{twoTone:palette()}}:
+   {...clone(base),doubleSided:true};
+  document.materials.push(result);materialMap.set(key,document.materials.length-1);return document.materials.length-1;
+ }
+ function exportColors(object,positions,normals,joints,weights,localSkin,used){
+  const colors=new Float32Array(positions.length),light=linear(palette().light),shadow=linear(palette().shadow);
+  const cheek=cheekCenter(),tint=linear(blush().color);
+  const key=[-.42,.68,.61],keyLength=Math.hypot(...key),headScale=faceScale(data),headOffset=faceOffset(data);
+  for(const index of used){
+   const i=index*3;
+   if(!object.skin){
+    colors.set(object.colors?.subarray(i,i+3)??[1,1,1],i);continue;
+   }
+   let world=[0,0,0];
+   for(let k=0;k<4;k++){
+    const weight=weights[index*4+k]/255;if(!weight)continue;
+    const bone=localSkin[joints[index*4+k]],n=rotate(transforms.get(bone).rotation,Array.from(normals.subarray(i,i+3)));
+    world=world.map((v,j)=>v+n[j]*weight);
+   }
+   const local=Array.from(positions.subarray(i,i+3),(v,j)=>(v-headOffset[j])/headScale[j]);
+   const neckMask=ramp(.22,.31,local[2])*(1-ramp(.24,.36,Math.abs(local[0])))*ramp(-.66,-.58,local[1])*(1-ramp(.02,.14,local[1]));
+   const forward=rotate(transforms.get("head").rotation,[0,0,1]);
+   world=world.map((v,j)=>v*(1-neckMask*.38)+forward[j]*(neckMask*.38));
+   const length=Math.hypot(...world)||1;
+   const normal=[lastView.u,lastView.v,lastView.d].map(axis=>axis.reduce((sum,v,j)=>sum+v*world[j],0)/length);
+   const dot=normal.reduce((sum,v,j)=>sum+v*key[j]/keyLength,0);
+   const underChin=ramp(.14,.30,local[2])*(1-ramp(.16,.34,Math.abs(local[0])))*ramp(.14,.26,-local[1])*(1-ramp(.30,.46,-local[1]));
+   const neckBridge=ramp(.18,.30,local[2])*(1-ramp(.24,.42,Math.abs(local[0])))*ramp(.34,.46,-local[1])*(1-ramp(.52,.66,-local[1]));
+   const base=(underChin>.18||neckBridge>.24||dot<=.182)?shadow:light,weight=blushWeight(local,cheek);
+   colors.set(base.map((v,k)=>v*(1-weight)+tint[k]*weight),i);
+  }
+  return colors;
+ }
+ function mesh(name,object,indices,positions,normals,joints,weights,localSkin){
+  const used=Array.from(new Set(indices)),map=new Map(used.map((id,i)=>[id,i]));
+  const compactPositions=new Float32Array(used.length*3),compactNormals=new Float32Array(used.length*3);
+  const compactWeights=new Float32Array(used.length*4),globalJoints=new Uint8Array(used.length*4);
+  const allColors=exportColors(object,positions,normals,joints,weights,localSkin,used),colors=new Float32Array(used.length*3);
+  used.forEach((id,i)=>{
+   compactPositions.set(positions.subarray(id*3,id*3+3),i*3);compactNormals.set(normals.subarray(id*3,id*3+3),i*3);colors.set(allColors.subarray(id*3,id*3+3),i*3);
+   for(let k=0;k<4;k++){
+    globalJoints[i*4+k]=boneIndex.get(localSkin[joints[id*4+k]])??0;
+    compactWeights[i*4+k]=weights[id*4+k]/255;
+   }
+  });
+  const mapped=Uint32Array.from(indices,id=>map.get(id));
+  const primitive={attributes:{
+   POSITION:addBuffer(compactPositions,'VEC3',5126,34962,true),NORMAL:addBuffer(compactNormals,'VEC3',5126,34962),
+   COLOR_0:addBuffer(colors,'VEC3',5126,34962),JOINTS_0:addBuffer(globalJoints,'VEC4',5121,34962),WEIGHTS_0:addBuffer(compactWeights,'VEC4',5126,34962)
+  },indices:addBuffer(mapped,'SCALAR',5125,34963),material:material(object),mode:4};
+  document.meshes.push({name,primitives:[primitive]});
+  const node=document.nodes.length;document.nodes.push({name,mesh:document.meshes.length-1,skin:0});
+  document.nodes[0].children.push(node);
+ }
+ for(const part of data.parts){
+  mesh(part.name,{skin:true},body.indices.subarray(part.start,part.start+part.count),body.worldPositions,body.normals,body.joints,body.weights,part.skin);
+ }
+ for(const object of featureObjects.filter(visible))mesh(object.name,object,object.indices,object.positions,object.normals,object.jointIds,object.weights,object.skins);
+ while(byteLength%4){chunks.push(new Uint8Array(1));byteLength++;}
+ document.buffers=[{byteLength}];
+ const json=new TextEncoder().encode(JSON.stringify(document)),length=Math.ceil(json.length/4)*4;
+ const output=new Uint8Array(28+length+byteLength),header=new DataView(output.buffer);
+ header.setUint32(0,0x46546c67,true);header.setUint32(4,2,true);header.setUint32(8,output.length,true);
+ header.setUint32(12,length,true);header.setUint32(16,0x4e4f534a,true);output.fill(32,20,20+length);output.set(json,20);
+ header.setUint32(20+length,byteLength,true);header.setUint32(24+length,0x004e4942,true);
+ let offset=28+length;for(const chunk of chunks){output.set(chunk,offset);offset+=chunk.length;}
+ return output;
+}
+$('export').onclick=()=>{
+ try{download(exportGLB(),'SERNBELD_'+state.body+'_character.glb','model/gltf-binary');$('feedback').textContent='선택한 얼굴과 관절이 포함된 GLB를 저장했어.';}
+ catch(error){$('feedback').textContent='저장 중 문제가 생겼어. '+error.message;}
+};
+
+window.CharacterStudio={
+ snapshot,validate,exportGLB,setBody,setStyle,setFocus,setAngle,chooseTab,adjust,
+ getPose:()=>poseFor(getBody().data),setPose(id,values){
+  const candidate=snapshot();candidate.pose[id]=values;state=validate(candidate);persist();renderPanel();schedule();
+ },
+ setWeights(values){const candidate=snapshot();candidate.values=values;state=validate(candidate);markDirty();},
+ selectPart,keyIndex:key=>controlIndex.get(key),
+ getGeometry(){if(geometryDirty)updateGeometry();if(colorDirty)updateColors();return {body:getBody(),features:featureObjects.filter(visible)};},
+ shader:{vertex:VERTEX_SOURCE,fragment:FRAGMENT_SOURCE}
+};
+createHandles();renderPanel();
+document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===state.body)));
+try{initGL();}catch(error){$('feedback').textContent=error.message;$('export').disabled=true;}
+new ResizeObserver(schedule).observe(stage);
+
+
+function applyGameProfile(profile){
+ state=validate(profile);geometryDirty=colorDirty=true;
+ document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===state.body)));
+ renderPanel();schedule();
+}
+addEventListener('message',e=>{
+ if(e.source!==parent||e.origin!==location.origin||e.data?.type!=='sernbeld:edit-character')return;
+ applyGameProfile(e.data.character);
+ $('play').textContent=e.data.first?'이 캐릭터로 시작':'적용하고 돌아가기';
+});
+$('play').onclick=()=>parent.postMessage({type:'sernbeld:apply-character',character:snapshot()},location.origin);
+parent.postMessage({type:'sernbeld:studio-ready'},location.origin);
+</script>
+</body>
+</html>
