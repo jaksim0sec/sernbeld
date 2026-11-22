@@ -56,7 +56,7 @@ export function resolveNpcAppearance(def) {
  const gender=def.gender==='male'||def.gender==='female'?def.gender:
   NAMED[id]??RESIDENT_NAMES[name]??(rnd()<.5?'female':'male');
  // Appearance is stable across sessions. Role/title influences the seed, never imposes a gender.
- const values=FACE_KEYS.map((_,i)=>Math.round((rnd()*2-1)*(i===27||i===25?.48:.65)*100)/100);
+ const values=FACE_KEYS.map((_,i)=>Math.round((rnd()*2-1)*((i===27||i===25)?0.48:0.65)*100)/100);
  const skin=Object.keys(PALETTES)[Math.floor(rnd()*6)];
  const eyes=EYES[Math.floor(rnd()*8)],brow=BROWS[Math.floor(rnd()*BROWS.length)];
  return {
