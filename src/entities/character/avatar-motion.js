@@ -45,8 +45,16 @@ export function solveArm(T,actor,side,targetWorld,orientationWorld){
  const l1=lower.position.length()*actor.units*actor.group.scale.x,l2=hand.position.length()*actor.units*actor.group.scale.x;
  const direction=wrist.sub(shoulder),distance=clamp(direction.length(),Math.abs(l1-l2)+.001,l1+l2-.002);direction.normalize();
  const along=(distance*distance+l1*l1-l2*l2)/(2*distance),height=Math.sqrt(Math.max(0,l1*l1-along*along));
- const pole=new T.Vector3(side==='right'?-.6:.6,-1,0).transformDirection(actor.group.matrixWorld);
- pole.addScaledVector(direction,-pole.dot(direction)).normalize();
+ // Keep the elbow outside and slightly behind the shoulder, not pointing
+ // into the torso. Re-project against the arm direction to avoid a pole flip.
+ const pole=new T.Vector3(side==='right'?-1:1,-.18,-.72).transformDirection(actor.group.matrixWorld);
+ pole.addScaledVector(direction,-pole.dot(direction));
+ if(pole.lengthSq()<1e-6){
+  pole.set(0,0,-1).transformDirection(actor.group.matrixWorld);
+  pole.addScaledVector(direction,-pole.dot(direction));
+ }
+ if(pole.lengthSq()<1e-6)pole.set(0,1,0).addScaledVector(direction,-direction.y);
+ pole.normalize();
  const elbow=shoulder.clone().addScaledVector(direction,along).addScaledVector(pole,height);
  const parentQ=upper.parent.getWorldQuaternion(new T.Quaternion());
  const upperQ=new T.Quaternion().setFromUnitVectors(lower.position.clone().normalize(),elbow.clone().sub(shoulder).normalize());
