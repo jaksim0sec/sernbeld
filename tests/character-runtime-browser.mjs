@@ -105,7 +105,7 @@ try{
    assert(stats.poses.every(p=>distance(p.camera,stats.before)<.003&&distance(p.q,stats.q)<.00001),'3P camera follows attack recoil');
    assert(distance(stats.firstIdle.q,stats.firstAttack.q)>.01,'Original 1P recoil disappeared');
    assert(stats.firstArmOnly,'1P arms were not rendered from the real character');
-   assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+stats.visibleArms);
+   assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+JSON.stringify({visible:stats.visibleArms,wrist:stats.wrist,firstIdle:stats.firstIdle,player:stats.playerPosition}));
    assert(stats.wrist.every(v=>Math.abs(v)<.95),'Equipped hand is outside the first-person viewport: '+JSON.stringify(stats.wrist));
    assert(stats.projectedBody.every(p=>Math.abs(p[1])<.9),'Third-person framing crops head or feet: '+JSON.stringify(stats.projectedBody));
    await page.screenshot({path:`${root}/${label}-third-person.png`,timeout:90000});
