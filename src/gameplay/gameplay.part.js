@@ -4207,10 +4207,11 @@ function townsfolk() {
   }
   return out2;
 }
-var SHOW = 150;
-var LOD0 = 26;
-var SHADOW = 34;
-var ANIM = 90;
+// Do not submit distant residents to the mobile GPU or its shadow pass.
+var SHOW = 105;
+var LOD0 = 21;
+var SHADOW = 19;
+var ANIM = 55;
 var Townsfolk = class {
   constructor(scene, region, makeCharacter) {
     this.places = region.places;
@@ -4272,7 +4273,8 @@ var Townsfolk = class {
   goTo(n, x, z) {
     this.queue.push([n, x, z]);
   }
-  update(dt, t, hour, player, camPos) {
+  update(dt, t, hour, player, camPos, camera) {
+    const facing = camera ? new Vector3(0, 0, -1).applyQuaternion(camera.quaternion) : null;
     for (let k = 0; k < 3 && this.queue.length; k++) {
       const [n, x, z] = this.queue.shift();
       n.path = this.nav.path(n.x, n.z, x, z) ?? [[x, z]];
@@ -4318,7 +4320,12 @@ var Townsfolk = class {
         n.wait = 1e9;
       }
       n.speed += ((moving ? 1.35 : 0) - n.speed) * Math.min(1, dt * 8);
-      const d = Math.hypot(n.x - camPos.x, n.z - camPos.z), vis = !n.hidden && d < SHOW, g = n.ch.group;
+      const dxCam = n.x - camPos.x, dzCam = n.z - camPos.z;
+      const d = Math.hypot(dxCam, dzCam);
+      // Keep a generous margin for peripheral vision, especially on portrait screens.
+      // Off-camera NPC logic still runs, but their skinned meshes stop rendering.
+      const inFront = !facing || d < 4 || dxCam * facing.x + (n.y + .9 - camPos.y) * facing.y + dzCam * facing.z > -Math.max(1, d * .12);
+      const vis = !n.hidden && d < SHOW && inFront, g = n.ch.group;
       g.visible = vis;
       if (!vis) continue;
       g.position.set(n.x, n.y, n.z);
@@ -5638,7 +5645,13 @@ async function boot() {
     Save.write();
   } });
   const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save,makeCharacter,view,height:PLAYER.height,
-    makeWeapon:id=>ITEMS[id]?.model?new Mesh(MODELS[ITEMS[id].model](),view.mat):null,
+    makeWeapon:id=>{
+      const model=ITEMS[id]?.model;
+      if(!model||!MODELS[model])return null;
+      const weapon=new Mesh(MODELS[model](),view.mat);
+      weapon.userData.handleY=model==='sword'?-.08:model==='dagger'?-.055:.06;
+      return weapon;
+    },
     attackPose:maktwoAttackPose,worldRay:maktwoWorldRay});
   society.onBought = (id, hand) => {
     if (hand) combat.equip(id, hand);
@@ -5804,7 +5817,7 @@ async function boot() {
     if (WorldRegions.isActive(region.id)) folk.pushPlayer(player);
     rig.update(dt, player);
     if (WorldRegions.isActive(region.id)) {
-      folk.update(dt, t, clock.hour, player, camera.position);
+      folk.update(dt, t, clock.hour, player, camera.position, camera);
     }
     combat.update(dt);
     if (player.mode === "walk" && avatars.mode === "first") maktwoAttackCamera(camera, combat.swing, rig.motion);
