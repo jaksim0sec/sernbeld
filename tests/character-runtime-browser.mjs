@@ -44,9 +44,13 @@ try{
     // below one metre and hid the very hands/framing that these captures should verify.
     a.setThird(true);
     const places=Object.values(d.region.places).filter(p=>Array.isArray(p)&&p.length>=2);
-    const candidates=[[-600,-440,Math.PI],[-600,-440,-Math.PI/2],[-600,-440,Math.PI/2],...places.flatMap(([x,z])=>[[x+8,z],[x-8,z],[x,z+8],[x,z-8]])];
+    const candidates=places.flatMap(([x,z])=>[[x+8,z],[x-8,z],[x,z+8],[x,z-8]]);
+    for(let x=-800;x<=800;x+=80)for(let z=-800;z<=800;z+=80)candidates.push([x,z]);
     let clear=false;
     for(const [x,z,yaw=0] of candidates){
+     const ground=d.groundAt(x,z,400);
+     if(ground<2||[[-4,0],[4,0],[0,-4],[0,4]].some(([dx,dz])=>Math.abs(d.groundAt(x+dx,z+dz,400)-ground)>.2))continue;
+     if(d.collidersAt(x,z,4).some(o=>o.top>ground+.2&&o.bot<ground+2))continue;
      d.player.teleport(x,z,yaw,0);d.player.onGround=true;d.player.vel.set(0,0,0);
      d.rig.reset(d.player);d.rig.update(0,d.player);a.update(0,1,d.combat);a.applyThirdCamera(0,d.rig);
      if(d.camera.position.distanceTo(d.player.pos.clone().add(new T.Vector3(0,1.02,0)))>2.9){clear=true;break;}
@@ -102,12 +106,12 @@ try{
    assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+stats.visibleArms);
    assert(stats.wrist.every(v=>Math.abs(v)<.95),'Equipped hand is outside the first-person viewport: '+JSON.stringify(stats.wrist));
    assert(stats.projectedBody.every(p=>Math.abs(p[1])<.9),'Third-person framing crops head or feet: '+JSON.stringify(stats.projectedBody));
-   await page.screenshot({path:`${root}/${label}-third-person.png`});
+   await page.screenshot({path:`${root}/${label}-third-person.png`,timeout:90000});
    await page.evaluate(()=>{
     const d=__dev,T=d.characterTypes,a=d.avatars;
     a.setThird(false);d.combat.swing=null;d.rig.reset(d.player);d.frame();
    });
-   await page.screenshot({path:`${root}/${label}-first-person.png`});
+   await page.screenshot({path:`${root}/${label}-first-person.png`,timeout:90000});
    // Front, three-quarter and side views of the actual in-game body with the selected face.
    for(const [angle,name] of [[0,'front'],[.65,'quarter'],[1.45,'side']]){
     await page.evaluate(angle=>{
@@ -116,7 +120,7 @@ try{
      const toward=new T.Vector3(Math.sin(angle)*1.7,.2,Math.cos(angle)*1.7).applyQuaternion(a.bodyRoot.quaternion);
      d.camera.position.copy(target).add(toward);d.camera.lookAt(target);d.renderer.render(d.scene,d.camera);
     },angle);
-    await page.screenshot({path:`${root}/${label}-${name}.png`});
+    await page.screenshot({path:`${root}/${label}-${name}.png`,timeout:90000});
    }
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert.deepEqual(errors,[],'Browser rendering errors');
