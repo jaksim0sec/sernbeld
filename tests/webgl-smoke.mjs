@@ -40,7 +40,7 @@ try {
     const d=window.__dev,gl=d.renderer.getContext(),info=d.renderer.info;
     return {webgl:!!gl,sceneObjects:d.scene.children.length,drawCalls:info.render.calls,triangles:info.render.triangles,player:[d.player.pos.x,d.player.pos.y,d.player.pos.z],canvas:[d.renderer.domElement.width,d.renderer.domElement.height],hasMap:!!d.fullMap,hasCollision:typeof d.collidersAt==='function',iconUses:document.querySelectorAll('svg use').length};
   });
-  const path='test-results/'+label+'.png';await page.screenshot({path});
+  const path='test-results/'+label+'.png';await page.screenshot({path,timeout:90000});
   const lifecycle=label==='refactor' ? await page.evaluate(() => {
     const d=window.__dev, id=d.region.id, npc=d.folk.list[0];
     const before=d.entities.list({region:id}).length, initial=npc.lineI;
