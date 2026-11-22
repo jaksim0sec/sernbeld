@@ -44,6 +44,8 @@ jobs:
         run: node tests/kael-roads.mjs
       - name: Verify player avatar, resident face profiles, sword rig and 3P camera
         run: node tests/character-runtime-browser.mjs
+      - name: Verify character studio rigged GLB import and local persistence
+        run: node tests/character-studio-import-browser.mjs
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
       - name: Verify optional custom skill save in browser
