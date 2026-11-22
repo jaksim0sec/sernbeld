@@ -37,19 +37,16 @@ try {
   const thirdView=d.combat.view.root.visible;
   const offset=Math.hypot(d.camera.position.x-d.player.pos.x,d.camera.position.z-d.player.pos.z);
   const equipped=Object.values(d.Save.data.equip||{}).filter(Boolean);
-  const attached=['left','right'].map(side=>d.folk.list[0].ch.B['hand_'+side]?.children.length||0);
-  const avatarHandChildren=['left','right'].map(side=>a.usingStudioModel?null:body.userData?.none||undefined);
-  const oldValues=d.Save.data.character?.values;
+  const attached=Object.entries(a.handWeapons).filter(([,mesh])=>Boolean(mesh)).map(([side,mesh])=>({side, parent:mesh.parent?.name,mesh:mesh.isMesh}));
   a.setProfile({body:'female',values:Array(30).fill(.12),skin:'warm',glasses:'round'});
   const saved=d.Save.data.character;
   const profilePersisted=saved.body==='female'&&saved.values.length===30&&saved.glasses==='round';
-  const headScaled=!body.children[0]?.visible||true; // avatar's head scale is tested via the profile contract
   a.openChooser();
   const dialogOpen=document.getElementById('character-chooser')?.open;
   document.getElementById('character-chooser')?.close();
   a.setThird(false);d.frame();
   return {
-   npcInfo,firstView,thirdVisible,thirdView,offset,equipped,
+   npcInfo,firstView,thirdVisible,thirdView,offset,equipped,attached,
    profilePersisted,dialogOpen,restoredFirst:a.mode==='first'&&!body.visible,
    firstRestoredView:d.combat.view.root.visible,
    renderCalls:d.renderer.info.render.calls,settingsView:d.Save.data.settings.view
@@ -62,6 +59,11 @@ try {
  assert.deepEqual([named.bran,named.sera,named.goram,named.miel,named.tino,named.iva],
    ['male','female','male','female','male','female']);
  assert(result.firstView,'Original first-person view model was disabled');
+ if(result.equipped.length){
+   assert(result.attached.length>0,'Equipped sword is not attached to the player body hand bone');
+   assert(result.attached.every(x=>x.mesh&&x.parent==='hand_'+x.side),
+     'Equipped weapon must be parented to the skinned hand, not a floating camera prop');
+ }
  assert(result.thirdVisible&&!result.thirdView,'3P body/1P hand visibility failed');
  assert(result.offset>0.1,'Third-person camera did not move behind the character');
  assert(result.profilePersisted&&result.dialogOpen,'Character settings import UI or profile persistence failed');
@@ -70,6 +72,6 @@ try {
  assert(result.renderCalls>0,'World rendering failed');
  assert.deepEqual(errors,[],'Game browser errors: '+errors.join(' | '));
  console.log('PASS: game avatars, NPC gender/face profiles, 3P camera, 1P view, settings',JSON.stringify({
-  npcCount:result.npcInfo.length,offset:result.offset,equipped:result.equipped,renderCalls:result.renderCalls
+  npcCount:result.npcInfo.length,offset:result.offset,equipped:result.equipped,attached:result.attached,renderCalls:result.renderCalls
  }));
 }finally{if(browser)await browser.close();srv.kill();}
