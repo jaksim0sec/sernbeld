@@ -66,7 +66,8 @@ try{
     const handle=new T.Vector3(0,-.08,0).applyMatrix4(grip.matrix);
     const gripError=handle.distanceTo(palm)*a.actor.units;
     const tip=()=>grip.localToWorld(new T.Vector3(0,.7,0)).toArray();
-    const idleTip=tip();d.combat.attack();const swing=d.combat.swing;
+    const idleTip=tip();const bladeRise=idleTip[1]-grip.localToWorld(new T.Vector3(0,-.08,0)).y;
+    d.combat.attack();const swing=d.combat.swing;
     const poses=[];
     for(const t of [0,swing.spec.windup*.65,swing.spec.windup,swing.spec.windup+swing.spec.swing*.5,swing.spec.windup+swing.spec.swing,swing.dur*.99]){
      swing.t=t;d.rig.update(0,d.player);d.combat.view.update(0,swing,false,true);a.update(0,1,d.combat);a.applyThirdCamera(0,d.rig);a.updateTrail(d.combat);
@@ -91,12 +92,13 @@ try{
     const visibleArms=visibleArmVertices();
     const wrist=a.actor.B.hand_right.getWorldPosition(new T.Vector3()).project(d.camera).toArray();
     d.combat.swing=null;a.setThird(true);d.frame();
-    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
+    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,bladeRise,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
    });
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
    assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>30000),'NPCs must use actual studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
+   assert(stats.bladeRise>.3,'The sword points into the wrist instead of away from the grip: '+stats.bladeRise);
    assert.deepEqual(stats.rootPosition,stats.playerPosition,'Player body is not attached to the physics actor');
    const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
    assert(stats.poses.some(p=>distance(p.tip,stats.idleTip)>.4),'Sword never made a real sweep');
