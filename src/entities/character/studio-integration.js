@@ -72,8 +72,10 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     const target=h.g.position.clone();
     // Preserve the original attack arc but place the palm below the camera,
     // far enough from the shoulder to avoid folded and inside-out elbows.
-    const horizontal=Math.min(.55,Math.max(.33,camera.aspect*.32));
-    target.set(target.x*horizontal,target.y*.76,target.z*.78);
+    // Vertical framing must keep the forearms inside the camera frustum.
+    // Narrow portrait viewports also require a more centered grip.
+    const horizontal=Math.min(.5,Math.max(.2,camera.aspect*.26));
+    target.set(target.x*horizontal,target.y*.33,target.z*.82);
     camera.localToWorld(target);
     const desired=h.g.getWorldQuaternion(new T.Quaternion());
     if(weapon){
