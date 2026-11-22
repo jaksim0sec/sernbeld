@@ -92,8 +92,10 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     const active=pose&&((pose.side===1)===(side==='right'));
     const weight=active?pose.weight:0,pull=active?pose.pull:0,extension=active?pose.extension:0;
     const arc=active?pose.arc:0;
-    const palm=new T.Vector3(sign*.36+arc*.19*weight,1.14+.23*pull+.10*extension,.27+.14*extension);
-    const blade=new T.Vector3(sign*.13-arc*.52*weight,.82-.20*extension,.48+.15*pull).normalize();
+    // Wind-up carries the hand toward its own shoulder; follow-through crosses
+    // toward the torso. Drive the blade farther than the wrist for a real arc.
+    const palm=new T.Vector3(sign*.36-arc*.14*weight,1.14+.23*pull+.10*extension,.27+.14*extension);
+    const blade=new T.Vector3(sign*.13-arc*.85*weight,.82-.20*extension,.48+.15*pull).normalize();
     const swordQ=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),blade.applyQuaternion(rootQ));
     const wristQ=swordQ.multiply(weapon.quaternion.clone().invert());
     const wrist=palm.applyMatrix4(actor.group.matrixWorld)
