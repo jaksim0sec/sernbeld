@@ -221,6 +221,8 @@ export function createCharacterRuntime({THREE,scene,camera,player,folk,Save,crea
   get mode(){return third?'third':'first';},
   setThird,openChooser,update,applyThirdCamera,setProfile,applyFallbackFace,
   get profile(){return Save.data.character;},get npcProfiles(){return npcProfiles;},
+  get bodyRoot(){return activeAsset?studioRoot:fallbackRoot;},
+  get handWeapons(){return {right:weaponNodes.right,left:weaponNodes.left};},
   get usingStudioModel(){return activeAsset;},loadGLB,
   dispose(){disposeImported();fallbackRoot.parent?.remove(fallbackRoot);editor.remove();}
  };
