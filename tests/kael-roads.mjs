@@ -65,13 +65,32 @@ try {
       const i=nav.idx(x,z);
       stairEntrance.push([x,z,+(nav.g[i]||0).toFixed(1),nav.ok[i]?1:0]);
     }
+    nav.maxRise=8;
+    const upperToGate=nav.path(392,-488,480,-500);
+    const highJumps=[];
+    if(upperToGate) for(let k=1;k<upperToGate.length;k++){
+      const a=upperToGate[k-1],b=upperToGate[k],len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const m=Math.max(1,Math.ceil(len));
+      let prev=[a[0],a[1],d.groundAt(a[0],a[1],400)];
+      for(let j=1;j<=m;j++){
+        const x=a[0]+(b[0]-a[0])*j/m,z=a[1]+(b[1]-a[1])*j/m,h=d.groundAt(x,z,400);
+        if(Math.abs(h-prev[2])>1.6)highJumps.push({from:prev.map(n=>+n.toFixed(2)),to:[x,z,h].map(n=>+n.toFixed(2)),rise:+(h-prev[2]).toFixed(2)});
+        prev=[x,z,h];
+      }
+    }
+    nav.maxRise=1.4;
+    const northEntrance=[];
+    for(let x=419;x<=455;x+=2)for(const z of [-492,-494,-496,-498,-500,-502,-504,-506,-508,-510,-512]){
+      const i=nav.idx(x,z);
+      northEntrance.push([x,z,+(nav.g[i]||0).toFixed(1),nav.ok[i]?1:0]);
+    }
     const segments=[
       ["market-homes-a",[397,-432],[397,-470]],["market-homes-b",[445,-435],[440,-465]],
       ["homes-upper-a",[393,-467],[393,-490]],["homes-upper-b",[442,-465],[443,-491]],
       ["upper-north",[393,-495],[480,-500]]
     ].map(([id,a,b])=>({id,path:nav.path(...a,...b)?.length||0}));
     return { grades, npcPaths, vertices: geometry?.attributes?.position?.count || 0,
-      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), probes, segments, riseTrials, stairEntrance };
+      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), probes, segments, riseTrials, stairEntrance, upperToGate, highJumps, northEntrance };
   });
   console.log('KAEL ROADS '+JSON.stringify(result));
   assert(result.webgl && result.vertices > 10000, 'Existing Kael render geometry missing');
