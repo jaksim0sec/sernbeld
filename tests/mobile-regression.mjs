@@ -124,7 +124,8 @@ try {
   assert.equal(b.directMapClose,a.directMapClose,'Map touch close regression');
   assert.equal(b.mapCloseAfterGesture,a.mapCloseAfterGesture,'Map close after drag regression');
   if(!b.directMapClose||!b.mapCloseAfterGesture)console.warn('KNOWN BASELINE MOBILE MAP CLOSE ISSUE '+viewport.id+': '+JSON.stringify({direct:a.directMapClose,afterDrag:a.mapCloseAfterGesture}));
-  assert.equal(b.final.drawCalls,a.final.drawCalls,'Rendering calls differ');
+  // The native player body adds one draw; the weapon replaces the old floating prop.
+  assert.equal(b.final.drawCalls,a.final.drawCalls+1,'World draw count changed beyond the native player body');
   assert.deepEqual(b.before.pos,a.before.pos,'Player initial position differs');
   console.log('PASS mobile '+viewport.id+': touch, inventory, travel, map/zoom, SVG shape, WebGL');
  }
