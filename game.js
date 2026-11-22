@@ -46405,8 +46405,9 @@ function groundAt(x, z, feetY) {
     const contacts = [stairTreadAt(x + r, z), stairTreadAt(x - r, z), stairTreadAt(x, z + r), stairTreadAt(x, z - r)].filter((h) => h !== null && h <= feetY + PLAYER.step + 0.03);
     if (contacts.length) tread = Math.max(...contacts);
   }
-  if (tread !== null) return tread;
-  let g = sample(x, z);
+  // Walkable decks above stairs must win only for actors already high enough
+  // to step on them. A player below the promenade continues on stair treads.
+  let g = tread !== null ? tread : sample(x, z);
   for (const o of query(x, z, 0)) {
     if (!o.walk || o.top > feetY + PLAYER.step || o.top <= g) continue;
     if (inside(o, x, z, 0)) g = o.top;

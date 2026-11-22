@@ -26,6 +26,7 @@ try {
     const pairs = [['quay','smithy'], ['pier_a','smithy'], ['pier_b','harbor_office'],
       ['quay','stall_b'], ['stall_b','plaza'], ['plaza','monastery'], ['monastery','north_gate']];
     const npcPaths = pairs.map(([from,to]) => ({ from, to, ok: !!nav?.path(...d.region.places[from], ...d.region.places[to]) }));
+    const bridge = {upper:d.groundAt(413,-484,400),lower:d.groundAt(413,-484,70)};
     const grades = (routes || []).map(route => {
       let violations = 0;
       for (let i = 1; i < route.pts.length; i++) {
@@ -43,10 +44,11 @@ try {
         paved:route.pavedSegments, violations };
     });
     return { grades, npcPaths, vertices: geometry?.attributes?.position?.count || 0,
-      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext() };
+      sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), bridge };
   });
   console.log('KAEL ROADS '+JSON.stringify(result));
   assert(result.webgl && result.vertices > 10000, 'Existing Kael render geometry missing');
+  assert(result.bridge.upper>77.9 && result.bridge.upper<78.3 && result.bridge.lower<74, 'Upper stone promenade blocks the lower stair or is not walkable');
   assert.equal(result.grades.length, 11, 'Incomplete route graph');
   assert(result.grades.every(x => x.reachable && x.waypoints >= 2), 'Missing navigable route');
   assert(result.grades.filter(x => x.paved > 2).length >= 8, 'Paving is absent from the main routes');
