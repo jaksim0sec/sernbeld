@@ -42,6 +42,8 @@ jobs:
         run: node tests/character-webgl.mjs
       - name: Validate Kael routes, terrain contact and NPC navigation in Chromium
         run: node tests/kael-roads.mjs
+      - name: Verify player avatar, resident face profiles, sword rig and 3P camera
+        run: node tests/character-runtime-browser.mjs
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
       - name: Verify optional custom skill save in browser
