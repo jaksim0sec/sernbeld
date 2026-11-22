@@ -106,7 +106,19 @@ try {
    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
    await cdp.detach();
    await page.evaluate(()=>window.__dev.frame());
-   const final=await page.evaluate(()=>({drawCalls:window.__dev.renderer.info.render.calls,gameCanvas:document.querySelector('#view')?.width>0,panelsHidden:['bag','travel','worldMap'].every(id=>document.getElementById(id).hidden)}));
+   const final=await page.evaluate(()=>{
+    const d=window.__dev,drawCalls=d.renderer.info.render.calls;
+    // Character culling differs between the old mannequin and the native studio body,
+    // especially in portrait. Compare world rendering at the same stationary camera,
+    // excluding both versions' characters and camera-mounted equipment.
+    const actors=[...d.folk.list.map(n=>n.ch.group),...d.camera.children];
+    if(d.avatars)actors.push(d.avatars.bodyRoot);
+    const visible=actors.map(o=>o.visible),position=d.camera.position.clone(),rotation=d.camera.quaternion.clone();
+    actors.forEach(o=>o.visible=false);d.rig.reset(d.player);d.rig.update(0,d.player);
+    d.renderer.render(d.scene,d.camera);const worldDrawCalls=d.renderer.info.render.calls;
+    actors.forEach((o,i)=>o.visible=visible[i]);d.camera.position.copy(position);d.camera.quaternion.copy(rotation);d.renderer.render(d.scene,d.camera);
+    return{drawCalls,worldDrawCalls,gameCanvas:document.querySelector('#view')?.width>0,panelsHidden:['bag','travel','worldMap'].every(id=>document.getElementById(id).hidden)};
+   });
    assert(final.drawCalls>0&&final.gameCanvas&&final.panelsHidden,'Game not restored after menu/touch sequence');
    await page.screenshot({path:'test-results/mobile/'+viewport.id+'-'+label+'.png'});
    results[viewport.id][label]={viewport,icons,before,bagState,mapState,directMapClose,mapCloseAfterGesture,zoomChanged:zoomAfter>mapState.zoom,touchEventsDispatched:true,final,errors,assetResponses};
@@ -124,8 +136,7 @@ try {
   assert.equal(b.directMapClose,a.directMapClose,'Map touch close regression');
   assert.equal(b.mapCloseAfterGesture,a.mapCloseAfterGesture,'Map close after drag regression');
   if(!b.directMapClose||!b.mapCloseAfterGesture)console.warn('KNOWN BASELINE MOBILE MAP CLOSE ISSUE '+viewport.id+': '+JSON.stringify({direct:a.directMapClose,afterDrag:a.mapCloseAfterGesture}));
-  // The native player body adds one draw; the weapon replaces the old floating prop.
-  assert.equal(b.final.drawCalls,a.final.drawCalls+1,'World draw count changed beyond the native player body');
+  assert.equal(b.final.worldDrawCalls,a.final.worldDrawCalls,'World rendering differs at the same stationary camera');
   assert.deepEqual(b.before.pos,a.before.pos,'Player initial position differs');
   console.log('PASS mobile '+viewport.id+': touch, inventory, travel, map/zoom, SVG shape, WebGL');
  }
