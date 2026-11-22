@@ -48,6 +48,20 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  const low=[];
  for(let i=0;i<indices.length;i+=3){const a=remap[indices[i]],b=remap[indices[i+1]],c=remap[indices[i+2]];if(a!==b&&b!==c&&a!==c)low.push(a,b,c);}
  const lowIndex=new T.BufferAttribute(new Uint32Array(low),1);
+ // The first-person shader previously discarded the entire body only after
+ // sending all body/head triangles through vertex skinning and the GPU rasterizer.
+ // Keep complete triangles touching the arms, then retain fragment edge masking.
+ const firstTriangles=[];
+ for(let i=0;i<indices.length;i+=3){
+  if(arms[indices[i]]>.5||arms[indices[i+1]]>.5||arms[indices[i+2]]>.5)
+   firstTriangles.push(indices[i],indices[i+1],indices[i+2]);
+ }
+ const firstIndex=new T.BufferAttribute(new Uint32Array(firstTriangles),1);
+ let distanceLOD=false,firstPerson=false;
+ function applyIndex(){
+  const target=firstPerson?firstIndex:distanceLOD?lowIndex:fullIndex;
+  if(geometry.index!==target)geometry.setIndex(target);
+ }
  const height=geometry.boundingBox.max.y-geometry.boundingBox.min.y;
  const units=1.76/height;
  // Keep the model's original pivot coordinate system. Feet, not the pelvis, anchor the actor.
@@ -125,7 +139,9 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   });
  }
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
-  setLOD(i){const next=i?lowIndex:fullIndex;if(geometry.index!==next)geometry.setIndex(next);},setShadow(on){mesh.castShadow=on;},setFirst(first){uniforms.uFirst.value=first?1:0;},
+  setLOD(i){distanceLOD=Boolean(i);applyIndex();},
+  setShadow(on){mesh.castShadow=on;},
+  setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();},
   animate(dt,t){
    const w=Math.min(1,this.speed/1.5);this.phase+=dt*this.speed*4.4;
    const sn=Math.sin(this.phase),cs=Math.cos(this.phase);
