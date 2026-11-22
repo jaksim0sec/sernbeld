@@ -1,4 +1,4 @@
-import {normalizeStudioCharacter, resolveNpcAppearance, npcHeadScale, PALETTES} from './appearance.js';
+import {normalizeStudioCharacter, resolveNpcAppearance, npcHeadScale} from './appearance.js';
 
 const DB='sernbeld-character-v1', STORE='models', PLAYER_ASSET='player.glb';
 function openDB(){
@@ -188,7 +188,7 @@ export function createCharacterRuntime({THREE,scene,camera,player,folk,Save,crea
    axis('upper_arm_'+side,(active?-.65-.6*swing.pull:movement*.29*pace),0,
      sign*(active?-.18-swing.arc*.35:.08));
    axis('forearm_'+side,active?-.42-.54*swing.extension:-.12,0,0);
-   axis('hand_'+side,active?.2*swing.recoil:0,0,0);
+   axis('hand_'+side,active ? 0.2*swing.recoil : 0,0,0);
   }
  }
  function update(dt,t,combat){
