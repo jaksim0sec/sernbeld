@@ -1126,6 +1126,69 @@ function registerCutstoneBridgeCollision(Lm) {
     }
   }
 }
+// Walkable paving is constructed from the same 2 m graph used by residents.
+// The shallow surface conforms to the existing heightfield/wooden piers, and
+// stops at stairs or sharp ground changes instead of floating across cliffs.
+function buildKaelRoads(G, region) {
+  const nav = new NavGrid(BOUNDS.x0, BOUNDS.z0, BOUNDS.x1, BOUNDS.z1, 2);
+  World.kaelNav = nav;
+  World.kaelPaths = [];
+  for (const road of region.kaelRoads || []) {
+    const a = region.places[road.from], b = region.places[road.to];
+    if (!a || !b) throw new Error("Unknown Kael road endpoint: " + road.id);
+    const found = nav.path(a[0], a[1], b[0], b[1]);
+    if (!found) {
+      World.kaelPaths.push({ id: road.id, from: road.from, to: road.to, width: road.width, pts: [], pavedSegments: 0, reachable: false });
+      continue;
+    }
+    // NPC navigation retains exact destinations, but paving must end on
+    // passable cells: an anchor can sit inside a decorative prop or stall.
+    const end = nav.nearestOpen(nav.idx(b[0], b[1]));
+    const pts = found.slice(0, -1);
+    if (end >= 0) pts.push(nav.center(end));
+    const clean = pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.15);
+    let painted = 0;
+    const ground = (x, z) => groundAt(x, z, 400);
+    for (let j = 1; j < clean.length; j++) {
+      const a0 = clean[j - 1], b0 = clean[j];
+      const dx = b0[0] - a0[0], dz = b0[1] - a0[1], length = Math.hypot(dx, dz);
+      if (length < 0.1) continue;
+      const nx = -dz / length, nz = dx / length, count = Math.ceil(length / 1.35);
+      for (let k = 0; k < count; k++) {
+        const t0 = k / count, t1 = (k + 1) / count;
+        const ax = a0[0] + dx * t0, az = a0[1] + dz * t0;
+        const bx = a0[0] + dx * t1, bz = a0[1] + dz * t1;
+        const cx = (ax + bx) / 2, cz = (az + bz) / 2;
+        // The authored stair treads already have a stone surface and collision.
+        if (stairSurface(cx, cz, 0.5) !== null || stairSurface(ax, az, 0.5) !== null || stairSurface(bx, bz, 0.5) !== null) continue;
+        for (const width of [road.width, road.width * 0.7, 1.1]) {
+          const half = width / 2;
+          const corners = [
+            [ax - nx * half, az - nz * half],
+            [ax + nx * half, az + nz * half],
+            [bx + nx * half, bz + nz * half],
+            [bx - nx * half, bz - nz * half]
+          ];
+          const heights = corners.map(([x, z]) => ground(x, z));
+          const mid = ground(cx, cz);
+          if (Math.max(...heights, mid) - Math.min(...heights, mid) > 0.46) continue;
+          if (corners.some(([x, z], i) => occupiedAt(x, z, heights[i], 0.1))) continue;
+          // Counterclockwise winding gives the paving an upward-facing normal.
+          G.quad(
+            [corners[0][0], heights[0] + 0.055, corners[0][1]],
+            [corners[1][0], heights[1] + 0.055, corners[1][1]],
+            [corners[2][0], heights[2] + 0.055, corners[2][1]],
+            [corners[3][0], heights[3] + 0.055, corners[3][1]],
+            C.stoneL, PAT.cobble
+          );
+          painted++;
+          break;
+        }
+      }
+    }
+    World.kaelPaths.push({ id: road.id, from: road.from, to: road.to, width: road.width, pts: clean, pavedSegments: painted, reachable: true });
+  }
+}
 function buildKael(region) {
   const G = new Geo(), rnd = mulberry32(42), homes = [];
   buildWalls(G);
@@ -1178,6 +1241,7 @@ function buildKael(region) {
   for (const [x, z, y] of [[330, -409.2, 23.6], [452, -409.2, 23.6], [325, -449.2, 49.6], [470, -449.2, 49.6], [338, -481.2, 77.6], [470, -481.2, 77.6]]) banner(G, x, y, z, 0, 6);
   const lm = region.landmarks.find((l) => l.kind === "arcade");
   if (lm) registerCutstoneBridgeCollision(lm);
+  buildKaelRoads(G, region);
   const g = new Group();
   g.name = "kael";
   g.add(G.mesh(townMaterial(DoubleSide)));
@@ -3947,17 +4011,9 @@ var NavGrid = class {
       this.g[o] = g;
       this.ok[o] = waterLevel(x, z, g) - g < 0.3 && !occupiedAt(x, z, g, 0.5) ? 1 : 0;
     }
-    for (let j = 0; j < this.h; j++) for (let i = 0; i < this.w; i++) {
-      const o = j * this.w + i;
-      if (!this.ok[o]) continue;
-      for (const [di, dj] of [[1, 0], [0, 1]]) {
-        const p = (j + dj) * this.w + i + di;
-        if (i + di < this.w && j + dj < this.h && this.ok[p] && Math.abs(this.g[p] - this.g[o]) > 1.4) {
-          this.ok[o] = 0;
-          break;
-        }
-      }
-    }
+    // Do not delete an otherwise valid cell just because ONE neighbor is on
+    // a different terrace. Height differences are checked per traversed edge.
+    this.maxRise = 1.4;
   }
   idx(x, z) {
     const i = Math.floor((x - this.x0) / this.cell), j = Math.floor((z - this.z0) / this.cell);
@@ -3978,9 +4034,11 @@ var NavGrid = class {
   }
   los(a, b) {
     const [ax, az] = this.center(a), [bx, bz] = this.center(b), n = Math.ceil(Math.hypot(bx - ax, bz - az) / (this.cell * 0.5));
-    for (let k = 1; k < n; k++) {
+    let prev = a;
+    for (let k = 1; k <= n; k++) {
       const o = this.idx(ax + (bx - ax) * k / n, az + (bz - az) * k / n);
-      if (o < 0 || !this.ok[o]) return false;
+      if (o < 0 || !this.ok[o] || Math.abs(this.g[o] - this.g[prev]) > this.maxRise) return false;
+      prev = o;
     }
     return true;
   }
@@ -4036,8 +4094,12 @@ var NavGrid = class {
         const ni = i + di, nj = j + dj;
         if (ni < 0 || nj < 0 || ni >= W || nj >= this.h) continue;
         const p = nj * W + ni;
-        if (!this.ok[p] || closed[p]) continue;
-        if (di && dj && (!this.ok[j * W + ni] || !this.ok[nj * W + i])) continue;
+        if (!this.ok[p] || closed[p] || Math.abs(this.g[p] - this.g[o]) > this.maxRise) continue;
+        if (di && dj && (
+          !this.ok[j * W + ni] || !this.ok[nj * W + i] ||
+          Math.abs(this.g[j * W + ni] - this.g[o]) > this.maxRise ||
+          Math.abs(this.g[nj * W + i] - this.g[o]) > this.maxRise
+        )) continue;
         const c = gs[o] + (di && dj ? 1.414 : 1);
         if (c < gs[p]) {
           gs[p] = c;
@@ -4138,7 +4200,7 @@ var Townsfolk = class {
   constructor(scene, region) {
     this.places = region.places;
     const B2 = BOUNDS;
-    this.nav = new NavGrid(B2.x0, B2.z0, B2.x1, B2.z1, 2);
+    this.nav = World.kaelNav || new NavGrid(B2.x0, B2.z0, B2.x1, B2.z1, 2);
     const r = mulberry32(5), houses = [...TOWN.houses].sort(() => r() - 0.5);
     this.list = [...NAMED, ...townsfolk()].map((def, i) => {
       const ch = new Character({ scale: def.scale ?? 1 });
@@ -4917,7 +4979,7 @@ var Minimap = class {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    for (const road of World.roads || []) {
+    for (const road of [...(World.roads || []), ...(World.kaelPaths || [])]) {
       if (!road.pts || road.pts.length < 2) continue;
       ctx.beginPath();
       for (let i = 0; i < road.pts.length; i++) {
@@ -5306,7 +5368,7 @@ var WorldMapPanel = class {
     ctx.clip();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    for (const road of World.roads || []) {
+    for (const road of [...(World.roads || []), ...(World.kaelPaths || [])]) {
       if (!road.pts || road.pts.length < 2) continue;
       ctx.beginPath();
       road.pts.forEach((p, i) => {

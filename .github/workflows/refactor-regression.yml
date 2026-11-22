@@ -40,6 +40,8 @@ jobs:
         run: node tests/character-assets.mjs
       - name: Render female model with standard skin in Chromium
         run: node tests/character-webgl.mjs
+      - name: Validate Kael routes, terrain contact and NPC navigation in Chromium
+        run: node tests/kael-roads.mjs
       - name: Compare main and branch in WebGL Chromium
         run: node tests/webgl-smoke.mjs
       - name: Verify optional custom skill save in browser

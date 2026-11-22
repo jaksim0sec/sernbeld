@@ -186,6 +186,21 @@ var SERNBELD = {
     { kind: "arch", x: 330, z: 640, yaw: 0.1 },
     { kind: "arch", x: -330, z: 330, yaw: -0.5 }
   ],
+  // Named routes use actual NPC destinations. They are solved against Kael's
+  // collision-aware navigation grid at startup rather than drawn through houses.
+  kaelRoads: [
+    { id: "pier_workshops", from: "pier_a", to: "smithy", width: 3.1 },
+    { id: "pier_office", from: "pier_b", to: "harbor_office", width: 3.1 },
+    { id: "quay_workshops", from: "quay", to: "smithy", width: 3.4 },
+    { id: "waterfront", from: "pier_a", to: "pier_b", width: 3.2 },
+    { id: "harbor_market", from: "quay", to: "stall_b", width: 3 },
+    { id: "market_plaza", from: "stall_b", to: "plaza", width: 3.4 },
+    { id: "market_guild", from: "plaza", to: "guild_board", width: 3 },
+    { id: "market_inn", from: "plaza", to: "inn", width: 3 },
+    { id: "market_monastery", from: "plaza", to: "monastery", width: 2.8 },
+    { id: "west_workshops", from: "west_gate", to: "smithy", width: 3.2 },
+    { id: "upper_gate", from: "monastery", to: "north_gate", width: 2.8 }
+  ],
   // spots that NPC schedules refer to
   places: {
     plaza: [397, -432],
