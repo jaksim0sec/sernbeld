@@ -104,17 +104,24 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  mesh.userData.studioFeatures=features.map(f=>f.extra);mesh.userData.faceStrength=body.editor.strength;
  mesh.onBeforeRender=()=>uniforms.uHeadForward.value.set(0,0,1).transformDirection(B.head.matrixWorld);
  const rest=Object.fromEntries(bones.map(b=>[b.name,b.position.clone()]));
+ // Rig axes never change. Allocate them once, not once per bone per animation frame.
+ const axes=new Map(data.bones.map(b=>[b.id,b.axes.map(a=>new T.Vector3(...a.d))]));
+ const rotationStep=new T.Quaternion();
  function pose(angles={}){
   for(const b of data.bones){
    const q=B[b.id].quaternion;q.identity();
-   b.axes.forEach((axis,i)=>{const degrees=angles[b.id]?.[i]??0;if(degrees)q.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(...axis.d),degrees*Math.PI/180));});
+   const rotations=angles[b.id],jointAxes=axes.get(b.id);
+   if(!rotations)continue;
+   for(let i=0;i<jointAxes.length;i++){
+    const degrees=rotations[i]??0;
+    if(degrees)q.multiply(rotationStep.setFromAxisAngle(jointAxes[i],degrees*Math.PI/180));
+   }
   }
  }
  function grip(side,amount){
   const hand=data.hands.find(h=>h.id==='hand_'+side);
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
-   const axis=data.bones[boneIndex.get(id)].axes[0];
-   B[id].quaternion.setFromAxisAngle(new T.Vector3(...axis.d),f.flex[i]*amount*Math.PI/180);
+   B[id].quaternion.setFromAxisAngle(axes.get(id)[0],f.flex[i]*amount*Math.PI/180);
   });
  }
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
