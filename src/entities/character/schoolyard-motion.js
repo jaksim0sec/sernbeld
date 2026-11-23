@@ -65,6 +65,7 @@ export function createSchoolyardMotion(actor){
    const phase=actor.phase;
    const s=Math.sin(phase),c=Math.cos(phase);
    const grounded=!!player.onGround&&!player.swimming;
+   const descent=ease(clamp((.7-(player.vel.y??0))/3.7,0,1));
    if(grounded&&!prevGround)landing=1;
    prevGround=grounded;
    landing=Math.max(0,landing-dt*3.6);
@@ -94,8 +95,12 @@ export function createSchoolyardMotion(actor){
      put('thigh_'+side,q*18,0);put('shin_'+side,20+10*Math.max(0,push));
      put('upper_arm_'+side,55+q*25,35);put('forearm_'+side,35,0);
     }else if(!grounded){
-     put('thigh_'+side,side==='left'?24:-10,4);
-     put('shin_'+side,side==='left'?42:26);
+     // Raise one knee on takeoff. On descent, reach down with that leg
+     // while the trailing knee folds and the heel lifts behind the body.
+     const lead=side==='left';
+     put('thigh_'+side,lead?64-36*descent:-7-15*descent,3);
+     put('shin_'+side,lead?68-50*descent:24+52*descent);
+     put('foot_'+side,lead?5-12*descent:4-15*descent);
      put('upper_arm_'+side,22+7*airAge,8);put('forearm_'+side,48,0);
     }else{
      const hip=(27+10*run)*stepping*q+(side==='left'?1:-1)*2+crouch*.53;
