@@ -83,7 +83,7 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
       button.addEventListener('keydown',e=>{
         if(empty||!e.altKey||!['ArrowLeft','ArrowRight'].includes(e.key))return;
         e.preventDefault();
-        const target=Math.max(0,Math.min(config.actions.length-1,index+(e.key==='ArrowRight'?1:-1)));
+        const target=Math.max(0,Math.min(MAX_SKILL_ACTIONS-1,index+(e.key==='ArrowRight'?1:-1)));
         config.actions=moveSlot(config.actions,index,target);selected=target;render();
       });
       return button;
