@@ -810,9 +810,7 @@ function renderPanel(){
   $('panel').append(presets);
   const hint=document.createElement('p');hint.className='hint';hint.textContent='얼굴을 확대하고 점을 드래그해. 아래 패드로도 선택한 부위를 조절할 수 있어.';$('panel').append(hint);
  }else if(tab==='eye'){
-  selectionCards('eye',REFERENCE_EYES);
-  const heading=document.createElement('h3');heading.className='color-heading';heading.textContent='기존 눈매';$('panel').append(heading);
-  selectionCards('eye',Object.fromEntries(Object.entries(names.eye).filter(([id])=>!Object.hasOwn(REFERENCE_EYES,id))));
+  selectionCards('eye',{...REFERENCE_EYES,'reference-slit':'실눈 · 살짝 뜸',smiling:'실눈 · 닫힘',closed:'감은 눈'});
  }else selectionCards(tab);
  if(['face','eye','mouth'].includes(tab)){partButtons();editPad();}
 }
