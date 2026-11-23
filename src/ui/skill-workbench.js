@@ -34,7 +34,7 @@ function buildGeometry(svg) {
     ${ticks}${arcs}
     <path d="M180 34 326 180 180 326 34 180Z"/>
     <path d="M180 70 275 235 85 235Z M180 290 85 125 275 125Z"/></g>
-    <circle class="skill-orbit-guide" cx="180" cy="180" r="110"/>
+    <circle class="skill-orbit-well" cx="180" cy="180" r="110"/><circle class="skill-orbit-guide" cx="180" cy="180" r="110"/>
     <g class="skill-orbit-direction">${Array.from({length:MAX_SKILL_ACTIONS},(_,i)=>{
       const a=-Math.PI/2+(i+.5)*Math.PI*2/MAX_SKILL_ACTIONS;
       const [x,y]=point(110,a);
