@@ -83,7 +83,7 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
       button.style.left=`${x/360*100}%`;button.style.top=`${y/360*100}%`;
       button.setAttribute('aria-label',empty?`${index+1}번 행동 추가`:`${index+1}번 행동: 찌르기, ${action.share}%`);
       button.setAttribute('aria-pressed',String(selected===index && !empty));
-      button.innerHTML=`<span class="skill-slot-face">${empty?'<span class="skill-slot-plus" aria-hidden="true">+</span>':rune()}</span>`;
+      button.innerHTML=`<span class="skill-slot-face">${empty?'<span class="skill-slot-plus" aria-hidden="true">+</span>':rune()}</span>${empty?'':`<span class="skill-slot-share" aria-hidden="true">${action.share}%</span>`}`;
       button.addEventListener('click',()=>{
         if(performance.now()-dragFinishedAt<450)return;
         if(empty){config.actions=distributeEvenly([...config.actions,defaultAction(index)]).sort((a,b)=>a.slot-b.slot);selected=index;render();}
@@ -152,9 +152,10 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
     mini.hidden=!action;
     stage.classList.toggle('is-inspecting',Boolean(action));
     if(!action)return;
-    mini.innerHTML=`<svg class="skill-mini-lines" viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="104"/><circle cx="120" cy="120" r="70"/><path d="M28 84A100 100 0 0 1 212 84"/><path d="M28 156A100 100 0 0 0 212 156"/></svg>
-      <div class="skill-mini-center">${rune()}<strong>찌르기</strong><small>${action.share}%</small></div>
-      <button type="button" class="skill-mini-remove" aria-label="선택한 행동 제거" title="행동 제거">×</button>`;
+    mini.innerHTML=`<svg class="skill-mini-lines" viewBox="0 0 240 240" aria-hidden="true"><circle class="skill-mini-guide" cx="120" cy="120" r="104"/><circle class="skill-mini-center-ring" cx="120" cy="120" r="53"/><path class="skill-mini-speed-track" d="M30 68 A104 104 0 0 1 210 68"/><path class="skill-mini-repeat-track" d="M210 172 A104 104 0 0 1 30 172"/></svg>
+      <span class="skill-mini-group-label skill-mini-group-label-speed">속도</span><span class="skill-mini-group-label skill-mini-group-label-repeat">반복</span>
+      <div class="skill-mini-center">${rune()}<strong>찌르기</strong><small>마력 ${action.share}%</small><small class="skill-mini-summary">×${action.speed} · ${action.repeat}회</small></div>
+      <button type="button" class="skill-mini-remove" aria-label="선택한 행동 삭제" title="선택한 행동 삭제"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M8 5V3h4v2M6 6l.6 10h6.8L14 6M9 8v6M11 8v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg><span>삭제</span></button>`;
     const controls=[...SPEEDS.map((value,i)=>({type:'speed',value,angle:-150+i*60})),...REPEATS.map((value,i)=>({type:'repeat',value,angle:30+i*60}))];
     controls.forEach(({type,value,angle})=>{
       const b=document.createElement('button');b.type='button';
@@ -163,8 +164,8 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
       b.style.left=`${50+42*Math.cos(a)}%`;b.style.top=`${50+42*Math.sin(a)}%`;
       b.setAttribute('aria-label',type==='speed'?`속도 ${value}배`:`${value}회 반복`);
       b.setAttribute('aria-pressed',String(action[type]===value));
-      b.innerHTML=type==='speed'?`<span class="mini-glyph mini-speed">${'›'.repeat(SPEEDS.indexOf(value)+1)}</span>`:
-        `<span class="mini-glyph mini-repeat">${'•'.repeat(value)}</span>`;
+      b.innerHTML=type==='speed'?`<span class="mini-glyph mini-speed">×${value}</span>`:
+        `<span class="mini-glyph mini-repeat">${value}회</span>`;
       b.addEventListener('click',()=>{
         config.actions=config.actions.map(item=>item.slot===selected?{...item,[type]:value}:item);render();
       });
@@ -178,7 +179,8 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
   function render() {
     cancelPreview();
     plan=config.actions.length?compileSkill(config,PREVIEW_ACTOR):null;
-    ring.style.backgroundImage=makeOrbitGradient(config.actions);
+    const manaGradient=makeOrbitGradient(config.actions);
+    ring.style.setProperty('--skill-mana-gradient',manaGradient);
     const count=config.actions.length;
     core.querySelector('.skill-core-name').textContent=count?`찌르기 · ${count}동작`:'새 기술';
     core.querySelector('.skill-core-total').textContent=`마나 ${config.manaInjection}`;
