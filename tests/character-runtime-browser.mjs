@@ -65,6 +65,17 @@ try{
     const palm=grip.userData.grip;
     const handle=new T.Vector3(0,-.08,0).applyMatrix4(grip.matrix);
     const gripError=handle.distanceTo(palm)*a.actor.units;
+    // Checking a transform-only handle point used to pass while the fingers
+    // visibly missed the shaft. Sample the actual animated digit bones.
+    function gripClearance(){
+     a.actor.group.updateMatrixWorld(true);grip.updateWorldMatrix(true,false);
+     const h=grip.userData.handleY;
+     const centre=grip.localToWorld(new T.Vector3(0,h,0));
+     const axis=grip.localToWorld(new T.Vector3(0,h+.3,0)).sub(centre).normalize();
+     const radial=name=>a.actor.B[name].getWorldPosition(new T.Vector3()).sub(centre).cross(axis).length();
+     return {thumb:radial('thumb_right_2'),middle:radial('middle_right_2')};
+    }
+    const thirdGripClearance=gripClearance();
     const tip=()=>grip.localToWorld(new T.Vector3(0,.7,0)).toArray();
     const idleTip=tip();const bladeRise=idleTip[1]-grip.localToWorld(new T.Vector3(0,-.08,0)).y;
     d.combat.attack();const swing=d.combat.swing;
@@ -76,6 +87,7 @@ try{
     d.combat.swing=null;
     a.setThird(false);d.rig.reset(d.player);d.frame();
     const firstIdle={position:d.camera.position.toArray(),q:d.camera.quaternion.toArray()};
+    const firstGripClearance=gripClearance();
     d.combat.attack();d.combat.swing.t=d.combat.swing.spec.windup;d.frame();
     const firstAttack={position:d.camera.position.toArray(),q:d.camera.quaternion.toArray()};
     const firstArmOnly=a.actor.mesh.material.uniforms.uFirst.value===1&&Object.values(d.combat.view.hands).every(h=>!h.g.visible);
@@ -92,12 +104,16 @@ try{
     const visibleArms=visibleArmVertices();
     const wrist=a.actor.B.hand_right.getWorldPosition(new T.Vector3()).project(d.camera).toArray();
     d.combat.swing=null;a.setThird(true);d.frame();
-    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,bladeRise,gripError,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
+    return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,bladeRise,gripError,thirdGripClearance,firstGripClearance,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
    });
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
    assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>20000&&n.vertices<120000),'NPCs must use optimized studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
+   for(const [mode,d] of Object.entries({third:stats.thirdGripClearance,first:stats.firstGripClearance})){
+    assert(d.thumb>.011&&d.thumb<.026,'Thumb misses sword handle ('+mode+'): '+JSON.stringify(d));
+    assert(d.middle>.008&&d.middle<.027,'Fingers miss sword handle ('+mode+'): '+JSON.stringify(d));
+   }
    assert(stats.bladeRise>.3,'The sword points into the wrist instead of away from the grip: '+stats.bladeRise);
    assert.deepEqual(stats.rootPosition,stats.playerPosition,'Player body is not attached to the physics actor');
    const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
