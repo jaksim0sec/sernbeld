@@ -91,6 +91,10 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    bodyYaw+=turnStep;
    turnRate=turnStep/Math.max(.001,dt);
   }
+  if(!firstPerson){
+   actor.group.position.copy(player.pos);
+   actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
+  }
   animatePlayer(actor,dt,t,player,pose,Save.data.equip,{
    first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,gaitSpeed,
    gazeYaw:firstPerson?0:wrap(aimYaw-bodyYaw)
@@ -157,7 +161,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     const low=Math.min(actor.B.foot_left.getWorldPosition(displacement).y,actor.B.foot_right.getWorldPosition(displacement).y);
     desired=Math.max(-.12,Math.min(.07,player.pos.y+ankleRest*actor.group.scale.y-low));
    }
-   footOffset+=(desired-footOffset)*(1-Math.exp(-dt*22));
+   footOffset=actor._combatStance?0:footOffset+(desired-footOffset)*(1-Math.exp(-dt*22));
    actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
   }
   actor.group.updateWorldMatrix(true,false);
