@@ -24,7 +24,7 @@ const factory=createStudioGeometry(source);
   // Exact-profile NPCs may share vertex GPU buffers, but not geometry state,
   // skeletons, per-actor shader uniforms, or lifetime.
   const profile=normalizeStudioCharacter({body});
-  const a=createStudioModel(T,lodFactory,profile),b=createStudioModel(T,lodFactory,profile);
+  const a=createStudioModel(T,lodFactory,profile),b=createStudioModel(T,lodFactory,normalizeStudioCharacter({...profile,pose:{head:[12,0]}}));
   const changed=createStudioModel(T,lodFactory,normalizeStudioCharacter({...profile,values:profile.values.map((v,i)=>i===0?.3:v)}));
   const ga=a.mesh.geometry,gb=b.mesh.geometry;
   assert.notStrictEqual(ga,gb,'Each instance needs independent LOD selection');
