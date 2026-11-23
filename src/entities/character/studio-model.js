@@ -19,7 +19,8 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  // first-person arm list reference a subset of the same vertices.
  const pool=geometryPools.get(factory)??new Map();
  geometryPools.set(factory,pool);
- const geometryKey=JSON.stringify(profile);
+ // Pose is animation state, not geometry. Identical faces still share buffers.
+ const geometryKey=JSON.stringify({...profile,pose:undefined});
  let shared=pool.get(geometryKey),geometry,lodIndex,firstIndex;
  // Full appearance equality is required: never share a modified face with another NPC.
  if(shared){
