@@ -1,4 +1,5 @@
 import {SCHOOLYARD_REFERENCE_ABILITIES} from './schoolyard-reference-clips.js';
+import {applyCombatStance} from './combat-stance.js';
 // Motion driver retargeted from schoolyard_duel_v3_no_user_select.html.
 // The reference's 47-joint channel convention is retained; world movement, collision,
 // step-up, weapon contact, and combat damage remain owned by SERNBELD.
@@ -118,14 +119,7 @@ export function createSchoolyardMotion(actor){
     targets.pelvis[1]-=twist*.26;
     targets.waist[1]-=twist*.30;
     targets.ribcage[1]-=twist*.44;
-    targets.ribcage[0]+=(-4*pull+7*extension)*w;
-    const lead=side===1?'left':'right',rear=side===1?'right':'left';
-    if(grounded){
-     targets['thigh_'+lead][0]+=(5*pull+13*extension)*w;
-     targets['shin_'+lead][0]+=(8*pull+15*extension)*w;
-     targets['shin_'+rear][0]+=13*pull*w;
-     targets['foot_'+lead][0]+=6*extension*w;
-    }
+    const lead=side===1?'left':'right';
     targets['upper_arm_'+lead][0]+=(19*pull-15*extension)*w;
     targets['forearm_'+lead][0]+=(22*pull+11*extension)*w;
    }
@@ -158,6 +152,7 @@ export function createSchoolyardMotion(actor){
    actor.pose(angles);
    actor.B.pelvis.position.copy(actor.rest.pelvis);
    actor.B.pelvis.position.y-=grounded?.013*moving*(1+Math.cos(phase*2))*.5:0;
+   applyCombatStance(actor,swing,grounded,speed);
    return {bob:-.018*moving*Math.cos(2*phase),landing,grounded,first};
   }
  };
