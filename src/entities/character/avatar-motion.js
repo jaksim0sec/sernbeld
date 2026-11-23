@@ -18,7 +18,7 @@ export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,run
  const response=motion.update(dt,t,player,swingPose,{first,runSpeed,armed:Boolean(equip?.right||equip?.left)});
  // The reference special clip authors finger joints individually. Do not
  // overwrite those tracks with the generic fist curl when previewed later.
- if(motion.active!=='specialRoundKick')for(const side of ['right','left'])actor.grip(side,fist(side));
+ if(motion.active!=='specialRoundKick')for(const side of ['right','left'])actor.grip(side,fist(side),Boolean(equip?.[side]));
  return response;
 }
 
@@ -47,7 +47,7 @@ function armRig(T,actor){
    .addScaledVector(palm,.006/actor.units);
   const mount=frame.clone().multiply(new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(
    new T.Vector3(0,-1,0),new T.Vector3(0,0,1),new T.Vector3(-1,0,0))));
-  rig[side]={frame,frameInv:frame.clone().invert(),grip,mount,
+  rig[side]={frame,frameInv:frame.clone().invert(),grip,mount,palm:palm.clone(),
    upperRest:actor.B['forearm_'+side].position.clone().normalize(),
    lowerRest:actor.B['hand_'+side].position.clone().normalize()};
  }
