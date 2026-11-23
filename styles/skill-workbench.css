@@ -11,7 +11,7 @@
 #atk{right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right));bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom))}
 .bar #skillsBtn{font-size:0;position:relative}
 .bar #skillsBtn::before{content:'✧';font-size:1.9rem;font-weight:400;color:var(--skill-cyan)}
-.skill-satellite{position:fixed;z-index:3;right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right) + 1rem);bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom) + var(--skill-action-size) + .375rem);display:grid;place-items:center;width:2.8rem;height:2.8rem;border:1px dashed #a6edef86;border-radius:50%;background:#07334770;color:var(--skill-cyan);font:1.5rem var(--ui-font,sans-serif);touch-action:manipulation;cursor:pointer}
+.skill-satellite{position:fixed;z-index:3;right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right) + 1rem);bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom) + var(--skill-action-size) + .375rem);display:grid;place-items:center;width:3rem;height:3rem;border:1px dashed #a6edef86;border-radius:50%;background:#07334770;color:var(--skill-cyan);font:1.5rem var(--ui-font,sans-serif);touch-action:manipulation;cursor:pointer}
 .skill-satellite.has-skill{border-style:solid;background:#10566d91;box-shadow:0 0 12px #55ffff44}
 body:has(.panel:not([hidden]),.speech:not([hidden]),.world-map-screen:not([hidden])) .skill-satellite,
 body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,.toast,.hint,.stick,.jump,.atk,.skill-satellite,.hud-vitals){visibility:hidden;pointer-events:none}
@@ -59,14 +59,14 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-mini-center svg{width:36%;color:#c0ffff;filter:drop-shadow(0 0 4px #6eecf3)}
 .skill-mini-center strong{font-size:clamp(.62rem,2.9cqw,.82rem)}
 .skill-mini-center small{font-size:clamp(.55rem,2.6cqw,.7rem);opacity:.7}
-.skill-mini-choice{position:absolute;translate:-50% -50%;display:grid;place-items:center;width:24%;height:24%;padding:0;border-radius:50%;border:1px solid #87ced6a3;color:#c3eff0;background:#103c508c;cursor:pointer;touch-action:manipulation;transition:background .2s,box-shadow .2s}
+.skill-mini-choice{position:absolute;translate:-50% -50%;display:grid;place-items:center;width:24%;height:24%;min-width:3rem;min-height:3rem;padding:0;border-radius:50%;border:1px solid #87ced6a3;color:#c3eff0;background:#103c508c;cursor:pointer;touch-action:manipulation;transition:background .2s,box-shadow .2s}
 .skill-mini-choice.is-active{background:#2d778385;border-color:#dcffff;box-shadow:0 0 12px #98fafa7a,inset 0 0 9px #84f5f547}
 .mini-speed{font-size:1.1rem;line-height:1;letter-spacing:-.2rem;padding-right:.15rem}
 .mini-repeat{font-size:.9rem;line-height:1;letter-spacing:-.1rem}
 .skill-mini-remove{position:absolute;left:50%;top:101%;translate:-50% -50%;width:2rem;height:2rem;border:1px solid #7dd6df70;border-radius:50%;background:#103b4daa;color:#a8e9ee;cursor:pointer;pointer-events:auto}
 
 .skill-tools{position:absolute;z-index:2;left:50%;bottom:0;translate:-50% 3%;display:flex;gap:.75rem;pointer-events:auto}
-.skill-tool,.skill-close{display:grid;place-items:center;width:2.75rem;height:2.75rem;border:1px solid #a2e6e696;border-radius:50%;color:var(--skill-cyan);background:#103c507a;cursor:pointer;touch-action:manipulation}
+.skill-tool,.skill-close{display:grid;place-items:center;width:3rem;height:3rem;border:1px solid #a2e6e696;border-radius:50%;color:var(--skill-cyan);background:#103c507a;cursor:pointer;touch-action:manipulation}
 .skill-tool:disabled{opacity:.26;cursor:default}
 .skill-tool.saved{border-color:#e4ffff;box-shadow:0 0 11px #73ffff88}
 .skill-tool.save-error{border-color:#ffb2b2;color:#ffb2b2}
