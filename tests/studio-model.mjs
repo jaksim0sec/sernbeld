@@ -10,6 +10,19 @@ import {createCharacterRuntime} from '../src/entities/character/studio-integrati
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+for(const [eye,legacy] of [['reference-squint','smiling'],['reference-closed','closed']]){
+ const profile=normalizeStudioCharacter({eye});
+ assert.equal(profile.eye,eye);
+ const features=factory.build(profile).features.filter(f=>f.extra.eyeStyle===eye);
+ assert.equal(features.length,1,'Closed eye must use the new stroke mesh');
+ const mesh=features[0];
+ assert(!mesh.extra.iris,'Closed eyes must not respond to iris tint');
+ const row=7,centre=48*row*3;
+ const thickness=Math.abs(mesh.base[centre+1]-mesh.base[centre+6*3+1]);
+ assert(thickness>.028&&thickness<.034,'Closed-eye stroke must use the new set thickness');
+ const old=factory.build(normalizeStudioCharacter({eye:legacy})).features.find(f=>f.extra.eyeStyle===legacy);
+ assert.notEqual(mesh.base.length,old.base.length,'New eyes must not reuse the old mesh');
+}
 for(const body of ['male','female']){
  const baseProfile=normalizeStudioCharacter({body,iris:'#9e71a4'});
  const originalFace=Buffer.from(factory.build(baseProfile).body.worldPositions.buffer).slice();
