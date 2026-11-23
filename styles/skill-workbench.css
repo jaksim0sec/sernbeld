@@ -20,7 +20,7 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-workbench{position:fixed;z-index:8;inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;place-items:center;pointer-events:none;color:var(--skill-cyan);perspective:900px}
 .skill-workbench[hidden],.skill-workbench [hidden],.skill-satellite[hidden],#skillsBtn[hidden]{display:none!important}
 .skill-stage{position:relative;width:100%;height:100%;transform-style:preserve-3d;isolation:isolate}
-.skill-stage.is-inspecting::after{content:"";position:absolute;top:50%;left:56%;width:6.5%;height:1px;border-top:1px dashed rgba(136,244,248,.7);filter:drop-shadow(0 0 4px #98fbff);opacity:.85;pointer-events:none;transform:rotate(-7deg)}
+.skill-stage.is-inspecting::after{content:"";position:absolute;top:50%;left:calc(34% + min(24.5vw,37.5dvh,17rem));width:calc(42% - min(24.5vw,37.5dvh,17rem) - min(16vw,31dvh,11.5rem));height:1px;border-top:1px dashed rgba(136,244,248,.7);filter:drop-shadow(0 0 4px #98fbff);opacity:.85;pointer-events:none;transform:rotate(-7deg)}
 .skill-main{position:absolute;left:50%;top:50%;width:min(82vw,82dvh,45rem);height:auto;aspect-ratio:1;container-type:inline-size;pointer-events:auto;touch-action:none;clip-path:circle(50%);transform-origin:50% 50%;transform-style:preserve-3d;transform:translate(-50%,-50%);transition:left .56s cubic-bezier(.22,.8,.2,1),width .56s cubic-bezier(.22,.8,.2,1),transform .56s cubic-bezier(.22,.8,.2,1);animation:skill-appear .44s ease-out both}
 .skill-stage.is-inspecting .skill-main{left:34%;width:min(49vw,75dvh,34rem);transform:translate(-50%,-50%) rotateY(-9deg) rotateZ(-3deg)}
 .skill-diagram-art,.skill-mana-ring{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -37,14 +37,15 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-heritage-ring circle:first-child{stroke-width:1.55}
 .skill-heritage-ring circle:nth-child(2){stroke-dasharray:22 5 3 5;opacity:.7}
 .skill-heritage-ring path:last-child{opacity:.39}
-.skill-orbit-guide{stroke:#82dce0;stroke-width:2;opacity:.8}
+.skill-orbit-well{stroke:#062634;stroke-width:13;opacity:.7}
+.skill-orbit-guide{stroke:#91e4ed;stroke-width:1.4;opacity:.23}
 .skill-orbit-direction{stroke:#b0f6f3;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.65}
 /* Continuous common orbit: mana is luminosity, not a length-based progress arc. */
 /* An unbroken action orbit; allocation changes intensity, never arc length. */
 .skill-mana-ring{position:absolute;inset:0;background:transparent;--skill-mana-gradient:conic-gradient(#70eeee44,#70eeeea8,#70eeee44)}
-.skill-mana-ring::before,.skill-mana-ring::after{content:"";position:absolute;inset:0;background:var(--skill-mana-gradient);pointer-events:none;-webkit-mask-image:radial-gradient(circle,transparent 29.7cqw,#000 30.3cqw,#000 31cqw,transparent 31.6cqw);mask-image:radial-gradient(circle,transparent 29.7cqw,#000 30.3cqw,#000 31cqw,transparent 31.6cqw)}
-.skill-mana-ring::before{filter:brightness(1.28)}
-.skill-mana-ring::after{filter:blur(4px) brightness(1.55);opacity:.65}
+.skill-mana-ring::before,.skill-mana-ring::after{content:"";position:absolute;inset:0;background:var(--skill-mana-gradient);pointer-events:none;-webkit-mask-image:radial-gradient(circle,transparent 29cqw,#000 30.1cqw,#000 31.2cqw,transparent 32cqw);mask-image:radial-gradient(circle,transparent 29.7cqw,#000 30.3cqw,#000 31cqw,transparent 31.6cqw)}
+.skill-mana-ring::before{filter:brightness(1.45)}
+.skill-mana-ring::after{filter:blur(4px) brightness(1.65);opacity:.8}
 
 .skill-slots{position:absolute;inset:0;pointer-events:none}
 .skill-slot{position:absolute;display:grid;place-items:center;width:clamp(3rem,15.8cqw,4.3rem);height:clamp(3rem,15.8cqw,4.3rem);padding:0;translate:-50% -50%;background:none;border:0;border-radius:50%;color:var(--skill-cyan);pointer-events:auto;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
