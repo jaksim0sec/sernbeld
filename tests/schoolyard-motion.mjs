@@ -19,6 +19,15 @@ for(let frame=0;frame<300;frame++){
   assert(value>=-40&&value<=120&&Number.isFinite(value),'joint out of range: '+b.id);
 }
 assert.deepEqual(player.pos,origin,'animation modified physical movement (step-up regression)');
+player.onGround=false;
+player.vel.y=5;
+for(let frame=0;frame<16;frame++)motion.update(1/60,5+frame/60,player,null);
+const raisedKnee=lastPose.thigh_left[0],risingFront=lastPose.shin_left[0],risingRear=lastPose.shin_right[0];
+assert(raisedKnee>45&&risingFront>risingRear,'Takeoff should lift the front knee first');
+player.vel.y=-4;
+for(let frame=0;frame<16;frame++)motion.update(1/60,6+frame/60,player,null);
+assert(lastPose.thigh_left[0]<raisedKnee&&lastPose.shin_left[0]<risingFront-25,'Front leg should reach toward the ground during descent');
+assert(lastPose.shin_right[0]>risingRear+25,'Rear knee should fold back during descent');
 for(const name of ['frontKick','roundKick','palmChop','dropKick','specialRoundKick'])
  assert(SCHOOLYARD_CLIPS[name]&&sampleSchoolyardClip(name,.2),'missing registered-only move: '+name);
 assert.equal(motion.active,null,'unused clips must not auto-play');
