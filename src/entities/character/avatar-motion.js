@@ -76,6 +76,15 @@ function twistAbout(T,q,axis){
  return t.lengthSq()<1e-12?new T.Quaternion():t.normalize();
 }
 
+// An elbow is not a ball joint: cap flexion at the model's 128-degree range.
+// Calculate the minimum wrist distance from the law of cosines, rather than
+// letting IK invert its pole when the target is too close to the shoulder.
+export function clampArmReach(l1,l2,desired,maxFlex=128){
+ const min=Math.sqrt(Math.max(0,l1*l1+l2*l2+2*l1*l2*Math.cos(maxFlex*Math.PI/180)));
+ const max=Math.max(0,l1+l2-.001);
+ return clamp(Number.isFinite(desired)?desired:max,Math.min(min,max),max);
+}
+
 // Two-bone IK with an explicit elbow pole and forearm twist sharing.
 // wristW and handQW are world-space. poleW points where the elbow should go.
 export function solveArmChain(T,actor,side,wristW,handQW,poleW,{twistShare=.5}={}){
@@ -86,10 +95,16 @@ export function solveArmChain(T,actor,side,wristW,handQW,poleW,{twistShare=.5}={
  const l1=lower.position.length()*scale,l2=hand.position.length()*scale;
  const shoulder=upper.getWorldPosition(new T.Vector3());
  const toWrist=wristW.clone().sub(shoulder);
- const distance=clamp(toWrist.length(),Math.abs(l1-l2)+1e-3,l1+l2-1e-3),dir=toWrist.normalize();
+ const distance=clampArmReach(l1,l2,toWrist.length());
+ const dir=toWrist.lengthSq()>1e-12?toWrist.normalize():rig.upperRest.clone().transformDirection(upper.parent.matrixWorld);
  const pole=poleW.clone().addScaledVector(dir,-poleW.dot(dir));
- if(pole.lengthSq()<1e-8)pole.set(0,-1,0).addScaledVector(dir,dir.y);
+ if(pole.lengthSq()<1e-8&&rig.previousPole) pole.copy(rig.previousPole).addScaledVector(dir,-rig.previousPole.dot(dir));
+ if(pole.lengthSq()<1e-8){
+  const fallback=Math.abs(dir.y)<.8?new T.Vector3(0,1,0):new T.Vector3(1,0,0);
+  pole.copy(fallback).addScaledVector(dir,-fallback.dot(dir));
+ }
  pole.normalize();
+ if(rig.previousPole)rig.previousPole.copy(pole);else rig.previousPole=pole.clone();
  const along=(distance*distance+l1*l1-l2*l2)/(2*distance),height=Math.sqrt(Math.max(0,l1*l1-along*along));
  const elbow=shoulder.clone().addScaledVector(dir,along).addScaledVector(pole,height);
  const wrist=shoulder.clone().addScaledVector(dir,distance);
