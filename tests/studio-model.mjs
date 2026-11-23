@@ -7,9 +7,29 @@ import {normalizeStudioCharacter,resolveNpcAppearance} from '../src/entities/cha
 import {calculateFemalePose} from '../src/entities/character/female-base.js';
 import {animatePlayer,armTargets,solveArm,gripFrame} from '../src/entities/character/avatar-motion.js';
 import {createCharacterRuntime} from '../src/entities/character/studio-integration.js';
+import {createSchoolyardMotion} from '../src/entities/character/schoolyard-motion.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+for(const body of ['male','female'])for(const side of [1,-1]){
+ const actor=createStudioModel(T,factory,normalizeStudioCharacter({body}));
+ const motion=createSchoolyardMotion(actor),player={vel:new T.Vector3(),onGround:true,yaw:0,pitch:0};
+ for(let i=0;i<40;i++)motion.update(1/60,i/60,player,null);
+ const support=side===1?'left':'right',rear=side===1?'right':'left';
+ const initialRear=actor.B['foot_'+rear].getWorldPosition(new T.Vector3());
+ let anchor;
+ for(let i=0;i<60;i++){
+  const travel=i/59;
+  actor.group.rotation.y=travel*.15;
+  motion.update(1/60,i/60,player,{side,weight:1,pull:1-travel,extension:Math.sin(travel*Math.PI),arc:side*(2-3*travel),travel});
+  const actual=actor.B['foot_'+support].getWorldPosition(new T.Vector3());
+  anchor??=actual.clone();
+  assert(actual.distanceTo(anchor)<.004,'Support foot drifted during torso rotation: '+actual.distanceTo(anchor));
+ }
+ const back=actor.B['foot_'+rear].getWorldPosition(new T.Vector3());
+ assert(back.distanceTo(initialRear)>.005,'Rear foot did not adjust to transfer weight');
+ actor.dispose();
+}
 for(const [eye,legacy] of [['reference-squint','smiling'],['reference-closed','closed']]){
  const profile=normalizeStudioCharacter({eye});
  assert.equal(profile.eye,eye);
