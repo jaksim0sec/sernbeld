@@ -106,6 +106,9 @@ export function createSchoolyardMotion(actor){
      put('forearm_'+side,18+14*moving+5*turnFlex,0);
     }
    }
+   // Preserve the NPC conversation nod that the old studio animator had.
+   // It is an overlay, not another locomotion implementation.
+   if(!first&&actor.talk>0){targets.head[0]=0;targets.head[1]+=Math.sin(t*7)*3;}
    // Keep the existing sword IK and finger handling authoritative. The full
    // body drives anticipation/reaction; grip targets still solve at the wrists.
    if(swing?.weight){
