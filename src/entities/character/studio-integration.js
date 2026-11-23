@@ -55,7 +55,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  // Head-follow is a camera offset, never a player-world transform. This keeps
  // the existing step-up, stairs, camera wall avoidance and attack recoil.
  const headMotion=new T.Vector3(),headTarget=new T.Vector3(),headPivot=new T.Vector3(),headEye=new T.Vector3(),neutralEye=new T.Vector3();
- const yawQ=new T.Quaternion(),headQ=new T.Quaternion(),localHeadQ=new T.Quaternion();
+ const yawQ=new T.Quaternion(),headQ=new T.Quaternion(),localHeadQ=new T.Quaternion(),headViewQ=new T.Quaternion();
+ const headViewEuler=new T.Euler(0,0,0,'YXZ');
  const eyeBasis=new T.Vector3(0,.065,.038),tmpUp=new T.Vector3();
  let headCut=null,lastHeadMode=null,headRoll=0;
  function bodyAnchors(){
@@ -104,11 +105,26 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     const safe=worldRay?Math.max(0,Math.min(distance,worldRay(camera.position,dir,distance+.07)-.07)):distance;
     camera.position.addScaledVector(dir,safe);
    }
+   // The reference uses the animated head transform for BOTH eye position and
+   // gaze. Preserve player aim authority and the game's existing camera recoil:
+   // anatomical limits must not prevent looking up/down or aiming a weapon.
+   const recoilPitch=camera.rotation.x-player.pitch;
+   const recoilYaw=Math.atan2(Math.sin(camera.rotation.y-player.yaw),Math.cos(camera.rotation.y-player.yaw));
+   const originalRoll=camera.rotation.z;
+   headViewQ.copy(headQ).multiply(flipY);
+   headViewEuler.setFromQuaternion(headViewQ,'YXZ');
+   const headYawOffset=Math.atan2(Math.sin(headViewEuler.y-player.yaw),Math.cos(headViewEuler.y-player.yaw));
+   const headPitchOffset=headViewEuler.x-player.pitch;
    localHeadQ.copy(yawQ).invert().multiply(headQ);
    tmpUp.set(0,1,0).applyQuaternion(localHeadQ);
-   const roll=clamp01(Math.abs(Math.atan2(tmpUp.x,tmpUp.y))/.2)*Math.sign(Math.atan2(tmpUp.x,tmpUp.y))*.028;
+   const angularRoll=Math.atan2(tmpUp.x,tmpUp.y);
+   const roll=Math.max(-.03,Math.min(.03,angularRoll*.3));
    headRoll+=(roll-headRoll)*(1-Math.exp(-dt*28));
-   camera.rotation.z+=headRoll;
+   camera.rotation.set(
+    Math.max(-1.55,Math.min(1.55,player.pitch+recoilPitch+Math.max(-.18,Math.min(.18,headPitchOffset)))),
+    player.yaw+recoilYaw+Math.max(-.15,Math.min(.15,headYawOffset)),
+    originalRoll+headRoll,'YXZ'
+   );
    // Camera-locked arms: the skinned model follows the final, head-aware view.
    camera.updateMatrixWorld(true);
    actor.group.quaternion.copy(camera.quaternion).multiply(flipY);
