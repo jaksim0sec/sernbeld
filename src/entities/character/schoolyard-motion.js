@@ -55,9 +55,9 @@ export function createSchoolyardMotion(actor){
  const api={
   play(name){if(!SCHOOLYARD_CLIPS[name])return false;anim={name,time:0};return true;},
   get active(){return anim?.name??null;},
-  update(dt,t,player,swing,{first=false,runSpeed=5,turnRate=null,gazeYaw=0}={}){
+  update(dt,t,player,swing,{first=false,runSpeed=5,turnRate=null,gazeYaw=0,gaitSpeed=Math.hypot(player.vel.x,player.vel.z)}={}){
    dt=clamp(dt,0,.12);clock+=dt;
-   const speed=Math.hypot(player.vel.x,player.vel.z);
+   const speed=gaitSpeed;
    const walking=clamp(speed/1.15,0,1);
    const run=clamp((speed-2.6)/Math.max(.5,runSpeed-2.6),0,1);
    const moving=walking*(1-.14*run);

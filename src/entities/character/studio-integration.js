@@ -7,7 +7,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#fafaf7;z-index:1000;';
  dialog.innerHTML='<button type="button" id="character-close" aria-label="돌아가기" style="position:absolute;right:.6rem;bottom:.6rem;z-index:2;border:1px solid #cbd5c7;border-radius:.7rem;background:#fff;padding:.7rem 1rem;color:#334a3c">돌아가기</button><iframe title="내 캐릭터 만들기" style="border:0;width:100%;height:100%"></iframe>';
@@ -78,20 +78,21 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(!walking){bodyCut=null;return;}
   const pose=attackPose(combat.swing);
   const aimYaw=player.yaw+Math.PI;
-  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;}
+  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;}
   const speed=Math.hypot(player.vel.x,player.vel.z);
+  gaitSpeed+=(speed-gaitSpeed)*(1-Math.exp(-dt*12));
   let turnRate=0,turnStep=0;
   if(firstPerson)bodyYaw=aimYaw;
   else{
    const target=combat.swing?(combat.swing.aimYaw??player.yaw)+Math.PI:
-    speed>.22?Math.atan2(player.vel.x,player.vel.z):bodyYaw;
+    player.moveHeading??(player.moveHeading===undefined&&speed>.22?Math.atan2(player.vel.x,player.vel.z):bodyYaw);
    const delta=wrap(target-bodyYaw);
    turnStep=delta*(1-Math.exp(-(pose?17:11)*dt));
    bodyYaw+=turnStep;
    turnRate=turnStep/Math.max(.001,dt);
   }
   animatePlayer(actor,dt,t,player,pose,Save.data.equip,{
-   first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,
+   first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,gaitSpeed,
    gazeYaw:firstPerson?0:wrap(aimYaw-bodyYaw)
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();

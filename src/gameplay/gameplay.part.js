@@ -2892,6 +2892,7 @@ var Player = class {
     this.running = input.run() && mv.mag > 0.1;
     const sp = this.swimming ? this.running ? 3.6 : 2.6 : this.running ? PLAYER.run : PLAYER.walk;
     const tx = (-sy * mv.y + cy * mv.x) * sp, tz = (-cy * mv.y - sy * mv.x) * sp;
+    this.moveHeading = mv.mag > .1 ? Math.atan2(tx, tz) : null;
     const k = 1 - Math.exp(-dt * (this.swimming ? 4 : this.onGround ? 12 : 2.5));
     this.wish.x = this.vel.x + (tx - this.vel.x) * k;
     this.wish.y = this.vel.z + (tz - this.vel.z) * k;

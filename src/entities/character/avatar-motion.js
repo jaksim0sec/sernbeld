@@ -9,13 +9,12 @@ export const gaitPhaseStep=(speed,dt)=>speed*dt*2*Math.PI/strideLength(speed);
 // body animator. Weapon IK and weapon-mount implementation below remain intact.
 export {SCHOOLYARD_CLIPS,sampleSchoolyardClip} from './schoolyard-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
-export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5,turnRate=null,turnStep=0,gazeYaw=0}={}){
+export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5,turnRate=null,turnStep=0,gazeYaw=0,gaitSpeed=Math.hypot(player.vel.x,player.vel.z)}={}){
  // A cylindrical handle needs a partially curled grasp, not the full bare fist.
  const fist=side=>equip?.[side] ? .82 : (swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05) ? 1 : first ? .35 : .15;
- const speed=Math.hypot(player.vel.x,player.vel.z);
- actor.phase=(actor.phase+Math.max(gaitPhaseStep(speed,dt),Math.abs(turnStep)*2.2))%(2*Math.PI);
+ actor.phase=(actor.phase+Math.max(gaitPhaseStep(gaitSpeed,dt),Math.abs(turnStep)*2.2))%(2*Math.PI);
  const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
- const response=motion.update(dt,t,player,swingPose,{first,runSpeed,turnRate,gazeYaw});
+ const response=motion.update(dt,t,player,swingPose,{first,runSpeed,turnRate,gazeYaw,gaitSpeed});
  // The reference special clip authors finger joints individually. Do not
  // overwrite those tracks with the generic fist curl when previewed later.
  if(motion.active!=='specialRoundKick')for(const side of ['right','left'])actor.grip(side,fist(side),Boolean(equip?.[side]));
@@ -172,15 +171,16 @@ export function armTargets(T,side,swing,{armed,first,aspect=1,phase=0,moving=0})
  // follow-through across to the other side.
  const idleA=-s*.12,targetA=-s*arc*(first?.72:.85);
  const a=idleA+(targetA-idleA)*w;
- const e=(first?.72:.86)+w*(.31*pull-.65*ext)+.08*rec;
+ const follow=active?(swing.travel??0)**2:0;
+ const e=(first?.72:.86)+w*(.31*pull-.46*ext-.85*follow)+.08*rec;
  const blade=dirAt(T,a,e);
- const handA=a*(first?.48:.80);
- const r=(first?.39:.30)+w*(.19*ext-.035*pull)-.03*rec;
+ const handA=a*(first?.48:.80)+s*.24*follow*w;
+ const r=(first?.39:.30)+w*(.19*ext+.08*follow-.035*pull)-.03*rec;
  const side0=(first?.17*narrow:.27)*(1-.63*w);
  const grip=dirAt(T,handA,0).multiplyScalar(r).addScaledVector(out,side0);
- grip.y+=(first?-.21:-.35)+w*(.24*pull+.12*ext);
+ grip.y+=(first?-.21:-.35)+w*(.24*pull+.12*ext-.12*follow);
  if(first&&moving){grip.y+=Math.sin(phase*2)*.007*moving;grip.x+=Math.sin(phase)*.006*moving;}
- const inward=dirAt(T,a+s*Math.PI/2,0);
+ const inward=dirAt(T,a+s*Math.PI/2,w*(.10*pull-.32*follow));
  const pole=out.clone().multiplyScalar(.75).add(new T.Vector3(0,-.65,-.15));
  return {grip,blade,inward,pole,show:true};
 }
