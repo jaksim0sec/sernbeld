@@ -49,6 +49,13 @@ for(const body of ['male','female']){
  assert(g.attributes.skinIndex.array instanceof Uint8Array,'47-bone indices must fit uint8');
  assert(g.attributes.skinWeight.array instanceof Uint8Array&&g.attributes.skinWeight.normalized,'Skin weights must use normalized uint8');
  assert(g.attributes.aSkin.array instanceof Uint8Array&&g.attributes.aSkin.normalized,'Skin mask must use normalized uint8');
+ // A normalized Uint8 mask needs the encoded value 255 (not 1) for a
+ // full-strength skin pixel. Otherwise the shader mixes almost entirely white.
+ const skinMask=g.attributes.aSkin;
+ assert(skinMask.array.some(v=>v===255),'All body skin lost its full-strength shader mask');
+ assert(skinMask.array.every(v=>v===0||v===255),'Skin mask has unintended intermediate opacity');
+ const skinVertex=skinMask.array.indexOf(255);
+ assert.equal(skinMask.getX(skinVertex),1,'Skin mask must decode to exactly 1.0 in the shader');
  assert(g.attributes.aArm.array instanceof Uint8Array&&g.attributes.aArm.normalized,'First-person arm mask must use normalized uint8');
  assert(g.index.array instanceof Uint16Array||g.index.array instanceof Uint32Array,'Index buffer must be integer typed');
  const gpuBytes=Object.values(g.attributes).reduce((sum,a)=>sum+a.array.byteLength,0)+g.index.array.byteLength;
