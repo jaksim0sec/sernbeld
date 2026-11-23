@@ -1,4 +1,4 @@
-import {gaitPhaseStep} from './avatar-motion.js';
+import {gaitPhaseStep,gripFrame} from './avatar-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
 export function createStudioModel(T, factory, profile, {scale=1}={}){
@@ -157,15 +157,26 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
   }
  }
- function grip(side,amount){
+ const thumbOpposition={};
+ function grip(side,amount,onHandle=false){
   const hand=data.hands.find(h=>h.id==='hand_'+side);
-  // The old thumb multiplier bent thumb_1/2 beyond their authored joint
-  // limits (46/52 degrees). Keep the skinned fingers inside their actual rig
-  // ranges, including at full fist closure and for both mirrored hands.
+  // A closed fist and a cylindrical grasp are different poses. With a handle,
+  // the fingers curve around its surface while the thumb must oppose the
+  // handle, rather than following its original flexion axis away from it.
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
-   const joint=data.bones.find(b=>b.id===id).axes[0];
-   const degrees=Math.max(joint.min,Math.min(joint.max,f.flex[i]*amount));
+   const joint=data.bones.find(b=>b.id===id).axes[0],thumb=f.id.startsWith('thumb');
+   const bend=thumb&&onHandle?.15:amount;
+   const degrees=Math.max(joint.min,Math.min(joint.max,f.flex[i]*bend));
    B[id].quaternion.setFromAxisAngle(axes.get(id)[0],degrees*Math.PI/180);
+   if(thumb&&i===0&&onHandle){
+    // Anatomical opposition, mirrored in the original rest-pose hand frame.
+    // Calibrated from the studio finger pivots: thumb_2 moves from 28 mm away
+    // from the shaft to ~15.5 mm on either hand with a 15 mm radius handle.
+    const opposing=thumbOpposition[side]??(thumbOpposition[side]=
+     new T.Quaternion().setFromAxisAngle(gripFrame(T,api,side).palm,
+      (side==='right'?-35:35)*Math.PI/180));
+    B[id].quaternion.premultiply(opposing);
+   }
   });
  }
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
