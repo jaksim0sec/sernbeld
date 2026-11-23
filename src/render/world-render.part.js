@@ -823,10 +823,12 @@ function inside(o, x, z, m) {
   return Math.abs(lx) <= o.hx + m && Math.abs(lz) <= o.hz + m;
 }
 function groundAt(x, z, feetY) {
-  let tread = stairTreadAt(x, z);
+  // Use the continuous stair ramp for foot contact. The rendered stone treads
+  // remain discrete; snapping the player to their heights causes visible jolts.
+  let tread = stairSurface(x, z);
   if (tread === null) {
     const r = PLAYER.radius * 0.66;
-    const contacts = [stairTreadAt(x + r, z), stairTreadAt(x - r, z), stairTreadAt(x, z + r), stairTreadAt(x, z - r)].filter((h) => h !== null && h <= feetY + PLAYER.step + 0.03);
+    const contacts = [stairSurface(x + r, z), stairSurface(x - r, z), stairSurface(x, z + r), stairSurface(x, z - r)].filter((h) => h !== null && h <= feetY + PLAYER.step + 0.03);
     if (contacts.length) tread = Math.max(...contacts);
   }
   // Walkable decks above stairs must win only for actors already high enough
