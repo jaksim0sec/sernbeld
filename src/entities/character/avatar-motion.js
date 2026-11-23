@@ -5,44 +5,18 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export const strideLength=speed=>clamp(.9+.55*speed,1.2,3.8);
 export const gaitPhaseStep=(speed,dt)=>speed*dt*2*Math.PI/strideLength(speed);
 
-// Authored in the studio joint axes (degrees), with the existing combat timeline as clock.
-// In first person the body is camera-locked and invisible below the arms, so only the
-// fingers are animated here; the arms come from the IK poses below.
+// The standalone schoolyard V3 motion pipeline replaces the old sinusoidal
+// body animator. Weapon IK and weapon-mount implementation below remain intact.
+export {SCHOOLYARD_CLIPS,sampleSchoolyardClip} from './schoolyard-motion.js';
+import {createSchoolyardMotion} from './schoolyard-motion.js';
 export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5}={}){
- // Closed fist for a held weapon or a punch in progress.
  const fist=side=>equip?.[side]||(swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05)?1:first?.35:.15;
- const speed=Math.hypot(player.vel.x,player.vel.z),walk=clamp(speed/1.2,0,1);
- const run=clamp((speed-2.4)/Math.max(.5,runSpeed-2.4),0,1);
+ const speed=Math.hypot(player.vel.x,player.vel.z);
  actor.phase+=gaitPhaseStep(speed,dt);
- const sn=Math.sin(actor.phase),cs=Math.cos(actor.phase),ground=player.onGround&&!player.swimming;
- if(first){
-  actor.pose({});
-  actor.B.pelvis.position.copy(actor.rest.pelvis);
-  for(const side of ['right','left'])actor.grip(side,fist(side));
-  return;
- }
- const weight=ground?walk:0;
- const angles={thigh_left:[sn*(24+14*run)*weight,0],thigh_right:[-sn*(24+14*run)*weight,0],
-  shin_left:[Math.max(0,-cs)*(34+30*run)*weight],shin_right:[Math.max(0,cs)*(34+30*run)*weight],
-  foot_left:[-sn*9*weight],foot_right:[sn*9*weight],pelvis:[2+3*run,0],
-  ribcage:[Math.sin(t*1.7)*.8+5*run*weight,-sn*4*weight],head:[-3*run*weight,-player.pitch*180/Math.PI*.35],
-  upper_arm_left:[-sn*(16+18*run)*weight,4],upper_arm_right:[sn*(16+18*run)*weight,4],
-  forearm_left:[12+34*run*weight,0],forearm_right:[12+34*run*weight,0],hand_left:[0,0,0],hand_right:[0,0,0]};
- if(!ground){
-  if(player.swimming){
-   angles.upper_arm_left=[55+Math.sin(t*3)*25,35];angles.upper_arm_right=[55-Math.sin(t*3)*25,35];
-   angles.thigh_left=[Math.sin(t*4)*18,0];angles.thigh_right=[-Math.sin(t*4)*18,0];
-  }else{angles.thigh_left=[18,0];angles.thigh_right=[-8,0];angles.shin_left=[28];angles.shin_right=[18];}
- }
- if(swingPose){
-  const p=swingPose;
-  angles.ribcage=[3+6*p.extension*p.weight-3*p.pull*p.weight,-p.arc*p.weight*10];
-  angles.pelvis=[2+2*p.extension*p.weight,p.side*3*p.weight];
- }
- actor.pose(angles);
- actor.B.pelvis.position.copy(actor.rest.pelvis);
- actor.B.pelvis.position.y-=ground?Math.abs(cs)*(.010+.012*run)*weight:0;
+ const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
+ const response=motion.update(dt,t,player,swingPose,{first,runSpeed,armed:Boolean(equip?.right||equip?.left)});
  for(const side of ['right','left'])actor.grip(side,fist(side));
+ return response;
 }
 
 // ---------------------------------------------------------------------------
