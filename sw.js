@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-17';
+const VERSION = 'sernbeld-pwa-18';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -11,7 +11,7 @@ const OFFLINE_FILES = [
   './', './index.html', './game.js', './pwa.js', './manifest.webmanifest',
   './src/core/game-events.js', './src/core/entity-registry.js', './src/core/inventory.js',
   './src/core/region-lifecycle.js', './src/core/skill-engine.js',
-  './src/core/skill-library.js',
+  './src/core/skill-library.js', './src/core/skill-runner.js', './src/ui/skill-workbench.js',
   './src/entities/character/appearance.js',
   './src/entities/character/reference-eyes.js',
   './src/entities/character/reference-eye-contours.js',
@@ -30,7 +30,7 @@ const OFFLINE_FILES = [
   './assets/pwa-icon-512.png', './assets/ui-icons.svg',
   './styles/tokens.css', './styles/hud.css',
   './styles/menus-and-overlays.css', './styles/responsive.css',
-  './styles/world-map.css', './styles.css',
+  './styles/world-map.css', './styles/skill-workbench.css', './styles.css',
   './assets/kael-cutstone-v7.glb.gz'
 ];
 const absolute = path => new URL(path, BASE).href;

@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="./styles/menus-and-overlays.css">
 <link rel="stylesheet" href="./styles/responsive.css">
 <link rel="stylesheet" href="./styles/world-map.css">
+<link rel="stylesheet" href="./styles/skill-workbench.css">
 </head>
 <body>
 <canvas id="view" aria-label="세른벨드 3D 월드"></canvas>
@@ -36,6 +37,7 @@
   </section>
 </aside>
 <div class="bar" id="bar">
+  <button type="button" class="pill hud-btn" id="skillsBtn" aria-controls="skillWorkbench" aria-haspopup="dialog" hidden>기술</button>
   <button type="button" class="pill hud-btn" id="bagBtn" aria-controls="bag" aria-label="가방" title="가방"><svg class="hud-icon" viewBox="26 28 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-02"></use></svg></button>
   <button type="button" class="pill hud-btn" id="tpBtn" aria-controls="travel" aria-label="이동" title="이동"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-03"></use></svg></button>
 </div>
@@ -81,6 +83,29 @@
 <div class="stick" id="stick"><i></i></div>
 <button type="button" class="jump pill" id="jump" hidden aria-label="점프"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-10"></use></svg></button>
 <button type="button" class="atk pill" id="atk" hidden aria-label="공격"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-11"></use></svg></button>
+<button type="button" class="skill-satellite" id="skillSatellite" aria-controls="skillWorkbench" aria-haspopup="dialog" aria-label="기술 만들기" hidden>+</button>
+<section id="skillWorkbench" class="skill-workbench" role="dialog" aria-labelledby="skillTitle" hidden>
+  <header class="skill-toolbar">
+    <h2 id="skillTitle">기술 조립</h2>
+    <button type="button" id="skillClose" aria-label="기술창 닫기">×</button>
+  </header>
+  <div class="skill-diagram">
+    <svg id="skillDiagram" class="skill-diagram-art" viewBox="0 0 360 360" aria-hidden="true"></svg>
+    <button type="button" id="skillCore" class="skill-core" aria-expanded="false" aria-controls="skillInspector"><strong>+</strong><small>행동 추가</small></button>
+  </div>
+  <section id="skillInspector" class="skill-inspector" aria-label="행동 설정" hidden>
+    <button type="button" id="skillAddThrust">찌르기 추가</button>
+    <div id="skillOptions" class="skill-options" hidden>
+      <label>속도 <select id="skillSpeed"><option value="0.75">0.75배</option><option value="1" selected>1배</option><option value="1.25">1.25배</option></select></label>
+      <label>반복 <select id="skillRepeat"><option value="1">1회</option><option value="2">2회</option><option value="3">3회</option></select></label>
+    </div>
+  </section>
+  <footer class="skill-toolbar skill-footer">
+    <output id="skillStatus" role="status"></output>
+    <button type="button" id="skillPreview" disabled>시험</button>
+    <button type="button" id="skillSave" disabled>저장</button>
+  </footer>
+</section>
 <div class="hud-vitals" aria-label="플레이어 상태"><span class="hud-vitals-kicker">체력</span><div class="hp" id="hp" aria-label="체력"></div></div>
 <div class="vignette" id="vig"></div>
 <div class="loading" id="loading"><h1>세른벨드</h1><p id="loadText">불러오는 중</p><div class="track"><b id="loadBar"></b></div></div>

@@ -9,6 +9,7 @@ import {createInventory} from './src/core/inventory.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
+import {createSkillWorkbench} from './src/ui/skill-workbench.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -2748,7 +2749,7 @@ var Input = class {
       canvas2.setPointerCapture(e.pointerId);
       const touch = e.pointerType === "touch";
       if (touch) this.touchActive = true;
-      const moveSide = touch && e.clientX < innerWidth * 0.5 && ![...touches.values()].some((t) => t.kind === "move");
+      const moveSide = !this.lookOnly && touch && e.clientX < innerWidth * 0.5 && ![...touches.values()].some((t) => t.kind === "move");
       touches.set(e.pointerId, { kind: moveSide ? "move" : "look", x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, touch, t0: performance.now(), travel: 0 });
       if (moveSide && stickEl) {
         stickEl.style.display = "block";
@@ -2787,7 +2788,7 @@ var Input = class {
         this.stick.x = this.stick.y = 0;
         if (stickEl) stickEl.style.display = "none";
       }
-      if (!t.touch && e.type === "pointerup" && t.travel < 6 && performance.now() - t.t0 < 350) this.attackQueued = true;
+      if (!this.lookOnly && !t.touch && e.type === "pointerup" && t.travel < 6 && performance.now() - t.t0 < 350) this.attackQueued = true;
       touches.delete(e.pointerId);
     };
     canvas2.addEventListener("pointerup", end);
@@ -5598,6 +5599,34 @@ async function boot() {
       return weapon;
     },
     attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,runSpeed:PLAYER.run});
+  let previousView;
+  const clearEditorInput = () => {
+    input.keys.clear();
+    input.stick.x = input.stick.y = 0;
+    input.consumeJump();
+    input.consumeAttack();
+  };
+  const skillWorkbench = createSkillWorkbench({
+    library: SkillLibrary,
+    canOpen: () => !avatars.isOpen && !combat.downed && player.mode === "walk" &&
+      ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden && $("intro").hidden &&
+      $("speech").hidden && !fullMap.isOpen(),
+    enter: () => {
+      previousView = {third: avatars.mode === "third", yaw: player.yaw, pitch: player.pitch};
+      avatars.setThird(false, {persist:false});
+      input.lookOnly = true;
+      clearEditorInput();
+      input.consumeLook();
+    },
+    leave: () => {
+      avatars.setThird(previousView.third, {persist:false});
+      player.yaw = previousView.yaw;
+      player.pitch = previousView.pitch;
+      input.lookOnly = false;
+      clearEditorInput();
+      input.consumeLook();
+    }
+  });
   society.onBought = (id, hand) => {
     if (hand) combat.equip(id, hand);
   };
@@ -5683,7 +5712,7 @@ async function boot() {
   miniMap.update(player, performance.now());
   const persist = () => {
     Save.data.pos = [player.pos.x, player.pos.y, player.pos.z];
-    Save.data.yaw = player.yaw;
+    Save.data.yaw = skillWorkbench.isOpen() ? previousView.yaw : player.yaw;
     Save.data.clock = { day: clock.day, hour: clock.hour };
     Save.write();
   };
@@ -5741,6 +5770,13 @@ async function boot() {
     }
     shared.uTime.value = t;
     for (const code of input.consumeToggles()) {
+      if (skillWorkbench.isOpen()) {
+        if (code === "Escape") {
+          skillWorkbench.dismiss();
+          break;
+        }
+        continue;
+      }
       if (fullMap.isOpen() && code !== "Escape" && code !== "KeyM") continue;
       if (code === "KeyF") toggleFly();
       else if (code === "KeyE" && player.mode === "walk") explore.interact();
@@ -5765,7 +5801,9 @@ async function boot() {
       input.consumeAttack();
       input.jumpQueued = false;
     } else {
-      if (input.consumeAttack() && ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden) combat.attack();
+      const editingSkill = skillWorkbench.isOpen();
+      if (editingSkill) clearEditorInput();
+      if (!editingSkill && input.consumeAttack() && ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden) combat.attack();
       player.look(input);
       for (let rem = dt; rem > 1e-4; rem -= 1 / 60) player.update(Math.min(1 / 60, rem), input);
     }

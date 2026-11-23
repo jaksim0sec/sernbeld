@@ -49,7 +49,10 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
   anchors=null;thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
- function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ function setThird(value, {persist=true}={}){
+  third=Boolean(value);thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;lastMode=null;
+  if(persist){Save.data.settings.view=third?'third':'first';Save.write();}
+ }
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
  let anchors=null,thirdAim=null;
