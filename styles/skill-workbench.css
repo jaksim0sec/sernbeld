@@ -1,156 +1,82 @@
 :root {
-  --skill-action-size: calc(var(--ui-action-size) + .625rem);
-  --skill-attack-right: 5.6875rem;
-  --skill-attack-bottom: 4.625rem;
-  --skill-ice: #bceef3;
-  --skill-gold: #f8d99f;
+  --skill-cyan:#b7f7f5;
+  --skill-ink:rgba(16,53,67,.74);
+  --skill-orbit:#71eeee;
+  --skill-action-size:calc(var(--ui-action-size) + .625rem);
+  --skill-attack-right:5.6875rem;
+  --skill-attack-bottom:4.625rem;
 }
+/* Combat actions are the two primary controls; the skill is a smaller satellite. */
+#atk,#jump{width:var(--skill-action-size);height:var(--skill-action-size)}
+#atk{right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right));bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom))}
+.bar #skillsBtn{font-size:0;position:relative}
+.bar #skillsBtn::before{content:'✧';font-size:1.9rem;font-weight:400;color:var(--skill-cyan)}
+.skill-satellite{position:fixed;z-index:3;right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right) + 1rem);bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom) + var(--skill-action-size) + .375rem);display:grid;place-items:center;width:2.8rem;height:2.8rem;border:1px dashed #a6edef86;border-radius:50%;background:#07334770;color:var(--skill-cyan);font:1.5rem var(--ui-font,sans-serif);touch-action:manipulation;cursor:pointer}
+.skill-satellite.has-skill{border-style:solid;background:#10566d91;box-shadow:0 0 12px #55ffff44}
+body:has(.panel:not([hidden]),.speech:not([hidden]),.world-map-screen:not([hidden])) .skill-satellite,
+body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,.toast,.hint,.stick,.jump,.atk,.skill-satellite,.hud-vitals){visibility:hidden;pointer-events:none}
 
-.bar #skillsBtn { font-size: .78rem; }
-#atk, #jump { width: var(--skill-action-size); height: var(--skill-action-size); }
-#atk {
-  right: calc(env(safe-area-inset-right, 0px) + var(--skill-attack-right));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--skill-attack-bottom));
-}
-.skill-satellite {
-  position: fixed;
-  z-index: 3;
-  right: calc(env(safe-area-inset-right, 0px) + var(--skill-attack-right) + 1rem);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--skill-attack-bottom) + var(--skill-action-size) + .375rem);
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 50%;
-  border: 1px dashed #bceef37d;
-  background: #09253455;
-  color: var(--skill-ice);
-  font: 1.4rem var(--ui-font, sans-serif);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.skill-satellite.has-skill { border-style: solid; color: var(--skill-gold); background: #16313ccc; }
-body:has(.panel:not([hidden]), .speech:not([hidden]), .world-map-screen:not([hidden])) .skill-satellite,
-body.skill-editing > :is(.hud-rail, .bar, .prompt, .toasts, .banner, .labels, .speech, .toast, .hint, .stick, .jump, .atk, .skill-satellite, .hud-vitals) {
-  visibility: hidden;
-  pointer-events: none;
-}
+/* The world remains visible. Only the two circles and small tool controls intercept pointers. */
+.skill-workbench{position:fixed;z-index:8;inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;place-items:center;pointer-events:none;color:var(--skill-cyan);perspective:900px}
+.skill-workbench[hidden],.skill-workbench [hidden],.skill-satellite[hidden],#skillsBtn[hidden]{display:none!important}
+.skill-stage{position:relative;width:min(96vw,calc(100dvh - 1.25rem),39rem);aspect-ratio:1;transform-style:preserve-3d;isolation:isolate}
+.skill-main{position:absolute;inset:0;container-type:inline-size;pointer-events:auto;touch-action:none;clip-path:circle(50%);transform-origin:50% 50%;transform-style:preserve-3d;transition:transform .56s cubic-bezier(.22,.8,.2,1);animation:skill-appear .44s ease-out both}
+.skill-stage.is-inspecting .skill-main{transform:translateX(-21%) rotateY(-13deg) rotateZ(-5deg) scale(.78)}
+.skill-diagram-art,.skill-mana-ring{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.skill-diagram-art{fill:none;stroke:#a6e9ec;filter:drop-shadow(0 0 3px #4ad6eb7a)}
+.skill-frame-lines{stroke-width:1.05;opacity:.6}
+.skill-frame-lines circle:first-child{stroke-width:1.5;opacity:.8}
+.skill-frame-lines circle:nth-child(2){stroke-dasharray:2 10;opacity:.25}
+.skill-frame-lines circle:last-child{opacity:.7}
+.skill-orbit-guide{stroke:#8eeef4;stroke-width:3;opacity:.24}
+.skill-flow-arrows{stroke:#b0f6f3;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.57}
+/* Continuous common orbit: mana is luminosity, not a length-based progress arc. */
+.skill-mana-ring{background-image:conic-gradient(#71eeee33,#71eeee77,#71eeee33);-webkit-mask-image:radial-gradient(circle,transparent 32%,#000 32.9%,#000 34.8%,transparent 35.6%);mask-image:radial-gradient(circle,transparent 32%,#000 32.9%,#000 34.8%,transparent 35.6%);filter:drop-shadow(0 0 7px #83f7f7);transition:background-image .25s}
+.skill-slots{position:absolute;inset:0;pointer-events:none}
+.skill-slot{position:absolute;display:grid;place-items:center;width:clamp(3rem,15.8cqw,4.3rem);height:clamp(3rem,15.8cqw,4.3rem);padding:0;translate:-50% -50%;background:none;border:0;border-radius:50%;color:var(--skill-cyan);pointer-events:auto;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.skill-slot-face{display:grid;place-items:center;width:100%;height:100%;border:1.5px solid #9ef0ee;border-radius:50%;background:radial-gradient(circle,#255b7099,#062d3b9c 72%,#062d3b6b);box-shadow:inset 0 0 15px #61e9e933,0 0 14px #61e9e93d;transition:transform .2s,opacity .2s,box-shadow .2s,border-color .2s}
+.skill-slot svg{width:66%;height:66%;overflow:visible;filter:drop-shadow(0 0 3px #9df8f8a0)}
+.skill-slot.is-empty .skill-slot-face{border-style:dashed;opacity:.33;box-shadow:none;background:#11394c55}
+.skill-slot-plus{font-size:2.1rem;font-weight:300;line-height:1}
+.skill-slot.is-selected .skill-slot-face,.skill-slot.is-drop-target .skill-slot-face{border-color:#efffff;box-shadow:0 0 0 4px #84eaea27,inset 0 0 17px #b4ffff55,0 0 18px #b8ffff77;transform:scale(1.1)}
+.skill-slot.is-firing .skill-slot-face{animation:skill-pulse .3s ease-in-out alternate 2}
+.skill-slot.is-drag-source{opacity:.2}
+.skill-drag-ghost{z-index:10;pointer-events:none;opacity:.95;filter:drop-shadow(0 0 12px #a1ffff)}
+.skill-slot:focus-visible,.skill-mini-choice:focus-visible,.skill-tool:focus-visible,.skill-close:focus-visible{outline:2px solid white;outline-offset:3px}
 
-.skill-workbench {
-  position: fixed;
-  z-index: 8;
-  inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  color: var(--skill-ice);
-}
-.skill-workbench [hidden], .skill-workbench[hidden], .skill-satellite[hidden], #skillsBtn[hidden] { display: none; }
-.skill-diagram {
-  position: relative;
-  width: min(100%, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 54rem);
-  aspect-ratio: 1;
-  container-type: inline-size;
-  animation: seal-open .42s ease-out both;
-}
-.skill-diagram-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 0 .28rem #63d9f38a);
-  pointer-events: none;
-}
-.skill-ring {
-  fill: none;
-  stroke: #a0e7ee;
-  stroke-width: .9;
-  opacity: .78;
-  transform-origin: 180px 180px;
-  animation: seal-rotation 55s linear infinite;
-}
-.skill-ring circle:first-child { stroke-width: 1.55; }
-.skill-ring path:last-child { opacity: .39; }
-.skill-ring circle:nth-child(2), .skill-ring circle:nth-child(3) {
-  transform-origin: 180px 180px;
-  stroke-dasharray: 22 5 3 5;
-  animation: seal-rotation 34s linear infinite reverse;
-}
-.skill-link {
-  fill: none;
-  stroke: #e3d4a1;
-  stroke-width: 1.8;
-  stroke-dasharray: 1;
-  animation: seal-trace .4s ease-out both;
-}
-.skill-node { animation: seal-appear .4s ease-out both; }
-.skill-node path { fill: #123849; stroke: #eac887; stroke-width: 1.5; }
-.skill-node circle { fill: #ffe6ad; }
-.skill-link.fired { stroke: #fff2ba; stroke-width: 3; }
-.skill-node.fired path { fill: #eeb864; stroke: #fff5cf; }
-.skill-node.fired circle { fill: #152834; }
+/* The core describes the whole spell. It is not an action insertion button. */
+.skill-core{position:absolute;left:50%;top:50%;translate:-50% -50%;width:27%;height:27%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.15rem;text-align:center;pointer-events:none;text-shadow:0 0 8px #061d28;border-radius:50%;background:radial-gradient(circle,#113e5173,transparent 75%)}
+.skill-core-signature{display:grid;place-items:center;width:37%;aspect-ratio:1;margin-bottom:.17rem;opacity:.87}
+.skill-core-signature svg{display:block;width:100%;height:100%;stroke-width:1.3}
+.skill-core-name{max-width:96%;font:600 clamp(.64rem,3.6cqw,.9rem)/1.25 var(--ui-font,sans-serif);white-space:nowrap}
+.skill-core-total{font:400 clamp(.55rem,2.6cqw,.72rem)/1.25 var(--ui-font,sans-serif);opacity:.74}
 
-.skill-control {
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
-  border: 1px solid #9adce2a8;
-  border-radius: 50%;
-  background: #10323ed9;
-  color: #e1faff;
-  box-shadow: 0 0 .65rem #5cd0ee45, inset 0 0 .65rem #5cd0ee32;
-  pointer-events: auto;
-  touch-action: manipulation;
-  cursor: pointer;
-  transition: background .2s, box-shadow .2s, color .2s;
-}
-.skill-control:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.skill-control[aria-pressed="true"], .skill-save.saved {
-  border-color: var(--skill-gold);
-  background: #315159;
-  color: var(--skill-gold);
-  box-shadow: 0 0 .95rem #f8d99f75, inset 0 0 .55rem #f8d99f56;
-}
-.skill-control[aria-disabled="true"] { cursor: default; }
-.skill-close { position: absolute; top: .5rem; right: .5rem; font-size: 1.4rem; }
-.skill-core, .skill-choices, .skill-preview, .skill-save { position: absolute; translate: -50% -50%; }
-.skill-core { left: 50%; top: 50%; width: clamp(3.1rem, 17cqw, 6rem); height: auto; aspect-ratio: 1; }
-.skill-plus { font-size: 2rem; line-height: 1; }
-.skill-blade {
-  width: 48%;
-  height: 9%;
-  rotate: -45deg;
-  background: currentColor;
-  clip-path: polygon(0 32%, 22% 32%, 22% 0, 31% 0, 31% 20%, 80% 20%, 100% 50%, 80% 80%, 31% 80%, 31% 100%, 22% 100%, 22% 68%, 0 68%);
-  animation: seal-open .42s ease-out both;
-}
-.skill-options { animation: seal-appear .38s ease-out both; }
-.skill-choices { display: flex; gap: 2px; }
-.skill-speeds { left: 25%; top: 64%; }
-.skill-repeats { left: 75%; top: 64%; }
-.skill-choices .skill-control { display: flex; justify-content: center; gap: 3px; width: clamp(2rem, 12cqw, 2.75rem); }
-.skill-speed i { width: .34rem; height: .34rem; border: solid currentColor; border-width: 1.5px 1.5px 0 0; rotate: 45deg; }
-.skill-repeat i { width: .29rem; height: .29rem; border-radius: 50%; background: currentColor; }
-.skill-preview { left: 41%; top: 82%; }
-.skill-save { left: 59%; top: 82%; }
-.skill-play { width: .8rem; height: .9rem; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
-.skill-bookmark { width: .72rem; height: .96rem; background: currentColor; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); }
-.skill-save.saved .skill-bookmark { width: .95rem; clip-path: polygon(0 49%, 18% 32%, 41% 56%, 83% 12%, 100% 27%, 41% 90%); }
-.skill-save.save-error { color: #ffacac; border-color: currentColor; }
-.skill-preview.playing { animation: seal-pulse .65s ease-in-out infinite alternate; }
-.skill-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Detail controls inherit the same orbital vocabulary, no rectangular settings panel. */
+.skill-mini{position:absolute;left:56%;top:24%;width:47%;aspect-ratio:1;pointer-events:auto;touch-action:manipulation;transform-origin:30% 50%;animation:skill-mini-enter .38s cubic-bezier(.2,.75,.25,1) both;filter:drop-shadow(0 0 10px #51cddc78)}
+.skill-mini-lines{position:absolute;width:100%;height:100%;fill:none;stroke:#83dfe3;stroke-width:1;opacity:.7;pointer-events:none}
+.skill-mini-lines path{stroke-width:2.2;opacity:.55}
+.skill-mini-center{position:absolute;left:50%;top:50%;translate:-50% -50%;width:47%;height:47%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem;background:#16475c6b;border-radius:50%;text-align:center;pointer-events:none}
+.skill-mini-center svg{width:36%;color:#c0ffff;filter:drop-shadow(0 0 4px #6eecf3)}
+.skill-mini-center strong{font-size:clamp(.62rem,2.9cqw,.82rem)}
+.skill-mini-center small{font-size:clamp(.55rem,2.6cqw,.7rem);opacity:.7}
+.skill-mini-choice{position:absolute;translate:-50% -50%;display:grid;place-items:center;width:24%;height:24%;padding:0;border-radius:50%;border:1px solid #87ced6a3;color:#c3eff0;background:#103c508c;cursor:pointer;touch-action:manipulation;transition:background .2s,box-shadow .2s}
+.skill-mini-choice.is-active{background:#2d778385;border-color:#dcffff;box-shadow:0 0 12px #98fafa7a,inset 0 0 9px #84f5f547}
+.mini-speed{font-size:1.1rem;line-height:1;letter-spacing:-.2rem;padding-right:.15rem}
+.mini-repeat{font-size:.9rem;line-height:1;letter-spacing:-.1rem}
+.skill-mini-remove{position:absolute;left:50%;top:101%;translate:-50% -50%;width:2rem;height:2rem;border:1px solid #7dd6df70;border-radius:50%;background:#103b4daa;color:#a8e9ee;cursor:pointer;pointer-events:auto}
 
-@keyframes seal-rotation { to { transform: rotate(360deg); } }
-@keyframes seal-open { from { opacity: 0; scale: .83; } }
-@keyframes seal-appear { from { opacity: 0; } }
-@keyframes seal-trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-@keyframes seal-pulse { to { box-shadow: 0 0 1.4rem #bceef3; } }
-@media (orientation: landscape) and (max-height: 36rem) {
-  :root { --skill-attack-right: 4.875rem; --skill-attack-bottom: 3.75rem; }
-}
-@media (orientation: portrait) and (max-width: 43.6875rem) {
-  body:has(#skillsBtn:not([hidden])) .hud-rail { width: min(14.25rem, calc(100vw - 10rem)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .skill-workbench *, .skill-workbench *::before { animation: none; transition: none; }
-}
+.skill-tools{position:absolute;z-index:2;left:50%;bottom:0;translate:-50% 3%;display:flex;gap:.75rem;pointer-events:auto}
+.skill-tool,.skill-close{display:grid;place-items:center;width:2.75rem;height:2.75rem;border:1px solid #a2e6e696;border-radius:50%;color:var(--skill-cyan);background:#103c507a;cursor:pointer;touch-action:manipulation}
+.skill-tool:disabled{opacity:.26;cursor:default}
+.skill-tool.saved{border-color:#e4ffff;box-shadow:0 0 11px #73ffff88}
+.skill-tool.save-error{border-color:#ffb2b2;color:#ffb2b2}
+.skill-tool-play{width:.73rem;height:.86rem;background:currentColor;clip-path:polygon(0 0,100% 50%,0 100%)}
+.skill-tool-save{width:.74rem;height:.89rem;background:currentColor;clip-path:polygon(0 0,100% 0,100% 100%,50% 72%,0 100%)}
+.skill-tool.playing{animation:skill-pulse .4s infinite alternate}
+.skill-close{position:absolute;top:.4rem;right:.4rem;pointer-events:auto;font-size:1.55rem}
+.skill-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@keyframes skill-appear{from{opacity:0;scale:.89}to{opacity:1;scale:1}}
+@keyframes skill-mini-enter{from{opacity:0;transform:translateX(-18%) scale(.66) rotate(-20deg)}to{opacity:1;transform:none}}
+@keyframes skill-pulse{to{filter:brightness(1.6)}}
+@media(orientation:landscape) and (max-height:36rem){:root{--skill-attack-right:4.875rem;--skill-attack-bottom:3.75rem}}
+@media(prefers-reduced-motion:reduce){.skill-workbench *,.skill-workbench *::before{animation:none!important;transition:none!important}}
