@@ -1,3 +1,4 @@
+import {SCHOOLYARD_REFERENCE_ABILITIES} from './schoolyard-reference-clips.js';
 // Motion driver retargeted from schoolyard_duel_v3_no_user_select.html.
 // The reference's 47-joint channel convention is retained; world movement, collision,
 // step-up, weapon contact, and combat damage remain owned by SERNBELD.
@@ -8,41 +9,25 @@ const IDLE={pelvis:[0,0],waist:[0,0],ribcage:[0,0],neck:[0,0],head:[0,0],
  thigh_left:[8,4],thigh_right:[-5,4],shin_left:[12],shin_right:[17],
  upper_arm_left:[16,8],upper_arm_right:[16,8],forearm_left:[26,0],forearm_right:[26,0],
  foot_left:[0],foot_right:[0]};
-const KICK_GUARD={upper_arm_left:[55,16],upper_arm_right:[62,16],forearm_left:[105,0],forearm_right:[112,0]};
-// Imported animation catalog. Clips not requested in SERNBELD are intentionally
-// registered only: no controls, hitboxes, stamina, or combat dispatch.
-export const SCHOOLYARD_CLIPS=Object.freeze({
- frontKick:{duration:.56,channels:[
-  {t:0,p:{...KICK_GUARD,thigh_left:[18,5],thigh_right:[-10,5],shin_left:[22],shin_right:[32],ribcage:[6,-14]}},
-  {t:.10,p:{thigh_right:[72,5],shin_right:[112],waist:[-2,0]}},
-  {t:.20,p:{thigh_right:[90,5],shin_right:[6],waist:[-8,0],ribcage:[0,8]}},
-  {t:.34,p:{thigh_right:[62,5],shin_right:[104]}},
-  {t:.56,p:{...IDLE}}]},
- roundKick:{duration:1.1,channels:[
-  {t:0,p:{thigh_left:[34,0],shin_left:[60],thigh_right:[-18,0],shin_right:[66],ribcage:[12,-28],upper_arm_left:[70,0],forearm_left:[100]}},
-  {t:.14,p:{thigh_right:[40,0],shin_right:[100],ribcage:[5,26]}},
-  {t:.30,p:{thigh_right:[78,22],shin_right:[105],pelvis:[12,16],ribcage:[-14,26]}},
-  {t:.42,p:{thigh_right:[88,34],shin_right:[6],pelvis:[16,-12]}},
-  {t:.60,p:{thigh_right:[55,8],shin_right:[85],ribcage:[4,6]}},
-  {t:.78,p:{thigh_right:[40,0],shin_right:[88],ribcage:[22,0]}},
-  {t:1.1,p:IDLE}]},
- palmChop:{duration:.8,channels:[
-  {t:0,p:{upper_arm_right:[100,10],forearm_right:[70],ribcage:[-8,-20]}},
-  {t:.14,p:{upper_arm_right:[105,10],forearm_right:[40],waist:[-12,0]}},
-  {t:.28,p:{upper_arm_right:[40,10],forearm_right:[6],waist:[24,0],ribcage:[0,22]}},
-  {t:.42,p:{upper_arm_right:[15,10],forearm_right:[10],waist:[28,0]}},
-  {t:.8,p:IDLE}]},
- dropKick:{duration:1.5,channels:[
-  {t:0,p:{thigh_left:[55,0],thigh_right:[50,0],shin_left:[95],shin_right:[95],waist:[24,0]}},
-  {t:.16,p:{thigh_left:[20,0],thigh_right:[20,0],shin_left:[30],shin_right:[30]}},
-  {t:.32,p:{thigh_left:[85,0],thigh_right:[85,0],shin_left:[118],shin_right:[118],pelvis:[18,0]}},
-  {t:.46,p:{thigh_left:[12,0],thigh_right:[16,0],shin_left:[2],shin_right:[2]}},
-  {t:.66,p:{thigh_left:[12,0],thigh_right:[16,0],shin_left:[2],shin_right:[2]}},
-  {t:.9,p:{thigh_left:[40,0],thigh_right:[25,0],shin_left:[60],shin_right:[40]}},
-  {t:1.2,p:{thigh_left:[75,0],thigh_right:[65,0],shin_left:[115],shin_right:[105]}},
-  {t:1.5,p:IDLE}]},
- specialRoundKick:{duration:1.1,derivedFrom:'roundKick',channels:null}
-});
+// Load the ORIGINAL authored channels from the uploaded source instead of
+// approximating them with arbitrary angles. Global displacement/spin stay in
+// reference metadata; they never change SERNBELD's player physics.
+const sourceNames={roundKick:'yareung',frontKick:'ap',palmChop:'chop',dropKick:'drop',specialRoundKick:'yeot'};
+function convertChannelPose(p){
+ const out={};
+ for(const [key,degree] of Object.entries(p)){
+  const match=/^(.+)\\.(\\d+)$/.exec(key);
+  if(match)(out[match[1]]??=[])[Number(match[2])]=degree;
+ }
+ // Reference virtual channels are anatomical body controls, not root movement.
+ if(Number.isFinite(p.ribTw))(out.ribcage??=[])[1]=p.ribTw;
+ if(Number.isFinite(p.lean))(out.waist??=[])[0]=-p.lean;
+ return out;
+}
+export const SCHOOLYARD_CLIPS=Object.freeze(Object.fromEntries(Object.entries(sourceNames).map(([id,original])=>{
+ const ability=SCHOOLYARD_REFERENCE_ABILITIES[original];
+ return [id,Object.freeze({duration:ability.end,source:original,channels:ability.keys.map(key=>({t:key.t,p:convertChannelPose(key.p)}))})];
+})));
 function blendInto(target,clip,time,weight){
  const keys=clip.channels;if(!keys||!weight)return;
  const t=clamp(time,0,clip.duration);let i=0;
