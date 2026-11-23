@@ -10,7 +10,8 @@ export const gaitPhaseStep=(speed,dt)=>speed*dt*2*Math.PI/strideLength(speed);
 export {SCHOOLYARD_CLIPS,sampleSchoolyardClip} from './schoolyard-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
 export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5}={}){
- const fist=side=>equip?.[side]||(swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05)?1:first?.35:.15;
+ // A cylindrical handle needs a partially curled grasp, not the full bare fist.
+ const fist=side=>equip?.[side]?.82:(swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05)?1:first?.35:.15;
  const speed=Math.hypot(player.vel.x,player.vel.z);
  actor.phase+=gaitPhaseStep(speed,dt);
  const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
@@ -39,8 +40,11 @@ function armRig(T,actor){
   const frame=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(gX,gY,gZ));
   const palm=side==='right'?gX.clone():gX.clone().negate();
   // Handle centre: just inside the knuckle line, towards the palm.
+  // Locate the rod inside the flexed fingertips, centred at the finger bases.
+  // The previous +6 mm longitudinal offset placed its axis beyond the knuckle
+  // line; a 17 mm palmar offset then separated the shaft from the curled digits.
   const grip=index.add(middle).add(ring).multiplyScalar(1/3).sub(wrist)
-   .addScaledVector(palm,.017/actor.units).addScaledVector(F,.006/actor.units);
+   .addScaledVector(palm,.006/actor.units);
   const mount=frame.clone().multiply(new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(
    new T.Vector3(0,-1,0),new T.Vector3(0,0,1),new T.Vector3(-1,0,0))));
   rig[side]={frame,frameInv:frame.clone().invert(),grip,mount,
