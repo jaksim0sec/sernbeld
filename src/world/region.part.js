@@ -25,8 +25,8 @@ var PLAYER = {
   // eye height above feet, calibrated to the adult NPC mesh (~1.72 m)
   radius: 0.35,
   body: 1.72,
-  walk: 4.2,
-  run: 7.6,
+  walk: 2.6,
+  run: 5,
   jump: 7,
   gravity: 24,
   step: 0.5,

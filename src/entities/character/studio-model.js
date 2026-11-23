@@ -1,3 +1,4 @@
+import {gaitPhaseStep} from './avatar-motion.js';
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
 export function createStudioModel(T, factory, profile, {scale=1}={}){
  const built=factory.build(profile),{body,features,palette,blush,cheek}=built,data=body.data;
@@ -11,55 +12,78 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   bones[i].position.fromArray(b.pivot.map((v,k)=>(v-(parent?.pivot[k]??0))/1428));
   (B[b.parent]??model).add(bones[i]);
  });
- const positions=[],normals=[],joints=[],weights=[],colors=[],skin=[],arms=[],indices=[];
- function append(ix,p,n,ji,we,pal,{skin:isSkin=true,colors:col,material}={}){
-  const remap=new Map(),base=material?.pbrMetallicRoughness?.baseColorFactor??[1,1,1];
-  for(const id of ix){
-   if(!remap.has(id)){
-    const target=positions.length/3;remap.set(id,target);
-    for(let k=0;k<3;k++){
-     positions.push(p[id*3+k]);normals.push(n[id*3+k]);colors.push(base[k]*(col?.[id*3+k]??1));
-    }
-    let arm=0;
-    for(let k=0;k<4;k++){
-     const name=pal[ji[id*4+k]],w=we[id*4+k]/255;
-     joints.push(boneIndex.get(name)??0);weights.push(w);
-     if(/arm|hand|thumb|index|middle|ring|pinky/.test(name))arm+=w;
-    }
-    arms.push(arm);skin.push(isSkin?1:0);
-   }
-   indices.push(remap.get(id));
+ // Typed-array assembly. Level 0 owns the vertex buffer; levels 1-2 and the
+ // first-person arm list reference a subset of the same vertices.
+ const lod=factory.source.lod,bodyLod=lod?.bodies?.[profile.body]??null;
+ const unpack=(encoded)=>{const bin=atob(encoded),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Uint32Array(u.buffer);};
+ const sources=[];
+ data.parts.forEach((part,k)=>{
+  const full=body.indices.subarray(part.start,part.start+part.count);
+  const levels=bodyLod?bodyLod.levels.map(l=>unpack(l[k])):[full,null,null];
+  sources.push({levels,p:body.worldPositions,n:body.normals,ji:body.joints,we:body.weights,pal:part.skin,isSkin:true,col:null,material:null});
+ });
+ for(const f of features){
+  const reduced=lod?.features?.[f.key];
+  // Facial features: the 40% list is visually identical at speaking distance.
+  const levels=reduced?(()=>{const [near,far]=reduced.map(unpack);return [near,far,far];})():[f.indices,f.indices,f.indices];
+  sources.push({levels,p:f.positions,n:f.normals,ji:f.jointIds,we:f.weights,pal:f.skins,isSkin:f.skin??true,col:f.colors,material:f.material});
+ }
+ let vertexCount=0;
+ const marks=sources.map(src=>{
+  const remap=new Int32Array(src.p.length/3).fill(-1);
+  for(const id of src.levels[0])if(remap[id]<0)remap[id]=vertexCount++;
+  return remap;
+ });
+ const position=new Float32Array(vertexCount*3),normal=new Float32Array(vertexCount*3),color=new Float32Array(vertexCount*3);
+ const skinWeight=new Float32Array(vertexCount*4),skinIndex=new Uint16Array(vertexCount*4),aSkin=new Float32Array(vertexCount),aArm=new Float32Array(vertexCount);
+ const armBone=new Uint8Array(data.bones.length);
+ data.bones.forEach((b,i)=>{armBone[i]=/arm|hand|thumb|index|middle|ring|pinky/.test(b.id)?1:0;});
+ sources.forEach((src,s)=>{
+  const remap=marks[s],base=src.material?.pbrMetallicRoughness?.baseColorFactor??[1,1,1],palette=src.pal.map(name=>boneIndex.get(name)??0);
+  for(let id=0;id<remap.length;id++){
+   const v=remap[id];if(v<0)continue;
+   for(let k=0;k<3;k++){position[v*3+k]=src.p[id*3+k];normal[v*3+k]=src.n[id*3+k];color[v*3+k]=base[k]*(src.col?.[id*3+k]??1);}
+   let arm=0;
+   for(let k=0;k<4;k++){const bone=palette[src.ji[id*4+k]]??0,w=src.we[id*4+k]/255;skinIndex[v*4+k]=bone;skinWeight[v*4+k]=w;if(armBone[bone])arm+=w;}
+   aArm[v]=arm;aSkin[v]=src.isSkin?1:0;
   }
- }
- for(const part of data.parts)append(body.indices.subarray(part.start,part.start+part.count),body.worldPositions,body.normals,body.joints,body.weights,part.skin);
- for(const f of features)append(f.indices,f.positions,f.normals,f.jointIds,f.weights,f.skins,f);
+ });
+ const levelIndex=level=>{
+  let count=0;for(const src of sources)count+=(src.levels[level]??src.levels[0]).length;
+  const out=new Uint32Array(count);let o=0;
+  sources.forEach((src,s)=>{const remap=marks[s];for(const id of src.levels[level]??src.levels[0])out[o++]=remap[id];});
+  return out;
+ };
  const geometry=new T.BufferGeometry();
- for(const [key,values,size] of [['position',positions,3],['normal',normals,3],['color',colors,3],['skinWeight',weights,4],['aSkin',skin,1],['aArm',arms,1]])
-  geometry.setAttribute(key,new T.BufferAttribute(new Float32Array(values),size));
- geometry.setAttribute('skinIndex',new T.BufferAttribute(new Uint16Array(joints),4));geometry.setIndex(indices);
- geometry.computeBoundingBox();
- // A vertex-cluster LOD keeps complete surfaces at distance; never skip arbitrary triangles.
- const fullIndex=geometry.index,clusters=new Map(),remap=new Uint32Array(positions.length/3);
- for(let i=0;i<remap.length;i++){
-  let dominant=0;for(let k=1;k<4;k++)if(weights[i*4+k]>weights[i*4+dominant])dominant=k;
-  const key=[...positions.slice(i*3,i*3+3).map(v=>Math.round(v/.012)),joints[i*4+dominant],skin[i],...colors.slice(i*3,i*3+3).map(v=>Math.round(v*5))].join(',');
-  if(!clusters.has(key))clusters.set(key,i);remap[i]=clusters.get(key);
+ for(const [key,values,size] of [['position',position,3],['normal',normal,3],['color',color,3],['skinWeight',skinWeight,4],['aSkin',aSkin,1],['aArm',aArm,1]])
+  geometry.setAttribute(key,new T.BufferAttribute(values,size));
+ geometry.setAttribute('skinIndex',new T.BufferAttribute(skinIndex,4));
+ const fullIndex=new T.BufferAttribute(levelIndex(0),1);
+ geometry.setIndex(fullIndex);geometry.computeBoundingBox();
+ let lodIndex;
+ if(bodyLod)lodIndex=[fullIndex,new T.BufferAttribute(levelIndex(1),1),new T.BufferAttribute(levelIndex(2),1)];
+ else{
+  // Fallback when the LOD sidecar is missing: vertex clustering (complete surfaces only).
+  const indices=fullIndex.array,cluster=cell=>{
+   const clusters=new Map(),rep=new Uint32Array(vertexCount);
+   for(let i=0;i<vertexCount;i++){
+    let dominant=0;for(let k=1;k<4;k++)if(skinWeight[i*4+k]>skinWeight[i*4+dominant])dominant=k;
+    const key=Math.round(position[i*3]/cell)+','+Math.round(position[i*3+1]/cell)+','+Math.round(position[i*3+2]/cell)+','+skinIndex[i*4+dominant]+','+aSkin[i]+','+Math.round(color[i*3]*5)+','+Math.round(color[i*3+1]*5)+','+Math.round(color[i*3+2]*5);
+    let r=clusters.get(key);if(r===undefined){r=i;clusters.set(key,i);}rep[i]=r;
+   }
+   const low=[];
+   for(let i=0;i<indices.length;i+=3){const a=rep[indices[i]],b=rep[indices[i+1]],c=rep[indices[i+2]];if(a!==b&&b!==c&&a!==c)low.push(a,b,c);}
+   return new T.BufferAttribute(Uint32Array.from(low),1);
+  };
+  const low=cluster(.012);lodIndex=[fullIndex,low,low];
  }
- const low=[];
- for(let i=0;i<indices.length;i+=3){const a=remap[indices[i]],b=remap[indices[i+1]],c=remap[indices[i+2]];if(a!==b&&b!==c&&a!==c)low.push(a,b,c);}
- const lowIndex=new T.BufferAttribute(new Uint32Array(low),1);
- // The first-person shader previously discarded the entire body only after
- // sending all body/head triangles through vertex skinning and the GPU rasterizer.
- // Keep complete triangles touching the arms, then retain fragment edge masking.
- const firstTriangles=[];
- for(let i=0;i<indices.length;i+=3){
-  if(arms[indices[i]]>.5||arms[indices[i+1]]>.5||arms[indices[i+2]]>.5)
-   firstTriangles.push(indices[i],indices[i+1],indices[i+2]);
- }
- const firstIndex=new T.BufferAttribute(new Uint32Array(firstTriangles),1);
- let distanceLOD=false,firstPerson=false;
+ // First person draws only complete triangles touching the arms.
+ const firstIndex=(()=>{const src=fullIndex.array,out=[];
+  for(let i=0;i<src.length;i+=3)if(aArm[src[i]]>.5||aArm[src[i+1]]>.5||aArm[src[i+2]]>.5)out.push(src[i],src[i+1],src[i+2]);
+  return new T.BufferAttribute(Uint32Array.from(out),1);})();
+ let distanceLOD=0,firstPerson=false;
  function applyIndex(){
-  const target=firstPerson?firstIndex:distanceLOD?lowIndex:fullIndex;
+  const target=firstPerson?firstIndex:lodIndex[distanceLOD];
   if(geometry.index!==target)geometry.setIndex(target);
  }
  const height=geometry.boundingBox.max.y-geometry.boundingBox.min.y;
@@ -134,16 +158,19 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  }
  function grip(side,amount){
   const hand=data.hands.find(h=>h.id==='hand_'+side);
+  // The authored thumb curl leaves it sticking out past thin handles; wrap it a bit further.
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
-   B[id].quaternion.setFromAxisAngle(axes.get(id)[0],f.flex[i]*amount*Math.PI/180);
+   const wrap=f.id.startsWith('thumb')&&i>0?1.45:1;
+   B[id].quaternion.setFromAxisAngle(axes.get(id)[0],f.flex[i]*wrap*amount*Math.PI/180);
   });
  }
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
-  setLOD(i){distanceLOD=Boolean(i);applyIndex();},
+  setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
+  get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
   setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();},
   animate(dt,t){
-   const w=Math.min(1,this.speed/1.5);this.phase+=dt*this.speed*4.4;
+   const w=Math.min(1,this.speed/1.2);this.phase+=gaitPhaseStep(this.speed,dt);
    const sn=Math.sin(this.phase),cs=Math.cos(this.phase);
    pose({thigh_left:[sn*25*w,0],thigh_right:[-sn*25*w,0],shin_left:[Math.max(0,-cs)*38*w],shin_right:[Math.max(0,cs)*38*w],
     upper_arm_left:[-sn*20*w,3],upper_arm_right:[sn*20*w,3],forearm_left:[10+8*w,0],forearm_right:[10+8*w,0],

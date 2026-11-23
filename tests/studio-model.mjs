@@ -9,6 +9,20 @@ import {animatePlayer,solveArm} from '../src/entities/character/avatar-motion.js
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+// LOD sidecar: progressive levels must shrink and stay a vertex subset of level 0.
+{
+ const lodSource={...source,lod:JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.lod.json.gz')))};
+ const lodFactory=createStudioGeometry(lodSource);
+ for(const body of ['male','female']){
+  const actor=createStudioModel(T,lodFactory,normalizeStudioCharacter({body})),levels=actor.lodLevels;
+  assert(levels[0]>levels[1]&&levels[1]>levels[2],'LOD levels must decrease: '+levels);
+  assert(levels[0]<120000,'Near LOD must be far below the 190k source mesh: '+levels[0]);
+  const n=actor.mesh.geometry.attributes.position.count;
+  for(const l of [0,1,2]){actor.setLOD(l);for(const i of actor.mesh.geometry.index.array)assert(i<n);}
+  actor.setFirst(true);assert(actor.mesh.geometry.index.count/3<levels[0]*.6);
+  console.log('PASS studio LOD',body,JSON.stringify({levels,vertices:n}));actor.dispose();
+ }
+}
 for(const body of ['male','female']){
  const profile=normalizeStudioCharacter({body}),actor=createStudioModel(T,factory,profile),g=actor.mesh.geometry;
  assert.equal(actor.bones.length,47);assert.equal(actor.units>1,true);

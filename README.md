@@ -37,6 +37,8 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 node tools/build-game.mjs --check
 node --check game.js
 node tests/foundation.mjs
+node tools/optimize-characters.mjs   # studio-v1.json.gz가 바뀌면 캐릭터 LOD 재생성
+node tests/studio-model.mjs
 ```
 
 브라우저 회귀 검증은 `.github/workflows/refactor-regression.yml`과 `tests/webgl-smoke.mjs`로 준비했다. 실제 결과 확인 전에는 동작이 완전히 같다고 판정하지 않는다.

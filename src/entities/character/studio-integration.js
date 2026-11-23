@@ -1,7 +1,8 @@
 import {normalizeStudioCharacter} from './appearance.js';
-import {animatePlayer,solveArm} from './avatar-motion.js';
+import {animatePlayer,armTargets,mountWeapon,poseGrip} from './avatar-motion.js';
+const clamp01=x=>Math.max(0,Math.min(1,x));
 
-export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,view,height}){
+export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,view,height,runSpeed=5}){
  let profile=normalizeStudioCharacter(Save.data.character??{body:'male'}),actor=makeCharacter(profile);
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
@@ -34,78 +35,64 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    weapons[side]?.removeFromParent();weapons[side]?.geometry.dispose();weapons[side]=null;equipped[side]=id;
    if(!id)continue;
    const item=makeWeapon(id);if(!item)continue;
-   const hand=actor.B['hand_'+side];
-   const fingers=actor.data.bones.filter(b=>['index_'+side+'_0','middle_'+side+'_0','ring_'+side+'_0'].includes(b.id));
-   const wrist=actor.data.bones.find(b=>b.id==='hand_'+side).pivot;
-   const palm=new T.Vector3(...fingers.reduce((a,b)=>a.map((v,i)=>v+b.pivot[i]/fingers.length),[0,0,0]).map((v,i)=>(v-wrist[i])/1428));
-   // A weapon's +Y is the blade, while the fingers curl toward -Y. Flipping it
-   // 180 degrees put the blade through the wrist and made third-person grips inverted.
-   const handleY=Number.isFinite(item.userData.handleY)?item.userData.handleY:-.08;
-   item.rotation.set(0,0,0);item.scale.setScalar(1/actor.units);
-   item.position.copy(palm).add(new T.Vector3(0,-handleY/actor.units,0));
-   item.userData.grip=palm;item.userData.handleY=handleY;item.userData.side=side;
+   item.geometry.computeBoundingBox();
+   item.userData.len=Math.max(.15,item.geometry.boundingBox.max.y);
+   mountWeapon(T,actor,side,item);
    item.frustumCulled=false;item.castShadow=true;
-   hand.add(item);weapons[side]=item;
+   actor.B['hand_'+side].add(item);weapons[side]=item;
   }
  }
  function setProfile(raw){
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
  function setThird(value){third=Boolean(value);Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
+ // first-person eye point a little above and in front of it.
+ let anchors=null;
+ function bodyAnchors(){
+  if(anchors)return anchors;
+  const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
+  const chest=pivot('upper_arm_left').add(pivot('upper_arm_right')).multiplyScalar(.5);
+  return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06))};
+ }
+ const flipY=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
+ const _grip=new T.Vector3(),_blade=new T.Vector3(),_inward=new T.Vector3(),_pole=new T.Vector3();
  function update(dt,t,combat){
   attachWeapons();
-  actor.group.position.copy(player.pos);actor.group.rotation.y=player.yaw+Math.PI;
-  actor.group.visible=player.mode==='walk';actor.setFirst(!third);
-  const pose=attackPose(combat.swing);animatePlayer(actor,dt,t,player,pose,Save.data.equip);
-  actor.group.updateMatrixWorld(true);
-  if(!third&&player.mode==='walk'){
-   // The old hand motion still provides wind-up, extension, wall retraction and impact recoil.
-   // Its floating props stay hidden; these targets animate the real skinned arms instead.
+  const walking=player.mode==='walk',firstPerson=!third&&walking;
+  actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
+  const pose=attackPose(combat.swing);
+  animatePlayer(actor,dt,t,player,pose,Save.data.equip,{first:firstPerson,runSpeed});
+  const {chest,eye}=bodyAnchors();
+  if(firstPerson){
+   // Camera-locked arms: the real skinned body follows the view, only the arms render.
    camera.updateMatrixWorld(true);
-   for(const side of ['right','left']){
-    const h=view.hands[side],weapon=weapons[side];
-    // The old prop pivot sits beyond the anatomical arm reach. Keep its motion,
-    // but bring the grip into the visible, reachable part of the same camera view.
-    const target=h.g.position.clone();
-    // Preserve the original attack arc but place the palm below the camera,
-    // far enough from the shoulder to avoid folded and inside-out elbows.
-    // Vertical framing must keep the forearms inside the camera frustum.
-    // Narrow portrait viewports also require a more centered grip.
-    const horizontal=Math.min(.5,Math.max(.2,camera.aspect*.26));
-    target.set(target.x*horizontal,target.y*.33,target.z*.82);
-    camera.localToWorld(target);
-    const desired=h.g.getWorldQuaternion(new T.Quaternion());
-    if(weapon){
-     const wristQ=desired.clone().multiply(weapon.quaternion.clone().invert());
-     target.sub(weapon.userData.grip.clone().multiplyScalar(actor.units).applyQuaternion(wristQ));
-     solveArm(T,actor,side,target,wristQ);
-    }else solveArm(T,actor,side,target,desired);
-   }
-  }else if(third&&player.mode==='walk'){
-   // Aim the actual wrist and blade together. The animation clock controls
-   // the arc, but the elbow is solved anatomically rather than freely twisted.
-   const rootQ=actor.group.getWorldQuaternion(new T.Quaternion());
-   for(const side of ['right','left']){
-    const weapon=weapons[side];if(!weapon)continue;
-    const sign=side==='right'?-1:1;
-    const active=pose&&((pose.side===1)===(side==='right'));
-    const weight=active?pose.weight:0,pull=active?pose.pull:0,extension=active?pose.extension:0;
-    const arc=active?pose.arc:0;
-    // Wind-up carries the hand toward its own shoulder; follow-through crosses
-    // toward the torso. Drive the blade farther than the wrist for a real arc.
-    const palm=new T.Vector3(sign*.36-arc*.14*weight,1.14+.23*pull+.10*extension,.27+.14*extension);
-    const blade=new T.Vector3(sign*.13-arc*.85*weight,.82-.20*extension,.48+.15*pull).normalize();
-    const swordQ=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),blade.applyQuaternion(rootQ));
-    const wristQ=swordQ.multiply(weapon.quaternion.clone().invert());
-    const wrist=palm.applyMatrix4(actor.group.matrixWorld)
-      .sub(weapon.userData.grip.clone().multiplyScalar(actor.units).applyQuaternion(wristQ));
-    solveArm(T,actor,side,wrist,wristQ);
-   }
+   actor.group.quaternion.copy(camera.quaternion).multiply(flipY);
+   actor.group.position.copy(camera.position).sub(eye.clone().applyQuaternion(actor.group.quaternion));
+  }else{
+   actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
   }
   actor.group.updateMatrixWorld(true);
+  if(!walking)return;
+  const moving=clamp01(Math.hypot(player.vel.x,player.vel.z)/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
+  for(const side of ['right','left']){
+   const weapon=weapons[side];
+   const target=armTargets(T,side,pose,{armed:Boolean(weapon),first:firstPerson,aspect:camera.aspect||1,phase:actor.phase,moving});
+   if(!weapon&&!target.show)continue;
+   _grip.copy(target.grip).add(base).applyMatrix4(m);
+   _blade.copy(target.blade).transformDirection(m);
+   _inward.copy(target.inward).transformDirection(m);
+   _pole.copy(target.pole).transformDirection(m);
+   if(weapon&&firstPerson&&worldRay){
+    // Pull the weapon back instead of pushing the blade through walls.
+    const reach=weapon.userData.len+.08,room=worldRay(_grip,_blade,reach);
+    if(room<reach)_grip.addScaledVector(_blade,-(reach-room));
+   }
+   poseGrip(T,actor,side,_grip,_blade,_inward,_pole);
+  }
  }
  const trail=[];
  function updateTrail(combat){

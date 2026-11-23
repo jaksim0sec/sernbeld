@@ -275,13 +275,13 @@ function accessor(id){
  return new Type(bytes.buffer,binOffset+(v.byteOffset||0)+(a.byteOffset||0),a.count*columns).slice();
 }
 const anchors=source.bodies.female.face.anchors;
-const featureObjects=faceDocument.meshes.filter(m=>m.extras.eyeStyle!=='common').flatMap(mesh=>mesh.primitives.map(primitive=>{
+const featureObjects=faceDocument.meshes.flatMap((mesh,meshIndex)=>mesh.extras.eyeStyle==='common'?[]:mesh.primitives.map((primitive,primitiveIndex)=>{
  const base=accessor(primitive.attributes.POSITION),normals=accessor(primitive.attributes.NORMAL),indices=accessor(primitive.indices);
  const material=faceDocument.materials[primitive.material],extra=mesh.extras;
  // Nose accent: adjust transverse stroke width only. Keep its Y/Z endpoints unchanged.
  if(extra.feature==='nose')for(let k=0;k<base.length;k+=3)base[k]*=1.12;
  const colors=primitive.attributes.COLOR_0===undefined?null:accessor(primitive.attributes.COLOR_0);
- return {name:mesh.name,extra,material,base,baseNormals:normals,fields:null,
+ return {name:mesh.name,key:meshIndex+':'+primitiveIndex,extra,material,base,baseNormals:normals,fields:null,
   edited:base.slice(),localNormals:normals.slice(),positions:new Float32Array(base.length),normals:new Float32Array(base.length),
   indices:Uint32Array.from(indices),baseColors:colors,colors:colors?.slice()??null,skin:!!material.extras?.sernbeldSkin,
   jointIds:new Uint8Array(base.length/3*4),weights:Uint8Array.from({length:base.length/3*4},(_,i)=>i%4===0?255:0),
