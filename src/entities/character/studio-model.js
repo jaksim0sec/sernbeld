@@ -1,5 +1,7 @@
 import {gaitPhaseStep,gripFrame} from './avatar-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
+// Immutable geometry attributes can be shared by identical character profiles.
+const geometryPools=new WeakMap();
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
 export function createStudioModel(T, factory, profile, {scale=1}={}){
  const built=factory.build(profile),{body,features,palette,blush,cheek}=built,data=body.data;
@@ -15,6 +17,19 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  });
  // Typed-array assembly. Level 0 owns the vertex buffer; levels 1-2 and the
  // first-person arm list reference a subset of the same vertices.
+ const pool=geometryPools.get(factory)??new Map();
+ geometryPools.set(factory,pool);
+ const geometryKey=JSON.stringify(profile);
+ let shared=pool.get(geometryKey),geometry,lodIndex,firstIndex;
+ // Full appearance equality is required: never share a modified face with another NPC.
+ if(shared){
+  geometry=new T.BufferGeometry();
+  for(const [name,attribute] of Object.entries(shared.template.attributes))geometry.setAttribute(name,attribute);
+  geometry.setIndex(shared.lodIndex[0]);
+  geometry.boundingBox=shared.template.boundingBox.clone();
+  lodIndex=shared.lodIndex;firstIndex=shared.firstIndex;
+  shared.geometries.add(geometry);shared.users++;
+ }else{
  const lod=factory.source.lod,bodyLod=lod?.bodies?.[profile.body]??null;
  const unpack=(encoded)=>{const bin=atob(encoded),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Uint32Array(u.buffer);};
  const sources=[];
@@ -59,13 +74,12 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   sources.forEach((src,s)=>{const remap=marks[s];for(const id of src.levels[level]??src.levels[0])out[o++]=remap[id];});
   return out;
  };
- const geometry=new T.BufferGeometry();
+ geometry=new T.BufferGeometry();
  for(const [key,values,size] of [['position',position,3],['normal',normal,3],['color',color,3],['skinWeight',skinWeight,4],['aSkin',aSkin,1],['aArm',aArm,1]])
   geometry.setAttribute(key,new T.BufferAttribute(values,size,key==='skinWeight'||key==='aSkin'));
  geometry.setAttribute('skinIndex',new T.BufferAttribute(skinIndex,4));
  const fullIndex=new T.BufferAttribute(levelIndex(0),1);
  geometry.setIndex(fullIndex);geometry.computeBoundingBox();
- let lodIndex;
  if(bodyLod)lodIndex=[fullIndex,new T.BufferAttribute(levelIndex(1),1),new T.BufferAttribute(levelIndex(2),1)];
  else{
   // Fallback when the LOD sidecar is missing: vertex clustering (complete surfaces only).
@@ -83,9 +97,12 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   const low=cluster(.012);lodIndex=[fullIndex,low,low];
  }
  // First person draws only complete triangles touching the arms.
- const firstIndex=(()=>{const src=fullIndex.array,out=[];
+ firstIndex=(()=>{const src=fullIndex.array,out=[];
   for(let i=0;i<src.length;i+=3)if(aArm[src[i]]>.5||aArm[src[i+1]]>.5||aArm[src[i+2]]>.5)out.push(src[i],src[i+1],src[i+2]);
   return new T.BufferAttribute(IndexArray.from(out),1);})();
+ shared={template:geometry,lodIndex,firstIndex,users:1,geometries:new Set([geometry])};
+ pool.set(geometryKey,shared);
+ }
  let distanceLOD=0,firstPerson=false;
  function applyIndex(){
   const target=firstPerson?firstIndex:lodIndex[distanceLOD];
@@ -201,7 +218,16 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    motion.update(dt,t,this._npcLocomotion,null,{runSpeed:5});
    this.talk=Math.max(0,this.talk-dt);
   },
-  dispose(){group.removeFromParent();geometry.dispose();material.dispose();skeleton.dispose();}
+  dispose(){
+   group.removeFromParent();material.dispose();skeleton.dispose();
+   // WebGL deletes shared VBOs during geometry.dispose(). Defer disposal until
+   // every instance referencing these attributes has been removed.
+   if(--shared.users===0){
+    for(const g of shared.geometries)g.dispose();
+    shared.geometries.clear();
+    pool.delete(geometryKey);
+   }
+  }
  };
  return api;
 }
