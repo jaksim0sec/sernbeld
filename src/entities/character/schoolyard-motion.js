@@ -16,7 +16,7 @@ const sourceNames={roundKick:'yareung',frontKick:'ap',palmChop:'chop',dropKick:'
 function convertChannelPose(p){
  const out={};
  for(const [key,degree] of Object.entries(p)){
-  const match=/^(.+)\\.(\\d+)$/.exec(key);
+  const match=/^(.+)\.(\d+)$/.exec(key);
   if(match)(out[match[1]]??=[])[Number(match[2])]=degree;
  }
  // Reference virtual channels are anatomical body controls, not root movement.
