@@ -1,4 +1,5 @@
 import {gaitPhaseStep} from './avatar-motion.js';
+import {createSchoolyardMotion} from './schoolyard-motion.js';
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
 export function createStudioModel(T, factory, profile, {scale=1}={}){
  const built=factory.build(profile),{body,features,palette,blush,cheek}=built,data=body.data;
@@ -170,12 +171,14 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   setShadow(on){mesh.castShadow=on;},
   setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();},
   animate(dt,t){
-   const w=Math.min(1,this.speed/1.2);this.phase+=gaitPhaseStep(this.speed,dt);
-   const sn=Math.sin(this.phase),cs=Math.cos(this.phase);
-   pose({thigh_left:[sn*25*w,0],thigh_right:[-sn*25*w,0],shin_left:[Math.max(0,-cs)*38*w],shin_right:[Math.max(0,cs)*38*w],
-    upper_arm_left:[-sn*20*w,3],upper_arm_right:[sn*20*w,3],forearm_left:[10+8*w,0],forearm_right:[10+8*w,0],
-    ribcage:[Math.sin(t*1.7)*.8+3*w,-sn*4*w],head:[this.talk>0?0:Math.sin(t*.35)*6,this.talk>0?Math.sin(t*7)*3:0]});
-   B.pelvis.position.copy(rest.pelvis);B.pelvis.position.y-=Math.abs(cs)*.012*w;
+   // NPCs use the same joint-limit/spring pipeline as the player.
+   // Their existing simulation and navigation keep authority over position.
+   const speed=Math.max(0,this.speed);
+   this.phase+=gaitPhaseStep(speed,dt);
+   if(!this._npcLocomotion)this._npcLocomotion={vel:{x:0,z:0},onGround:true,swimming:false,pitch:0,yaw:0};
+   this._npcLocomotion.vel.x=speed;
+   const motion=this._schoolyardMotion??(this._schoolyardMotion=createSchoolyardMotion(this));
+   motion.update(dt,t,this._npcLocomotion,null,{runSpeed:5});
    this.talk=Math.max(0,this.talk-dt);
   },
   dispose(){group.removeFromParent();geometry.dispose();material.dispose();skeleton.dispose();}
