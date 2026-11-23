@@ -11,7 +11,7 @@ export {SCHOOLYARD_CLIPS,sampleSchoolyardClip} from './schoolyard-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
 export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5}={}){
  // A cylindrical handle needs a partially curled grasp, not the full bare fist.
- const fist=side=>equip?.[side]?.82:(swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05)?1:first?.35:.15;
+ const fist=side=>equip?.[side] ? .82 : (swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05) ? 1 : first ? .35 : .15;
  const speed=Math.hypot(player.vel.x,player.vel.z);
  actor.phase+=gaitPhaseStep(speed,dt);
  const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
