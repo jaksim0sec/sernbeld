@@ -35,7 +35,8 @@ function blendInto(target,clip,time,weight){
  const a=keys[i],b=keys[i+1],u=ease(clamp((t-a.t)/(b.t-a.t||1),0,1));
  const names=new Set([...Object.keys(a.p),...Object.keys(b.p)]);
  for(const name of names){
-  const dst=target[name];if(!dst)continue;
+  // Include fingers and rare joints absent from the idle template.
+  const dst=target[name]??(target[name]=Array(Math.max(a.p[name]?.length||0,b.p[name]?.length||0)).fill(0));
   const va=a.p[name]||IDLE[name]||[],vb=b.p[name]||IDLE[name]||[];
   for(let j=0;j<dst.length;j++)dst[j]+=((va[j]||0)*(1-u)+(vb[j]||0)*u-dst[j])*weight;
  }
