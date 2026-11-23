@@ -120,7 +120,11 @@ export function createSchoolyardMotion(actor){
     const clip=SCHOOLYARD_CLIPS[anim.name],weight=ease(clamp(Math.min(anim.time/.12,(clip.duration-anim.time)/.17),0,1));
     const map={};for(const [id,a] of Object.entries(targets))map[id]=Array.from(a);
     blendInto(map,clip.derivedFrom?SCHOOLYARD_CLIPS[clip.derivedFrom]:clip,anim.time,weight);
-    for(const [id,a] of Object.entries(map))targets[id].set(a);
+    // Clip catalogs may contain finger joints absent from a simplified rig.
+    for(const [id,a] of Object.entries(map)){
+     const dst=targets[id];if(!dst)continue;
+     for(let j=0;j<dst.length;j++)dst[j]=a[j]??0;
+    }
     if(anim.time>=clip.duration)anim=null;
    }
    // Damped spring retargeting from the reference, substepped to remain stable
