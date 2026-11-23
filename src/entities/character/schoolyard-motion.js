@@ -93,10 +93,13 @@ export function createSchoolyardMotion(actor){
    // Schoolyard V3 pelvis/lumbar/thoracic split, asymmetrical stride,
    // forearm counter-swing, planted-sole ankle counter-rotation.
    put('pelvis',-2*turnFlex,clamp(turn*1.2,-8,8));
-   put('waist',-crouch*.78+3*run,-clamp(turn*.65,-9,9));
-   put('ribcage',-crouch*.25+2*run+Math.sin(t*1.7)*.8,-6*s*moving+clamp(turn*.9,-13,13));
-   put('neck',clamp(-player.pitch*rad*.1,-12,12)+crouch*.16,0);
-   put('head',-clamp(turn*.75,-12,12),clamp(-player.pitch*rad*.30,-22,22)+crouch*.12);
+   // Schoolyard V3 distributes gaze pitch along lumbar, thoracic, neck and
+   // head joints (12/12/30/46%) so first-person view can follow the skull.
+   const pitch=clamp((player.pitch||0)*rad,-75,75);
+   put('waist',pitch*.12-crouch*.78-4*run,-clamp(turn*.65,-9,9));
+   put('ribcage',pitch*.12-crouch*.25+Math.sin(t*1.7)*.8,-6*s*moving+clamp(turn*.9,-13,13));
+   put('neck',pitch*.30+crouch*.16,0);
+   put('head',-clamp(turn*.75,-12,12),pitch*.46+crouch*.12);
    for(const [side,o] of [['left',0],['right',Math.PI]]){
     const q=Math.sin(phase+o),push=Math.cos(phase+o);
     if(player.swimming){
