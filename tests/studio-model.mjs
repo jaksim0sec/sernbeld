@@ -26,6 +26,20 @@ const factory=createStudioGeometry(source);
 for(const body of ['male','female']){
  const profile=normalizeStudioCharacter({body}),actor=createStudioModel(T,factory,profile),g=actor.mesh.geometry;
  assert.equal(actor.bones.length,47);assert.equal(actor.units>1,true);
+ // Runtime GPU attributes must represent exactly the original studio skin data.
+ assert(g.attributes.skinIndex.array instanceof Uint8Array,'47-bone indices must fit uint8');
+ assert(g.attributes.skinWeight.array instanceof Uint8Array&&g.attributes.skinWeight.normalized,'Skin weights must use normalized uint8');
+ assert(g.attributes.aSkin.array instanceof Uint8Array&&g.attributes.aSkin.normalized,'Skin mask must use normalized uint8');
+ assert(g.index.array instanceof Uint16Array||g.index.array instanceof Uint32Array,'Index buffer must be integer typed');
+ const gpuBytes=Object.values(g.attributes).reduce((sum,a)=>sum+a.array.byteLength,0)+g.index.array.byteLength;
+ const unpackedGpuBytes=g.attributes.position.count*68+g.index.count*4;
+ assert(gpuBytes<unpackedGpuBytes,'Packed vertex buffers failed to reduce GPU bytes');
+ const weight=g.attributes.skinWeight;
+ for(let i=0;i<weight.count;i+=Math.max(1,Math.floor(weight.count/300))){
+  const total=weight.getX(i)+weight.getY(i)+weight.getZ(i)+weight.getW(i);
+  assert(Math.abs(total-1)<.01,'Packed skinning weights corrupted: '+total);
+ }
+ console.log('PASS packed character buffers',body,JSON.stringify({gpuBytes,unpackedGpuBytes,ratio:gpuBytes/unpackedGpuBytes}));
  assert(actor.mesh.userData.studioFeatures.some(f=>f.eyeStyle==='neutral'&&f.iris));
  const count=g.index.count;actor.setLOD(1);assert(g.index.count<count*.5,'Distance LOD must reduce actual triangles');actor.setLOD(0);
  actor.setFirst(true);
@@ -69,7 +83,7 @@ for(const body of ['male','female']){
   const p=new T.Vector3().fromBufferAttribute(pos,i),expected=new T.Vector3();
   for(let j=0;j<4;j++){
    const tf=transforms.get(actor.bones[skin.array[i*4+j]].name),r=tf.rotation;
-   expected.addScaledVector(new T.Vector3(r[0]*p.x+r[3]*p.y+r[6]*p.z+tf.offset[0],r[1]*p.x+r[4]*p.y+r[7]*p.z+tf.offset[1],r[2]*p.x+r[5]*p.y+r[8]*p.z+tf.offset[2]),weights.array[i*4+j]);
+   expected.addScaledVector(new T.Vector3(r[0]*p.x+r[3]*p.y+r[6]*p.z+tf.offset[0],r[1]*p.x+r[4]*p.y+r[7]*p.z+tf.offset[1],r[2]*p.x+r[5]*p.y+r[8]*p.z+tf.offset[2]),[weights.getX(i),weights.getY(i),weights.getZ(i),weights.getW(i)][j]);
   }
   const actual=actor.mesh.applyBoneTransform(i,p.clone());maxError=Math.max(maxError,actual.distanceTo(expected));
  }
