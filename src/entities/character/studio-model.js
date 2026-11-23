@@ -145,6 +145,8 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  const rest=Object.fromEntries(bones.map(b=>[b.name,b.position.clone()]));
  // Rig axes never change. Allocate them once, not once per bone per animation frame.
  const axes=new Map(data.bones.map(b=>[b.id,b.axes.map(a=>new T.Vector3(...a.d))]));
+ const limits=new Map(data.bones.map(b=>[b.id,b.axes.map(a=>[a.min,a.max])]));
+ const handData=Object.fromEntries(data.hands.map(h=>[h.id.split('_')[1],h]));
  const rotationStep=new T.Quaternion();
  function pose(angles={}){
   for(const b of data.bones){
@@ -159,14 +161,14 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  }
  const thumbOpposition={};
  function grip(side,amount,onHandle=false){
-  const hand=data.hands.find(h=>h.id==='hand_'+side);
+  const hand=handData[side];
   // A closed fist and a cylindrical grasp are different poses. With a handle,
   // the fingers curve around its surface while the thumb must oppose the
   // handle, rather than following its original flexion axis away from it.
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
-   const joint=data.bones.find(b=>b.id===id).axes[0],thumb=f.id.startsWith('thumb');
+   const [min,max]=limits.get(id)[0],thumb=f.id.startsWith('thumb');
    const bend=(thumb&&onHandle)?.15:amount;
-   const degrees=Math.max(joint.min,Math.min(joint.max,f.flex[i]*bend));
+   const degrees=Math.max(min,Math.min(max,f.flex[i]*bend));
    B[id].quaternion.setFromAxisAngle(axes.get(id)[0],degrees*Math.PI/180);
    if(thumb&&i===0&&onHandle){
     // Anatomical opposition, mirrored in the original rest-pose hand frame.
