@@ -49,6 +49,7 @@ for(const body of ['male','female']){
  assert(g.attributes.skinIndex.array instanceof Uint8Array,'47-bone indices must fit uint8');
  assert(g.attributes.skinWeight.array instanceof Uint8Array&&g.attributes.skinWeight.normalized,'Skin weights must use normalized uint8');
  assert(g.attributes.aSkin.array instanceof Uint8Array&&g.attributes.aSkin.normalized,'Skin mask must use normalized uint8');
+ assert(g.attributes.aArm.array instanceof Uint8Array&&g.attributes.aArm.normalized,'First-person arm mask must use normalized uint8');
  assert(g.index.array instanceof Uint16Array||g.index.array instanceof Uint32Array,'Index buffer must be integer typed');
  const gpuBytes=Object.values(g.attributes).reduce((sum,a)=>sum+a.array.byteLength,0)+g.index.array.byteLength;
  const unpackedGpuBytes=g.attributes.position.count*68+g.index.count*4;
