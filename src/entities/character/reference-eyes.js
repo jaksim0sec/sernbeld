@@ -4,7 +4,8 @@ import { REFERENCE_EYE_CONTOURS } from './reference-eye-contours.js';
 // width as the unit. Each pair is mirrored about the existing face centre.
 const shapes = [
  ['basic','기본형'],['slit','실눈'],['half','반실눈'],['round','둥근눈'],
- ['droop','처진눈'],['sharp','날카로운눈'],['flat','무표정형'],['smile','웃는눈']
+ ['droop','처진눈'],['sharp','날카로운눈'],['flat','무표정형'],['smile','웃는눈'],
+ ['squint','실눈 · 닫힘'],['closed','감은 눈']
 ];
 export const REFERENCE_EYES = Object.freeze(Object.fromEntries(
  shapes.map(([id,label])=>['reference-'+id,label])
@@ -70,7 +71,7 @@ function makeMesh(eyeStyle,eyeLayer,depth){
   finish(){
    const base=Float32Array.from(points),baseNormals=Float32Array.from(normals),baseColors=Float32Array.from(colours);
    const count=base.length/3;
-   const iris=eyeLayer==='lid'&&eyeStyle!=='reference-smile';
+   const iris=eyeLayer==='lid'&&!['reference-smile','reference-squint','reference-closed'].includes(eyeStyle);
    const extra={eyeStyle,eyeLayer,iris,referenceIris:iris,softInk:eyeLayer==='crease'};
    return {name:eyeStyle+' / '+eyeLayer,key:eyeStyle+':'+eyeLayer,extra,material,
     base,baseNormals,baseColors,colors:baseColors.slice(),fields:null,
@@ -81,13 +82,13 @@ function makeMesh(eyeStyle,eyeLayer,depth){
  };
 }
 
-export function makeReferenceEyes(surface,triangles){
+export function makeReferenceEyes(surface,triangles,legacyFeatures=[]){
  const depth=depthSampler(surface,triangles);
  const linearRGB=rgb=>rgb.map(value=>{
   const n=value/255;
   return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;
  });
- return REFERENCE_EYE_CONTOURS.flatMap(measured=>{
+ const eyes=REFERENCE_EYE_CONTOURS.flatMap(measured=>{
   const style='reference-'+measured.id,closed=measured.id==='smile';
   const sclera=makeMesh(style,'sclera',depth),lid=makeMesh(style,'lid',depth);
   const count=measured.width-1;
@@ -114,4 +115,29 @@ export function makeReferenceEyes(surface,triangles){
   }
   return (closed?[lid]:[sclera,lid]).map(mesh=>mesh.finish());
  });
+ // Recover only the centre curve from the old closed-eye parts. Build a new
+ // stroke with the width, depth and ink of the reference set.
+ for(const [id,sourceStyle] of [['squint','smiling'],['closed','closed']]){
+  const source=legacyFeatures.find(f=>f.extra.eyeStyle===sourceStyle&&f.base[0]>0);
+  if(!source)continue;
+  const centres=[];
+  for(let i=0;i<=48;i++){
+   const x=inner+width*i/48,ys=[];
+   for(let j=0;j<source.base.length;j+=3)if(Math.abs(source.base[j]-x)<.0045)ys.push(source.base[j+1]);
+   centres.push(ys.length?(Math.min(...ys)+Math.max(...ys))/2:NaN);
+  }
+  if(centres.some(v=>!Number.isFinite(v)))throw Error('Closed-eye centre curve is incomplete');
+  const curve=centres.map((v,i)=>(centres[Math.max(0,i-1)]+2*v+centres[Math.min(48,i+1)])/4);
+  const mesh=makeMesh('reference-'+id,'lid',depth),ink=rgb('583440');
+  for(const side of [-1,1])mesh.strip(side,96,6,.012,(t,q)=>{
+   const at=t*48,i=Math.min(47,Math.floor(at)),u=at-i;
+   const centre=curve[i]*(1-u)+curve[i+1]*u;
+   const edge=Math.min(1,t/.055,(1-t)/.055);
+   const rounded=Math.sqrt(Math.max(0,1-(1-edge)**2));
+   const thickness=.13*rounded;
+   return [t,(centre-centreY)/width+(.5-q)*thickness,ink];
+  });
+  eyes.push(mesh.finish());
+ }
+ return eyes;
 }
