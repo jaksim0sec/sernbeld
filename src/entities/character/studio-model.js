@@ -167,7 +167,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   // handle, rather than following its original flexion axis away from it.
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
    const [min,max]=limits.get(id)[0],thumb=f.id.startsWith('thumb');
-   const bend=(thumb&&onHandle)?.15:amount;
+   const bend=(thumb&&onHandle) ? .15 : amount;
    const degrees=Math.max(min,Math.min(max,f.flex[i]*bend));
    B[id].quaternion.setFromAxisAngle(axes.get(id)[0],degrees*Math.PI/180);
    if(thumb&&i===0&&onHandle){
