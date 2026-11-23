@@ -180,7 +180,7 @@ export function armTargets(T,side,swing,{armed,first,aspect=1,phase=0,moving=0})
  // follow-through across to the other side.
  const idleA=s*.28,targetA=-s*clamp(arc,-1.15,1.25)*.85;
  const a=idleA+(targetA-idleA)*w;
- const e=(first?.62:.30)+w*(.55*pull-.48*ext)+.08*rec;
+ const e=(first?.62:.52)+w*(.55*pull-.48*ext)+.08*rec;
  const blade=dirAt(T,a,e);
  const handA=a*(first?.45:.6);
  const r=(first?.42:.40)+w*(.10*ext-.08*pull)-.03*rec;
