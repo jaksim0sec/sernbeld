@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {createSchoolyardMotion,SCHOOLYARD_CLIPS,sampleSchoolyardClip} from '../src/entities/character/schoolyard-motion.js';
+import {SCHOOLYARD_REFERENCE_ABILITIES} from '../src/entities/character/schoolyard-reference-clips.js';
 
 // Regression: animation must never own world translation or terrain step-up.
 const names=['pelvis','waist','ribcage','neck','head','thigh_left','thigh_right','shin_left','shin_right','foot_left','foot_right','upper_arm_left','upper_arm_right','forearm_left','forearm_right'];
@@ -22,3 +23,7 @@ for(const name of ['frontKick','roundKick','palmChop','dropKick','specialRoundKi
  assert(SCHOOLYARD_CLIPS[name]&&sampleSchoolyardClip(name,.2),'missing registered-only move: '+name);
 assert.equal(motion.active,null,'unused clips must not auto-play');
 console.log('PASS schoolyard motion joints / registered clips / world-translation ownership');
+
+assert.equal(SCHOOLYARD_REFERENCE_ABILITIES.yeot.ch.length,40,'exact source channels missing');
+assert.equal(SCHOOLYARD_REFERENCE_ABILITIES.yareung.keys.length,7,'exact reference keyframes truncated');
+assert(sampleSchoolyardClip('specialRoundKick',.3).index_right_0?.[0]>0,'special kick finger keyframes not sampled');
