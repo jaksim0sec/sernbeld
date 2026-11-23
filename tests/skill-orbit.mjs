@@ -38,6 +38,7 @@ test('orbital mana gradient is continuous and favors concentrated actions', () =
   const numbers=[...gradient.matchAll(/rgba\(\d+,\d+,\d+,([\d.]+)\)/g)].map(x=>Number(x[1]));
   assert.equal(numbers[0],numbers.at(-1));
   assert(numbers[0]>numbers[24]);
+  assert(Math.max(...numbers)-Math.min(...numbers)>.40,'mana allocation contrast too weak');
 });
 const actor={stamina:100,mana:30,maxMana:30,physicalControl:2,magicControl:0};
 const item=(share,repeat=1)=>({action:'thrust',share,repeat,speed:1,power:1});
