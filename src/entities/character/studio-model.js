@@ -36,7 +36,10 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   return remap;
  });
  const position=new Float32Array(vertexCount*3),normal=new Float32Array(vertexCount*3),color=new Float32Array(vertexCount*3);
- const skinWeight=new Float32Array(vertexCount*4),skinIndex=new Uint16Array(vertexCount*4),aSkin=new Float32Array(vertexCount),aArm=new Float32Array(vertexCount);
+ // Preserve the original 8-bit studio weights exactly. The normalized vertex
+ // attribute restores weight/255 on the GPU without 32-bit weight buffers.
+ // All 47 bone indices fit in an unnormalized uint8 vertex attribute.
+ const skinWeight=new Uint8Array(vertexCount*4),skinIndex=new Uint8Array(vertexCount*4),aSkin=new Uint8Array(vertexCount),aArm=new Float32Array(vertexCount);
  const armBone=new Uint8Array(data.bones.length);
  data.bones.forEach((b,i)=>{armBone[i]=/arm|hand|thumb|index|middle|ring|pinky/.test(b.id)?1:0;});
  sources.forEach((src,s)=>{
@@ -45,19 +48,20 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    const v=remap[id];if(v<0)continue;
    for(let k=0;k<3;k++){position[v*3+k]=src.p[id*3+k];normal[v*3+k]=src.n[id*3+k];color[v*3+k]=base[k]*(src.col?.[id*3+k]??1);}
    let arm=0;
-   for(let k=0;k<4;k++){const bone=palette[src.ji[id*4+k]]??0,w=src.we[id*4+k]/255;skinIndex[v*4+k]=bone;skinWeight[v*4+k]=w;if(armBone[bone])arm+=w;}
+   for(let k=0;k<4;k++){const bone=palette[src.ji[id*4+k]]??0,w=src.we[id*4+k]/255;skinIndex[v*4+k]=bone;skinWeight[v*4+k]=src.we[id*4+k];if(armBone[bone])arm+=w;}
    aArm[v]=arm;aSkin[v]=src.isSkin?1:0;
   }
  });
+ const IndexArray=vertexCount<=65536?Uint16Array:Uint32Array;
  const levelIndex=level=>{
   let count=0;for(const src of sources)count+=(src.levels[level]??src.levels[0]).length;
-  const out=new Uint32Array(count);let o=0;
+  const out=new IndexArray(count);let o=0;
   sources.forEach((src,s)=>{const remap=marks[s];for(const id of src.levels[level]??src.levels[0])out[o++]=remap[id];});
   return out;
  };
  const geometry=new T.BufferGeometry();
  for(const [key,values,size] of [['position',position,3],['normal',normal,3],['color',color,3],['skinWeight',skinWeight,4],['aSkin',aSkin,1],['aArm',aArm,1]])
-  geometry.setAttribute(key,new T.BufferAttribute(values,size));
+  geometry.setAttribute(key,new T.BufferAttribute(values,size,key==='skinWeight'||key==='aSkin'));
  geometry.setAttribute('skinIndex',new T.BufferAttribute(skinIndex,4));
  const fullIndex=new T.BufferAttribute(levelIndex(0),1);
  geometry.setIndex(fullIndex);geometry.computeBoundingBox();
@@ -74,14 +78,14 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
    const low=[];
    for(let i=0;i<indices.length;i+=3){const a=rep[indices[i]],b=rep[indices[i+1]],c=rep[indices[i+2]];if(a!==b&&b!==c&&a!==c)low.push(a,b,c);}
-   return new T.BufferAttribute(Uint32Array.from(low),1);
+   return new T.BufferAttribute(IndexArray.from(low),1);
   };
   const low=cluster(.012);lodIndex=[fullIndex,low,low];
  }
  // First person draws only complete triangles touching the arms.
  const firstIndex=(()=>{const src=fullIndex.array,out=[];
   for(let i=0;i<src.length;i+=3)if(aArm[src[i]]>.5||aArm[src[i+1]]>.5||aArm[src[i+2]]>.5)out.push(src[i],src[i+1],src[i+2]);
-  return new T.BufferAttribute(Uint32Array.from(out),1);})();
+  return new T.BufferAttribute(IndexArray.from(out),1);})();
  let distanceLOD=0,firstPerson=false;
  function applyIndex(){
   const target=firstPerson?firstIndex:lodIndex[distanceLOD];
