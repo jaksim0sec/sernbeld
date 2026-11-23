@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-12';
+const VERSION = 'sernbeld-pwa-13';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -14,6 +14,7 @@ const OFFLINE_FILES = [
   './src/core/skill-library.js',
   './src/entities/character/appearance.js',
   './src/entities/character/reference-eyes.js',
+  './src/entities/character/reference-eye-contours.js',
   './src/entities/character/avatar-motion.js',
   './src/entities/character/schoolyard-motion.js',
   './src/entities/character/schoolyard-reference-clips.js',

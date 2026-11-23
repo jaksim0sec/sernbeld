@@ -30,6 +30,21 @@ for(const body of ['male','female']){
   }
   assert(eyes.some(f=>f.extra.eyeLayer==='lid'),'Every reference eye needs an upper lid');
   assert(eyes.every(f=>f.positions.every(Number.isFinite)),'Eye surface projection must be finite');
+  for(const f of eyes)for(let i=0;i<f.indices.length;i+=3){
+   const [a,b,c]=Array.from(f.indices.subarray(i,i+3),v=>v*3),v=f.base;
+   const winding=(v[b]-v[a])*(v[c+1]-v[a+1])-(v[b+1]-v[a+1])*(v[c]-v[a]);
+   assert(winding>=-1e-9,'Eye triangle faces into the head');
+  }
+  if(iris){
+   const mask=iris.irisTint,baseline=iris.colors.slice();
+   assert(mask.some(v=>v===1),'Iris colour selection needs an active region');
+   factory.build({...profile,iris:'#f04040'});
+   for(let i=0;i<mask.length;i++){
+    if(mask[i]===0)assert.deepEqual(iris.colors.subarray(i*3,i*3+3),baseline.subarray(i*3,i*3+3),'Iris selection recoloured lid or highlight');
+   }
+   const i=mask.findIndex(v=>v===1)*3;
+   assert(iris.colors[i]>iris.colors[i+2],'Selected red iris did not become red');
+  }
  }
  assert(heights.slit<heights.half&&heights.half<heights.basic&&heights.basic<heights.round);
 }

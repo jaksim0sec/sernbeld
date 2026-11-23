@@ -316,7 +316,11 @@ function tintIris(object){
  if(!object.baseColors)return null;
  const colors=object.baseColors.slice(),target=linear(state.iris);
  if(object.extra.referenceIris){
-  for(let i=0;i<colors.length;i++)colors[i]*=target[i%3];
+  const reference=linear('#9e71a4');
+  for(let i=0;i<colors.length;i++){
+   const tint=object.irisTint[i/3|0]??0;
+   colors[i]=Math.min(1,colors[i]*(1-tint+tint*target[i%3]/reference[i%3]));
+  }
   return colors;
  }
  for(let i=0;i<colors.length;i+=3){
