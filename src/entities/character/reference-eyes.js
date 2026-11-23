@@ -1,14 +1,14 @@
 // Contours in the existing face editor's coordinates. Heights use one eye
 // width as the unit. Each pair is mirrored about the existing face centre.
 const shapes = [
- ['basic','기본형',    .30,.26, .00,-.035],
- ['slit','실눈',       .12,.03,-.14,-.13],
- ['half','반실눈',     .16,.18,-.07,-.07],
- ['round','둥근눈',    .42,.33, .025,-.035],
- ['droop','처진눈',    .24,.23, .03,-.14],
- ['sharp','날카로운눈',.18,.23,-.14, .105],
- ['flat','무표정형',   .17,.27,-.016,-.018],
- ['smile','웃는눈',    .21,0,  -.11,-.11]
+ ['basic','기본형',    .205,.385, .015,-.055],
+ ['slit','실눈',       .105,.025,-.135,-.135],
+ ['half','반실눈',     .065,.285,-.025,-.035],
+ ['round','둥근눈',    .345,.470, .015,-.065],
+ ['droop','처진눈',    .175,.355, .035,-.125],
+ ['sharp','날카로운눈',.140,.355,-.105, .075],
+ ['flat','무표정형',   .085,.390,-.015,-.025],
+ ['smile','웃는눈',    .175,0,  -.115,-.115]
 ];
 export const REFERENCE_EYES = Object.freeze(Object.fromEntries(
  shapes.map(([id,label])=>['reference-'+id,label])
@@ -91,40 +91,53 @@ export function makeReferenceEyes(surface,triangles){
   const style='reference-'+id,closed=id==='smile';
   const corners=t=>innerY+(outerY-innerY)*t;
   const arch=t=>Math.max(0,Math.sin(Math.PI*t));
-  const top=t=>corners(t)+rise*arch(t)**(id==='round'?.59:.52);
-  const bottom=t=>corners(t)-drop*arch(t)**.48;
+  // Keep a broad, shallow centre and rounded shoulders at the corners.
+  const lidArch=t=> {
+   const x=t*2-1;
+   return Math.max(0,1-x*x)**.57*(1-.08*x);
+  };
+  const top=t=>corners(t)+rise*lidArch(t);
+  const bottom=t=>corners(t)-drop*arch(t)**.57;
   const sclera=makeMesh(style,'sclera',depth),iris=makeMesh(style,'iris',depth);
   const shine=makeMesh(style,'shine',depth),lid=makeMesh(style,'lid',depth),crease=makeMesh(style,'crease',depth);
-  const irisX=.405,irisRX=.259,irisRY=.42;
-  const irisY=id==='round'?-.012:id==='slit'?-.22:id==='half'?-.13:-.058;
+  const irisX=.415,irisRX=id==='round'?.270:.255;
+  const irisRY=id==='round'?.455:id==='half'?.295:.375;
+  const irisY=id==='round'?-.015:id==='slit'?-.26:id==='half'?.025:.015;
+  const thickness=t=>(closed?.139:id==='slit'?.142:.155)*arch(t)**.10*(.89+.15*t);
   for(const side of [-1,1]){
    if(!closed){
     sclera.strip(side,36,7,.006,(t,q)=>[t,bottom(t)+(top(t)-bottom(t))*q,mix(white,softWhite,q**5*.6)]);
-    iris.strip(side,36,14,.009,(u,q)=>{
+    iris.strip(side,48,16,.009,(u,q)=>{
      const t=irisX+(u*2-1)*irisRX;
-     const radius=irisRY*Math.sqrt(Math.max(0,1-(u*2-1)**2));
+     // Broad straight sides and a softly flattened base, like the reference.
+     const radius=irisRY*Math.max(0,1-Math.abs(u*2-1)**3.4)**(1/3.4);
      const hi=clamp(irisY+radius,bottom(t),top(t)),lo=clamp(irisY-radius,bottom(t),top(t));
      const y=lo+(hi-lo)*q;
      const tone=.40-.14*clamp((y-(irisY-.08))/.23,0,1);
      return [t,y,[tone,tone,tone]];
     });
-    const sx=irisX+side*.105, sy=top(sx)-.103;
-    const lightRy=Math.min(.048,Math.max(.023,(top(sx)-bottom(sx))*.19));
+    const sx=irisX+side*.115, sy=top(sx)-.125;
+    const lightRy=Math.min(.049,Math.max(.021,(top(sx)-bottom(sx))*.18));
     const lightY=clamp(sy,bottom(sx)+lightRy+.008,top(sx)-lightRy-.055);
     shine.strip(side,18,3,.012,(u,q)=>{
      const t=sx+(u*2-1)*.051,half=lightRy*Math.sqrt(Math.max(0,1-(u*2-1)**2));
      return [t,clamp(lightY+(q*2-1)*half,bottom(t),top(t)),light];
     });
    }
-   lid.strip(side,40,3,.016,(t,q)=>{
-    // Rounded/tapered at both ends. Keep the middle broad and the outer end
-    // soft, without the hooked lash tip on the original mesh.
-    const thickness=(closed?.133:.158)*arch(t)**.24*(.85+.15*t);
-    return [t,top(t)+(q-.61)*thickness,ink];
+   lid.strip(side,48,4,.016,(u,q)=>{
+    const t=.035+.93*u;
+    return [t,top(t)+(q-.55)*thickness(t),ink];
    });
+   for(const edge of [.035,.965]){
+    const radius=thickness(edge)/2,centre=top(edge)-.05*thickness(edge);
+    lid.strip(side,18,4,.016,(u,q)=>{
+     const x=u*2-1,span=radius*Math.sqrt(Math.max(0,1-x*x));
+     return [edge+x*radius,centre+(q*2-1)*span,ink];
+    });
+   }
    crease.strip(side,28,2,.006,(u,q)=>{
     const t=.084+.832*u;
-    return [t,top(t)+(.093+.035*arch(t))+(q-.5)*.016*arch(u)**.6,ink];
+    return [t,top(t)+(.110+.026*arch(t))+(q-.5)*.013*arch(u)**.6,ink];
    });
   }
   const layers=closed?[lid,crease]:[sclera,iris,shine,lid,crease];
