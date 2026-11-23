@@ -20,23 +20,38 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-workbench{position:fixed;z-index:8;inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;place-items:center;pointer-events:none;color:var(--skill-cyan);perspective:900px}
 .skill-workbench[hidden],.skill-workbench [hidden],.skill-satellite[hidden],#skillsBtn[hidden]{display:none!important}
 .skill-stage{position:relative;width:100%;height:100%;transform-style:preserve-3d;isolation:isolate}
+.skill-stage.is-inspecting::after{content:"";position:absolute;top:50%;left:56%;width:6.5%;height:1px;border-top:1px dashed rgba(136,244,248,.7);filter:drop-shadow(0 0 4px #98fbff);opacity:.85;pointer-events:none;transform:rotate(-7deg)}
 .skill-main{position:absolute;left:50%;top:50%;width:min(82vw,82dvh,45rem);height:auto;aspect-ratio:1;container-type:inline-size;pointer-events:auto;touch-action:none;clip-path:circle(50%);transform-origin:50% 50%;transform-style:preserve-3d;transform:translate(-50%,-50%);transition:left .56s cubic-bezier(.22,.8,.2,1),width .56s cubic-bezier(.22,.8,.2,1),transform .56s cubic-bezier(.22,.8,.2,1);animation:skill-appear .44s ease-out both}
 .skill-stage.is-inspecting .skill-main{left:34%;width:min(49vw,75dvh,34rem);transform:translate(-50%,-50%) rotateY(-9deg) rotateZ(-3deg)}
 .skill-diagram-art,.skill-mana-ring{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.skill-diagram-art{fill:none;stroke:#a6e9ec;filter:drop-shadow(0 0 3px #4ad6eb7a)}
+/* Local contrast only inside the seal. The world and outside camera remain unobscured. */
+.skill-main::before{content:"";position:absolute;inset:2%;border-radius:50%;background:radial-gradient(circle,rgba(4,25,37,.64) 0%,rgba(6,31,47,.51) 47%,rgba(9,32,49,.30) 73%,transparent 98%);pointer-events:none}
+.skill-main::after{content:"";position:absolute;inset:4%;border-radius:50%;border:1px solid rgba(175,250,251,.15);box-shadow:inset 0 0 24px rgba(34,134,163,.14);pointer-events:none}
+.skill-diagram-art{z-index:1}
+.skill-mana-ring{z-index:2}
+.skill-slots{z-index:3}
+.skill-core{z-index:4}
+.skill-diagram-art{fill:none;stroke:#bff7fb;filter:drop-shadow(0 0 5px #5ae1fcbb)}
 /* Restore the original ornamental seal; the shared mana orbit stays continuous. */
-.skill-heritage-ring{stroke:#a0e7ee;stroke-width:.9;opacity:.78;transform-origin:180px 180px;animation:skill-seal-rotate 55s linear infinite}
+.skill-heritage-ring{stroke:#bdf9fa;stroke-width:1.08;opacity:.92;transform-origin:180px 180px;animation:skill-seal-rotate 55s linear infinite}
 .skill-heritage-ring circle:first-child{stroke-width:1.55}
 .skill-heritage-ring circle:nth-child(2){stroke-dasharray:22 5 3 5;opacity:.7}
 .skill-heritage-ring path:last-child{opacity:.39}
-.skill-orbit-guide{stroke:#8eeef4;stroke-width:1.7;opacity:.52}
+.skill-orbit-guide{stroke:#82dce0;stroke-width:2;opacity:.8}
 .skill-orbit-direction{stroke:#b0f6f3;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.65}
 /* Continuous common orbit: mana is luminosity, not a length-based progress arc. */
-.skill-mana-ring{background-image:conic-gradient(#71eeee2a,#71eeee63,#71eeee2a);-webkit-mask-image:radial-gradient(circle,transparent 29.8cqw,#000 30.3cqw,#000 30.8cqw,transparent 31.3cqw);mask-image:radial-gradient(circle,transparent 29.8cqw,#000 30.3cqw,#000 30.8cqw,transparent 31.3cqw);filter:drop-shadow(0 0 3px #83f7f7);transition:background-image .25s}
+/* An unbroken action orbit; allocation changes intensity, never arc length. */
+.skill-mana-ring{position:absolute;inset:0;background:transparent;--skill-mana-gradient:conic-gradient(#70eeee44,#70eeeea8,#70eeee44)}
+.skill-mana-ring::before,.skill-mana-ring::after{content:"";position:absolute;inset:0;background:var(--skill-mana-gradient);pointer-events:none;-webkit-mask-image:radial-gradient(circle,transparent 29.7cqw,#000 30.3cqw,#000 31cqw,transparent 31.6cqw);mask-image:radial-gradient(circle,transparent 29.7cqw,#000 30.3cqw,#000 31cqw,transparent 31.6cqw)}
+.skill-mana-ring::before{filter:brightness(1.28)}
+.skill-mana-ring::after{filter:blur(4px) brightness(1.55);opacity:.65}
+
 .skill-slots{position:absolute;inset:0;pointer-events:none}
 .skill-slot{position:absolute;display:grid;place-items:center;width:clamp(3rem,15.8cqw,4.3rem);height:clamp(3rem,15.8cqw,4.3rem);padding:0;translate:-50% -50%;background:none;border:0;border-radius:50%;color:var(--skill-cyan);pointer-events:auto;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .skill-slot-face{display:grid;place-items:center;width:100%;height:100%;border:1.5px solid #9ef0ee;border-radius:50%;background:radial-gradient(circle,#255b7099,#062d3b9c 72%,#062d3b6b);box-shadow:inset 0 0 15px #61e9e933,0 0 14px #61e9e93d;transition:transform .2s,opacity .2s,box-shadow .2s,border-color .2s}
 .skill-slot svg{width:66%;height:66%;overflow:visible;filter:drop-shadow(0 0 3px #9df8f8a0)}
+/* Individual action shares remain readable over scenery. */
+.skill-slot-share{position:absolute;left:50%;top:calc(100% + .32rem);translate:-50% 0;min-width:2.8rem;padding:.12rem .28rem;box-sizing:border-box;border-radius:1rem;border:1px solid rgba(142,241,247,.35);background:rgba(5,26,39,.84);color:#dbffff;font:600 clamp(.65rem,2.7cqw,.81rem)/1.35 var(--ui-font,sans-serif);text-align:center;white-space:nowrap;letter-spacing:.01em;text-shadow:0 0 8px #59e7ee88;pointer-events:none}
 .skill-slot.is-empty .skill-slot-face{border-style:dashed;opacity:.60;box-shadow:none;background:#11394c55}
 .skill-slot-plus{font-size:2.1rem;font-weight:300;line-height:1;color:#e5ffff;text-shadow:0 0 9px #78e9eb}
 .skill-slot.is-selected .skill-slot-face,.skill-slot.is-drop-target .skill-slot-face{border-color:#efffff;box-shadow:0 0 0 4px #84eaea27,inset 0 0 17px #b4ffff55,0 0 18px #b8ffff77;transform:scale(1.1)}
@@ -53,18 +68,30 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-core-total{font:400 clamp(.55rem,2.6cqw,.72rem)/1.25 var(--ui-font,sans-serif);opacity:.74}
 
 /* Detail controls inherit the same orbital vocabulary, no rectangular settings panel. */
-.skill-mini{position:absolute;left:76%;top:50%;width:min(32vw,50dvh,23rem);aspect-ratio:1;pointer-events:auto;touch-action:manipulation;transform:translate(-50%,-50%);animation:skill-mini-enter .38s cubic-bezier(.2,.75,.25,1) both;filter:drop-shadow(0 0 5px #51cddc78)}
-.skill-mini-lines{position:absolute;width:100%;height:100%;fill:none;stroke:#83dfe3;stroke-width:1;opacity:.52;pointer-events:none}
-.skill-mini-lines path{stroke-width:2.2;opacity:.55}
-.skill-mini-center{position:absolute;left:50%;top:50%;translate:-50% -50%;width:47%;height:47%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem;background:#16475c6b;border-radius:50%;text-align:center;pointer-events:none}
-.skill-mini-center svg{width:36%;color:#c0ffff;filter:drop-shadow(0 0 4px #6eecf3)}
+.skill-mini{position:absolute;left:76%;top:50%;width:min(32vw,62dvh,23rem);aspect-ratio:1;pointer-events:auto;touch-action:manipulation;transform:translate(-50%,-50%);animation:skill-mini-enter .38s cubic-bezier(.2,.75,.25,1) both;filter:drop-shadow(0 0 5px #51cddc78)}
+.skill-mini::before{content:"";position:absolute;inset:-3%;border-radius:50%;background:radial-gradient(circle,rgba(4,26,39,.75) 0%,rgba(6,31,47,.48) 54%,rgba(6,30,43,.12) 86%,transparent 100%);pointer-events:none}
+.skill-mini-lines{position:absolute;width:100%;height:100%;fill:none;stroke:#a7f5fa;stroke-width:1.35;opacity:.78;filter:drop-shadow(0 0 3px #69e7f5);pointer-events:none}
+.skill-mini-group-label{position:absolute;left:50%;transform:translateX(-50%);z-index:1;font:600 clamp(.56rem,2.4cqw,.7rem)/1 var(--ui-font,sans-serif);letter-spacing:.08em;color:#c4faff;background:rgba(7,37,51,.86);padding:.15rem .4rem;border-radius:1rem;pointer-events:none}
+.skill-mini-group-label-speed{top:23%}
+.skill-mini-group-label-repeat{bottom:22%}
+.skill-mini-lines .skill-mini-guide{stroke-width:1;stroke-dasharray:3 7;opacity:.48}
+.skill-mini-lines .skill-mini-center-ring{stroke-width:1.15;opacity:.7}
+.skill-mini-lines path{stroke-width:2.5;stroke-linecap:round;opacity:.95}
+.skill-mini-center{position:absolute;left:50%;top:50%;translate:-50% -50%;width:43%;height:43%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem;background:#16475c6b;border-radius:50%;text-align:center;pointer-events:none}
+.skill-mini-center svg{width:34%;color:#c0ffff;filter:drop-shadow(0 0 4px #6eecf3)}
 .skill-mini-center strong{font-size:clamp(.62rem,2.9cqw,.82rem)}
-.skill-mini-center small{font-size:clamp(.55rem,2.6cqw,.7rem);opacity:.7}
-.skill-mini-choice{position:absolute;translate:-50% -50%;display:grid;place-items:center;width:24%;height:24%;min-width:3rem;min-height:3rem;padding:0;border-radius:50%;border:1px solid #87ced6a3;color:#c3eff0;background:#103c508c;cursor:pointer;touch-action:manipulation;transition:background .2s,box-shadow .2s}
-.skill-mini-choice.is-active{background:#2d778385;border-color:#dcffff;box-shadow:0 0 12px #98fafa7a,inset 0 0 9px #84f5f547}
-.mini-speed{font-size:1.1rem;line-height:1;letter-spacing:-.2rem;padding-right:.15rem}
-.mini-repeat{font-size:.9rem;line-height:1;letter-spacing:-.1rem}
-.skill-mini-remove{position:absolute;left:50%;top:101%;translate:-50% -50%;width:2rem;height:2rem;border:1px solid #7dd6df70;border-radius:50%;background:#103b4daa;color:#a8e9ee;cursor:pointer;pointer-events:auto}
+.skill-mini-center small{font-size:clamp(.52rem,2.4cqw,.72rem);opacity:.87;white-space:nowrap}
+.skill-mini-summary{font-size:clamp(.52rem,2.2cqw,.66rem)!important;opacity:.75!important}
+.skill-mini-choice{position:absolute;translate:-50% -50%;display:grid;place-items:center;width:24%;height:24%;min-width:3rem;min-height:3rem;padding:0;border:0;border-radius:50%;color:#a5dfe6;background:transparent;cursor:pointer;touch-action:manipulation;transition:color .2s}
+.skill-mini-choice::before{content:"";position:absolute;left:50%;top:50%;translate:-50% -50%;width:.4rem;height:.4rem;border-radius:50%;background:#6dbbc1;box-shadow:0 0 5px #53c7d3;transition:width .2s,height .2s,box-shadow .2s}
+.skill-mini-choice.is-active{color:#efffff;text-shadow:0 0 6px #a4ffff}
+.skill-mini-choice.is-active::before{width:1.04rem;height:1.04rem;background:#125a6d;border:2px solid #e3ffff;box-shadow:0 0 10px #87ffff,inset 0 0 5px #bcffff}
+.mini-glyph{position:absolute;left:50%;translate:-50% 0;white-space:nowrap}
+.mini-speed{top:calc(50% + .95rem);font-size:clamp(.62rem,2.1cqw,.79rem);font-weight:650;line-height:1;white-space:nowrap;letter-spacing:-.02em}
+.mini-repeat{bottom:calc(50% + .95rem);font-size:clamp(.65rem,2.3cqw,.83rem);font-weight:650;line-height:1;white-space:nowrap}
+.skill-mini-remove{position:absolute;left:105%;top:50%;translate:-50% -50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;width:3rem;height:3rem;padding:0;border:1px solid #95e3eb8c;border-radius:50%;background:#11384dd9;color:#cefcff;cursor:pointer;pointer-events:auto;font:500 .61rem var(--ui-font,sans-serif)}
+.skill-mini-remove svg{width:1.12rem;height:1.12rem}
+.skill-mini-remove:focus-visible{outline:2px solid #fff;outline-offset:3px}
 
 .skill-tools{position:absolute;z-index:2;left:50%;bottom:1rem;translate:-50% 0;display:flex;gap:.75rem;pointer-events:auto}
 .skill-tool,.skill-close{display:grid;place-items:center;width:3rem;height:3rem;border:1px solid #a2e6e696;border-radius:50%;color:var(--skill-cyan);background:#103c507a;cursor:pointer;touch-action:manipulation}
@@ -74,7 +101,9 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 .skill-tool-play{width:.73rem;height:.86rem;background:currentColor;clip-path:polygon(0 0,100% 50%,0 100%)}
 .skill-tool-save{width:.74rem;height:.89rem;background:currentColor;clip-path:polygon(0 0,100% 0,100% 100%,50% 72%,0 100%)}
 .skill-tool.playing{animation:skill-pulse .4s infinite alternate}
-.skill-close{position:absolute;top:.4rem;right:.4rem;pointer-events:auto;font-size:1.55rem}
+/* Conventional back location; distinct from deleting an individual action. */
+.skill-close{position:absolute;top:calc(env(safe-area-inset-top,0px) + .85rem);left:calc(env(safe-area-inset-left,0px) + .85rem);right:auto;display:flex;gap:.35rem;align-items:center;justify-content:center;width:auto;min-width:5.2rem;padding:0 .65rem;pointer-events:auto;font:600 .83rem var(--ui-font,sans-serif);border-radius:2rem;background:rgba(7,33,47,.80);box-shadow:0 0 11px rgba(86,217,231,.26)}
+.skill-close svg{width:1.15rem;height:1.15rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .skill-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @keyframes skill-seal-rotate{to{transform:rotate(360deg)}}
 @keyframes skill-appear{from{opacity:0;scale:.89}to{opacity:1;scale:1}}
@@ -82,7 +111,8 @@ body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,
 @keyframes skill-pulse{to{filter:brightness(1.6)}}
 @media(orientation:portrait){
   .skill-stage.is-inspecting .skill-main{left:50%;top:32%;width:min(90vw,44dvh,24rem);transform:translate(-50%,-50%) rotateY(-7deg)}
-  .skill-mini{left:50%;top:75%;width:min(54vw,25dvh,14rem)}
+  .skill-mini{left:50%;top:72%;width:min(68vw,30dvh,16rem)}
+  .skill-stage.is-inspecting::after{left:50%;top:53.2%;width:1px;height:6.5%;border-top:none;border-left:1px dashed rgba(136,244,248,.7);transform:none}
   .skill-tools{bottom:0.25rem}
 }
 @media(orientation:landscape) and (max-height:36rem){:root{--skill-attack-right:4.875rem;--skill-attack-bottom:3.75rem}}
