@@ -4118,7 +4118,6 @@ var SHOW = 105;
 var LOD0 = 14;
 var LOD1 = 38;
 var SHADOW = 12;
-var ANIM = 55;
 var Townsfolk = class {
   constructor(scene, region, makeCharacter) {
     this.places = region.places;
@@ -4150,6 +4149,7 @@ var Townsfolk = class {
         talkT: 0,
         lineI: 0,
         speed: 0,
+        poseOffset: i * .61803398875 % 1,
         rnd: mulberry32(100 + i)
       };
     });
@@ -4234,13 +4234,21 @@ var Townsfolk = class {
       const inFront = !facing || d < 4 || dxCam * facing.x + (n.y + .9 - camPos.y) * facing.y + dzCam * facing.z > -Math.max(1, d * .12);
       const vis = !n.hidden && d < SHOW && inFront, g = n.ch.group;
       g.visible = vis;
-      if (!vis) continue;
+      if (!vis) {
+        n.poseAge = null;
+        continue;
+      }
       g.position.set(n.x, n.y, n.z);
       g.rotation.y = n.yaw;
       n.ch.setLOD(d < LOD0 ? 0 : d < LOD1 ? 1 : 2);
       n.ch.setShadow(d < SHADOW);
       n.ch.speed = n.speed;
-      if (d < ANIM || (Math.floor(t * 10) + n.def.id.length) % 4 === 0) n.ch.animate(d < ANIM ? dt : dt * 4, t);
+      const interval = d < 8 || n.talkT > 0 ? 0 : d < 22 ? 1 / 30 : d < 42 ? 1 / 20 : 1 / 10;
+      n.poseAge = (n.poseAge ?? interval * n.poseOffset) + dt;
+      if (n.poseAge >= interval) {
+        n.ch.animate(Math.min(.12, n.poseAge), t);
+        n.poseAge = 0;
+      }
     }
   }
   // nearest person in front of the player within reach
@@ -4631,6 +4639,7 @@ var ViewModel = class {
       side: DoubleSide
     }));
     this.trailMesh.frustumCulled = false;
+    this.trailMesh.visible = false;
     this.root.add(this.trailMesh);
     this.bob = 0;
   }
@@ -4760,12 +4769,14 @@ var Combat = class {
     else if (L !== FISTS && R === FISTS) hand = "left";
     this.next = hand === "right" ? "left" : "right";
     const w = this.weapon(hand), dur = 1.15 / w.rate;
-    this.swing = { hand, w, t: 0, dur, spec: maktwoAttackSpec(w.model, dur), contact: null, hit: false };
+    this.swing = { hand, w, t: 0, dur, spec: maktwoAttackSpec(w.model, dur), contact: null, hit: false,
+      aimYaw: Save.data.settings.view === "third" ? this.player.yaw : null,
+      aimPitch: Save.data.settings.view === "third" ? this.player.pitch : null };
   }
   strike(a, progress) {
     const p = this.player, spec = a.spec, side = a.hand === "right" ? 1 : -1;
     const arc = spec.back - (spec.back + spec.follow) * progress;
-    const yaw = p.yaw - arc * side, pitch = p.pitch;
+    const yaw = (a.aimYaw ?? p.yaw) - arc * side, pitch = a.aimPitch ?? p.pitch;
     const cp = Math.cos(pitch), dir = { x: -Math.sin(yaw) * cp, y: Math.sin(pitch), z: -Math.cos(yaw) * cp };
     const origin = { x: p.pos.x, y: p.pos.y + PLAYER.height - 0.18, z: p.pos.z };
     const reach = a.w.reach * (0.84 + 0.16 * Math.sin(progress * Math.PI));
@@ -5420,6 +5431,7 @@ async function boot() {
   const canvas2 = document.getElementById("view");
   const renderer = new WebGLRenderer({ canvas: canvas2, antialias: true, powerPreference: "high-performance" });
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.autoUpdate = !IS_MOBILE;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.toneMapping = NoToneMapping;
   const scene = new Scene();
@@ -5683,7 +5695,7 @@ async function boot() {
     Save.write();
   });
   if(!Save.data.characterCreated) avatars.openChooser(true);
-  let last = performance.now();
+  let last = performance.now(), lastShadow = -Infinity, shadowCut = -1;
   const tick = (now) => {
     const dt = Math.min(0.1, (now - last) / 1e3);
     last = now;
@@ -5691,7 +5703,7 @@ async function boot() {
     frameAvg += (dt - frameAvg) * 0.05;
     if ((dprClock += dt) > 2) {
       dprClock = 0;
-      const next = frameAvg > 1 / 40 ? Math.max(1, dprNow - 0.125) : frameAvg < 1 / 56 ? Math.min(dprCap, dprNow + 0.125) : dprNow;
+      const next = frameAvg > 1 / 40 ? Math.max(IS_MOBILE ? .75 : 1, dprNow - 0.125) : frameAvg < 1 / 56 ? Math.min(dprCap, dprNow + 0.125) : dprNow;
       if (next !== dprNow) {
         dprNow = next;
         resize();
@@ -5748,7 +5760,12 @@ async function boot() {
     avatars.updateTrail(combat);
     explore.update();
     terrain.update(camera.position.x, camera.position.z, camera.position.y);
-    sun.update(camera.position.x, camera.position.z, player.yaw);
+    if (!IS_MOBILE || now - lastShadow >= 32 || shadowCut !== player.teleportId) {
+      sun.update(camera.position.x, camera.position.z, player.yaw);
+      renderer.shadowMap.needsUpdate = true;
+      lastShadow = now;
+      shadowCut = player.teleportId;
+    }
     forest.update(camera.position);
     rocks.update(camera.position);
     grass.update(camera.position);

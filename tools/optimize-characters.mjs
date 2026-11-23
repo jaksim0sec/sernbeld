@@ -37,7 +37,7 @@ class Heap{
 
 // positions: Float32Array (xyz per vertex id), indices: triangle list of vertex ids.
 // Returns one index array per requested ratio (fractions of the input triangle count).
-export function simplify(positions,indices,ratios,{lock=null,groups=null}={}){
+export function simplify(positions,indices,ratios,{lock=null,groups=null,protectJoints=false}={}){
  const triCount=indices.length/3;
  const local=new Map(),ids=[];
  const tri=new Int32Array(indices.length);
@@ -66,7 +66,7 @@ export function simplify(positions,indices,ratios,{lock=null,groups=null}={}){
   let e=q(0)*x*x+2*q(1)*x*y+2*q(2)*x*z+2*q(3)*x+q(4)*y*y+2*q(5)*y*z+2*q(6)*y+q(7)*z*z+2*q(8)*z+q(9);
   if(groups&&groups[ids[u]]!==groups[ids[v]])e=e*4+1e-9;
   return Math.max(0,e);};
- const heap=new Heap();
+ let heap=new Heap();
  const pushVertex=u=>{if(locked[u]||removed[u])return;const seen=new Set();
   for(const t of vt[u])if(alive[t])for(let e=0;e<3;e++){const v=tri[t*3+e];if(v!==u&&!seen.has(v)){seen.add(v);heap.push(err(u,v),u,v,version[u],version[v]);}}};
  for(let u=0;u<n;u++)pushVertex(u);
@@ -83,10 +83,17 @@ export function simplify(positions,indices,ratios,{lock=null,groups=null}={}){
  const normal=(a,b,c)=>{const ux=P[b*3]-P[a*3],uy=P[b*3+1]-P[a*3+1],uz=P[b*3+2]-P[a*3+2],wx=P[c*3]-P[a*3],wy=P[c*3+1]-P[a*3+1],wz=P[c*3+2]-P[a*3+2];
   const x=uy*wz-uz*wy,y=uz*wx-ux*wz,z=ux*wy-uy*wx;return [x,y,z,Math.hypot(x,y,z)];};
  while(level<targets.length){
-  while(live<=targets[level]&&level<targets.length){out.push(snapshot());level++;}
+  while(live<=targets[level]&&level<targets.length){
+   out.push(snapshot());level++;
+   if(protectJoints&&level===1){
+    heap=new Heap();
+    for(let u=0;u<n;u++)pushVertex(u);
+   }
+  }
   if(level>=targets.length||!heap.size)break;
   const [,u,v,su,sv]=heap.pop();
   if(removed[u]||removed[v]||version[u]!==su||version[v]!==sv||locked[u])continue;
+  if(protectJoints&&level===0&&groups[ids[u]]!==groups[ids[v]])continue;
   if(flips(u,v))continue;
   for(const t of vt[u]){if(!alive[t])continue;const a=tri[t*3],b=tri[t*3+1],c=tri[t*3+2];
    if(a===v||b===v||c===v){alive[t]=0;live--;continue;}
@@ -123,7 +130,9 @@ export async function buildLod(source){
    // Keep skinning clean: collapses across different dominant joints are discouraged.
    const groups=new Int32Array(positions.length/3);
    for(let v=0;v<groups.length;v++){let best=0;for(let k=1;k<4;k++)if(weights[v*4+k]>weights[v*4+best])best=k;groups[v]=part.skin.indexOf(part.skin[joints[v*4+best]])*1;}
-   const lists=simplify(positions,indices.subarray(part.start,part.start+part.count),BODY_RATIOS,{groups});
+   const hand=part.skin.some(id=>id.startsWith('thumb_'));
+   const ratios=hand?[.60,...BODY_RATIOS.slice(1)]:BODY_RATIOS;
+   const lists=simplify(positions,indices.subarray(part.start,part.start+part.count),ratios,{groups,protectJoints:hand});
    lists.forEach((list,i)=>levels[i].push(pack(list)));
   });
   result.bodies[name]={levels,triangles:levels.map(l=>l.reduce((s,p)=>s+Buffer.from(p,'base64').length/12,0))};

@@ -55,8 +55,8 @@ export function createSchoolyardMotion(actor){
  const api={
   play(name){if(!SCHOOLYARD_CLIPS[name])return false;anim={name,time:0};return true;},
   get active(){return anim?.name??null;},
-  update(dt,t,player,swing,{first=false,runSpeed=5,armed=false}={}){
-   dt=clamp(dt,0,.05);clock+=dt;
+  update(dt,t,player,swing,{first=false,runSpeed=5,turnRate=null,gazeYaw=0}={}){
+   dt=clamp(dt,0,.12);clock+=dt;
    const speed=Math.hypot(player.vel.x,player.vel.z);
    const walking=clamp(speed/1.15,0,1);
    const run=clamp((speed-2.6)/Math.max(.5,runSpeed-2.6),0,1);
@@ -69,11 +69,11 @@ export function createSchoolyardMotion(actor){
    landing=Math.max(0,landing-dt*3.6);
    airAge=grounded?0:airAge+dt;
    const yaw=Number.isFinite(player.yaw)?player.yaw:0;
-   const turn=prevYaw===null?0:Math.atan2(Math.sin(yaw-prevYaw),Math.cos(yaw-prevYaw))/Math.max(dt,.001);
+   const turn=turnRate??(prevYaw===null?0:Math.atan2(Math.sin(yaw-prevYaw),Math.cos(yaw-prevYaw))/Math.max(dt,.001));
    prevYaw=yaw;
-   turnFlex+=(clamp(Math.abs(turn)*.06,0,1)-turnFlex)*(1-Math.exp(-12*dt));
+   turnFlex+=(clamp(Math.abs(turn)*.16,0,1)-turnFlex)*(1-Math.exp(-12*dt));
    const crouch=grounded?(5+7*moving+11*turnFlex+12*landing):0;
-   const bob=Math.cos(phase*2)*moving;
+   const stepping=Math.max(moving,first?0:turnFlex*.38);
    for(const id in targets)targets[id].fill(0);
    const put=(id,...a)=>{const b=targets[id];if(b)for(let i=0;i<b.length;i++)b[i]=a[i]??0;};
    // Schoolyard V3 pelvis/lumbar/thoracic split, asymmetrical stride,
@@ -83,9 +83,10 @@ export function createSchoolyardMotion(actor){
    // head joints (12/12/30/46%) so first-person view can follow the skull.
    const pitch=clamp((player.pitch||0)*rad,-75,75);
    put('waist',pitch*.12-crouch*.78-4*run,-clamp(turn*.65,-9,9));
-   put('ribcage',pitch*.12-crouch*.25+Math.sin(t*1.7)*.8,-6*s*moving+clamp(turn*.9,-13,13));
+   const gaze=clamp(gazeYaw*rad,-55,55);
+   put('ribcage',pitch*.12-crouch*.25+Math.sin(t*1.7)*.8,-6*s*moving+clamp(turn*.9,-13,13)+gaze*.32);
    put('neck',pitch*.30+crouch*.16,0);
-   put('head',-clamp(turn*.75,-12,12),pitch*.46+crouch*.12);
+   put('head',-clamp(turn*.75,-12,12)+gaze*.68,pitch*.46+crouch*.12);
    for(const [side,o] of [['left',0],['right',Math.PI]]){
     const q=Math.sin(phase+o),push=Math.cos(phase+o);
     if(player.swimming){
@@ -96,8 +97,8 @@ export function createSchoolyardMotion(actor){
      put('shin_'+side,side==='left'?42:26);
      put('upper_arm_'+side,22+7*airAge,8);put('forearm_'+side,48,0);
     }else{
-     const hip=28*moving*q+(side==='left'?1:-1)*2+crouch*.53;
-     const knee=(44*Math.max(push,0)+5)*moving+crouch*.46;
+     const hip=(27+10*run)*stepping*q+(side==='left'?1:-1)*2+crouch*.53;
+     const knee=((40+22*run)*Math.max(push,0)+5)*stepping+crouch*.65;
      put('thigh_'+side,hip,4);
      put('shin_'+side,knee);
      // Shin rotates opposite the hip axis in the studio rig.
@@ -112,11 +113,21 @@ export function createSchoolyardMotion(actor){
    // Keep the existing sword IK and finger handling authoritative. The full
    // body drives anticipation/reaction; grip targets still solve at the wrists.
    if(swing?.weight){
-    const w=swing.weight;
-    targets.ribcage[0]+=(-6*swing.pull+10*swing.extension)*w;
-    targets.ribcage[1]+=(-10*swing.arc)*w;
-    targets.pelvis[1]+=3*(swing.side||0)*w;
-    targets.waist[0]+=(-4*swing.pull+6*swing.extension)*w;
+    const {weight:w,pull,extension,arc,side}=swing;
+    const twist=clamp(arc*21,-37,37)*w;
+    targets.pelvis[1]-=twist*.26;
+    targets.waist[1]-=twist*.30;
+    targets.ribcage[1]-=twist*.44;
+    targets.ribcage[0]+=(-4*pull+7*extension)*w;
+    const lead=side===1?'left':'right',rear=side===1?'right':'left';
+    if(grounded){
+     targets['thigh_'+lead][0]+=(5*pull+13*extension)*w;
+     targets['shin_'+lead][0]+=(8*pull+15*extension)*w;
+     targets['shin_'+rear][0]+=13*pull*w;
+     targets['foot_'+lead][0]+=6*extension*w;
+    }
+    targets['upper_arm_'+lead][0]+=(19*pull-15*extension)*w;
+    targets['forearm_'+lead][0]+=(22*pull+11*extension)*w;
    }
    if(anim){
     anim.time+=dt;
@@ -130,15 +141,15 @@ export function createSchoolyardMotion(actor){
     }
     if(anim.time>=clip.duration)anim=null;
    }
-   // Damped spring retargeting from the reference, substepped to remain stable
-   // when the browser skips frames. Joint limits come from the real studio rig.
-   const stiffness=anim?34:grounded?25:19,steps=Math.max(1,Math.ceil(dt/.01)),h=dt/steps;
-   for(let n=0;n<steps;n++)for(const b of rig){
+   // Exact critically damped integration at a constant target over this sample.
+   const stiffness=anim||swing?.weight?34:grounded?25:19,decay=Math.exp(-stiffness*dt);
+   for(const b of rig){
     const a=angles[b.id],v=vel[b.id],tar=targets[b.id];
     for(let j=0;j<a.length;j++){
      const lo=b.axes[j].min,hi=b.axes[j].max,target=clamp(tar[j],lo,hi);
-     v[j]+=(stiffness*stiffness*(target-a[j])-2*stiffness*v[j])*h;
-     a[j]=clamp(a[j]+v[j]*h,lo,hi);
+     const error=a[j]-target,term=v[j]+stiffness*error;
+     v[j]=(v[j]-stiffness*term*dt)*decay;
+     a[j]=clamp(target+(error+term*dt)*decay,lo,hi);
      if((a[j]===lo&&v[j]<0)||(a[j]===hi&&v[j]>0))v[j]=0;
     }
    }

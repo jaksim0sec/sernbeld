@@ -5,15 +5,50 @@ import {createStudioGeometry,controls} from '../src/entities/character/studio-ge
 import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter,resolveNpcAppearance} from '../src/entities/character/appearance.js';
 import {calculateFemalePose} from '../src/entities/character/female-base.js';
-import {animatePlayer,solveArm,gripFrame} from '../src/entities/character/avatar-motion.js';
+import {animatePlayer,armTargets,solveArm,gripFrame} from '../src/entities/character/avatar-motion.js';
+import {createCharacterRuntime} from '../src/entities/character/studio-integration.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+{
+ const player={mode:'walk',pos:new T.Vector3(),vel:new T.Vector3(),yaw:0,pitch:0,onGround:true,teleportId:1};
+ globalThis.document={createElement:()=>({style:{},addEventListener(){},querySelector:()=>({})}),body:{append(){}}};
+ globalThis.addEventListener=()=>{};
+ const runtime=createCharacterRuntime({
+  T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
+  Save:{data:{settings:{view:'third'}},write(){}},
+  makeCharacter:profile=>createStudioModel(T,factory,profile),attackPose:()=>null
+ });
+ const forward=()=>new T.Vector3(0,0,1).applyQuaternion(runtime.bodyRoot.quaternion);
+ runtime.update(1/60,0,{});
+ player.vel.set(2.6,0,0);
+ runtime.update(1/60,1/60,{});
+ assert(forward().x<.65,'Entering a side step must not snap the body');
+ for(let i=2;i<=45;i++)runtime.update(1/60,i/60,{});
+ assert(forward().x>.97,'Third-person body must turn to face lateral travel');
+ player.vel.set(0,0,0);
+ for(let i=46;i<=90;i++)runtime.update(1/60,i/60,{});
+ assert(forward().x>.97,'Stopping must preserve facing');
+ runtime.actor.dispose();
+ delete globalThis.document;
+ delete globalThis.addEventListener;
+}
+{
+ const pose={side:1,weight:1,pull:1,extension:0,recoil:0};
+ const windup=armTargets(T,'right',{...pose,arc:2.16},{armed:true,first:false});
+ const prepared=armTargets(T,'right',{...pose,arc:1.3},{armed:true,first:false});
+ assert(windup.blade.angleTo(prepared.blade)>.25,'The outer part of the swing must not flatten at a fixed blade heading');
+}
 // LOD sidecar: progressive levels must shrink and stay a vertex subset of level 0.
 {
  const lodSource={...source,lod:JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.lod.json.gz')))};
  const lodFactory=createStudioGeometry(lodSource);
  for(const body of ['male','female']){
+  for(const [i,part] of source.bodies[body].parts.entries()){
+   if(!part.skin.some(id=>id.startsWith('thumb_')))continue;
+   const near=Buffer.from(lodSource.lod.bodies[body].levels[0][i],'base64');
+   assert(near.length/4>=part.count*.55,'Near-view finger geometry is oversimplified');
+  }
   const actor=createStudioModel(T,lodFactory,normalizeStudioCharacter({body})),levels=actor.lodLevels;
   assert(levels[0]>levels[1]&&levels[1]>levels[2],'LOD levels must decrease: '+levels);
   assert(levels[0]<120000,'Near LOD must be far below the 190k source mesh: '+levels[0]);

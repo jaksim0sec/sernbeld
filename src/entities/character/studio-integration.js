@@ -7,6 +7,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#fafaf7;z-index:1000;';
  dialog.innerHTML='<button type="button" id="character-close" aria-label="돌아가기" style="position:absolute;right:.6rem;bottom:.6rem;z-index:2;border:1px solid #cbd5c7;border-radius:.7rem;background:#fff;padding:.7rem 1rem;color:#334a3c">돌아가기</button><iframe title="내 캐릭터 만들기" style="border:0;width:100%;height:100%"></iframe>';
@@ -46,9 +47,9 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  anchors=null;thirdAim=null;headCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
- function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;lastHeadMode=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
  let anchors=null,thirdAim=null;
@@ -63,24 +64,43 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(anchors)return anchors;
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
   const chest=pivot('upper_arm_left').add(pivot('upper_arm_right')).multiplyScalar(.5);
-  return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06)),headRest:pivot('head')};
+  return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06)),headRest:pivot('head'),
+   ankleRest:Math.min(pivot('foot_left').y,pivot('foot_right').y)};
  }
  const flipY=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
+ const upAxis=new T.Vector3(0,1,0),displacement=new T.Vector3();
+ const wrap=angle=>Math.atan2(Math.sin(angle),Math.cos(angle));
  const _grip=new T.Vector3(),_blade=new T.Vector3(),_inward=new T.Vector3(),_pole=new T.Vector3();
  function update(dt,t,combat){
   attachWeapons();
   const walking=player.mode==='walk',firstPerson=!third&&walking;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
+  if(!walking){bodyCut=null;return;}
   const pose=attackPose(combat.swing);
-  animatePlayer(actor,dt,t,player,pose,Save.data.equip,{first:firstPerson,runSpeed});
-  const {chest,eye,headRest}=bodyAnchors();
+  const aimYaw=player.yaw+Math.PI;
+  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;}
+  const speed=Math.hypot(player.vel.x,player.vel.z);
+  let turnRate=0,turnStep=0;
+  if(firstPerson)bodyYaw=aimYaw;
+  else{
+   const target=combat.swing?(combat.swing.aimYaw??player.yaw)+Math.PI:
+    speed>.22?Math.atan2(player.vel.x,player.vel.z):bodyYaw;
+   const delta=wrap(target-bodyYaw);
+   turnStep=delta*(1-Math.exp(-(pose?17:11)*dt));
+   bodyYaw+=turnStep;
+   turnRate=turnStep/Math.max(.001,dt);
+  }
+  animatePlayer(actor,dt,t,player,pose,Save.data.equip,{
+   first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,
+   gazeYaw:firstPerson?0:wrap(aimYaw-bodyYaw)
+  });
+  const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
    // First evaluate the skeleton in world/player space, BEFORE camera-locking the
    // first-person arms. Otherwise the head follows the camera and cannot drive it.
    actor.group.position.copy(player.pos);
-   yawQ.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
+   yawQ.setFromAxisAngle(upAxis,aimYaw);
    actor.group.quaternion.copy(yawQ);
-   actor.group.updateMatrixWorld(true);
    actor.B.head.getWorldPosition(headTarget);
    actor.B.head.getWorldQuaternion(headQ);
    headPivot.copy(headRest).applyMatrix4(actor.group.matrixWorld);
@@ -97,7 +117,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    else headMotion.lerp(headTarget,1-Math.exp(-dt*45));
    // Keep collision-aware base camera and its attack recoil. Apply only the
    // skeleton-relative head offset, clipped by the same world-ray provider.
-   const displacement=headMotion.clone().multiplyScalar(.86);
+   displacement.copy(headMotion).multiplyScalar(.86);
    const distance=displacement.length();
    if(distance>1e-6){
     const dir=displacement.divideScalar(distance);
@@ -127,14 +147,20 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    // Camera-locked arms: the skinned model follows the final, head-aware view.
    camera.updateMatrixWorld(true);
    actor.group.quaternion.copy(camera.quaternion).multiply(flipY);
-   actor.group.position.copy(camera.position).sub(eye.clone().applyQuaternion(actor.group.quaternion));
+   actor.group.position.copy(camera.position).sub(displacement.copy(eye).applyQuaternion(actor.group.quaternion));
   }else{
    headCut=null;lastHeadMode=null;headRoll=0;
-   actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
+   actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
+   let desired=0;
+   if(player.onGround&&!player.swimming){
+    const low=Math.min(actor.B.foot_left.getWorldPosition(displacement).y,actor.B.foot_right.getWorldPosition(displacement).y);
+    desired=Math.max(-.12,Math.min(.07,player.pos.y+ankleRest*actor.group.scale.y-low));
+   }
+   footOffset+=(desired-footOffset)*(1-Math.exp(-dt*22));
+   actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
   }
-  actor.group.updateMatrixWorld(true);
-  if(!walking)return;
-  const moving=clamp01(Math.hypot(player.vel.x,player.vel.z)/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
+  actor.group.updateWorldMatrix(true,false);
+  const moving=clamp01(speed/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
   for(const side of ['right','left']){
    const weapon=weapons[side];
    const target=armTargets(T,side,pose,{armed:Boolean(weapon),first:firstPerson,aspect:camera.aspect||1,phase:actor.phase,moving});
@@ -162,7 +188,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    const tip=camera.worldToLocal(weapon.localToWorld(new T.Vector3(0,len,0)));
    const mid=camera.worldToLocal(weapon.localToWorld(new T.Vector3(0,len*.48,0)));
    trail.unshift([tip,mid]);if(trail.length>view.trailN)trail.pop();
-  }else trail.splice(0,Math.min(3,trail.length));
+  }else if(trail.length)trail.splice(0,Math.min(3,trail.length));
+  else return;
   const g=view.trailMesh.geometry,p=g.attributes.position,a=g.attributes.aA;
   for(let i=0;i<view.trailN;i++){
    const entry=trail[Math.min(i,trail.length-1)],alpha=i<trail.length?1-i/view.trailN:0;
@@ -177,7 +204,6 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   // Retarget the schoolyard head-follow camera onto the actual animated head.
   // The avatar is only an aim target: collision, camera recoil and the existing
   // camera boom remain authoritative. Never move the player to fit the camera.
-  actor.group.updateMatrixWorld(true);
   const head=actor.B.head.getWorldPosition(new T.Vector3());
   const bodyTarget=new T.Vector3(player.pos.x,player.pos.y+1.02,player.pos.z);
   const headTarget=new T.Vector3(head.x,Math.max(player.pos.y+.82,Math.min(player.pos.y+1.76,head.y)),head.z);
