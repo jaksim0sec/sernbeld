@@ -46,12 +46,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  anchors=null;weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;thirdAim=null;weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
- function setThird(value){third=Boolean(value);Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ function setThird(value){third=Boolean(value);thirdAim=null;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
- let anchors=null;
+ let anchors=null,thirdAim=null;
  function bodyAnchors(){
   if(anchors)return anchors;
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
@@ -117,8 +117,17 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  function applyThirdCamera(dt,rig){
   if(!third||player.mode!=='walk')return;
   const yaw=rig.yaw,pitch=rig.pitch;
-  const locomotion=camera.position.clone().sub(player.pos);locomotion.y-=height;
-  const target=new T.Vector3(player.pos.x,player.pos.y+1.02,player.pos.z).addScaledVector(locomotion,.35);
+  // Retarget the schoolyard head-follow camera onto the actual animated head.
+  // The avatar is only an aim target: collision, camera recoil and the existing
+  // camera boom remain authoritative. Never move the player to fit the camera.
+  actor.group.updateMatrixWorld(true);
+  const head=actor.B.head.getWorldPosition(new T.Vector3());
+  const bodyTarget=new T.Vector3(player.pos.x,player.pos.y+1.02,player.pos.z);
+  const headTarget=new T.Vector3(head.x,Math.max(player.pos.y+.82,Math.min(player.pos.y+1.76,head.y)),head.z);
+  const desiredTarget=bodyTarget.lerp(headTarget,.36);
+  if(!thirdAim)thirdAim=desiredTarget.clone();
+  else thirdAim.lerp(desiredTarget,1-Math.exp(-dt*25));
+  const target=thirdAim;
   const direction=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
   const desired=3.1,margin=.22;
   let room=desired;
