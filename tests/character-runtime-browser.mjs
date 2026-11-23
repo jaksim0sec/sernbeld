@@ -96,7 +96,7 @@ try{
    });
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
-   assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>30000),'NPCs must use actual studio body/face');
+   assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>20000&&n.vertices<120000),'NPCs must use optimized studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
    assert(stats.bladeRise>.3,'The sword points into the wrist instead of away from the grip: '+stats.bladeRise);
    assert.deepEqual(stats.rootPosition,stats.playerPosition,'Player body is not attached to the physics actor');
