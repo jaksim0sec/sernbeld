@@ -5,7 +5,7 @@ import {createStudioGeometry,controls} from '../src/entities/character/studio-ge
 import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter,resolveNpcAppearance} from '../src/entities/character/appearance.js';
 import {calculateFemalePose} from '../src/entities/character/female-base.js';
-import {animatePlayer,solveArm} from '../src/entities/character/avatar-motion.js';
+import {animatePlayer,solveArm,gripFrame} from '../src/entities/character/avatar-motion.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
@@ -31,6 +31,23 @@ for(const body of ['male','female']){
  actor.setFirst(true);
  assert(g.index.count>0&&g.index.count<count*.8,'First-person mode must cull hidden body triangles');
  actor.setFirst(false);assert.equal(g.index.count,count,'Third-person mode must restore full body geometry');
+ // Grip regression: the rod axis belongs inside the curled fingers, NOT
+ // beyond the knuckle line. Both hands must agree with the mirrored rig.
+ for(const side of ['right','left']){
+  const hand=actor.data.hands.find(h=>h.id==='hand_'+side),g=gripFrame(T,actor,side);
+  const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(1/1428);
+  const wrist=pivot('hand_'+side),middle=pivot('middle_'+side+'_0');
+  const forward=middle.clone().sub(wrist).normalize();
+  const knuckle=pivot('index_'+side+'_0').add(middle).add(pivot('ring_'+side+'_0')).multiplyScalar(1/3).sub(wrist);
+  const along=g.grip.dot(forward)-knuckle.dot(forward);
+  assert(along<=1e-6,'Weapon grip centre is beyond the finger bases ('+side+'): '+along);
+  actor.grip(side,1);
+  for(const f of hand.fingers)for(const id of f.joints){
+   const bone=actor.data.bones.find(b=>b.id===id),limit=bone.axes[0].max*Math.PI/180;
+   const actual=actor.B[id].quaternion.angleTo(new T.Quaternion());
+   assert(actual<=limit+1e-5,'Weapon grip overextends '+id+': '+actual+' > '+limit);
+  }
+ }
  const angles={head:[22,12],upper_arm_right:[65,20],forearm_right:[82,20],thigh_left:[20,0]};
  actor.pose(angles);actor.group.updateMatrixWorld(true);actor.skeleton.update();
  const transforms=calculateFemalePose(actor.data.bones,angles),pos=g.attributes.position,skin=g.attributes.skinIndex,weights=g.attributes.skinWeight;
