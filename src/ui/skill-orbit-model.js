@@ -70,7 +70,7 @@ export function makeOrbitGradient(actions,capacity=MAX_SKILL_ACTIONS) {
     const fraction=offset-Math.floor(offset);
     const smooth=fraction*fraction*(3-2*fraction);
     const share=values[index]*(1-smooth)+values[next]*smooth;
-    const alpha=(0.12+0.77*Math.sqrt(share/100)).toFixed(3);
+    const alpha=(0.15+0.40*Math.sqrt(share/100)).toFixed(3);
     stops.push('rgba(113,238,238,'+alpha+') '+(i/count*100).toFixed(3)+'%');
   }
   return 'conic-gradient('+stops.join(',')+')';
