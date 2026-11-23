@@ -290,7 +290,7 @@ const featureObjects=faceDocument.meshes.flatMap((mesh,meshIndex)=>mesh.extras.e
   skins:['head'],gpu:null};
 }));
 const referenceFace=source.bodies.female.face;
-featureObjects.push(...makeReferenceEyes(unpack(referenceFace.positions,Float32Array),unpack(referenceFace.triangles,Uint16Array)));
+featureObjects.push(...makeReferenceEyes(unpack(referenceFace.positions,Float32Array),unpack(referenceFace.triangles,Uint16Array),featureObjects));
 function visible(object){
  const e=object.extra;
  if(e.feature==='nose'||e.feature==='ear')return true;
