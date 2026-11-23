@@ -46,12 +46,18 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  anchors=null;thirdAim=null;weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;thirdAim=null;headCut=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
- function setThird(value){third=Boolean(value);thirdAim=null;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
  let anchors=null,thirdAim=null;
+ // Head-follow is a camera offset, never a player-world transform. This keeps
+ // the existing step-up, stairs, camera wall avoidance and attack recoil.
+ const headMotion=new T.Vector3(),headTarget=new T.Vector3(),headPivot=new T.Vector3(),headEye=new T.Vector3(),neutralEye=new T.Vector3();
+ const yawQ=new T.Quaternion(),headQ=new T.Quaternion(),localHeadQ=new T.Quaternion();
+ const eyeBasis=new T.Vector3(0,.065,.038),tmpUp=new T.Vector3();
+ let headCut=null,headRoll=0;
  function bodyAnchors(){
   if(anchors)return anchors;
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
@@ -68,11 +74,46 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   animatePlayer(actor,dt,t,player,pose,Save.data.equip,{first:firstPerson,runSpeed});
   const {chest,eye}=bodyAnchors();
   if(firstPerson){
-   // Camera-locked arms: the real skinned body follows the view, only the arms render.
+   // First evaluate the skeleton in world/player space, BEFORE camera-locking the
+   // first-person arms. Otherwise the head follows the camera and cannot drive it.
+   actor.group.position.copy(player.pos);
+   yawQ.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
+   actor.group.quaternion.copy(yawQ);
+   actor.group.updateMatrixWorld(true);
+   actor.B.head.getWorldPosition(headTarget);
+   actor.B.head.getWorldQuaternion(headQ);
+   const headData=actor.data.bones.find(b=>b.id==='head');
+   headPivot.fromArray(headData.pivot).multiplyScalar(actor.units/1428).add(actor.model.position).applyMatrix4(actor.group.matrixWorld);
+   // Imported schoolyard eye-frame model: eye is offset from the animated head
+   // in head-local coordinates, not glued to the weapon or pelvis.
+   headEye.copy(eyeBasis).applyQuaternion(headQ);
+   neutralEye.copy(eyeBasis).applyQuaternion(yawQ);
+   headTarget.sub(headPivot).add(headEye).sub(neutralEye);
+   headTarget.clampLength(0,.22);
+   const changed=headCut!==player.teleportId||lastMode!==player.mode;
+   headCut=player.teleportId;
+   if(changed)headMotion.copy(headTarget);
+   else headMotion.lerp(headTarget,1-Math.exp(-dt*45));
+   // Keep collision-aware base camera and its attack recoil. Apply only the
+   // skeleton-relative head offset, clipped by the same world-ray provider.
+   const displacement=headMotion.clone().multiplyScalar(.86);
+   const distance=displacement.length();
+   if(distance>1e-6){
+    const dir=displacement.divideScalar(distance);
+    const safe=worldRay?Math.max(0,Math.min(distance,worldRay(camera.position,dir,distance+.07)-.07)):distance;
+    camera.position.addScaledVector(dir,safe);
+   }
+   localHeadQ.copy(yawQ).invert().multiply(headQ);
+   tmpUp.set(0,1,0).applyQuaternion(localHeadQ);
+   const roll=clamp01(Math.abs(Math.atan2(tmpUp.x,tmpUp.y))/.2)*Math.sign(Math.atan2(tmpUp.x,tmpUp.y))*.028;
+   headRoll+=(roll-headRoll)*(1-Math.exp(-dt*28));
+   camera.rotation.z+=headRoll;
+   // Camera-locked arms: the skinned model follows the final, head-aware view.
    camera.updateMatrixWorld(true);
    actor.group.quaternion.copy(camera.quaternion).multiply(flipY);
    actor.group.position.copy(camera.position).sub(eye.clone().applyQuaternion(actor.group.quaternion));
   }else{
+   headCut=null;headRoll=0;
    actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
   }
   actor.group.updateMatrixWorld(true);
