@@ -2967,23 +2967,47 @@ var Player = class {
       p.z += dz;
       return;
     }
-    let moved = false;
-    if (dx && !this.blocked(p.x + dx, p.z)) {
-      p.x += dx;
-      moved = true;
+    // Slide along obstacle normals, never by splitting a diagonal into X and Z.
+    const ex = p.x + dx, ez = p.z + dz;
+    let nx = 0, nz = 0, nearest = Infinity;
+    for (const o of query(ex, ez, PLAYER.radius + 1)) {
+      if (o.top <= p.y + 0.025 || o.bot >= p.y + PLAYER.body - 0.025) continue;
+      if (o.walk && o.top <= p.y + PLAYER.step + 0.025) continue;
+      let ax, az, dist;
+      if (o.type === "cyl") {
+        const vx = ex - o.x, vz = ez - o.z, d = Math.hypot(vx, vz);
+        if (d >= o.r + PLAYER.radius || d < 1e-6) continue;
+        dist = Math.abs(d - o.r);
+        ax = vx / d; az = vz / d;
+      } else {
+        const [lx, lz] = local(o, ex, ez);
+        const cx = clamp2(lx, -o.hx, o.hx), cz = clamp2(lz, -o.hz, o.hz);
+        let vx = lx - cx, vz = lz - cz, d = Math.hypot(vx, vz);
+        if (d >= PLAYER.radius) continue;
+        if (d < 1e-6) {
+          const fx = o.hx - Math.abs(lx), fz = o.hz - Math.abs(lz);
+          if (fx < fz) { vx = Math.sign(lx || 1); vz = 0; dist = fx; }
+          else { vx = 0; vz = Math.sign(lz || 1); dist = fz; }
+        } else { vx /= d; vz /= d; dist = d; }
+        ax = vx * o.cos + vz * o.sin;
+        az = -vx * o.sin + vz * o.cos;
+      }
+      if (dist < nearest) { nearest = dist; nx = ax; nz = az; }
     }
-    if (dz && !this.blocked(p.x, p.z + dz)) {
-      p.z += dz;
-      moved = true;
+    if (nearest === Infinity) {
+      const e = 0.5, gx = sample(ex + e, ez) - sample(ex - e, ez);
+      const gz = sample(ex, ez + e) - sample(ex, ez - e);
+      const g = Math.hypot(gx, gz);
+      if (g < 1e-5) return;
+      nx = gx / g; nz = gz / g;
     }
-    if (moved) return;
-    const ex = p.x + dx, ez = p.z + dz, e = 1;
-    const gx = sample(ex + e, ez) - sample(ex - e, ez), gz = sample(ex, ez + e) - sample(ex, ez - e), gl = Math.hypot(gx, gz);
-    if (gl > 1e-3) {
-      const tx = -gz / gl, tz = gx / gl, k = dx * tx + dz * tz;
-      if (Math.abs(k) > 1e-4 && !this.blocked(p.x + tx * k, p.z + tz * k)) {
-        p.x += tx * k;
-        p.z += tz * k;
+    const tx = -nz, tz = nx, along = dx * tx + dz * tz;
+    if (Math.abs(along) < 1e-6) return;
+    for (const factor of [1, 0.5, 0.25]) {
+      const sx = tx * along * factor, sz = tz * along * factor;
+      if (!this.blocked(p.x + sx, p.z + sz)) {
+        p.x += sx; p.z += sz;
+        return;
       }
     }
   }
