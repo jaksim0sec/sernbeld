@@ -41,6 +41,19 @@ for(const body of ['male','female']){
   const knuckle=pivot('index_'+side+'_0').add(middle).add(pivot('ring_'+side+'_0')).multiplyScalar(1/3).sub(wrist);
   const along=g.grip.dot(forward)-knuckle.dot(forward);
   assert(along<=1e-6,'Weapon grip centre is beyond the finger bases ('+side+'): '+along);
+  // The thumb must oppose the shaft instead of flexing away from it.
+  // Measured on the original 47-bone rig: the old thumb_2 gap was ~28 mm
+  // from the shaft axis even after the longitudinal grip correction.
+  actor.pose({});actor.grip(side,.82,true);actor.group.updateMatrixWorld(true);
+  const gripOrigin=actor.B['hand_'+side].localToWorld(g.grip.clone());
+  const bladeAxis=new T.Vector3(0,0,1).applyQuaternion(g.frame);
+  const gripEnd=actor.B['hand_'+side].localToWorld(g.grip.clone().add(bladeAxis));
+  const worldAxis=gripEnd.sub(gripOrigin).normalize();
+  const thumbTipJoint=actor.B['thumb_'+side+'_2'].getWorldPosition(new T.Vector3());
+  const thumbDistance=thumbTipJoint.sub(gripOrigin).cross(worldAxis).length();
+  assert(thumbDistance>.011&&thumbDistance<.026,
+   'Thumb does not oppose weapon shaft ('+side+'): '+thumbDistance);
+  actor.pose({});
   actor.grip(side,1);
   for(const f of hand.fingers)for(const id of f.joints){
    const bone=actor.data.bones.find(b=>b.id===id),limit=bone.axes[0].max*Math.PI/180;
