@@ -10,6 +10,29 @@ import {createCharacterRuntime} from '../src/entities/character/studio-integrati
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+for(const body of ['male','female']){
+ const baseProfile=normalizeStudioCharacter({body,iris:'#9e71a4'});
+ const originalFace=Buffer.from(factory.build(baseProfile).body.worldPositions.buffer).slice();
+ const heights={};
+ for(const name of ['basic','slit','half','round','droop','sharp','flat','smile']){
+  const eye='reference-'+name,profile=normalizeStudioCharacter({...baseProfile,eye});
+  assert.equal(profile.eye,eye,'Reference eye ID must survive profile normalization');
+  const {body:mesh,features}=factory.build(profile);
+  assert.deepEqual(Buffer.from(mesh.worldPositions.buffer),originalFace,'An eye preset changed the base face');
+  const eyes=features.filter(f=>f.extra.eyeStyle===eye);
+  const iris=eyes.find(f=>f.extra.iris);
+  if(name==='smile')assert(!iris,'Smiling closed eyes have no iris');
+  else {
+   assert(iris?.indices.length>0,'Open eyes must have an iris');
+   const sclera=eyes.find(f=>f.extra.eyeLayer==='sclera');
+   const ys=sclera.base.filter((_,i)=>i%3===1);
+   heights[name]=Math.max(...ys)-Math.min(...ys);
+  }
+  assert(eyes.some(f=>f.extra.eyeLayer==='lid'),'Every reference eye needs an upper lid');
+  assert(eyes.every(f=>f.positions.every(Number.isFinite)),'Eye surface projection must be finite');
+ }
+ assert(heights.slit<heights.half&&heights.half<heights.basic&&heights.basic<heights.round);
+}
 {
  const player={mode:'walk',pos:new T.Vector3(),vel:new T.Vector3(),yaw:0,pitch:0,onGround:true,teleportId:1};
  globalThis.document={createElement:()=>({style:{},addEventListener(){},querySelector:()=>({})}),body:{append(){}}};

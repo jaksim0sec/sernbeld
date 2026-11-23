@@ -34,6 +34,7 @@
 
 <script type="module">
 import {loadStudioSource} from "./studio-source.js";
+import {REFERENCE_EYES,makeReferenceEyes} from "./reference-eyes.js";
 const studioSource=await loadStudioSource();
 "use strict";
 const groups = {
@@ -277,7 +278,7 @@ const source=studioSource;
 const HEIGHT=1428,UNIT=32*HEIGHT;
 const identity=[1,0,0,0,1,0,0,0,1],origin=[0,0,0];
 const names={
- eye:{neutral:'기본',wide:'또렷한 눈',narrow:'가느다란 눈',round:'둥근 눈',almond:'아몬드형',sleepy:'반쯤 감은 눈',sharp:'날카로운 눈',droop:'처진 눈',closed:'감은 눈',smiling:'실눈 · 상하반전'},
+ eye:{...REFERENCE_EYES,neutral:'기본',wide:'또렷한 눈',narrow:'가느다란 눈',round:'둥근 눈',almond:'아몬드형',sleepy:'반쯤 감은 눈',sharp:'날카로운 눈',droop:'처진 눈',closed:'감은 눈',smiling:'실눈 · 상하반전'},
  brow:{soft:'완만한 눈썹',straight:'일자 눈썹',angled:'각진 눈썹',thick:'굵은 눈썹',thin:'가는 눈썹',worried:'처진 눈썹',raised:'둥근 아치',short:'짧은 눈썹'},
  mouth:{closed:'다문 입',smile:'미소',parted:'살짝 벌림',frown:'시무룩한 입',smirk:'한쪽 미소',cat:'고양이 입',small:'작은 입',surprised:'놀란 입',grin:'활짝 웃는 입'}
 };
@@ -385,6 +386,8 @@ const featureObjects=faceDocument.meshes.filter(m=>m.extras.eyeStyle!=='common')
   jointIds:new Uint8Array(base.length/3*4),weights:Uint8Array.from({length:base.length/3*4},(_,i)=>i%4===0?255:0),
   skins:['head'],gpu:null};
 }));
+const referenceFace=source.bodies.female.face;
+featureObjects.push(...makeReferenceEyes(unpack(referenceFace.positions,Float32Array),unpack(referenceFace.triangles,Uint16Array)));
 function visible(object){
  const e=object.extra;
  if(e.feature==='nose'||e.feature==='ear')return true;
@@ -413,6 +416,10 @@ function matrices(){const body=getBody();return worldTransforms(body.data,poseFo
 function tintIris(object){
  if(!object.baseColors)return null;
  const colors=object.baseColors.slice(),target=linear(state.iris);
+ if(object.extra.referenceIris){
+  for(let i=0;i<colors.length;i++)colors[i]*=target[i%3];
+  return colors;
+ }
  for(let i=0;i<colors.length;i+=3){
   const r=colors[i],g=colors[i+1],b=colors[i+2],mask=ramp(.019,.11,r-g)*ramp(.028,.13,b-g),value=Math.max(r,g,b);
   for(let axis=0;axis<3;axis++)colors[i+axis]=colors[i+axis]*(1-mask)+Math.min(1,target[axis]*value/.37)*mask;
@@ -425,7 +432,7 @@ function updateGeometry(){
  for(let i=0;i<body.position.length;i++){body.worldPositions[i]=body.position[i]/UNIT;body.normals[i]=body.packedNormals[i]/127;}
  const scale=faceScale(body.data),offset=faceOffset(body.data);
  for(const object of featureObjects){
-  displace(object.base,object.edited,object.fields,state.values,editor.strength);
+  displace(object.base,object.edited,object.fields??=buildFields(object.base,anchors),state.values,editor.strength);
   if(state.values.some(Boolean))normalsFor(object.edited,object.indices,object.localNormals);
   else object.localNormals.set(object.baseNormals);
   // Keep the large circular lenses truly round for both body presets.
@@ -679,9 +686,9 @@ function panelHeading(title){
  if(['face','eye','mouth'].includes(tab))header.append(button('부위 편집',()=>{setFocus(true);rotateMode=false;renderPanel();schedule();}));
  $('panel').append(header);
 }
-function selectionCards(kind){
+function selectionCards(kind,options=names[kind]){
  const grid=document.createElement('div');grid.className='cards';
- for(const [id,label] of Object.entries(names[kind])){
+ for(const [id,label] of Object.entries(options)){
   const card=button('',()=>setStyle(kind,id),state[kind]===id);card.className='card';
   card.setAttribute('aria-label',label);card.dataset.style=kind+':'+id;
   const preview=document.createElement('canvas');preview.setAttribute('aria-hidden','true');
@@ -798,6 +805,10 @@ function renderPanel(){
   }
   $('panel').append(presets);
   const hint=document.createElement('p');hint.className='hint';hint.textContent='얼굴을 확대하고 점을 드래그해. 아래 패드로도 선택한 부위를 조절할 수 있어.';$('panel').append(hint);
+ }else if(tab==='eye'){
+  selectionCards('eye',REFERENCE_EYES);
+  const heading=document.createElement('h3');heading.className='color-heading';heading.textContent='기존 눈매';$('panel').append(heading);
+  selectionCards('eye',Object.fromEntries(Object.entries(names.eye).filter(([id])=>!Object.hasOwn(REFERENCE_EYES,id))));
  }else selectionCards(tab);
  if(['face','eye','mouth'].includes(tab)){partButtons();editPad();}
 }

@@ -7,7 +7,7 @@
   let revisionCheckInFlight = false;
   let lastCheck = 0;
   const REVISION_FILES = ['./src/entities/character/appearance.js','./src/entities/character/avatar-motion.js','./src/entities/character/studio-geometry.js','./src/entities/character/studio-model.js','./src/entities/character/studio-source.js','./src/entities/character/studio-integration.js','./src/entities/character/studio.html','./index.html','./game.js','./src/core/game-events.js',
-    './src/core/entity-registry.js','./src/core/inventory.js',
+    './src/core/entity-registry.js','./src/core/inventory.js','./src/entities/character/reference-eyes.js',
     './src/core/region-lifecycle.js','./styles/tokens.css',
     './styles/hud.css','./styles/menus-and-overlays.css','./styles/responsive.css',
     './styles/world-map.css','./assets/ui-icons.svg'];

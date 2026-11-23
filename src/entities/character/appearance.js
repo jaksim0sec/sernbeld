@@ -1,3 +1,5 @@
+import { REFERENCE_EYES } from './reference-eyes.js';
+
 // Stable character appearance contracts shared by the studio import and NPC runtime.
 // Do not infer a character's gender from their occupation: assigned cast metadata wins.
 export const FACE_KEYS = Object.freeze([
@@ -11,7 +13,7 @@ export const PALETTES = Object.freeze({
  ivory:[0.969,0.856,0.762],warm:[0.944,0.774,0.641],
  tan:[0.752,0.571,0.441],deep:[0.608,0.442,0.355]
 });
-const EYES=['neutral','wide','narrow','round','almond','sleepy','sharp','droop','closed','smiling'];
+const EYES=['neutral','wide','narrow','round','almond','sleepy','sharp','droop','closed','smiling',...Object.keys(REFERENCE_EYES)];
 const BROWS=['soft','straight','angled','thick','thin','worried','raised','short'];
 const MOUTHS=['closed','smile','parted','frown','smirk','cat','small','surprised','grin'];
 const GLASSES=['none','round','square','biground'];

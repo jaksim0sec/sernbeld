@@ -1,3 +1,5 @@
+import { makeReferenceEyes } from './reference-eyes.js';
+
 // Extracted from the supplied neck-seam-fixed Character Studio. Geometry and morph limits are unchanged.
 const groups = {
   head:'두상 · 이마 · 관자', eye:'눈자리 · 눈썹뼈', cheek:'광대 · 볼',
@@ -287,6 +289,8 @@ const featureObjects=faceDocument.meshes.flatMap((mesh,meshIndex)=>mesh.extras.e
   jointIds:new Uint8Array(base.length/3*4),weights:Uint8Array.from({length:base.length/3*4},(_,i)=>i%4===0?255:0),
   skins:['head'],gpu:null};
 }));
+const referenceFace=source.bodies.female.face;
+featureObjects.push(...makeReferenceEyes(unpack(referenceFace.positions,Float32Array),unpack(referenceFace.triangles,Uint16Array)));
 function visible(object){
  const e=object.extra;
  if(e.feature==='nose'||e.feature==='ear')return true;
@@ -311,6 +315,10 @@ function getBody(){
 function tintIris(object){
  if(!object.baseColors)return null;
  const colors=object.baseColors.slice(),target=linear(state.iris);
+ if(object.extra.referenceIris){
+  for(let i=0;i<colors.length;i++)colors[i]*=target[i%3];
+  return colors;
+ }
  for(let i=0;i<colors.length;i+=3){
   const r=colors[i],g=colors[i+1],b=colors[i+2],mask=ramp(.019,.11,r-g)*ramp(.028,.13,b-g),value=Math.max(r,g,b);
   for(let axis=0;axis<3;axis++)colors[i+axis]=colors[i+axis]*(1-mask)+Math.min(1,target[axis]*value/.37)*mask;
