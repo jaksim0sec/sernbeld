@@ -9,8 +9,9 @@ const DEFAULT_CONFIG = {
 // The workbench is a sandbox for timings, including settings beyond the player's current mastery.
 const PREVIEW_ACTOR = {stamina: 100, mana: 0, maxMana: 0, physicalControl: 2, magicControl: 0};
 
-function drawSeal(svg, plan) {
-  const point = (r, a) => [180 + r * Math.cos(a), 180 + r * Math.sin(a)];
+const point = (r, a) => [180 + r * Math.cos(a), 180 + r * Math.sin(a)];
+
+function createSeal(svg) {
   const ticks = Array.from({length: 48}, (_, i) => {
     const angle = i * Math.PI / 24;
     return `<path d="M${point(i % 4 === 0 ? 153 : 157, angle)}L${point(163, angle)}"/>`;
@@ -19,30 +20,36 @@ function drawSeal(svg, plan) {
     const start = i * Math.PI / 2 - Math.PI / 2 + .1;
     return `<path d="M${point(171, start)}A171 171 0 0 1 ${point(171, start + 1.37)}"/>`;
   }).join('');
-  const nodes = plan?.steps.map(({at}) => point(110, -Math.PI / 2 + at / 1.7 * (Math.PI * 1.62))) ?? [];
-  const links = nodes.map((p, i) => {
-    const from = nodes[i - 1] ?? [180, 180];
-    const [x, y] = p;
-    return `<path class="skill-link" data-step="${i}" d="M${from} L${p}"/>
-      <g class="skill-node" data-step="${i}" transform="translate(${x} ${y})">
-        <path d="M0 -14 14 0 0 14 -14 0Z"/><text y="1">${i + 1}</text>
-      </g>`;
-  }).join('');
   svg.innerHTML = `<g class="skill-ring"><circle cx="180" cy="180" r="166"/>
     <circle cx="180" cy="180" r="149"/><circle cx="180" cy="180" r="110"/>
     <circle cx="180" cy="180" r="51"/>${ticks}${arcs}
     <path d="M180 34 326 180 180 326 34 180Z"/>
     <path d="M180 70 275 235 85 235Z M180 290 85 125 275 125Z"/>
-  </g>${links}`;
+  </g><g class="skill-timeline"></g>`;
+  return svg.lastElementChild;
+}
+
+function drawTimeline(timeline, plan) {
+  const nodes = plan?.steps.map(({at}) => point(113, -Math.PI + at / 1.7 * Math.PI)) ?? [];
+  const links = nodes.map((p, i) => {
+    const from = nodes[i - 1] ?? [180, 180];
+    const [x, y] = p;
+    return `<path class="skill-link" pathLength="1" data-step="${i}" d="M${from} L${p}"/>
+      <g class="skill-node" data-step="${i}" transform="translate(${x} ${y})">
+        <path d="M0 -14 14 0 0 14 -14 0Z"/><circle r="3"/>
+      </g>`;
+  }).join('');
+  timeline.innerHTML = links;
 }
 
 export function createSkillWorkbench({library, canOpen, enter, leave}) {
   const byId = id => document.getElementById(id);
   const panel = byId('skillWorkbench'), toolbar = byId('skillsBtn'), satellite = byId('skillSatellite');
-  const core = byId('skillCore'), inspector = byId('skillInspector'), diagram = byId('skillDiagram');
-  const insert = byId('skillAddThrust'), options = byId('skillOptions');
-  const speed = byId('skillSpeed'), repeat = byId('skillRepeat'), status = byId('skillStatus');
+  const core = byId('skillCore'), diagram = byId('skillDiagram');
+  const options = byId('skillOptions'), status = byId('skillStatus');
   const preview = byId('skillPreview'), save = byId('skillSave'), close = byId('skillClose');
+  const timeline = createSeal(diagram);
+  const choices = options.querySelectorAll('[data-speed], [data-repeat]');
   let config = null, plan = null, opener = null, frame = 0;
   const runner = createSkillRunner({
     spend: () => true,
@@ -52,6 +59,7 @@ export function createSkillWorkbench({library, canOpen, enter, leave}) {
     },
     onComplete: () => {
       preview.disabled = false;
+      preview.classList.remove('playing');
       status.value = `시험 완료 · ${plan.steps.length}회 · ${plan.duration.toFixed(2)}초`;
     }
   });
@@ -59,28 +67,27 @@ export function createSkillWorkbench({library, canOpen, enter, leave}) {
   function cancelPreview() {
     runner.cancel();
     cancelAnimationFrame(frame);
-    diagram.querySelectorAll('.fired').forEach(element => element.classList.remove('fired'));
+    preview.classList.remove('playing');
+    timeline.querySelectorAll('.fired').forEach(element => element.classList.remove('fired'));
   }
 
   function render() {
     cancelPreview();
     plan = config ? compileSkill(config, PREVIEW_ACTOR) : null;
-    drawSeal(diagram, plan);
-    core.firstElementChild.textContent = config ? '◇' : '+';
-    core.lastElementChild.textContent = config ? '찌르기' : '행동 추가';
-    insert.hidden = Boolean(config);
+    drawTimeline(timeline, plan);
+    core.firstElementChild.hidden = Boolean(config);
+    core.lastElementChild.hidden = !config;
+    core.setAttribute('aria-label', config ? '찌르기' : '찌르기 추가');
+    core.setAttribute('aria-disabled', String(Boolean(config)));
     options.hidden = !config;
-    preview.disabled = save.disabled = !plan;
-    status.value = plan ? `${plan.duration.toFixed(2)}초 · 기력 ${plan.cost.stamina}` : '중앙에서 행동을 추가해';
-    if (config) {
-      speed.value = String(config.speed);
-      repeat.value = String(config.repeat);
+    preview.disabled = !plan;
+    save.classList.remove('saved', 'save-error');
+    status.value = plan ? `${plan.duration.toFixed(2)}초 · 기력 ${plan.cost.stamina}` : '';
+    if (!config) return;
+    for (const choice of choices) {
+      const field = 'speed' in choice.dataset ? 'speed' : 'repeat';
+      choice.setAttribute('aria-pressed', String(Number(choice.dataset[field]) === config[field]));
     }
-  }
-
-  function setInspector(open) {
-    inspector.hidden = !open;
-    core.setAttribute('aria-expanded', String(open));
   }
 
   function updateSatellite() {
@@ -98,9 +105,8 @@ export function createSkillWorkbench({library, canOpen, enter, leave}) {
     enter();
     panel.hidden = false;
     document.body.classList.add('skill-editing');
-    setInspector(false);
     render();
-    close.focus({preventScroll: true});
+    (config ? preview : core).focus({preventScroll: true});
   }
 
   function dismiss() {
@@ -117,28 +123,32 @@ export function createSkillWorkbench({library, canOpen, enter, leave}) {
   toolbar.addEventListener('click', open);
   satellite.addEventListener('click', open);
   close.addEventListener('click', dismiss);
-  core.addEventListener('click', () => setInspector(inspector.hidden));
-  diagram.parentElement.addEventListener('click', event => {
-    if (!event.target.closest('button')) setInspector(false);
-  });
-  insert.addEventListener('click', () => {
+  core.addEventListener('click', () => {
+    if (config) return;
     config = {...DEFAULT_CONFIG};
     render();
-    speed.focus();
+    options.querySelector('[data-speed="1"]').focus({preventScroll: true});
   });
-  for (const select of [speed, repeat]) {
-    select.addEventListener('change', () => {
-      config = {...config, speed: Number(speed.value), repeat: Number(repeat.value)};
+  for (const choice of choices) {
+    choice.addEventListener('click', () => {
+      if (!config) return;
+      const field = 'speed' in choice.dataset ? 'speed' : 'repeat';
+      const value = Number(choice.dataset[field]);
+      if (config[field] === value) return;
+      config = {...config, [field]: value};
       render();
     });
   }
   save.addEventListener('click', () => {
     if (!config) return;
+    save.classList.remove('saved', 'save-error');
     try {
       library.put({id: DRAFT_ID, name: '찌르기', discipline: 'physical', version: 1, config});
       updateSatellite();
+      save.classList.add('saved');
       status.value = '찌르기를 저장했어';
     } catch {
+      save.classList.add('save-error');
       status.value = '기술을 저장할 수 없어';
     }
   });
@@ -147,6 +157,7 @@ export function createSkillWorkbench({library, canOpen, enter, leave}) {
     cancelPreview();
     runner.start(plan);
     preview.disabled = true;
+    preview.classList.add('playing');
     status.value = '시험 시작';
     let previous = performance.now();
     const advance = now => {

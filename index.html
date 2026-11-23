@@ -84,27 +84,30 @@
 <button type="button" class="jump pill" id="jump" hidden aria-label="점프"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-10"></use></svg></button>
 <button type="button" class="atk pill" id="atk" hidden aria-label="공격"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-11"></use></svg></button>
 <button type="button" class="skill-satellite" id="skillSatellite" aria-controls="skillWorkbench" aria-haspopup="dialog" aria-label="기술 만들기" hidden>+</button>
-<section id="skillWorkbench" class="skill-workbench" role="dialog" aria-labelledby="skillTitle" hidden>
-  <header class="skill-toolbar">
-    <h2 id="skillTitle">기술 조립</h2>
-    <button type="button" id="skillClose" aria-label="기술창 닫기">×</button>
-  </header>
+<section id="skillWorkbench" class="skill-workbench" role="dialog" aria-label="기술 조립" hidden>
   <div class="skill-diagram">
     <svg id="skillDiagram" class="skill-diagram-art" viewBox="0 0 360 360" aria-hidden="true"></svg>
-    <button type="button" id="skillCore" class="skill-core" aria-expanded="false" aria-controls="skillInspector"><strong>+</strong><small>행동 추가</small></button>
-  </div>
-  <section id="skillInspector" class="skill-inspector" aria-label="행동 설정" hidden>
-    <button type="button" id="skillAddThrust">찌르기 추가</button>
+    <button type="button" id="skillCore" class="skill-control skill-core" aria-label="찌르기 추가">
+      <span class="skill-plus" aria-hidden="true">+</span>
+      <span class="skill-blade" aria-hidden="true" hidden></span>
+    </button>
     <div id="skillOptions" class="skill-options" hidden>
-      <label>속도 <select id="skillSpeed"><option value="0.75">0.75배</option><option value="1" selected>1배</option><option value="1.25">1.25배</option></select></label>
-      <label>반복 <select id="skillRepeat"><option value="1">1회</option><option value="2">2회</option><option value="3">3회</option></select></label>
+      <div class="skill-choices skill-speeds" role="group" aria-label="속도">
+        <button type="button" class="skill-control skill-speed" data-speed="0.75" aria-label="속도 0.75배" aria-pressed="false"><i></i></button>
+        <button type="button" class="skill-control skill-speed" data-speed="1" aria-label="속도 1배" aria-pressed="true"><i></i><i></i></button>
+        <button type="button" class="skill-control skill-speed" data-speed="1.25" aria-label="속도 1.25배" aria-pressed="false"><i></i><i></i><i></i></button>
+      </div>
+      <div class="skill-choices skill-repeats" role="group" aria-label="반복 횟수">
+        <button type="button" class="skill-control skill-repeat" data-repeat="1" aria-label="1회 반복" aria-pressed="true"><i></i></button>
+        <button type="button" class="skill-control skill-repeat" data-repeat="2" aria-label="2회 반복" aria-pressed="false"><i></i><i></i></button>
+        <button type="button" class="skill-control skill-repeat" data-repeat="3" aria-label="3회 반복" aria-pressed="false"><i></i><i></i><i></i></button>
+      </div>
+      <button type="button" id="skillPreview" class="skill-control skill-preview" aria-label="기술 시험"><span class="skill-play" aria-hidden="true"></span></button>
+      <button type="button" id="skillSave" class="skill-control skill-save" aria-label="기술 저장"><span class="skill-bookmark" aria-hidden="true"></span></button>
     </div>
-  </section>
-  <footer class="skill-toolbar skill-footer">
-    <output id="skillStatus" role="status"></output>
-    <button type="button" id="skillPreview" disabled>시험</button>
-    <button type="button" id="skillSave" disabled>저장</button>
-  </footer>
+  </div>
+  <button type="button" id="skillClose" class="skill-control skill-close" aria-label="기술창 닫기"><span aria-hidden="true">×</span></button>
+  <output id="skillStatus" class="skill-status" role="status"></output>
 </section>
 <div class="hud-vitals" aria-label="플레이어 상태"><span class="hud-vitals-kicker">체력</span><div class="hp" id="hp" aria-label="체력"></div></div>
 <div class="vignette" id="vig"></div>
