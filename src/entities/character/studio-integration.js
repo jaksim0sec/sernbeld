@@ -63,7 +63,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(anchors)return anchors;
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
   const chest=pivot('upper_arm_left').add(pivot('upper_arm_right')).multiplyScalar(.5);
-  return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06))};
+  return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06)),headRest:pivot('head')};
  }
  const flipY=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
  const _grip=new T.Vector3(),_blade=new T.Vector3(),_inward=new T.Vector3(),_pole=new T.Vector3();
@@ -73,7 +73,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
   const pose=attackPose(combat.swing);
   animatePlayer(actor,dt,t,player,pose,Save.data.equip,{first:firstPerson,runSpeed});
-  const {chest,eye}=bodyAnchors();
+  const {chest,eye,headRest}=bodyAnchors();
   if(firstPerson){
    // First evaluate the skeleton in world/player space, BEFORE camera-locking the
    // first-person arms. Otherwise the head follows the camera and cannot drive it.
@@ -83,8 +83,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.group.updateMatrixWorld(true);
    actor.B.head.getWorldPosition(headTarget);
    actor.B.head.getWorldQuaternion(headQ);
-   const headData=actor.data.bones.find(b=>b.id==='head');
-   headPivot.fromArray(headData.pivot).multiplyScalar(actor.units/1428).add(actor.model.position).applyMatrix4(actor.group.matrixWorld);
+   headPivot.copy(headRest).applyMatrix4(actor.group.matrixWorld);
    // Imported schoolyard eye-frame model: eye is offset from the animated head
    // in head-local coordinates, not glued to the weapon or pelvis.
    headEye.copy(eyeBasis).applyQuaternion(headQ);
