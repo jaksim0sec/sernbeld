@@ -21,6 +21,25 @@ const factory=createStudioGeometry(source);
   for(const l of [0,1,2]){actor.setLOD(l);for(const i of actor.mesh.geometry.index.array)assert(i<n);}
   actor.setFirst(true);assert(actor.mesh.geometry.index.count/3<levels[0]*.6);
   console.log('PASS studio LOD',body,JSON.stringify({levels,vertices:n}));actor.dispose();
+  // Exact-profile NPCs may share vertex GPU buffers, but not geometry state,
+  // skeletons, per-actor shader uniforms, or lifetime.
+  const profile=normalizeStudioCharacter({body});
+  const a=createStudioModel(T,lodFactory,profile),b=createStudioModel(T,lodFactory,profile);
+  const changed=createStudioModel(T,lodFactory,normalizeStudioCharacter({...profile,values:profile.values.map((v,i)=>i===0?.3:v)}));
+  const ga=a.mesh.geometry,gb=b.mesh.geometry;
+  assert.notStrictEqual(ga,gb,'Each instance needs independent LOD selection');
+  assert.strictEqual(ga.attributes.position,gb.attributes.position,'Identical profiles must reuse vertex VBO');
+  assert.notStrictEqual(ga.attributes.position,changed.mesh.geometry.attributes.position,'Different face controls cannot share buffers');
+  assert.notStrictEqual(a.skeleton,b.skeleton,'Skeletons must stay independent');
+  assert.notStrictEqual(a.mesh.material,b.mesh.material,'Uniform sets must stay independent');
+  a.setLOD(2);assert.equal(a.mesh.geometry.index.count/3,levels[2]);
+  assert.equal(b.mesh.geometry.index.count/3,levels[0],'A second NPC LOD was overwritten');
+  a.pose({head:[15,0]});assert(b.B.head.quaternion.angleTo(new T.Quaternion())<1e-7,'One NPC posed another');
+  let disposed=0;for(const g of [ga,gb])g.addEventListener('dispose',()=>disposed++);
+  a.dispose();assert.equal(disposed,0,'Shared VBOs were disposed while a second NPC used them');
+  b.dispose();assert.equal(disposed,2,'Shared VBOs must be released when the final NPC is gone');
+  changed.dispose();
+  console.log('PASS shared character geometry',body);
  }
 }
 for(const body of ['male','female']){
