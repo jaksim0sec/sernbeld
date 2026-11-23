@@ -46,9 +46,9 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  anchors=null;thirdAim=null;headCut=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;thirdAim=null;headCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
- function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
+ function setThird(value){third=Boolean(value);thirdAim=null;headCut=null;lastHeadMode=null;headRoll=0;Save.data.settings.view=third?'third':'first';Save.write();lastMode=null;}
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
  let anchors=null,thirdAim=null;
@@ -57,7 +57,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  const headMotion=new T.Vector3(),headTarget=new T.Vector3(),headPivot=new T.Vector3(),headEye=new T.Vector3(),neutralEye=new T.Vector3();
  const yawQ=new T.Quaternion(),headQ=new T.Quaternion(),localHeadQ=new T.Quaternion();
  const eyeBasis=new T.Vector3(0,.065,.038),tmpUp=new T.Vector3();
- let headCut=null,headRoll=0;
+ let headCut=null,lastHeadMode=null,headRoll=0;
  function bodyAnchors(){
   if(anchors)return anchors;
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
@@ -90,7 +90,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    neutralEye.copy(eyeBasis).applyQuaternion(yawQ);
    headTarget.sub(headPivot).add(headEye).sub(neutralEye);
    headTarget.clampLength(0,.22);
-   const changed=headCut!==player.teleportId||lastMode!==player.mode;
+   const changed=headCut!==player.teleportId||lastHeadMode!==player.mode;
+   lastHeadMode=player.mode;
    headCut=player.teleportId;
    if(changed)headMotion.copy(headTarget);
    else headMotion.lerp(headTarget,1-Math.exp(-dt*45));
@@ -113,7 +114,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.group.quaternion.copy(camera.quaternion).multiply(flipY);
    actor.group.position.copy(camera.position).sub(eye.clone().applyQuaternion(actor.group.quaternion));
   }else{
-   headCut=null;headRoll=0;
+   headCut=null;lastHeadMode=null;headRoll=0;
    actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(new T.Vector3(0,1,0),player.yaw+Math.PI);
   }
   actor.group.updateMatrixWorld(true);
