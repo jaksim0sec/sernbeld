@@ -21,14 +21,25 @@ function loadDraft(saved) {
   return fresh();
 }
 function buildGeometry(svg) {
-  const arrows=Array.from({length:MAX_SKILL_ACTIONS},(_,i)=>{
-    const angle=-Math.PI/2+(i+.5)*Math.PI*2/MAX_SKILL_ACTIONS;
-    const [x,y]=point(122,angle);
-    return `<path d="M${x-2} ${y-3}l5 3-5 3" transform="rotate(${angle*180/Math.PI+90} ${x} ${y})"/>`;
+  const ticks=Array.from({length:48},(_,i)=>{
+    const angle=i*Math.PI/24;
+    return `<path d="M${point(i%4===0?153:157,angle)}L${point(163,angle)}"/>`;
   }).join('');
-  svg.innerHTML=`<g class="skill-frame-lines"><circle cx="180" cy="180" r="166"/><circle cx="180" cy="180" r="150"/><circle cx="180" cy="180" r="46"/></g>
-    <circle class="skill-orbit-guide" cx="180" cy="180" r="122"/>
-    <g class="skill-flow-arrows">${arrows}</g>`;
+  const arcs=Array.from({length:4},(_,i)=>{
+    const start=i*Math.PI/2-Math.PI/2+.1;
+    return `<path d="M${point(171,start)}A171 171 0 0 1 ${point(171,start+1.37)}"/>`;
+  }).join('');
+  svg.innerHTML=`<g class="skill-heritage-ring"><circle cx="180" cy="180" r="166"/>
+    <circle cx="180" cy="180" r="149"/><circle cx="180" cy="180" r="51"/>
+    ${ticks}${arcs}
+    <path d="M180 34 326 180 180 326 34 180Z"/>
+    <path d="M180 70 275 235 85 235Z M180 290 85 125 275 125Z"/></g>
+    <circle class="skill-orbit-guide" cx="180" cy="180" r="110"/>
+    <g class="skill-orbit-direction">${Array.from({length:MAX_SKILL_ACTIONS},(_,i)=>{
+      const a=-Math.PI/2+(i+.5)*Math.PI*2/MAX_SKILL_ACTIONS;
+      const [x,y]=point(110,a);
+      return `<path d="M${x-3} ${y-3}l6 3-6 3" transform="rotate(${a*180/Math.PI+90} ${x} ${y})"/>`;
+    }).join('')}</g>`;
 }
 function rune() {return `<svg viewBox="0 0 36 36" aria-hidden="true">${ACTION_RUNE}</svg>`;}
 
@@ -39,15 +50,17 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
   const diagram=byId('skillDiagram'), ring=byId('skillManaRing'), slots=byId('skillSlots');
   const mini=byId('skillOptions'), preview=byId('skillPreview'), save=byId('skillSave');
   const status=byId('skillStatus'),close=byId('skillClose');
-  let config=fresh(), selected=-1, opener=null, frame=0, hold=null, drag=null, dragFinishedAt=0;
+  let config=fresh(), selected=-1, opener=null, frame=0, hold=null, drag=null, dragFinishedAt=-Infinity;
   let plan=null;
   buildGeometry(diagram);
   const runner=createSkillRunner({spend:()=>true,onStep:(_,index)=>{
+    slots.querySelectorAll('.is-firing').forEach(el=>el.classList.remove('is-firing'));
     const actionIndex=plan.steps[index]?.actionIndex??0;
     const slot=config.actions[actionIndex]?.slot??0;
     slots.querySelector(`[data-slot="${slot}"]`)?.classList.add('is-firing');
     status.value=`시험 중 · ${index+1}/${plan.steps.length}회`;
   },onComplete:()=>{
+    slots.querySelectorAll('.is-firing').forEach(el=>el.classList.remove('is-firing'));
     preview.disabled=false;
     preview.classList.remove('playing');
     status.value='시험 완료';
@@ -66,7 +79,7 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
     slots.replaceChildren(...orbitSlots(config.actions).map(({index,action,empty})=>{
       const button=document.createElement('button');button.type='button';button.className='skill-slot'+(empty?' is-empty':'')+(selected===index?' is-selected':'');
       button.dataset.slot=String(index);
-      const [x,y]=point(122,-Math.PI/2+index*Math.PI*2/MAX_SKILL_ACTIONS);
+      const [x,y]=point(110,-Math.PI/2+index*Math.PI*2/MAX_SKILL_ACTIONS);
       button.style.left=`${x/360*100}%`;button.style.top=`${y/360*100}%`;
       button.setAttribute('aria-label',empty?`${index+1}번 행동 추가`:`${index+1}번 행동: 찌르기, ${action.share}%`);
       button.setAttribute('aria-pressed',String(selected===index && !empty));
