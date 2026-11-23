@@ -65,7 +65,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    for(let k=0;k<3;k++){position[v*3+k]=src.p[id*3+k];normal[v*3+k]=src.n[id*3+k];color[v*3+k]=base[k]*(src.col?.[id*3+k]??1);}
    let arm=0;
    for(let k=0;k<4;k++){const bone=palette[src.ji[id*4+k]]??0,w=src.we[id*4+k]/255;skinIndex[v*4+k]=bone;skinWeight[v*4+k]=src.we[id*4+k];if(armBone[bone])arm+=src.we[id*4+k];}
-   aArm[v]=Math.min(255,arm);aSkin[v]=src.isSkin?1:0;
+   aArm[v]=Math.min(255,arm);aSkin[v]=src.isSkin?255:0;
   }
  });
  const IndexArray=vertexCount<=65536?Uint16Array:Uint32Array;
