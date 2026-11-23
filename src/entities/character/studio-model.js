@@ -159,10 +159,13 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  }
  function grip(side,amount){
   const hand=data.hands.find(h=>h.id==='hand_'+side);
-  // The authored thumb curl leaves it sticking out past thin handles; wrap it a bit further.
+  // The old thumb multiplier bent thumb_1/2 beyond their authored joint
+  // limits (46/52 degrees). Keep the skinned fingers inside their actual rig
+  // ranges, including at full fist closure and for both mirrored hands.
   for(const f of hand.fingers)f.joints.forEach((id,i)=>{
-   const wrap=f.id.startsWith('thumb')&&i>0?1.45:1;
-   B[id].quaternion.setFromAxisAngle(axes.get(id)[0],f.flex[i]*wrap*amount*Math.PI/180);
+   const joint=data.bones.find(b=>b.id===id).axes[0];
+   const degrees=Math.max(joint.min,Math.min(joint.max,f.flex[i]*amount));
+   B[id].quaternion.setFromAxisAngle(axes.get(id)[0],degrees*Math.PI/180);
   });
  }
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
