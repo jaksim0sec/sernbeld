@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {clampArmReach} from '../src/entities/character/avatar-motion.js';
+const l1=.23,l2=.21,max=128*Math.PI/180;
+const near=clampArmReach(l1,l2,.001);
+const cos=(near*near-l1*l1-l2*l2)/(2*l1*l2);
+assert(Math.acos(Math.max(-1,Math.min(1,cos)))<=max+1e-6,'elbow overflexed');
+assert(Math.abs(clampArmReach(l1,l2,.3)-.3)<1e-6,'reachable wrist changed');
+assert(clampArmReach(l1,l2,10)<l1+l2,'wrist stretched beyond arm');
+assert(Number.isFinite(clampArmReach(l1,l2,0)),'near target broke IK');
+console.log('PASS constrained arm reach');
