@@ -85,28 +85,23 @@
 <button type="button" class="atk pill" id="atk" hidden aria-label="공격"><svg class="hud-icon" viewBox="30 30 160 160" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-11"></use></svg></button>
 <button type="button" class="skill-satellite" id="skillSatellite" aria-controls="skillWorkbench" aria-haspopup="dialog" aria-label="기술 만들기" hidden>+</button>
 <section id="skillWorkbench" class="skill-workbench" role="dialog" aria-label="기술 조립" hidden>
-  <div class="skill-diagram">
-    <svg id="skillDiagram" class="skill-diagram-art" viewBox="0 0 360 360" aria-hidden="true"></svg>
-    <button type="button" id="skillCore" class="skill-control skill-core" aria-label="찌르기 추가">
-      <span class="skill-plus" aria-hidden="true">+</span>
-      <span class="skill-blade" aria-hidden="true" hidden></span>
-    </button>
-    <div id="skillOptions" class="skill-options" hidden>
-      <div class="skill-choices skill-speeds" role="group" aria-label="속도">
-        <button type="button" class="skill-control skill-speed" data-speed="0.75" aria-label="속도 0.75배" aria-pressed="false"><i></i></button>
-        <button type="button" class="skill-control skill-speed" data-speed="1" aria-label="속도 1배" aria-pressed="true"><i></i><i></i></button>
-        <button type="button" class="skill-control skill-speed" data-speed="1.25" aria-label="속도 1.25배" aria-pressed="false"><i></i><i></i><i></i></button>
+  <div id="skillStage" class="skill-stage">
+    <div id="skillMain" class="skill-main" aria-label="기술 행동 궤도">
+      <svg id="skillDiagram" class="skill-diagram-art" viewBox="0 0 360 360" aria-hidden="true"></svg>
+      <div id="skillManaRing" class="skill-mana-ring" aria-hidden="true"></div>
+      <div id="skillSlots" class="skill-slots" role="group" aria-label="시계 방향 실행 순서"></div>
+      <div id="skillCore" class="skill-core" aria-label="현재 제작 중인 기술">
+        <span class="skill-core-signature" aria-hidden="true"></span>
+        <strong class="skill-core-name">새 기술</strong><small class="skill-core-total">마나 0</small>
       </div>
-      <div class="skill-choices skill-repeats" role="group" aria-label="반복 횟수">
-        <button type="button" class="skill-control skill-repeat" data-repeat="1" aria-label="1회 반복" aria-pressed="true"><i></i></button>
-        <button type="button" class="skill-control skill-repeat" data-repeat="2" aria-label="2회 반복" aria-pressed="false"><i></i><i></i></button>
-        <button type="button" class="skill-control skill-repeat" data-repeat="3" aria-label="3회 반복" aria-pressed="false"><i></i><i></i><i></i></button>
-      </div>
-      <button type="button" id="skillPreview" class="skill-control skill-preview" aria-label="기술 시험"><span class="skill-play" aria-hidden="true"></span></button>
-      <button type="button" id="skillSave" class="skill-control skill-save" aria-label="기술 저장"><span class="skill-bookmark" aria-hidden="true"></span></button>
+    </div>
+    <div id="skillOptions" class="skill-mini" role="group" aria-label="선택한 행동 상세 설정" hidden></div>
+    <div class="skill-tools">
+      <button type="button" id="skillPreview" class="skill-tool" aria-label="기술 시험" title="기술 시험" disabled><span class="skill-tool-play" aria-hidden="true"></span></button>
+      <button type="button" id="skillSave" class="skill-tool" aria-label="기술 저장" title="기술 저장" disabled><span class="skill-tool-save" aria-hidden="true"></span></button>
     </div>
   </div>
-  <button type="button" id="skillClose" class="skill-control skill-close" aria-label="기술창 닫기"><span aria-hidden="true">×</span></button>
+  <button type="button" id="skillClose" class="skill-close" aria-label="기술창 닫기" title="기술창 닫기">×</button>
   <output id="skillStatus" class="skill-status" role="status"></output>
 </section>
 <div class="hud-vitals" aria-label="플레이어 상태"><span class="hud-vitals-kicker">체력</span><div class="hp" id="hp" aria-label="체력"></div></div>
