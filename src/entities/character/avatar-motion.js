@@ -15,7 +15,9 @@ export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,run
  actor.phase+=gaitPhaseStep(speed,dt);
  const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
  const response=motion.update(dt,t,player,swingPose,{first,runSpeed,armed:Boolean(equip?.right||equip?.left)});
- for(const side of ['right','left'])actor.grip(side,fist(side));
+ // The reference special clip authors finger joints individually. Do not
+ // overwrite those tracks with the generic fist curl when previewed later.
+ if(motion.active!=='specialRoundKick')for(const side of ['right','left'])actor.grip(side,fist(side));
  return response;
 }
 
