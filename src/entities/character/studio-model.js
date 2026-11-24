@@ -1,5 +1,6 @@
 import {gaitPhaseStep,gripFrame} from './avatar-motion.js';
 import {createSchoolyardMotion} from './schoolyard-motion.js';
+import {createClothingController} from './clothing/registry.js';
 // Immutable geometry attributes can be shared by identical character profiles.
 const geometryPools=new WeakMap();
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
@@ -207,7 +208,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
-  setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();},
+  setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();api.clothing.setFirstPerson(firstPerson);},
   animate(dt,t){
    // NPCs use the same joint-limit/spring pipeline as the player.
    // Their existing simulation and navigation keep authority over position.
@@ -220,7 +221,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    this.talk=Math.max(0,this.talk-dt);
   },
   dispose(){
-   group.removeFromParent();material.dispose();skeleton.dispose();
+   api.clothing.dispose();group.removeFromParent();material.dispose();skeleton.dispose();
    // WebGL deletes shared VBOs during geometry.dispose(). Defer disposal until
    // every instance referencing these attributes has been removed.
    if(--shared.users===0){
@@ -230,5 +231,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
   }
  };
+ // Optional equipment only. No initial clothing; do not alter the body or saved appearance.
+ api.clothing=createClothingController(T,api,lodIndex[0]);
  return api;
 }
