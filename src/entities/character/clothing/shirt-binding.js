@@ -31,7 +31,7 @@ export const SHIRT_BINDING_POLICY=Object.freeze({
  smoothing:10,
  attributes:asset=>[['aRest',asset.position,3,false],['aColor',asset.color,3,true],['aDetail',asset.detail,4,false],['aInfluence',asset.influence,4,false]],
  parts:[
-  {id:'top',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]!==2),coverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices},
+  {id:'top',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]!==2),coverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices,firstPersonCoverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices&&[a,b,c].every(i=>asset.influence[i*4+3]===1||asset.influence[i*4]>=128)},
   {id:'collar',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]===2)}
  ]
 });

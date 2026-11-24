@@ -67,6 +67,7 @@ for(const sex of ['male','female']){
  const base=points();
  let maxError=0;
  for(let i=0;i<n;i++)maxError=Math.max(maxError,base[i].distanceTo(new T.Vector3().fromArray(rest,i*3)));
+ console.log('ATTENTION '+sex+' '+JSON.stringify({maxError,world:shirt.matrixWorld.elements,units:actor.units,frame:bind.ref.frame.elements,bones:bind.boneIds.map((id,j)=>({name:actor.bones[id].name,real:shirt.material.uniforms.uGarmentReal.value[j].toArray(),dual:shirt.material.uniforms.uGarmentDual.value[j].toArray()}))}));
  assert(maxError<.0002,'attention pose reconstruction error '+maxError);
  const cuff=(i,side)=>asset.influence[i*4+3]===1&&asset.influence[i*4+2]===side&&asset.influence[i*4+1]>248;
  const cuffs=[0,1].map(side=>edgeList(g.index.array,rest,(a,b)=>cuff(a,side)&&cuff(b,side)));

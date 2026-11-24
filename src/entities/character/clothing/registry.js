@@ -34,6 +34,7 @@ export function createClothingController(T,actor,fullIndex){
  function syncCoverage(){
   coverage.fill(0);
   for(const {instance} of equipped.values()){
+   if(firstPerson&&!instance.object.visible)continue;
    const mask=firstPerson?(instance.firstPersonCoverage??instance.bodyCoverage):instance.bodyCoverage;
    if(!mask)continue;
    for(let i=0,n=Math.min(mask.length,coverage.length);i<n;i++)coverage[i]=Math.max(coverage[i],mask[i]);

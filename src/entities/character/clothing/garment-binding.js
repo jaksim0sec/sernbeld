@@ -200,6 +200,11 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
  }
  // A single field across the whole garment ensures matching seam transforms.
  const welded=smoothField(asset.position,asset.index,field,locked,boneCount,policy.smoothing??8);
+ // Clearance is also a continuous seam attribute. Different source normals
+ // on duplicated seam vertices must not produce a visible crack.
+ const seam=new Map();
+ for(let i=0;i<count;i++){const id=welded[i],j=i*3;let s=seam.get(id);if(!s)seam.set(id,s=[0,0,0,0]);s[0]+=rest[j];s[1]+=rest[j+1];s[2]+=rest[j+2];s[3]++;}
+ for(let i=0;i<count;i++){const s=seam.get(welded[i]);if(s[3]>1)for(let j=0;j<3;j++)rest[i*3+j]=s[j]/s[3];}
  const actual=new Uint8Array(count*4),skinWeight=new Float32Array(count*4);
  for(let i=0;i<count;i++)normalizedTop4(field,i*boneCount,boneCount,actual,skinWeight,i*4);
  const boneIds=[...new Set(actual.filter((_,i)=>skinWeight[i]>0))].sort((a,b)=>a-b),palette=new Map(boneIds.map((id,i)=>[id,i]));
@@ -209,7 +214,7 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
  const g=new T.BufferGeometry();
  for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],['aJoint',joints,4,false],['aWeight',skinWeight,4,false],...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
  g.setIndex(new T.BufferAttribute(asset.index,1));g.computeBoundingBox();g.computeBoundingSphere();
- const parts=new Map(),masks=new Map();
+ const parts=new Map(),masks=new Map(),firstMasks=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
   const list=[];for(let i=0;i<asset.index.length;i+=3){const a=asset.index[i],b=asset.index[i+1],c=asset.index[i+2];if(part.accept(a,b,c,asset))list.push(a,b,c);}
   if(!list.length)throw Error('Empty garment part: '+part.id);
@@ -217,9 +222,10 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   pg.setIndex(new T.BufferAttribute(new asset.index.constructor(list),1));pg.boundingBox=g.boundingBox.clone();pg.boundingSphere=g.boundingSphere.clone();
   parts.set(part.id,pg);
   if(part.coverage)masks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.coverage(a,b,c,asset)));
+  if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset)));
  }
  const coveredCount=[...masks.values()].reduce((sum,mask)=>sum+mask.reduce((n,v)=>n+(v?1:0),0),0);
- return {geometry:g,parts,masks,rest,actual,skinWeight,boneIds,ref,welded,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,boneCount:boneIds.length,rigidVertices:locked.reduce((a,b)=>a+b,0)}};
+ return {geometry:g,parts,masks,firstMasks,rest,actual,skinWeight,boneIds,ref,welded,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,boneCount:boneIds.length,rigidVertices:locked.reduce((a,b)=>a+b,0)}};
 }
 const pools=new WeakMap();
 // Cache by asset, policy, constructor surface, body and reference frame.
