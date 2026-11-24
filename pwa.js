@@ -10,7 +10,7 @@
     './src/core/entity-registry.js','./src/core/inventory.js','./src/entities/character/reference-eyes.js','./src/entities/character/reference-eye-contours.js','./src/entities/character/combat-stance.js',
     './src/core/region-lifecycle.js','./styles/tokens.css',
     './styles/hud.css','./styles/menus-and-overlays.css','./styles/responsive.css',
-    './styles/world-map.css','./assets/ui-icons.svg','./assets/models/clothing/runtime-bindings-v1.json.gz'];
+    './styles/world-map.css','./assets/ui-icons.svg','./assets/models/clothing/runtime-bindings-v1.json.gz','./src/entities/character/clothing/shirt-source.js','./assets/models/clothing/shirt-v1/male/runtime.json','./assets/models/clothing/shirt-v1/female/runtime.json'];
   let updateNotice;
   const notice = () => {
     if (updateNotice) return updateNotice;

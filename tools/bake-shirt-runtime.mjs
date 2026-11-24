@@ -72,6 +72,7 @@ function decompressBlock(src,size){
 
 // Rebuild the sidecars from the original source. Node 22+.
 import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import {loadShirtReference,manifest} from './export-shirt-reference.mjs';
 const root=new URL('../assets/models/clothing/shirt-v1/',import.meta.url);
@@ -81,8 +82,8 @@ for(const sex of ['male','female']){
  const {raw,meta}=bakeShirtRuntime(sex,shirt,JSON.parse(rig),gunzipSync(Buffer.from(body,'base64')),template,shirt.renderPatches);
  const packed=compressBlock(raw);
  if(decompressBlock(packed,raw.length).some((v,i)=>v!==raw[i]))throw Error('Runtime compression mismatch');
- const encoded=Buffer.from(packed).toString('base64');meta.parts=[];meta.packedBytes=packed.length;meta.sourcePositionSha256=info.positionSha256;meta.sourceIndexSha256=info.indexSha256;
- for(let i=0;i<encoded.length;i+=400000){const name='runtime.'+String(meta.parts.length).padStart(2,'0')+'.part';meta.parts.push(name);writeFileSync(new URL(sex+'/'+name,root),encoded.slice(i,i+400000));}
+ const encoded=Buffer.from(packed).toString('base64');meta.parts=[];meta.partBlobSha1=[];meta.packedBytes=packed.length;meta.sourcePositionSha256=info.positionSha256;meta.sourceIndexSha256=info.indexSha256;
+ for(let i=0;i<encoded.length;i+=400000){const name='runtime.'+String(meta.parts.length).padStart(2,'0')+'.part';const part=encoded.slice(i,i+400000);meta.parts.push(name);meta.partBlobSha1.push(createHash('sha1').update('blob '+Buffer.byteLength(part)+'\0').update(part).digest('hex'));writeFileSync(new URL(sex+'/'+name,root),part);}
  writeFileSync(new URL(sex+'/runtime.json',root),JSON.stringify(meta,null,2)+'\n');
  console.log(sex+': '+meta.vertices+' vertices, '+meta.triangles+' triangles, '+meta.packedBytes+' packed bytes');
 }

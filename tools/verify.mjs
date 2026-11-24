@@ -12,7 +12,7 @@ const groups = {
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
     'startup-runtime', 'pwa-startup'].map(name => ['tests/' + name + '.mjs']),
   clothing: ['studio-model', 'character-assembly', 'schoolyard-ik', 'schoolyard-motion',
-    'shirt-reference', 'shirt-runtime', 'pants-runtime', 'garment-alignment', 'dev-validation']
+    'shirt-reference', 'shirt-recovery', 'shirt-runtime', 'pants-runtime', 'garment-alignment', 'dev-validation']
     .map(name => ['tests/' + name + '.mjs']),
   world: [['tests/player-physics.mjs'], ['tests/world-performance.mjs'], ['tests/world-playability.mjs','--no-browser']],
   browser: [

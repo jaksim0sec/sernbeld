@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-41';
+const VERSION = 'sernbeld-pwa-42';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -103,6 +103,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || !url.href.startsWith(BASE.href)) return;
   if (!['http:','https:'].includes(url.protocol)) return;
+  const shirtData=url.pathname.startsWith(new URL('assets/models/clothing/shirt-v1/',BASE).pathname)&&/\/runtime\.(json|\d{2}\.part)$/.test(url.pathname);
+  // Recovery requests must reach the network, never fall back to a possibly mixed generation.
+  if(shirtData&&url.searchParams.has('shirt-recovery')){
+    event.respondWith(fetch(request,{cache:'reload'}));return;
+  }
   event.respondWith((async () => {
     try {
       // Bypass the browser HTTP cache, including for navigations, JS and CSS.
@@ -122,8 +127,11 @@ self.addEventListener('fetch', event => {
     } catch (error) {
       const runtime = await caches.open(RUNTIME);
       const shell = await caches.open(SHELL);
-      const previous = await runtime.match(request, {ignoreSearch:true})
-        || await shell.match(request, {ignoreSearch:true});
+      // The loader validates each part against metadata. Keep versioned keys
+      // distinct; the unversioned offline install is only a verified fallback.
+      const previous = shirtData
+        ? await runtime.match(request) || await shell.match(new URL(url.pathname,url.origin).href)
+        : await runtime.match(request, {ignoreSearch:true}) || await shell.match(request, {ignoreSearch:true});
       if (previous) return previous;
       if (request.mode === 'navigate') {
         const fallback = await runtime.match(absolute('./index.html'))

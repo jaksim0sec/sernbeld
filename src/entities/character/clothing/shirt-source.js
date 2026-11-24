@@ -22,12 +22,37 @@ export function decodeShirtRuntime(meta,encoded){
  for(let i=0;i<n;i++)if(influence[i*4+2]>1||influence[i*4+3]>3)throw Error('Invalid shirt influence');
  return Object.freeze({meta,position,normal,color,detail,influence,index,corrections});
 }
+// Git blob IDs identify the exact ASCII bytes of each encoded part.
+async function partHash(bytes){
+ const header=new TextEncoder().encode('blob '+bytes.length+'\0');
+ const blob=new Uint8Array(header.length+bytes.length);blob.set(header);blob.set(bytes,header.length);
+ const digest=await globalThis.crypto.subtle.digest('SHA-1',blob);
+ return Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+}
 export async function loadShirtRuntime(sex,fetchImpl=fetch){
  if(sex!=='male'&&sex!=='female')throw Error('Unknown shirt body: '+sex);
- const read=async path=>{const r=await fetchImpl(new URL(sex+'/'+path,root));if(!r.ok)throw Error('셔츠 데이터를 불러오지 못했어 ('+r.status+')');return r.text();};
- const meta=JSON.parse(await read('runtime.json'));
- if(!Array.isArray(meta.parts)||!meta.parts.length||meta.parts.length>20||meta.parts.some((s,i)=>s!=='runtime.'+String(i).padStart(2,'0')+'.part'))throw Error('Invalid shirt parts');
- return decodeShirtRuntime(meta,(await Promise.all(meta.parts.map(read))).join(''));
+ async function load(recovery){
+  const read=async(path,hash)=>{
+   const url=new URL(sex+'/'+path,root);
+   if(hash)url.searchParams.set('shirt-part',hash);else url.searchParams.set('shirt-format','integrity-v1');
+   if(recovery)url.searchParams.set('shirt-recovery',recovery);
+   const r=await fetchImpl(url,{cache:recovery?'reload':'no-store'});
+   if(!r.ok)throw Error(path+' HTTP '+r.status);
+   if(!hash)return r.text();
+   const bytes=new Uint8Array(await r.arrayBuffer());
+   if(await partHash(bytes)!==hash)throw Error(path+' integrity mismatch');
+   return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  };
+  const meta=JSON.parse(await read('runtime.json'));
+  if(!Array.isArray(meta.parts)||!meta.parts.length||meta.parts.length>20||meta.parts.some((s,i)=>s!=='runtime.'+String(i).padStart(2,'0')+'.part'))throw Error('Invalid shirt parts');
+  if(!Array.isArray(meta.partBlobSha1)||meta.partBlobSha1.length!==meta.parts.length||meta.partBlobSha1.some(h=>typeof h!=='string'||!/^[a-f0-9]{40}$/.test(h)))throw Error('Invalid shirt integrity metadata');
+  const parts=await Promise.allSettled(meta.parts.map((path,i)=>read(path,meta.partBlobSha1[i])));
+  const failed=parts.find(p=>p.status==='rejected');if(failed)throw failed.reason;
+  return decodeShirtRuntime(meta,parts.map(p=>p.value).join(''));
+ }
+ try{return await load(null);}catch(first){
+  try{return await load(Date.now().toString(36));}catch(last){throw Error('Shirt '+sex+' load failed: '+last.message+' (first: '+first.message+')',{cause:last});}
+ }
 }
 let pending;
 export function loadDefaultShirts(fetchImpl){
