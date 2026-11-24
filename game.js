@@ -44547,8 +44547,8 @@ var PLAYER = {
   run: 5,
   jump: 7,
   gravity: 24,
-  step: 0.5,
-  // max rise per 0.5 m sub-step (~45 degree slope)
+  step: 0.48,
+  // maximum auto-step height in metres, independent of horizontal frame distance
   wade: 1.15
   // deepest water you can walk into
 };
@@ -45886,6 +45886,11 @@ function makeSky() {
   return m;
 }
 function makeTerrainMaterial() {
+  const stairClip=STAIRS.map(s=>{
+    const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],L=Math.hypot(dx,dz);
+    const f=v=>Number(v).toFixed(6);
+    return `{vec2 q=p-vec2(${f(s.a[0])},${f(s.a[1])});float u=dot(q,vec2(${f(dx/L)},${f(dz/L)}));float v=dot(q,vec2(${f(s.n[0])},${f(s.n[1])}));if(u>.002&&u<${f(L-.002)}&&v>${f(STAIR_MIN_V+.002)}&&v<${f(STAIR_MAX_V-.002)})discard;}`;
+  }).join('\n');
   return makeLitMaterial({
     head: (
       /* glsl */
@@ -45895,6 +45900,7 @@ function makeTerrainMaterial() {
       /* glsl */
       `
       vec2 p=vWorld.xz; float slope=1.-N.y;
+      ${stairClip}
       float nL=texture2D(uNoise,p*0.00055).r;
       float nM=texture2D(uNoise,p*0.0042+.37).g;
       float nS=texture2D(uNoise,p*0.031+.71).b;
@@ -46203,11 +46209,11 @@ function makeOcean() {
   );
   const geo = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const m = new Mesh(geo, mat2);
-  m.scale.set(3e4, 1, 3e4);
+  m.scale.set(4e4, 1, 4e4);
   m.position.y = CFG.seaLevel;
   m.frustumCulled = false;
   m.renderOrder = 1;
-  m.userData.follow = true;
+  m.userData.follow = false;
   return m;
 }
 function makeRivers() {
@@ -46423,6 +46429,71 @@ function groundAt(x, z, feetY) {
   }
   return g;
 }
+// Player contacts use the rendered stair treads, not the NPC navigation ramp.
+// The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
+function playerTerrain(x,z) {
+  const tread=stairSurface(x,z,0,true);
+  if(tread!==null)return tread;
+  const gx=(x+HALF)/CFG.cell,gz=(z+HALF)/CFG.cell;
+  if(gx<0||gz<0||gx>=GRID_N-1||gz>=GRID_N-1)return sample(x,z);
+  const i=Math.floor(gx),j=Math.floor(gz),u=gx-i,v=gz-j,k=j*GRID_N+i,H=World.H;
+  const a=H[k],b=H[k+1],c=H[k+GRID_N],d=H[k+GRID_N+1];
+  return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
+}
+var CONTACT_SKIN=.002;
+// Circular horizontal cross-section of a standing capsule/cylinder. Positive
+// penetration means overlap; normals always point out of the obstacle.
+function playerContact(o,x,z,radius) {
+  if(o.type==="cyl"){
+    const dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz),depth=o.r+radius-d;
+    return depth>CONTACT_SKIN?{nx:d>1e-8?dx/d:1,nz:d>1e-8?dz/d:0,depth,collider:o}:null;
+  }
+  const [lx,lz]=local(o,x,z),qx=clamp2(lx,-o.hx,o.hx),qz=clamp2(lz,-o.hz,o.hz);
+  let dx=lx-qx,dz=lz-qz,d=Math.hypot(dx,dz),depth=radius-d;
+  if(d>1e-8){if(depth<=CONTACT_SKIN)return null;dx/=d;dz/=d;}
+  else{
+    const a=o.hx-Math.abs(lx),b=o.hz-Math.abs(lz);
+    if(a<b){dx=Math.sign(lx||1);dz=0;depth=radius+a;}
+    else{dx=0;dz=Math.sign(lz||1);depth=radius+b;}
+  }
+  return {nx:dx*o.cos+dz*o.sin,nz:-dx*o.sin+dz*o.cos,depth,collider:o};
+}
+function playerFloor(x,z,maxY,radius=PLAYER.radius) {
+  let h=playerTerrain(x,z);
+  if(h>maxY+CONTACT_SKIN)h=-Infinity;
+  for(const o of query(x,z,radius)){
+    // A solid top is a support, including low decorative blocks that were
+    // previously marked non-walkable. NPCs are never registered as supports.
+    if(o.top>maxY+CONTACT_SKIN||o.top<=h)continue;
+    if(radius===0?inside(o,x,z,0):playerContact(o,x,z,radius))h=o.top;
+  }
+  return h;
+}
+function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius) {
+  const contacts=[];
+  for(const o of query(x,z,radius)){
+    if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
+    const c=playerContact(o,x,z,radius);if(c)contacts.push(c);
+  }
+  for(const o of nearby){
+    if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
+    const c=playerContact(o,x,z,radius);if(c)contacts.push(c);
+  }
+  return contacts;
+}
+function playerCeiling(x,z,y,targetY) {
+  let top=targetY;
+  for(const o of query(x,z,PLAYER.radius)){
+    if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
+    top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
+  }
+  return Math.max(y,top);
+}
+function playerFootSurface(x,z,feetY) {
+  const h=playerFloor(x,z,feetY+PLAYER.step,0);
+  return Number.isFinite(h)?h:null;
+}
+
 function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
   for (const o of query(x, z, radius + 1)) {
     if (o.top <= feetY + 0.025 || o.bot >= feetY + height - 0.025) continue;
@@ -49406,18 +49477,56 @@ var Player = class {
     this.landImpact = 0;
     this.running = false;
     this.wish = new Vector2();
+    this.previousPos = new Vector3();
+    this.renderPos = new Vector3();
+    this.accumulator = 0;
+    this.simTime = 0;
+    this.moveHeading = null;
+    this.nearby = [];
+    this.renderReady = false;
+    this.stepRise = 0;
   }
   teleport(x, z, yaw, pitch = 0, y = null) {
-    this.pos.set(x, y ?? groundAt(x, z, 1e4), z);
+    const support=playerFloor(x,z,y==null?Infinity:y+PLAYER.step);
+    this.pos.set(x,y==null?(Number.isFinite(support)?support:playerTerrain(x,z)):Math.max(y,Number.isFinite(support)&&support<=y+CONTACT_SKIN?support:-Infinity),z);
     this.vel.set(0, 0, 0);
     this.wish.set(0, 0);
     this.yaw = yaw;
     this.pitch = pitch;
-    this.onGround = y == null;
+    this.onGround = y == null || (this.mode==="walk"&&Math.abs(this.pos.y-playerFloor(x,z,this.pos.y+CONTACT_SKIN))<=CONTACT_SKIN);
     this.swimming = false;
     this.running = false;
     this.landImpact = 0;
+    this.moveHeading=null;this.stepRise=0;
+    this.resetInterpolation();
     this.teleportId++;
+  }
+  resetInterpolation(){
+    this.accumulator=0;this.previousPos.copy(this.pos);this.renderPos.copy(this.pos);this.visualY=this.pos.y;this.renderReady=true;
+  }
+  // Fixed physics ticks; interpolate only the presentation, never collision.
+  advance(dt,input,nearby=[]){
+    this.nearby=nearby;
+    if(!this.renderReady)this.resetInterpolation();
+    const h=1/60;
+    let rise=0;
+    this.accumulator=Math.min(.1,this.accumulator+Math.max(0,dt));
+    while(this.accumulator+1e-9>=h){
+      this.previousPos.copy(this.pos);
+      this.update(h,input);
+      rise=Math.max(rise,this.stepRise);
+      this.accumulator=Math.max(0,this.accumulator-h);
+    }
+    this.stepRise=rise;
+    const a=Math.min(1,this.accumulator/h);
+    this.renderPos.copy(this.previousPos).lerp(this.pos,a);
+    if(this.mode==="walk"&&this.onGround&&!this.swimming){
+      // Smooth the vertical presentation of ALL low steps, not just stairs.
+      // Keep it bounded so landing and ledge departures cannot float.
+      const target=this.renderPos.y,old=this.visualY??target;
+      this.visualY=clamp2(target+(old-target)*Math.exp(-Math.max(0,dt)*23),target-.13,target+.13);
+      this.renderPos.y=this.visualY;
+    }else this.visualY=this.renderPos.y;
   }
   // look is applied once per frame; physics may run in several sub-steps
   look(input) {
@@ -49430,129 +49539,144 @@ var Player = class {
     else this.walk(dt, input);
   }
   walk(dt, input) {
-    dt = clamp2(dt, 0, 0.08);
-    if (!dt) return;
-    const mv = input.move(), sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
-    this.running = input.run() && mv.mag > 0.1;
-    const sp = this.swimming ? this.running ? 3.6 : 2.6 : this.running ? PLAYER.run : PLAYER.walk;
-    const tx = (-sy * mv.y + cy * mv.x) * sp, tz = (-cy * mv.y - sy * mv.x) * sp;
-    this.moveHeading = mv.mag > .1 ? Math.atan2(tx, tz) : null;
-    const k = 1 - Math.exp(-dt * (this.swimming ? 4 : this.onGround ? 12 : 2.5));
-    this.wish.x = this.vel.x + (tx - this.vel.x) * k;
-    this.wish.y = this.vel.z + (tz - this.vel.z) * k;
-    const jump = input.consumeJump();
-    if (jump && this.onGround && !this.swimming) {
-      this.vel.y = PLAYER.jump;
-      this.onGround = false;
-    }
-    if (!this.swimming) this.vel.y -= PLAYER.gravity * dt;
-    const x0 = this.pos.x, z0 = this.pos.z;
-    const dx = this.wish.x * dt, dz = this.wish.y * dt;
-    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz, this.vel.y * dt) / 0.18));
-    for (let i = 0; i < steps; i++) this.tryMove(dx / steps, dz / steps);
-    const oldFeet = this.pos.y;
-    const g = groundAt(this.pos.x, this.pos.z, oldFeet), water = waterLevel(this.pos.x, this.pos.z, g);
-    const depth = water - g;
-    if (!this.swimming && depth > SWIM_IN && this.pos.y <= water - FLOAT + 0.05) this.swimming = true;
-    if (this.swimming && depth < SWIM_OUT) this.swimming = false;
-    if (this.swimming) {
-      const target = water - FLOAT + Math.sin(performance.now() * 21e-4) * 0.04;
-      this.vel.y += ((target - this.pos.y) * 6 - this.vel.y) * (1 - Math.exp(-dt * 8));
-      if (jump) this.vel.y = 2.2;
-      this.pos.y += this.vel.y * dt;
-      this.pos.y = Math.max(this.pos.y, g);
-      this.onGround = false;
-    } else {
-      this.pos.y += this.vel.y * dt;
-      if (this.pos.y <= g) {
-        if (!this.onGround && this.vel.y < -4) this.landImpact = Math.min(1, -this.vel.y / 16);
-        this.pos.y = g;
-        this.vel.y = 0;
-        this.onGround = true;
-      } else if (this.onGround && this.vel.y <= 0 && this.pos.y - g < 0.45) {
-        this.pos.y = g;
-        this.vel.y = 0;
-      } else this.onGround = false;
-      if (this.onGround && Math.abs(g - sample(this.pos.x, this.pos.z)) < 0.05) {
-        normalAt(this.pos.x, this.pos.z, _n);
-        if (_n.y < COS_SLIDE) {
-          this.pos.x += _n.x * 3 * dt;
-          this.pos.z += _n.z * 3 * dt;
+    dt=clamp2(dt,0,.08);if(!dt)return;
+    this.simTime+=dt;
+    const mv=input.move(),sy=Math.sin(this.yaw),cy=Math.cos(this.yaw);
+    this.running=input.run()&&mv.mag>.1;
+    const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
+    const tx=(-sy*mv.y+cy*mv.x)*sp,tz=(-cy*mv.y-sy*mv.x)*sp;
+    const blend=1-Math.exp(-dt*(this.swimming?4:this.onGround?12:2.5));
+    this.vel.x+=(tx-this.vel.x)*blend;this.vel.z+=(tz-this.vel.z)*blend;
+    if(mv.mag<.02&&Math.hypot(this.vel.x,this.vel.z)<.025){this.vel.x=0;this.vel.z=0;}
+    const jump=input.consumeJump();
+    if(jump&&this.onGround&&!this.swimming){this.vel.y=PLAYER.jump;this.onGround=false;}
+    const oldY=this.pos.y;
+    this.stepRise=0;
+    // Sweep a single vector, clipping it against every simultaneous contact.
+    // No axis-wise movement or depenetration-derived velocity.
+    const distance=Math.hypot(this.vel.x,this.vel.z)*dt;
+    const count=Math.max(1,Math.ceil(distance/.09));
+    for(let i=0;i<count;i++)this.tryMove(this.vel.x*dt/count,this.vel.z*dt/count);
+    const x=this.pos.x,z=this.pos.z,feet=this.pos.y;
+    const terrain=playerTerrain(x,z),water=waterLevel(x,z,terrain);
+    const bottom=playerFloor(x,z,Math.max(feet+CONTACT_SKIN,water-.01));
+    const depth=water-(Number.isFinite(bottom)?bottom:terrain);
+    if(!this.swimming&&depth>SWIM_IN&&feet<=water-FLOAT+.05&&!this.onGround)this.swimming=true;
+    // Enter deep water while walking down the shore as well.
+    if(!this.swimming&&depth>SWIM_IN&&feet<=water-FLOAT-.03)this.swimming=true;
+    if(this.swimming&&depth<SWIM_OUT)this.swimming=false;
+    if(this.swimming){
+      const target=water-FLOAT+Math.sin(this.simTime*2.1)*.025;
+      this.vel.y+=((target-feet)*6-this.vel.y)*(1-Math.exp(-dt*8));
+      if(jump)this.vel.y=2.2;
+      const next=feet+this.vel.y*dt;
+      if(next>feet)this.pos.y=playerCeiling(x,z,feet,next);
+      else{
+        const support=playerFloor(x,z,feet+CONTACT_SKIN);
+        this.pos.y=Math.max(next,support);
+        if(this.pos.y>next)this.vel.y=0;
+      }
+      if(this.pos.y<next-CONTACT_SKIN)this.vel.y=0;
+      this.onGround=false;
+    }else{
+      // Ground snapping is permitted only for a previously grounded actor.
+      // In the air only actual downward crossing of a solid surface lands.
+      const wasGround=this.onGround;
+      if(!wasGround)this.vel.y=Math.max(-45,this.vel.y-PLAYER.gravity*dt);
+      if(this.vel.y>0){
+        const next=feet+this.vel.y*dt;
+        this.pos.y=playerCeiling(x,z,feet,next);
+        if(this.pos.y<next-CONTACT_SKIN)this.vel.y=0;
+        this.onGround=false;
+      }else{
+        const floor=playerFloor(x,z,feet+CONTACT_SKIN);
+        const gap=feet-floor;
+        const snap=wasGround&&gap>=-CONTACT_SKIN&&gap<=PLAYER.step;
+        if(snap){
+          this.pos.y=floor;this.vel.y=0;this.onGround=true;
+        }else{
+          if(wasGround)this.vel.y=-PLAYER.gravity*dt;
+          const next=feet+this.vel.y*dt;
+          if(Number.isFinite(floor)&&next<=floor&&floor<=feet+CONTACT_SKIN){
+            if(!wasGround&&this.vel.y<-4)this.landImpact=Math.min(1,-this.vel.y/16);
+            this.pos.y=floor;this.vel.y=0;this.onGround=true;
+          }else{this.pos.y=next;this.onGround=false;}
         }
       }
     }
-    const px2 = this.pos.x, pz2 = this.pos.z;
-    pushOut(this.pos, PLAYER.radius, PLAYER.body);
-    if (this.blocked(this.pos.x, this.pos.z)) {
-      this.pos.x = px2;
-      this.pos.z = pz2;
-    }
-    this.pos.x = clamp2(this.pos.x, -BOUND, BOUND);
-    this.pos.z = clamp2(this.pos.z, -BOUND, BOUND);
-    this.vel.x = (this.pos.x - x0) / dt;
-    this.vel.z = (this.pos.z - z0) / dt;
+    if(this.onGround)this.stepRise=Math.max(0,this.pos.y-oldY);
+    // Facing follows the actual continuous motion, not competing key axes.
+    const speed=Math.hypot(this.vel.x,this.vel.z);
+    if(speed>.12)this.moveHeading=Math.atan2(this.vel.x,this.vel.z);
+    else if(mv.mag<.05)this.moveHeading=null;
   }
-  blocked(x, z) {
-    const g = groundAt(x, z, this.pos.y);
-    if (this.swimming) {
-      const w = waterLevel(x, z, g);
-      if (g - w > 0.45 && g - this.pos.y > PLAYER.step + FLOAT) return true;
-    } else {
-      if (this.onGround && g - this.pos.y > PLAYER.step + 0.025) return true;
-      if (!this.onGround && g - this.pos.y > 0.05) return true;
-      if (this.onGround && g > this.pos.y + 0.025 && bodyBlockedAt(x, z, g)) return true;
+  candidate(dx,dz){
+    const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
+    const terrain=playerTerrain(x,z),maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
+    const limit=p.y+maxRise+CONTACT_SKIN;
+    let floor=playerFloor(x,z,limit);
+    if(terrain>limit){
+      const len=Math.hypot(dx,dz),ex=.07;
+      let nx=playerTerrain(x-ex,z)-playerTerrain(x+ex,z),nz=playerTerrain(x,z-ex)-playerTerrain(x,z+ex),n=Math.hypot(nx,nz);
+      if(n<1e-6){nx=-dx;nz=-dz;n=len||1;}
+      return {contacts:[{nx:nx/n,nz:nz/n,depth:terrain-limit}]};
     }
-    return bodyBlockedAt(x, z, this.pos.y);
+    let y=p.y;
+    // Apply rise before the horizontal collision query. Check overhead at
+    // the origin too; a low ceiling can veto an otherwise climbable step.
+    if(maxRise>0&&floor>y+CONTACT_SKIN){
+      const rise=floor-y;
+      const atStair=stairSurface(x,z,0,true)!==null;
+      const currentTerrain=playerTerrain(p.x,p.z);
+      if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04&&rise>Math.hypot(dx,dz)*Math.tan(50*Math.PI/180)+1e-5){
+        // A steep continuous slope is not an auto-step. The threshold is
+        // independent of speed and dt; keep the contour/tangential component.
+        const e=.035,gx=playerTerrain(x-e,z)-playerTerrain(x+e,z),gz=playerTerrain(x,z-e)-playerTerrain(x,z+e),n=Math.hypot(gx,gz);
+        const len=Math.hypot(dx,dz)||1,nx=n>1e-6?gx/n:-dx/len,nz=n>1e-6?gz/n:-dz/len;
+        return {contacts:[{nx,nz,depth:rise}]};
+      }
+      if(playerCeiling(p.x,p.z,y,floor)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
+      y=floor;
+    }
+    const contacts=playerContacts(x,z,y,this.nearby);
+    // Existing overlap may only decrease. This permits walking away from a
+    // moving NPC or a bad save position without adding energy to the player.
+    if(contacts.length){
+      const prior=playerContacts(p.x,p.z,y,this.nearby);
+      const unresolved=contacts.filter(c=>!prior.some(q=>c.collider===q.collider&&c.depth<q.depth-1e-5));
+      if(unresolved.length)return {contacts:unresolved};
+    }
+    return {x,z,y,contacts:[]};
   }
-  tryMove(dx, dz) {
-    const p = this.pos;
-    if (!this.blocked(p.x + dx, p.z + dz)) {
-      p.x += dx;
-      p.z += dz;
-      return;
-    }
-    // Slide along obstacle normals, never by splitting a diagonal into X and Z.
-    const ex = p.x + dx, ez = p.z + dz;
-    let nx = 0, nz = 0, nearest = Infinity;
-    for (const o of query(ex, ez, PLAYER.radius + 1)) {
-      if (o.top <= p.y + 0.025 || o.bot >= p.y + PLAYER.body - 0.025) continue;
-      if (o.walk && o.top <= p.y + PLAYER.step + 0.025) continue;
-      let ax, az, dist;
-      if (o.type === "cyl") {
-        const vx = ex - o.x, vz = ez - o.z, d = Math.hypot(vx, vz);
-        if (d >= o.r + PLAYER.radius || d < 1e-6) continue;
-        dist = Math.abs(d - o.r);
-        ax = vx / d; az = vz / d;
-      } else {
-        const [lx, lz] = local(o, ex, ez);
-        const cx = clamp2(lx, -o.hx, o.hx), cz = clamp2(lz, -o.hz, o.hz);
-        let vx = lx - cx, vz = lz - cz, d = Math.hypot(vx, vz);
-        if (d >= PLAYER.radius) continue;
-        if (d < 1e-6) {
-          const fx = o.hx - Math.abs(lx), fz = o.hz - Math.abs(lz);
-          if (fx < fz) { vx = Math.sign(lx || 1); vz = 0; dist = fx; }
-          else { vx = 0; vz = Math.sign(lz || 1); dist = fz; }
-        } else { vx /= d; vz /= d; dist = d; }
-        ax = vx * o.cos + vz * o.sin;
-        az = -vx * o.sin + vz * o.cos;
+  blocked(x,z){return this.candidate(x-this.pos.x,z-this.pos.z).contacts.length>0;}
+  tryMove(dx,dz){
+    if(Math.hypot(dx,dz)<1e-8)return;
+    let mx=dx,mz=dz;
+    for(let pass=0;pass<4;pass++){
+      if(Math.hypot(mx,mz)<1e-7)break;
+      const c=this.candidate(mx,mz);
+      if(!c.contacts.length){
+        this.pos.set(c.x,c.y,c.z);return;
       }
-      if (dist < nearest) { nearest = dist; nx = ax; nz = az; }
-    }
-    if (nearest === Infinity) {
-      const e = 0.5, gx = sample(ex + e, ez) - sample(ex - e, ez);
-      const gz = sample(ex, ez + e) - sample(ex, ez - e);
-      const g = Math.hypot(gx, gz);
-      if (g < 1e-5) return;
-      nx = gx / g; nz = gz / g;
-    }
-    const tx = -nz, tz = nx, along = dx * tx + dz * tz;
-    if (Math.abs(along) < 1e-6) return;
-    for (const factor of [1, 0.5, 0.25]) {
-      const sx = tx * along * factor, sz = tz * along * factor;
-      if (!this.blocked(p.x + sx, p.z + sz)) {
-        p.x += sx; p.z += sz;
-        return;
+      // Advance up to the first contact, then project the remainder onto
+      // all contact planes. The projection cannot increase speed.
+      let lo=0,hi=1;
+      for(let j=0;j<7;j++){
+        const mid=(lo+hi)*.5;
+        if(this.candidate(mx*mid,mz*mid).contacts.length)hi=mid;else lo=mid;
       }
+      if(lo>1e-4){
+        const ok=this.candidate(mx*lo,mz*lo);
+        if(!ok.contacts.length)this.pos.set(ok.x,ok.y,ok.z);
+      }
+      mx*=1-lo;mz*=1-lo;
+      const before=Math.hypot(mx,mz);
+      for(let k=0;k<2;k++)for(const q of c.contacts){
+        const d=mx*q.nx+mz*q.nz;if(d<0){mx-=d*q.nx;mz-=d*q.nz;}
+        const v=this.vel.x*q.nx+this.vel.z*q.nz;
+        if(v<0){this.vel.x-=v*q.nx;this.vel.z-=v*q.nz;}
+      }
+      if(Math.hypot(mx,mz)>=before-1e-7)break;
     }
   }
   fly(dt, input) {
@@ -49577,10 +49701,12 @@ var Player = class {
     this.landImpact = 0;
     this.running = false;
     if (m === "walk") {
-      this.pos.y = groundAt(this.pos.x, this.pos.z, this.pos.y + 1);
+      const floor=playerFloor(this.pos.x,this.pos.z,this.pos.y+PLAYER.step);
+      this.pos.y=Number.isFinite(floor)?floor:playerTerrain(this.pos.x,this.pos.z);
       this.onGround = true;
       this.swimming = false;
-    } else this.pos.y += PLAYER.height;
+    } else {this.pos.y += PLAYER.height;this.onGround=false;}
+    this.moveHeading=null;this.resetInterpolation();this.teleportId++;
   }
 };
 var CameraRig = class {
@@ -49626,7 +49752,7 @@ var CameraRig = class {
     const motion = this.motion;
     if (p.mode === "fly") {
       this.roll += (turnBank - strafe * 0.037 - this.roll) * (1 - Math.exp(-dt * 7));
-      cam.position.copy(p.pos);
+      cam.position.copy(p.renderPos??p.pos);
       cam.rotation.set(this.pitch, this.yaw, this.roll * motion);
       this.setFov(dt, this.baseFov);
       return;
@@ -49659,17 +49785,14 @@ var CameraRig = class {
     const springTerm = this.dipV + spring * this.dip;
     this.dip = (this.dip + springTerm * dt) * springDecay;
     this.dipV = (this.dipV - spring * springTerm * dt) * springDecay;
-    const ramp = grounded ? stairSurface(p.pos.x, p.pos.z) : null;
-    const heightTarget = ramp === null ? p.pos.y : clamp2(ramp + 0.06, p.pos.y - 0.22, p.pos.y + 0.22);
-    const heightDecay = Math.exp(-dt * (grounded ? 25 : 42));
-    this.feetY = cut ? p.pos.y : heightTarget + (this.feetY - heightTarget) * heightDecay;
-    const heightOffset = clamp2(this.feetY - p.pos.y, -0.28, 0.28);
-    cam.position.set(p.pos.x, p.pos.y + PLAYER.height, p.pos.z);
+    const position=p.renderPos??p.pos;
+    this.feetY=position.y;
+    cam.position.set(position.x,position.y+PLAYER.height,position.z);
     const forward = 0.06 + this.lean * 0.48 * motion;
     shiftCameraWithinWorld(
       cam,
       cosYaw * sway * motion - sinYaw * forward,
-      heightOffset + (bob + this.dip) * motion,
+      (bob + this.dip) * motion,
       -sinYaw * sway * motion - cosYaw * forward
     );
     cam.rotation.set(
@@ -50879,16 +51002,16 @@ var Townsfolk = class {
     this.onSay?.(n.def, line);
     Save.write();
   }
-  // keep the player from walking through people
-  pushPlayer(p) {
-    for (const n of this.list) {
-      if (n.hidden) continue;
-      const dx = p.pos.x - n.x, dz = p.pos.z - n.z, d = Math.hypot(dx, dz), m = 0.62 * (n.def.scale ?? 1);
-      if (d < m && d > 1e-4 && Math.abs(p.pos.y - n.y) < 1.5) {
-        p.pos.x = n.x + dx / d * m;
-        p.pos.z = n.z + dz / d * m;
-      }
+  // Dynamic residents participate in the same horizontal contact solver.
+  // Their navigation must not teleport or inject velocity into the player.
+  playerContacts(p) {
+    const out=[];
+    for(const n of this.list){
+      if(n.hidden||Math.abs(p.pos.y-n.y)>2||Math.hypot(p.pos.x-n.x,p.pos.z-n.z)>2)continue;
+      const scale=n.def.scale??1;
+      out.push({type:"cyl",x:n.x,z:n.z,r:Math.max(.12,.62*scale-PLAYER.radius),bot:n.y,top:n.y+1.72*scale,walk:false});
     }
+    return out;
   }
   labels(camera, player) {
     const out2 = [];
@@ -51150,14 +51273,19 @@ function maktwoAttackPose(a) {
   };
 }
 function maktwoWorldRay(origin, dir, limit) {
-  const steps = Math.max(1, Math.ceil(limit / 0.16));
-  for (let j = 1; j <= steps; j++) {
-    const d = limit * j / steps, x = origin.x + dir.x * d, y = origin.y + dir.y * d, z = origin.z + dir.z * d;
-    if (y < sample(x, z) + 0.055) return d;
-    for (const o of query(x, z, 0.04)) {
-      if (y <= o.bot + 0.03 || y >= o.top - 0.03) continue;
-      if (inside(o, x, z, 0.015)) return d;
-    }
+  const hit=d=>{
+    const x=origin.x+dir.x*d,y=origin.y+dir.y*d,z=origin.z+dir.z*d;
+    if(y<playerTerrain(x,z)+.055)return true;
+    for(const o of query(x,z,.04))if(y>o.bot+.03&&y<o.top-.03&&inside(o,x,z,.015))return true;
+    return false;
+  };
+  const steps=Math.max(1,Math.ceil(limit/.10));
+  for(let j=1;j<=steps;j++){
+    const d=limit*j/steps;
+    if(!hit(d))continue;
+    let a=limit*(j-1)/steps,b=d;
+    for(let k=0;k<5;k++){const m=(a+b)*.5;if(hit(m))b=m;else a=m;}
+    return b;
   }
   return limit;
 }
@@ -52166,7 +52294,7 @@ async function boot() {
       weapon.userData.handleY=model==='sword'?-.08:model==='dagger'?-.055:.06;
       return weapon;
     },
-    attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,runSpeed:PLAYER.run});
+    attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
   let previousView;
   const clearEditorInput = () => {
     input.keys.clear();
@@ -52314,7 +52442,7 @@ async function boot() {
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
   if (firstLaunch) teleport({ ...region.arrival });
-  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw);
+  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?Math.max(sp[1],playerTerrain(sp[0],sp[2])):null);
   else teleport({ ...region.spawn });
   miniMap.update(player, performance.now());
   const persist = () => {
@@ -52408,7 +52536,7 @@ async function boot() {
   let last = performance.now(), lastShadow = -Infinity, shadowCut = -1, nextGoal = -Infinity;
   GameEvents.on("inventory.changed", () => { nextGoal = -Infinity; });
   const tick = (now) => {
-    const dt = Math.min(0.1, (now - last) / 1e3);
+    const dt = Math.max(0,Math.min(0.1, (now - last) / 1e3));
     last = now;
     const t = now / 1e3;
     if (avatars.isOpen) {
@@ -52463,13 +52591,12 @@ async function boot() {
       if (editingSkill) clearEditorInput();
       if (!editingSkill && input.consumeAttack() && ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden) combat.attack();
       player.look(input);
-      for (let rem = dt; rem > 1e-4; rem -= 1 / 60) player.update(Math.min(1 / 60, rem), input);
+      player.advance(dt,input,WorldRegions.isActive(region.id)?folk.playerContacts(player):[]);
     }
     cutstoneBridge.update(player.pos.x, player.pos.z, now);
     miniMap.update(player, now);
     fullMap.update(now);
-    if (WorldRegions.isActive(region.id)) folk.pushPlayer(player);
-    rig.update(dt, player);
+     rig.update(dt, player);
     if (WorldRegions.isActive(region.id)) {
       folk.update(dt, t, clock.hour, player, camera.position, camera);
     }
@@ -52491,7 +52618,7 @@ async function boot() {
     forest.update(camera.position);
     rocks.update(camera.position);
     grass.update(camera.position);
-    ocean.position.set(Math.round(camera.position.x / 64) * 64, CFG.seaLevel, Math.round(camera.position.z / 64) * 64);
+    // Ocean is world-anchored; no 64m position discontinuity on camera movement.
     rivers.userData.update(t);
     blockout.userData.update(t);
     waypoints.userData.update(t);
@@ -52505,7 +52632,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { playerTerrain, playerFloor, playerFootSurface, graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
