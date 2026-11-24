@@ -334,6 +334,8 @@ const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'p
 let state=defaults();
 let tab='face',mode='basic',focus=false,part='outline',plane='shape',rotateMode=false;
 let yaw=0,pitch=0,zoom=1,view='front',activeBone='head',pending=false,geometryDirty=true,colorDirty=true;
+let focusMix=0,focusFrameTime=0;
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let lastView={u:[1,0,0],v:[0,1,0],d:[0,0,1],center:[0,0,0],scale:1,width:1,height:1};
 const undoStack=[],pointers=new Map(),bodyCache=new Map();
 const parts={
@@ -619,8 +621,16 @@ function draw(){
  const v=[-Math.sin(yaw)*Math.sin(pitch),Math.cos(pitch),-Math.cos(yaw)*Math.sin(pitch)];
  const d=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)];
  const transforms=matrices(),head=transforms.get('head');
- const target=focus?transformPoint(body.data.face.focus.map(x=>x/HEIGHT),head):[0,.015,.015];
- const scale=Math.min(width/(focus ? .17 : .76),height/(focus ? .205 : 1.12))*zoom;
+ const now=performance.now(),delta=focusFrameTime?Math.min(80,now-focusFrameTime):16;
+ focusFrameTime=now;const goal=focus?1:0;
+ focusMix=reducedMotion.matches?goal:focusMix+(goal-focusMix)*(1-Math.exp(-delta/95));
+ if(Math.abs(focusMix-goal)<.002)focusMix=goal;
+ const t=focusMix*focusMix*(3-2*focusMix);
+ const fullTarget=[0,.015,.015],faceTarget=transformPoint(body.data.face.focus.map(x=>x/HEIGHT),head);
+ const target=fullTarget.map((v,i)=>v+(faceTarget[i]-v)*t);
+ const fullScale=Math.min(width/.76,height/1.12)*zoom;
+ const detailScale=Math.min(width/.17,height/.205)*zoom;
+ const scale=fullScale+(detailScale-fullScale)*t;
  lastView={u,v,d,center:target,scale,width,height};
  gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
  for(const [name,value] of Object.entries({uRight:u,uUp:v,uToward:d,uCenter:target,uHeadScale:faceScale(body.data),uHeadOffset:faceOffset(body.data),uSkinLight:linear(palette().light),uSkinShadow:linear(palette().shadow),uHeadForward:rotate(head.rotation,[0,0,1]),uBlushColor:linear(blush().color),uCheekCenter:cheekCenter()}))gl.uniform3fv(uniforms[name],value);
@@ -636,6 +646,7 @@ function draw(){
   gl.drawElements(gl.TRIANGLES,object.indices.length,gl.UNSIGNED_INT,0);
  }
  placeHandles();
+ if(focusMix!==(focus?1:0))schedule();
 }
 function anchorPosition(id,side=1){
  const body=getBody(),anchor=anchors.find(a=>a.id===id&&a.side===side)??anchors.find(a=>a.id===id);
@@ -874,7 +885,12 @@ function chooseTab(key){
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===key)));
   rotateMode=false;$('rotate-mode').setAttribute('aria-pressed','false');
   setFocus(key==='eye'||key==='brow'||key==='mouth'||key==='decoration'||key==='color'||(mode==='advanced'&&key==='face'));
-  renderPanel();$('panel').scrollTop=0;schedule();
+  renderPanel();$('panel').scrollTop=0;
+  if(!reducedMotion.matches&&typeof $('panel').animate==='function'){
+    $('panel').getAnimations().forEach(animation=>animation.cancel());
+    $('panel').animate([{opacity:.5,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:230,easing:'cubic-bezier(.2,.7,.2,1)'});
+  }
+  schedule();
 }
 function chooseMode(next){
   if(next===mode||!['basic','advanced'].includes(next))return;
