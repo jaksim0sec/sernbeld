@@ -86,8 +86,12 @@ function surface(p,n,index,valid,regions=null,trackEdges=false){
    const list=cells.get(key(i,j,k));if(!list)continue;
    for(const id of list){
     if(visited[id]===tag)continue;visited[id]=tag;
-    const a=tri[id*3],b=tri[id*3+1],c=tri[id*3+2],d=closest(p,a,b,c,x,y,z,scratch);if(d>r2||d>best)continue;
-    const [u,v,w]=scratch;
+    const a=tri[id*3],b=tri[id*3+1],c=tri[id*3+2],d=closest(p,a,b,c,x,y,z,scratch);if(!Number.isFinite(d)||d>r2||d>best)continue;
+    // Roundoff at a thin/degenerate triangle edge must not create negative
+    // bone weights. Use a normalized convex barycentric combination.
+    let u=Math.max(0,scratch[0]),v=Math.max(0,scratch[1]),w=Math.max(0,scratch[2]),total=u+v+w;
+    if(!Number.isFinite(total)||total<1e-10)continue;
+    u/=total;v/=total;w/=total;
     let X=n[a*3]*u+n[b*3]*v+n[c*3]*w,Y=n[a*3+1]*u+n[b*3+1]*v+n[c*3+1]*w,Z=n[a*3+2]*u+n[b*3+2]*v+n[c*3+2]*w;
     const l=Math.hypot(X,Y,Z)||1;X/=l;Y/=l;Z/=l;
     const alignment=dot(X,Y,Z,nx,ny,nz);
@@ -113,7 +117,7 @@ function surface(p,n,index,valid,regions=null,trackEdges=false){
 // Weld coincident render vertices before diffusion (UV/material seams must not
 // split a skinning field). Smooth only along garment connectivity, never
 // across nearby but disconnected surfaces. Rigid authored anchors stay fixed.
-function smoothField(position,index,field,locked,boneCount,passes){
+function smoothField(position,metric,index,field,locked,boneCount,passes,gradientLimit){
  const n=position.length/3,ids=new Int32Array(n),lookup=new Map(),groups=[],adj=[];
  for(let i=0;i<n;i++){
   const k=i*3,key=[0,1,2].map(j=>Math.round(position[k+j]*100000)).join(':');
@@ -121,11 +125,14 @@ function smoothField(position,index,field,locked,boneCount,passes){
   ids[i]=id;groups[id].push(i);
  }
  for(let i=0;i<index.length;i+=3){const a=ids[index[i]],b=ids[index[i+1]],c=ids[index[i+2]];for(const [u,v] of [[a,b],[b,c],[c,a]])if(u!==v){adj[u].add(v);adj[v].add(u);}}
- const count=groups.length,base=new Float32Array(count*boneCount),fixed=new Uint8Array(count);
+ const count=groups.length,base=new Float32Array(count*boneCount),fixed=new Uint8Array(count),centers=new Float32Array(count*3);
  groups.forEach((members,i)=>{
   const hard=members.filter(j=>locked[j]),source=hard.length?hard:members;fixed[i]=hard.length?1:0;
   for(const j of source)for(let b=0;b<boneCount;b++)base[i*boneCount+b]+=field[j*boneCount+b]/source.length;
+  for(const j of members)for(let k=0;k<3;k++)centers[i*3+k]+=metric[j*3+k]/members.length;
  });
+ // Local smoothing reduces noisy surface transfer without blending unrelated
+ // spatial neighbors. The compact bone palette keeps the startup work bounded.
  let prev=base.slice(),next=new Float32Array(prev.length);
  for(let pass=0;pass<passes;pass++){
   for(let i=0;i<count;i++){
@@ -133,12 +140,37 @@ function smoothField(position,index,field,locked,boneCount,passes){
    if(fixed[i]||!w){next.set(base.subarray(o,o+boneCount),o);continue;}
    for(let b=0;b<boneCount;b++){
     let sum=0;for(const j of neighbors)sum+=prev[j*boneCount+b];
-    next[o+b]=base[o+b]*.22+prev[o+b]*.18+sum*.60/w;
+    next[o+b]=base[o+b]*.16+prev[o+b]*.19+sum*.65/w;
    }
   }
   [prev,next]=[next,prev];
  }
- for(let i=0;i<n;i++){const o=ids[i]*boneCount;field.set(prev.subarray(o,o+boneCount),i*boneCount);}
+ // Limit weight gradients by actual edge length, not vertex count. A short
+ // edge cannot have two wildly different bone transforms (the usual cause
+ // of a long spike at an armpit or cuff). Project onto a simplex-compatible
+ // L1 constraint while retaining rigid anchors.
+ const eu=[],ev=[],limits=[];
+ for(let u=0;u<count;u++)for(const v of adj[u])if(v>u){
+  const a=u*3,b=v*3,l=Math.hypot(centers[a]-centers[b],centers[a+1]-centers[b+1],centers[a+2]-centers[b+2]);
+  eu.push(u);ev.push(v);limits.push(Math.min(2,gradientLimit*Math.max(l,.00001)));
+ }
+ for(let pass=0;pass<24;pass++){
+  let maxViolation=0;
+  for(let i=0;i<eu.length;i++){
+   const e=pass%2?eu.length-1-i:i,u=eu[e],v=ev[e],a=u*boneCount,b=v*boneCount;
+   if(fixed[u]&&fixed[v])continue;
+   let delta=0;for(let j=0;j<boneCount;j++)delta+=Math.abs(prev[a+j]-prev[b+j]);
+   const excess=delta-limits[e];if(excess<=.0001)continue;
+   maxViolation=Math.max(maxViolation,excess);
+   const rate=excess/delta,ra=fixed[u]?0:fixed[v]?rate:rate*.5,rb=fixed[v]?0:fixed[u]?rate:rate*.5;
+   for(let j=0;j<boneCount;j++){const d=prev[b+j]-prev[a+j];prev[a+j]+=d*ra;prev[b+j]-=d*rb;}
+  }
+  if(maxViolation<.001)break;
+ }
+ for(let i=0;i<n;i++){
+  const o=ids[i]*boneCount;field.set(prev.subarray(o,o+boneCount),i*boneCount);
+  if(groups[ids[i]].length>1)for(let j=0;j<3;j++)metric[i*3+j]=centers[ids[i]*3+j];
+ }
  return ids;
 }
 function normalizedTop4(field,offset,boneCount,indices,weights,k){
@@ -193,23 +225,28 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   sum.fill(0);
   for(const [id,factor] of [[hit.a,hit.u],[hit.b,hit.v],[hit.c,hit.w]])for(let q=0;q<4;q++)sum[ji[id*4+q]]+=factor*weights[id*4+q];
   locked[i]=policy.constrain?.(i,asset,sum,byName)?1:0;
+  if(sum.some(w=>!Number.isFinite(w)||w< -1e-6))throw Error('Invalid garment skin weights at '+i+': '+Array.from(sum));
+  for(let b=0;b<boneCount;b++)sum[b]=Math.max(0,sum[b]);
   const total=sum.reduce((a,b)=>a+b,0);
-  if(!(total>1e-8)||sum.some(w=>!Number.isFinite(w)||w<0))throw Error('Invalid garment skin weights at '+i);
+  if(!(total>1e-8))throw Error('Empty garment skin weights at '+i);
   for(let b=0;b<boneCount;b++)field[i*boneCount+b]=sum[b]/total;
   if((policy.fit?.(i,asset)??true)&&hit.distance<.035&&hit.alignment>.35){
    const gap=dot(x-hit.x,y-hit.y,z-hit.z,hit.nx,hit.ny,hit.nz),fit=Math.max(0,Math.min(.012,.0025-gap));
    rest[j]+=hit.nx*fit;rest[j+1]+=hit.ny*fit;rest[j+2]+=hit.nz*fit;maxFit=Math.max(maxFit,fit);
   }
  }
- // A single field across the whole garment ensures matching seam transforms.
- const welded=smoothField(asset.position,asset.index,field,locked,boneCount,policy.smoothing??8);
- // Clearance is also a continuous seam attribute. Different source normals
- // on duplicated seam vertices must not produce a visible crack.
- const seam=new Map();
- for(let i=0;i<count;i++){const id=welded[i],j=i*3;let s=seam.get(id);if(!s)seam.set(id,s=[0,0,0,0]);s[0]+=rest[j];s[1]+=rest[j+1];s[2]+=rest[j+2];s[3]++;}
- for(let i=0;i<count;i++){const s=seam.get(welded[i]);if(s[3]>1)for(let j=0;j<3;j++)rest[i*3+j]=s[j]/s[3];}
+ // Compact the field before neighborhood diffusion. The graph solver's
+ // cost depends on the garment's bones, not the full character skeleton.
+ const active=[];
+ for(let b=0;b<boneCount;b++){for(let i=0;i<count;i++)if(field[i*boneCount+b]>1e-8){active.push(b);break;}}
+ const compact=new Float32Array(count*active.length);
+ for(let i=0;i<count;i++)for(let b=0;b<active.length;b++)compact[i*active.length+b]=field[i*boneCount+active[b]];
+ const welded=smoothField(asset.position,rest,asset.index,compact,locked,active.length,policy.smoothing??8,policy.gradientLimit??24);
  const actual=new Uint8Array(count*4),skinWeight=new Float32Array(count*4);
- for(let i=0;i<count;i++)normalizedTop4(field,i*boneCount,boneCount,actual,skinWeight,i*4);
+ for(let i=0;i<count;i++){
+  normalizedTop4(compact,i*active.length,active.length,actual,skinWeight,i*4);
+  for(let j=0;j<4;j++)actual[i*4+j]=active[actual[i*4+j]];
+ }
  const boneIds=[...new Set(actual.filter((_,i)=>skinWeight[i]>0))].sort((a,b)=>a-b),palette=new Map(boneIds.map((id,i)=>[id,i]));
  const joints=Uint8Array.from(actual,(id,i)=>skinWeight[i]>0?palette.get(id):0);
  // Keep reference-space positions intact. Runtime dual-quaternion blending

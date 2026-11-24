@@ -17,7 +17,7 @@ export const SHIRT_BINDING_POLICY=Object.freeze({
   // Keep torso/collar/button weights on the torso chain. Sleeve weights follow
   // authored shoulder/elbow channels; neither hands nor the opposite arm can
   // pull the same connected garment panel. The cuff is an exact rigid anchor.
-  const tw=ids.map(id=>weights[id]),sum=tw.reduce((a,b)=>a+b,0);
+  const tw=ids.map(id=>Math.max(0,weights[id])),sum=tw.reduce((a,b)=>a+b,0);
   let arm=c.kind<2?c.shoulder:0;
   if(c.kind===1&&c.elbow>.97)arm=1;
   const elbow=c.kind===1?smooth(.04,.97,c.elbow):0;
@@ -29,6 +29,7 @@ export const SHIRT_BINDING_POLICY=Object.freeze({
  },
  fit(i,asset){return channels(asset,i).kind<2;},
  smoothing:10,
+ gradientLimit:22,
  attributes:asset=>[['aRest',asset.position,3,false],['aColor',asset.color,3,true],['aDetail',asset.detail,4,false],['aInfluence',asset.influence,4,false]],
  parts:[
   {id:'top',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]!==2),coverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices,firstPersonCoverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices&&[a,b,c].every(i=>asset.influence[i*4+3]===1||asset.influence[i*4]>=128)},

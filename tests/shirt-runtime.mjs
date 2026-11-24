@@ -39,7 +39,8 @@ const edgeList=(index,rest,accept=()=>true)=>{
 };
 function strain(edges,points){
  const ratios=edges.map(([a,b,l])=>points[a].distanceTo(points[b])/l).sort((a,b)=>a-b);
- return {count:ratios.length,p95:ratios[Math.floor((ratios.length-1)*.95)],p99:ratios[Math.floor((ratios.length-1)*.99)],max:ratios.at(-1)};
+ const maxExtension=edges.reduce((m,[a,b,l])=>Math.max(m,points[a].distanceTo(points[b])-l),0);
+ return {count:ratios.length,p95:ratios[Math.floor((ratios.length-1)*.95)],p99:ratios[Math.floor((ratios.length-1)*.99)],max:ratios.at(-1),maxExtension};
 }
 for(const sex of ['male','female']){
  const profile=normalizeStudioCharacter({body:sex}),plain=createStudioModel(T,factory,profile);
@@ -91,7 +92,7 @@ for(const sex of ['male','female']){
   actor.pose(angles);const p=points();finalPoints=p;
   for(const list of cuffs){const m=strain(list,p);assert(m.count>50&&m.max<1.001,'cuff stretched '+JSON.stringify(m));}
   const armpit=strain(shoulderEdges,p),whole=strain(allEdges,p);
-  assert(armpit.p95<2.2&&armpit.p99<3.5,'shoulder strain '+JSON.stringify(armpit));
+  assert(armpit.p95<2.2&&armpit.p99<3.5&&armpit.maxExtension<.055,'shoulder strain '+JSON.stringify(armpit));
   assert(whole.p99<3.5,'garment strain '+JSON.stringify(whole));
   console.log('STRAIN '+sex+' '+JSON.stringify({armpit,whole}));
  }

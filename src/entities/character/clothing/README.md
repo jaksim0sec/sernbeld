@@ -7,7 +7,7 @@
 슬롯: `collar`, `top`, `vest`, `pants`, `shoes`, `hat`.
 
 - `registry.js`: `registerClothing({id, slot, name, build, defaultWhen?})`. 동일 슬롯만 교체한다. `build(T, actor, fullIndex)`는 `{object, dispose, bodyCoverage?, firstPersonCoverage?, setFirstPerson?}`를 반환한다. `bodyCoverage`는 인체 정점별 Uint8 마스크(0/255)이며 각 의상은 자기 마스크만 반환한다. 컨트롤러가 활성 의상의 합집합을 계산한다. 다른 의상의 마스크나 공유 인체 정점을 수정하지 않는다.
-- `garment-binding.js`: 발 기준 1.76m reference pose의 position/normal/index를 실제 게임 인체 삼각형에 매핑한다. 정책의 `regions`, `guide(i,asset)`, `constrain(i,asset,weights,bones)`, `fit`, `smoothing`, `parts`, `attributes`로 부위 제약을 지정한다. constrain은 가중치 배열을 수정하고 rigid anchor이면 true를 반환한다. 손가락·반대쪽 팔다리 같은 무관한 본은 의상 설계 시 제외한다. 연결 정점 및 일치하는 seam 정점의 가중치를 함께 평활화하고 4개 본으로 정규화한다. 임의의 공간상 이웃을 연결하지 않는다.
+- `garment-binding.js`: 발 기준 1.76m reference pose의 position/normal/index를 실제 게임 인체 삼각형에 매핑한다. 정책의 `regions`, `guide(i,asset)`, `constrain(i,asset,weights,bones)`, `fit`, `smoothing`, `parts`, `attributes`로 부위 제약을 지정한다. constrain은 가중치 배열을 수정하고 rigid anchor이면 true를 반환한다. 손가락·반대쪽 팔다리 같은 무관한 본은 의상 설계 시 제외한다. 연결 정점 및 일치하는 seam 정점의 가중치와 간격 보정을 함께 평활화하고, 실제 edge 길이에 비례하여 가중치 변화량을 제한(`gradientLimit`, L1/m)한 뒤 4개 본으로 정규화한다. 커프 같은 rigid anchor는 보존한다. 임의의 공간상 이웃을 연결하지 않는다.
 - `garment-pose.js`: `createGarmentPart(T,actor,lease,partId,materialFactory)`가 실제 스켈레톤의 최종 bone world matrix에서 reference-space dual quaternion을 계산한다. materialFactory는 (공통 pose uniforms, GLSL skinning 함수)를 전달받아 vertex shader에서 `garmentPose(positionOut, normalOut)`를 호출한다. rigid 영역은 회전·이동만 하며 선형 스키닝의 역행렬 불안정성/비틀림 수축을 피한다. CPU에서 같은 변형을 검사할 수 있다.
 - 바인딩은 에셋/정책/체형/참조 프레임별로 캐싱한다. 동일 체형 NPC는 정점 버퍼와 파트 인덱스를 공유하며, 장착 해제는 참조 카운트로 관리한다. 실시간 CPU 정점 변형·천 시뮬레이션은 하지 않는다.
 
