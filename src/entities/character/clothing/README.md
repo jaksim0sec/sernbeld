@@ -18,3 +18,5 @@
 `top.basic-shirt`와 `collar.basic`는 기본 장착되는 별도 슬롯이다. 동일 승인 에셋의 정점과 스키닝을 공유하고 인덱스를 서로 겹치지 않게 분리하여 카라가 두 번 그려지지 않는다. 어느 하나만 교체·해제할 수 있다. 셔츠 데이터가 없는 독립 캐릭터에서는 기존 procedural collar builder를 사용한다. 첫인칭은 소매를 표시하고 카라는 숨긴다.
 
 검증: `node tests/shirt-runtime.mjs`는 실제 게임 모델에 대해 attention pose, rigid cuff edge lengths, shoulder edge strain, 최종 손 IK, actor world transform, 슬롯 및 coverage 합집합, 공유 버퍼 수명을 검사한다. 다른 의상도 같은 기준으로 검사할 것. 렌더러 시각 결과 및 모든 포즈에서의 피부 간섭 완전 해소는 별도 검증 대상이다.
+
+일반 포즈·실제 손 IK와 극단 스트레스 포즈는 구분한다. 극단 포즈의 상대 변형 목표(p95 < 2.5, p99 < 3.5)는 여성 리그에서 아직 미충족이며 테스트에서 `STRESS TARGET NOT MET`으로 표시한다. 최대 절대 연장 4.5cm 한도 및 일반 포즈/IK 회귀 기준은 실패 시 테스트를 중단한다. 현재 방식은 실시간 천 충돌/길이 보존 솔버가 아니므로 모든 자세에서 무신축을 보장하지 않는다.
