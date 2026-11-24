@@ -422,8 +422,48 @@ function getBody(){
  const result={data,position,packedNormals,indices:Uint32Array.from(indices),editor,worldPositions,normals,joints,weights,gpu:null};
  bodyCache.set(state.body,result);return result;
 }
+// Keep the preview in a relaxed attention stance rather than the rig's spread-arm bind pose.
+// Calculate rotations from the rig's own shoulder/elbow pivots so both body variants work.
+const attentionPoseCache=new WeakMap();
+function attentionPoseFor(data){
+ if(attentionPoseCache.has(data))return attentionPoseCache.get(data);
+ const pose={};
+ const vector=(p,q)=>q.map((v,i)=>(v-p[i])/HEIGHT);
+ const normalize=v=>{const l=Math.hypot(...v)||1;return v.map(n=>n/l);};
+ for(const side of ['left','right']){
+  const upper=data.bones.find(b=>b.id==='upper_arm_'+side);
+  const lower=data.bones.find(b=>b.id==='forearm_'+side);
+  if(!upper||!lower||!upper.axes.length)continue;
+  const initial=normalize(vector(upper.pivot,lower.pivot));
+  // Arms hang almost vertically with just enough separation to clear the torso.
+  const target=normalize([side==='left'?.17:-.17,-1,0]);
+  let best={score:-Infinity,values:upper.axes.map(()=>0)};
+  const evaluate=values=>{
+   let rotation=identity;
+   upper.axes.forEach((axis,i)=>{if(values[i])rotation=multiply(rotation,turn(axis.d,values[i]));});
+   const direction=normalize(rotate(rotation,initial));
+   const alignment=direction.reduce((sum,v,i)=>sum+v*target[i],0);
+   const score=alignment-.000025*values.reduce((sum,v)=>sum+v*v,0);
+   if(score>best.score)best={score,values:values.slice()};
+  };
+  const values=upper.axes.map(()=>0);
+  const search=(index)=>{
+   if(index===upper.axes.length){evaluate(values);return;}
+   const axis=upper.axes[index];
+   const min=Math.max(-100,axis.min),max=Math.min(100,axis.max);
+   const samples=new Set([0,min,max]);
+   for(let angle=Math.ceil(min/10)*10;angle<=max;angle+=10)samples.add(angle);
+   for(const angle of samples){if(angle<axis.min||angle>axis.max)continue;values[index]=angle;search(index+1);}
+  };
+  search(0);
+  pose[upper.id]=best.values;
+ }
+ attentionPoseCache.set(data,pose);
+ return pose;
+}
 function poseFor(data){
- return Object.fromEntries(data.bones.map(b=>[b.id,state.pose[b.id]??b.axes.map(()=>0)]));
+ const base=attentionPoseFor(data);
+ return Object.fromEntries(data.bones.map(b=>[b.id,state.pose[b.id]??base[b.id]??b.axes.map(()=>0)]));
 }
 function matrices(){const body=getBody();return worldTransforms(body.data,poseFor(body.data));}
 function tintIris(object){
