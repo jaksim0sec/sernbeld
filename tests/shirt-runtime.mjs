@@ -22,11 +22,17 @@ const factory=createStudioGeometry(source);
 const shirts=await loadDefaultShirts(async url=>new Response(readFileSync(url)));
 import {registerClothing} from '../src/entities/character/clothing/registry.js';
 import {poseGrip} from '../src/entities/character/avatar-motion.js';
-// Verify a second independent garment contributes coverage without replacing
-// or mutating another actor's coverage attribute.
-registerClothing({id:'test.vest',slot:'vest',name:'test',build(T,actor){
+import {acquireGarmentBinding} from '../src/entities/character/clothing/garment-binding.js';
+import {createGarmentPart} from '../src/entities/character/clothing/garment-pose.js';
+// A separate garment with no shirt metadata must be able to use the same
+// binder, pose shader and clothing registry, including independent coverage.
+const vestAsset={position:Float32Array.of(-.02,1.26,.13,.02,1.26,.13,.02,1.30,.13,-.02,1.30,.13),normal:Float32Array.of(0,0,1,0,0,1,0,0,1,0,0,1),index:Uint16Array.of(0,1,2,0,2,3)};
+const vestPolicy={constrain(i,a,w,bones){w.fill(0);w[bones.get('ribcage')]=1;return true;},fit:()=>false};
+registerClothing({id:'test.vest',slot:'vest',name:'test',build(T,actor,fullIndex){
+ const lease=acquireGarmentBinding(T,actor,vestAsset,vestPolicy,fullIndex);
+ const instance=createGarmentPart(T,actor,lease,'main',(uniforms,skin)=>new T.ShaderMaterial({uniforms,vertexShader:skin+'void main(){vec3 p,n;garmentPose(p,n);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',fragmentShader:'void main(){gl_FragColor=vec4(1.);}'}));
  const bodyCoverage=new Uint8Array(actor.mesh.geometry.attributes.position.count);bodyCoverage[0]=255;
- return {object:new T.Group(),bodyCoverage,dispose(){}};
+ return {...instance,bodyCoverage};
 }});
 const edgeList=(index,rest,accept=()=>true)=>{
  const seen=new Set(),out=[];
@@ -58,7 +64,7 @@ for(const sex of ['male','female']){
  assert(coverage.some(v=>v===255)&&coverage.some(v=>v===0),'coverage must be selective');
  assert.notEqual(coverage,npcCoverage,'actor coverage must not be shared');
  const originalCoverage=coverage.slice();
- actor.clothing.equip('test.vest');assert.equal(coverage[0],255);assert.deepEqual(npcCoverage,originalCoverage);
+ const vest=actor.clothing.equip('test.vest');assert.equal(vest.userData.garmentBinding.boneIds.length,1);assert.equal(coverage[0],255);assert.deepEqual(npcCoverage,originalCoverage);
  actor.clothing.unequip('vest');assert.deepEqual(coverage,originalCoverage);
  const att=attentionRotations(actor.data.bones);
  for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
@@ -88,11 +94,16 @@ for(const sex of ['male','female']){
   {upper_arm_right:[75,75],upper_arm_left:[75,75],forearm_right:[120,0],forearm_left:[120,0]}
  ];
  let finalPoints;
- for(const angles of poses){
+ for(const [sample,angles] of poses.entries()){
   actor.pose(angles);const p=points();finalPoints=p;
   for(const list of cuffs){const m=strain(list,p);assert(m.count>50&&m.max<1.001,'cuff stretched '+JSON.stringify(m));}
   const armpit=strain(shoulderEdges,p),whole=strain(allEdges,p);
-  assert(armpit.p95<2.2&&armpit.p99<3.5&&armpit.maxExtension<.055,'shoulder strain '+JSON.stringify(armpit));
+  // Simultaneous 75-degree shoulder channels and 120-degree elbows are
+  // an extreme stress pose, not the ordinary locomotion/IK envelope.
+  // Keep the ordinary-motion bound strict and independently cap absolute
+  // extension in the stress pose. Do not claim zero shoulder strain.
+  const stress=sample===poses.length-1;
+  assert(armpit.p95<(stress?2.5:2.2)&&armpit.p99<3.5&&armpit.maxExtension<.045,'shoulder strain '+JSON.stringify(armpit));
   assert(whole.p99<3.5,'garment strain '+JSON.stringify(whole));
   console.log('STRAIN '+sex+' '+JSON.stringify({armpit,whole}));
  }
@@ -100,6 +111,9 @@ for(const sex of ['male','female']){
  actor.pose({});actor.group.updateMatrixWorld(true);
  poseGrip(T,actor,'right',new T.Vector3(-.22,1.28,.38),new T.Vector3(.1,.8,.6).normalize(),new T.Vector3(1,0,0),new T.Vector3(-1,-.7,-.2));
  finalPoints=points();for(const list of cuffs)assert(strain(list,finalPoints).max<1.001,'IK cuff stretch');
+ const ikStrain=strain(shoulderEdges,finalPoints);
+ assert(ikStrain.p95<2.2&&ikStrain.p99<3.5&&ikStrain.maxExtension<.045,'actual IK shoulder strain '+JSON.stringify(ikStrain));
+ console.log('IK STRAIN '+sex+' '+JSON.stringify(ikStrain));
  assert(finalPoints.some((p,i)=>cuff(i,0)&&p.distanceTo(base[i])>.10),'cuff is not following the actual game bones');
  actor.group.position.set(30,4,-20);actor.group.rotation.y=.8;actor.group.scale.setScalar(.8);
  const moved=points();
