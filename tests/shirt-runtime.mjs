@@ -60,14 +60,13 @@ for(const sex of ['male','female']){
  actor.clothing.equip('test.vest');assert.equal(coverage[0],255);assert.deepEqual(npcCoverage,originalCoverage);
  actor.clothing.unequip('vest');assert.deepEqual(coverage,originalCoverage);
  const att=attentionRotations(actor.data.bones);
- for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,0,0,0,1]));
+ for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
  const bind=shirt.userData.garmentBinding,g=shirt.geometry,rest=bind.rest,n=rest.length/3,asset=shirts[sex];
  assert.equal(bind,collar.userData.garmentBinding,'collar/top must share reference transforms');
  function points(){actor.group.updateMatrixWorld(true);shirt.userData.updateClothingPose();collar.userData.updateClothingPose();return Array.from({length:n},(_,i)=>shirt.userData.deformGarmentVertex(i));}
  const base=points();
  let maxError=0;
  for(let i=0;i<n;i++)maxError=Math.max(maxError,base[i].distanceTo(new T.Vector3().fromArray(rest,i*3)));
- console.log('ATTENTION '+sex+' '+JSON.stringify({maxError,world:shirt.matrixWorld.elements,units:actor.units,frame:bind.ref.frame.elements,bones:bind.boneIds.map((id,j)=>({name:actor.bones[id].name,local:actor.bones[id].quaternion.toArray(),world:actor.bones[id].matrixWorld.elements,ref:bind.ref.inverseBones[id].clone().invert().elements,real:shirt.material.uniforms.uGarmentReal.value[j].toArray(),dual:shirt.material.uniforms.uGarmentDual.value[j].toArray()}))}));
  assert(maxError<.0002,'attention pose reconstruction error '+maxError);
  const cuff=(i,side)=>asset.influence[i*4+3]===1&&asset.influence[i*4+2]===side&&asset.influence[i*4+1]>248;
  const cuffs=[0,1].map(side=>edgeList(g.index.array,rest,(a,b)=>cuff(a,side)&&cuff(b,side)));
