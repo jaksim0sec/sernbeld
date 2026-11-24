@@ -59,3 +59,5 @@ const restored=createInventory({data:snapshot},createGameEvents());
 assert.equal(restored.getUnique(blade2.id)?.state.note,'첫 탐험 기념','unique state persists');
 assert.equal(restored.makeUnique('flower').id!==blade2.id,true,'serial never reuses existing id');
 console.log('PASS: foundation events, registry and inventory');
+
+await import('./world-performance.mjs');

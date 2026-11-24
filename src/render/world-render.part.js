@@ -449,6 +449,13 @@ var TerrainLOD = class {
     this.active = /* @__PURE__ */ new Set();
     this.frame = 0;
     this.last = [Infinity, Infinity, Infinity];
+    this.split = SPLIT;
+    this.cacheLimit = 140;
+  }
+  setQuality(q) {
+    this.split = q.terrainSplit;
+    this.cacheLimit = q.terrainCache;
+    this.last = [Infinity, Infinity, Infinity];
   }
   update(cx, cz, cy) {
     const l = this.last;
@@ -459,7 +466,7 @@ var TerrainLOD = class {
     const visit = (size, x0, z0) => {
       const dx = Math.max(0, Math.abs(cx - (x0 + size / 2)) - size / 2), dz = Math.max(0, Math.abs(cz - (z0 + size / 2)) - size / 2);
       const d = Math.hypot(dx, dz, Math.max(0, cy - 200));
-      if (size > CFG.chunk && d < size * SPLIT) {
+      if (size > CFG.chunk && d < size * this.split) {
         const h = size / 2;
         visit(h, x0, z0);
         visit(h, x0 + h, z0);
@@ -484,9 +491,9 @@ var TerrainLOD = class {
     for (const m of this.active) if (!next.has(m)) this.scene.remove(m);
     for (const m of next) if (!this.active.has(m)) this.scene.add(m);
     this.active = next;
-    if (this.cache.size > 140) {
+    if (this.cache.size > this.cacheLimit) {
       const old = [...this.cache].filter(([, m]) => !next.has(m)).sort((a, b) => a[1].userData.used - b[1].userData.used);
-      for (const [k, m] of old.slice(0, this.cache.size - 100)) {
+      for (const [k, m] of old.slice(0, this.cache.size - Math.max(next.size, this.cacheLimit - 30))) {
         m.geometry.dispose();
         this.cache.delete(k);
       }

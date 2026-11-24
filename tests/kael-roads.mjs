@@ -22,7 +22,7 @@ try {
   await page.waitForFunction(() => !!window.__dev, { timeout: 180000 });
   const result = await page.evaluate(() => {
     const d = window.__dev, routes = d.World.kaelPaths, nav = d.World.kaelNav;
-    const geometry = d.scene.getObjectByName('kael')?.children?.find(x => x.isMesh)?.geometry;
+    const geometries = d.scene.getObjectByName('kael')?.children?.filter(x => x.isMesh).map(x => x.geometry) || [];
     const pairs = [['quay','smithy'], ['pier_a','smithy'], ['pier_b','harbor_office'],
       ['quay','stall_b'], ['stall_b','plaza'], ['plaza','monastery'], ['monastery','north_gate']];
     const npcPaths = pairs.map(([from,to]) => ({ from, to, ok: !!nav?.path(...d.region.places[from], ...d.region.places[to]) }));
@@ -43,7 +43,7 @@ try {
       return { id:route.id, reachable:route.reachable, waypoints:route.pts.length,
         paved:route.pavedSegments, violations };
     });
-    return { grades, npcPaths, vertices: geometry?.attributes?.position?.count || 0,
+    return { grades, npcPaths, vertices: geometries.reduce((sum, geo) => sum + geo.attributes.position.count, 0),
       sceneCount: d.scene.children.length, webgl: !!d.renderer.getContext(), bridge };
   });
   console.log('KAEL ROADS '+JSON.stringify(result));
