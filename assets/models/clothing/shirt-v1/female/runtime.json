@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "vertices": 35713,
+  "triangles": 70026,
+  "shirtVertices": 32143,
+  "collarVertices": 2835,
+  "buttonVertices": 735,
+  "sections": [
+    {
+      "offset": 0,
+      "length": 107139
+    },
+    {
+      "offset": 428556,
+      "length": 107139
+    },
+    {
+      "offset": 857112,
+      "length": 107139
+    },
+    {
+      "offset": 964252,
+      "length": 142852
+    },
+    {
+      "offset": 1535660,
+      "length": 142852
+    },
+    {
+      "offset": 1678512,
+      "length": 210078
+    },
+    {
+      "offset": 2098668,
+      "length": 107139
+    },
+    {
+      "offset": 2312948,
+      "length": 107139
+    },
+    {
+      "offset": 2527228,
+      "length": 107139
+    },
+    {
+      "offset": 2741508,
+      "length": 107139
+    }
+  ],
+  "rawBytes": 2955786,
+  "correctiveSamples": [
+    [
+      75,
+      0,
+      0
+    ],
+    [
+      0,
+      75,
+      0
+    ],
+    [
+      0,
+      -35,
+      0
+    ],
+    [
+      0,
+      0,
+      90
+    ]
+  ],
+  "sampleStats": [
+    {
+      "side": -1,
+      "pose": [
+        75,
+        0,
+        0
+      ],
+      "maxResidual": 0.06791072384348484
+    },
+    {
+      "side": -1,
+      "pose": [
+        0,
+        75,
+        0
+      ],
+      "maxResidual": 0.07208064971282768
+    },
+    {
+      "side": -1,
+      "pose": [
+        0,
+        -35,
+        0
+      ],
+      "maxResidual": 0.042962187514778316
+    },
+    {
+      "side": -1,
+      "pose": [
+        0,
+        0,
+        90
+      ],
+      "maxResidual": 0.02144848840872232
+    },
+    {
+      "side": 1,
+      "pose": [
+        75,
+        0,
+        0
+      ],
+      "maxResidual": 0.06830406601395866
+    },
+    {
+      "side": 1,
+      "pose": [
+        0,
+        75,
+        0
+      ],
+      "maxResidual": 0.07136917119899477
+    },
+    {
+      "side": 1,
+      "pose": [
+        0,
+        -35,
+        0
+      ],
+      "maxResidual": 0.04080453459665745
+    },
+    {
+      "side": 1,
+      "pose": [
+        0,
+        0,
+        90
+      ],
+      "maxResidual": 0.021401639359876767
+    }
+  ],
+  "sourceJoints": [
+    [
+      [
+        -0.12,
+        1.365,
+        0.025
+      ],
+      [
+        -0.14434999227523804,
+        1.1773600578308105,
+        0.02261499874293804
+      ]
+    ],
+    [
+      [
+        0.12,
+        1.365,
+        0.025
+      ],
+      [
+        0.14462000131607056,
+        1.1773600578308105,
+        0.02261499874293804
+      ]
+    ]
+  ],
+  "parts": [
+    "runtime.00.part",
+    "runtime.01.part",
+    "runtime.02.part",
+    "runtime.03.part",
+    "runtime.04.part",
+    "runtime.05.part",
+    "runtime.06.part"
+  ],
+  "packedBytes": 1845910,
+  "sourcePositionSha256": "fba8228cf13b28176377c809674d96817fca877f44aa8fb831b20b97ffb810f2",
+  "sourceIndexSha256": "6ec317e90138edc72787dc8594038860de75099ceaf2daf9de65c07d5d383db4"
+}

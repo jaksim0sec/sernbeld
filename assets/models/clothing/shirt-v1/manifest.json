@@ -1,7 +1,7 @@
 {
   "version": 1,
   "id": "top.basic-shirt",
-  "status": "reference-only",
+  "status": "runtime",
   "referenceFrame": "foot-anchored 1.76m, +Y up, +Z front",
   "bodies": {
     "male": {
@@ -71,5 +71,16 @@
         "maxCreaseError": 0.03931561727255309
       }
     }
+  },
+  "runtime": {
+    "version": 1,
+    "format": "lz4-block-base64",
+    "defaultEquipped": true,
+    "bodyAssets": {
+      "male": "male/runtime.json",
+      "female": "female/runtime.json"
+    },
+    "sourcePreserved": true,
+    "poseCorrections": "original reference solver: side 75, front 75, back 35, elbow 90; interpolated DQ retargeting"
   }
 }

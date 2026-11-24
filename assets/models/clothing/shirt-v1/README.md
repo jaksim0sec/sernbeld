@@ -1,6 +1,6 @@
 # Shirt v1 / 승인된 긴소매 셔츠
 
-이 디렉터리는 SERNBELD_shirt_final.html 승인본의 재현 가능한 원본 에셋이다. 의상 ID 예정값은 `top.basic-shirt`이며, 현재 상태는 **reference-only**이다. 기존 clothing registry의 `top` 슬롯을 사용하되 실제 게임용 build 함수는 아직 등록하지 않는다.
+이 디렉터리는 SERNBELD_shirt_final.html 승인본의 재현 가능한 원본 에셋이다. 의상 ID 예정값은 `top.basic-shirt`이며, 현재 상태는 **runtime**이다. 원본은 별도로 보존하며 기존 clothing registry의 `top` 슬롯에 게임용 build 함수를 등록했다.
 
 ## 보존 범위
 
@@ -31,4 +31,8 @@ node tests/shirt-reference.mjs
 - 여성: 32301 → 32143 정점, 64110 → 63794 삼각형.
 - 국소 접평면 높이 차이 최대 0.443mm. 경계, 퇴화면 및 비다양체 검사를 통과했다. 실제 포즈/화면 테스트는 별도 검증 필요.
 - `node tools/check-shirt-render-lod.mjs`로 패치 재생성 일치 여부 검증.
-- `getClothingAsset('top.basic-shirt')`로 상의 데이터 조회 가능. 실제 장착 빌더는 아직 없다.
+- `getClothingAsset('top.basic-shirt')`로 상의 데이터 조회 가능. 게임용 빌더는 `src/entities/character/clothing/shirt.js`에 있다.
+
+## 게임 기본 장착
+
+남녀 각각의 `runtime.json`/`runtime.*.part`는 원본 정점과 카라/단추, 주름, 원본 솔버의 어깨 옆/앞/뒤 및 팔꿈치 자세 보정값을 포함한다. GPU dual-quaternion 스키닝과 자세 보정 보간을 사용하므로 실시간 CPU 충돌 재계산은 하지 않는다. 복합 자세와 실제 게임 스켈레톤에서의 완전한 외형 일치는 아직 검증되지 않았다. 모든 캐릭터가 성별별 지오메트리를 공유하며 인체 원본은 수정하지 않는다. `node tools/bake-shirt-runtime.mjs`로 재생성한다. 첫인칭 소매 표시, 카라 슬롯 중복 방지 및 오프라인 리소스 캐싱을 적용했다.

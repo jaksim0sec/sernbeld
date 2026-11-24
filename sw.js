@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-32';
+const VERSION = 'sernbeld-pwa-33';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -22,6 +22,23 @@ const OFFLINE_FILES = [
   './src/entities/character/schoolyard-reference-clips.js',
   './src/entities/character/studio-geometry.js',
   './src/entities/character/studio-model.js',
+  './src/entities/character/clothing/registry.js',
+  './src/entities/character/clothing/collar.js',
+  './src/entities/character/clothing/shirt.js',
+  './src/entities/character/clothing/shirt-source.js',
+  './assets/models/clothing/shirt-v1/male/runtime.json',
+  './assets/models/clothing/shirt-v1/male/runtime.00.part',
+  './assets/models/clothing/shirt-v1/male/runtime.01.part',
+  './assets/models/clothing/shirt-v1/male/runtime.02.part',
+  './assets/models/clothing/shirt-v1/male/runtime.03.part',
+  './assets/models/clothing/shirt-v1/female/runtime.json',
+  './assets/models/clothing/shirt-v1/female/runtime.00.part',
+  './assets/models/clothing/shirt-v1/female/runtime.01.part',
+  './assets/models/clothing/shirt-v1/female/runtime.02.part',
+  './assets/models/clothing/shirt-v1/female/runtime.03.part',
+  './assets/models/clothing/shirt-v1/female/runtime.04.part',
+  './assets/models/clothing/shirt-v1/female/runtime.05.part',
+  './assets/models/clothing/shirt-v1/female/runtime.06.part',
   './src/entities/character/studio-source.js',
   './src/entities/character/studio-integration.js',
   './src/entities/character/attention-pose.js',

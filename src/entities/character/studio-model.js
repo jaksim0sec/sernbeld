@@ -204,7 +204,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
   });
  }
- const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,speed:0,talk:0,phase:0,pose,grip,
+ const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,shirtAsset:factory.source.defaultShirts?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
@@ -231,7 +231,8 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
   }
  };
- // Optional equipment only. No initial clothing; do not alter the body or saved appearance.
+ // All runtime actors share the same loaded male/female shirt assets.
  api.clothing=createClothingController(T,api,lodIndex[0]);
+ if(api.shirtAsset)api.clothing.equip('top.basic-shirt');
  return api;
 }
