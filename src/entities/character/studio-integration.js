@@ -9,14 +9,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null;
  let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
- dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#fafaf7;z-index:1000;';
- dialog.innerHTML='<button type="button" id="character-close" aria-label="돌아가기" style="position:absolute;right:.6rem;bottom:.6rem;z-index:2;border:1px solid #cbd5c7;border-radius:.7rem;background:#fff;padding:.7rem 1rem;color:#334a3c">돌아가기</button><iframe title="내 캐릭터 만들기" style="border:0;width:100%;height:100%"></iframe>';
+ dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
+ dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
  document.body.append(dialog);
  dialog.addEventListener('cancel',e=>{e.preventDefault();if(!first)closeChooser();});
- dialog.querySelector('button').onclick=()=>{if(!first)closeChooser();};
  function sendProfile(){frame?.contentWindow.postMessage({type:'sernbeld:edit-character',character:profile,first},location.origin);}
  function openChooser(required=false){
-  first=required;open=true;dialog.querySelector('button').hidden=required;
+  first=required;open=true;
   document.exitPointerLock?.();
   if(!frame){frame=dialog.querySelector('iframe');frame.src=new URL('./studio.html',import.meta.url).href;}
   if(!dialog.open)dialog.showModal();sendProfile();
@@ -25,6 +24,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  addEventListener('message',e=>{
   if(e.origin!==location.origin||e.source!==frame?.contentWindow)return;
   if(e.data?.type==='sernbeld:studio-ready')sendProfile();
+  if(e.data?.type==='sernbeld:cancel-character'&&open&&!first)closeChooser();
   if(e.data?.type==='sernbeld:apply-character'){
    try{setProfile(e.data.character);Save.data.characterCreated=true;Save.write();first=false;closeChooser();}
    catch(err){console.error('Character apply',err);}
