@@ -31,6 +31,7 @@ for(const sex of ['male','female']){
  assert.equal(shirt.geometry.index.count,shirts[sex].meta.triangles*3);
  // At the editor attention pose the garment reference matrices must be identity.
  const att=attentionRotations(actor.data.bones);
+ console.log('SHIRT RIG '+sex+' '+JSON.stringify({source:shirts[sex].meta.sourceJoints,actual:shirt.userData.clothingDiagnostics.attentionJoints,units:actor.units,box:actor.mesh.geometry.boundingBox,bones:actor.data.bones.filter(b=>/upper_arm|forearm|hand_|ribcage|waist|neck|pelvis/.test(b.id)).map(b=>({id:b.id,pivot:b.pivot}))}));
  for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
  actor.group.updateMatrixWorld(true);shirt.userData.updateClothingPose();
  for(const q of shirt.material.uniforms.uReal.value)assert(Math.hypot(q.x,q.y,q.z)<1e-5&&Math.abs(Math.abs(q.w)-1)<1e-5,'non-identity reference rotation');
