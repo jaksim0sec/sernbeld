@@ -1,0 +1,47 @@
+/* SERNBELD Design SEED 05 — Character Studio.
+ * Token-only stylesheet: shared by the game and the studio iframe.
+ * UI neutrals are not a restriction on world art, item imagery or diegetic magic.
+ */
+:root{
+  --seed-black:#101010;
+  --seed-panel:#181818;
+  --seed-surface:#262626;
+  --seed-raised:#363636;
+  --seed-white:#fafafa;
+  --seed-gray1:#d4d4d4;
+  --seed-gray2:#a8a8a8;
+  --seed-gray3:#747474;
+  --seed-gray4:#454545;
+  --seed-font:-apple-system,BlinkMacSystemFont,Pretendard,"Noto Sans KR",system-ui,sans-serif;
+  --seed-line:1.45;
+  --seed-title-size:1.35rem;
+  --seed-title-weight:780;
+  --seed-title-tracking:-.045em;
+  --seed-button-size:.8rem;
+  --seed-button-weight:650;
+  --seed-button-tracking:-.02em;
+  --seed-caption-size:.72rem;
+  --seed-touch:2.75rem;
+  --seed-round-control:3.1rem;
+  --seed-primary-height:3.35rem;
+  --seed-radius-button:1.25rem;
+  --seed-radius-card:1.2rem;
+  --seed-radius-tab:1.15rem;
+  --seed-radius-pill:2rem;
+  --seed-radius-sheet:1.8rem;
+  --seed-gap:.55rem;
+  --seed-panel-padding:1.15rem;
+  --seed-button-padding:.65rem .9rem;
+  --seed-icon-size:1.45rem;
+  --seed-icon-stroke:1.8;
+  --seed-icon-cap:round;
+  --seed-focus:2px solid var(--seed-white);
+  --seed-focus-offset:3px;
+  --seed-motion-color:200ms ease;
+  --seed-motion-press:180ms ease;
+  --seed-motion-sheet:360ms cubic-bezier(.22,.8,.24,1);
+  --seed-press-scale:.97;
+  --seed-disabled-opacity:.38;
+  --seed-viewer-background:radial-gradient(ellipse at 50% 42%,#484848 0%,#303030 37%,#222222 68%,#141414 100%);
+  --seed-sheet-shadow:0 -.7rem 2rem #0003;
+}

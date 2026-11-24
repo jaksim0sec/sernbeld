@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-29';
+const VERSION = 'sernbeld-pwa-30';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -31,7 +31,7 @@ const OFFLINE_FILES = [
   './assets/models/characters/studio-v1.lod.json.gz',
   './assets/pwa-icon.svg', './assets/pwa-icon-192.png',
   './assets/pwa-icon-512.png', './assets/ui-icons.svg',
-  './styles/tokens.css', './styles/hud.css',
+  './styles/seed.css', './styles/tokens.css', './styles/hud.css',
   './styles/menus-and-overlays.css', './styles/responsive.css',
   './styles/world-map.css', './styles/skill-workbench.css', './styles/main-menu.css', './styles.css',
   './assets/kael-cutstone-v7.glb.gz'

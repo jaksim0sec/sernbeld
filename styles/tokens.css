@@ -1,59 +1,56 @@
-/*
- * SERNBELD / UI DESIGN SEED 04 — Luminous Field
- * Component vocabulary is deliberately small, not visually identical:
- *   HUD (unframed) / objective (quiet) / action (soft-disc)
- *   context prompt (light) / dialogue (dark) / menu (full-scene)
- *   notice (transient) / world labels (subtle).
- * Change tokens here. Never append a later one-off theme block.
+/* SERNBELD UI SEED 05 — Character Studio.
+ * Main system UI consumes the shared neutral tokens. World visuals retain their
+ * own semantic colors. No screen-specific palette overrides.
  */
+@import url("./seed.css");
 :root{
-  /* Color: neutral-white foreground, gray glass backing, quiet sea-glass accent */
-  --ui-ink:#f7fbfa;
-  --ui-ink-soft:rgba(248,252,250,.72);
-  --ui-ink-faint:rgba(248,252,250,.55);
-  --ui-accent:#d1eeeb;
-  --ui-accent-muted:rgba(177,224,219,.25);
-  --ui-warm:#dfc8a7;
+  /* Neutral UI hierarchy. Sky, map and magic colors are separate world semantics. */
+  --ui-ink:var(--seed-white);
+  --ui-ink-soft:var(--seed-gray1);
+  --ui-ink-faint:var(--seed-gray2);
+  --ui-accent:var(--seed-white);
+  --ui-accent-muted:rgba(250,250,250,.18);
+  --ui-warm:var(--seed-gray1);
   --ui-danger:#eeaea1;
-  --ui-glyph:#fff;
-  --ui-world-wash:rgba(18,32,38,.46);
-  --ui-control-wash:rgba(26,40,49,.16);
-  --ui-control-press:rgba(24,39,52,.46);
-  --ui-panel-wash:rgba(17,31,38,.93);
-  --ui-layer-wash:rgba(255,255,255,.07);
-  --ui-layer-hover:rgba(255,255,255,.13);
-  --ui-stroke:rgba(248,255,252,.21);
-  --ui-stroke-strong:rgba(250,255,253,.45);
-  --ui-stroke-control:rgba(252,255,254,.28);
-  --ui-separator:rgba(239,251,249,.14);
+  --ui-glyph:var(--seed-white);
+  --ui-world-wash:rgba(16,16,16,.46);
+  --ui-control-wash:rgba(38,38,38,.36);
+  --ui-control-press:rgba(54,54,54,.82);
+  --ui-panel-wash:var(--seed-panel);
+  --ui-layer-wash:var(--seed-surface);
+  --ui-layer-hover:var(--seed-raised);
+  --ui-stroke:rgba(250,250,250,.16);
+  --ui-stroke-strong:rgba(250,250,250,.45);
+  --ui-stroke-control:rgba(250,250,250,.20);
+  --ui-separator:rgba(250,250,250,.09);
   --ui-sky:#8fc9d6;
   --ui-sky-deep:#3d8fb3;
 
   /* Shape: variation by function, common radii within each family */
   --ui-radius-control:50%;
-  --ui-radius-pill:999px;
-  --ui-radius-panel:18px;
-  --ui-radius-card:13px;
-  --ui-radius-tile:11px;
-  --ui-radius-micro:7px;
+  --ui-radius-pill:var(--seed-radius-pill);
+  --ui-radius-panel:var(--seed-radius-sheet);
+  --ui-radius-card:var(--seed-radius-card);
+  --ui-radius-tile:var(--seed-radius-card);
+  --ui-radius-micro:.6rem;
 
   /* Space & typography: one scale, no per-widget arbitrary numbers */
-  --ui-space-1:4px;
-  --ui-space-2:8px;
-  --ui-space-3:12px;
-  --ui-space-4:16px;
-  --ui-space-5:20px;
+  --ui-space-1:.25rem;
+  --ui-space-2:.5rem;
+  --ui-space-3:.75rem;
+  --ui-space-4:1rem;
+  --ui-space-5:1.25rem;
   --ui-type-tiny:.64rem;
-  --ui-type-caption:.70rem;
-  --ui-type-body:.82rem;
-  --ui-type-title:1.06rem;
-  --ui-line:1.5;
-  --ui-font:'Gowun Dodum',system-ui,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
-  --ui-font-display:'Gowun Batang',Georgia,serif;
+  --ui-type-caption:var(--seed-caption-size);
+  --ui-type-body:var(--seed-button-size);
+  --ui-type-title:var(--seed-title-size);
+  --ui-line:var(--seed-line);
+  --ui-font:var(--seed-font);
+  --ui-font-display:var(--seed-font);
 
   /* Dimensions and safe-area aware anchors */
-  --ui-touch:44px;
-  --ui-control-size:44px;
+  --ui-touch:var(--seed-touch);
+  --ui-control-size:var(--seed-touch);
   --ui-action-size:58px;
   --ui-left-width:236px;
   --ui-edge:12px;
@@ -62,20 +59,20 @@
   --ui-shadow-floating:0 7px 24px rgba(2,13,19,.22);
   --ui-shadow-panel:0 18px 52px rgba(1,12,20,.38);
   --ui-blur-panel:6px;
-  --ui-trans-fast:140ms ease;
+  --ui-trans-fast:var(--seed-motion-color);
 
   /* Design system / menu scene: no detached component-specific palettes. */
-  --ui-menu-backdrop:rgba(19,29,43,.96);
-  --ui-menu-rail:rgba(11,23,38,.45);
-  --ui-menu-separator:rgba(233,239,241,.14);
-  --ui-menu-light:rgba(243,237,224,.95);
-  --ui-menu-dark-ink:#2a3647;
-  --ui-menu-selected:rgba(242,239,231,.90);
-  --ui-menu-selected-ink:#2d3b4e;
+  --ui-menu-backdrop:var(--seed-panel);
+  --ui-menu-rail:var(--seed-black);
+  --ui-menu-separator:rgba(250,250,250,.09);
+  --ui-menu-light:var(--seed-white);
+  --ui-menu-dark-ink:var(--seed-black);
+  --ui-menu-selected:var(--seed-white);
+  --ui-menu-selected-ink:var(--seed-black);
   --ui-page-rail-width:clamp(75px,10vw,124px);
   --ui-hud-text-shadow:0 2px 4px rgba(6,17,29,.78),0 0 11px rgba(7,17,26,.40);
   --ui-action-glow:0 0 0 1px rgba(248,255,255,.08) inset;
-  --ui-menu-nav-radius:9px;
+  --ui-menu-nav-radius:var(--seed-radius-tab);
   /* Minimap: shared low-contrast surface and responsive size, no heavy blur */
   --ui-map-size:112px;
   --ui-map-rim:rgba(246,251,250,.43);
@@ -99,7 +96,7 @@
 *,*::before,*::after{box-sizing:inherit}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--ui-sky);overscroll-behavior:none;-webkit-user-select:none;user-select:none}
 button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
-button:focus-visible,.slot:focus-visible{outline:2px solid var(--ui-accent);outline-offset:3px}
+button:focus-visible,.slot:focus-visible{outline:var(--seed-focus);outline-offset:var(--seed-focus-offset)}
 canvas#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 canvas#view:active{cursor:grabbing}
 [hidden]{display:none!important}
