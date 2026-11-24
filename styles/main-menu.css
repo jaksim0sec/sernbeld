@@ -3,14 +3,14 @@
 .panel.system-menu{display:block;background:transparent;box-shadow:none;overflow:hidden;font-family:var(--seed-font);line-height:var(--seed-line);color:var(--seed-white);-webkit-font-smoothing:antialiased}
 .panel.system-menu::after{content:none}
 .system-menu-shade{position:absolute;inset:0;background:rgba(16,16,16,.28);animation:system-shade-in var(--seed-motion-color)}
-.system-menu-drawer{position:absolute;inset:0 auto auto 0;width:min(23rem,calc(100% - 1rem));max-height:100%;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + .75rem) 1rem calc(env(safe-area-inset-bottom,0px) + 1rem) max(1rem,env(safe-area-inset-left,0px));background:var(--seed-panel);box-shadow:.65rem .7rem 2.8rem #0003;border-radius:0 0 var(--seed-radius-sheet) 0;animation:system-drawer-in var(--seed-motion-sheet);overflow:hidden}
-.panel .system-menu-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;min-height:var(--seed-round-control);margin:0 0 .75rem;padding:0;gap:.55rem;border:0}
+.system-menu-drawer{position:absolute;inset:0 auto 0 0;width:clamp(18rem,42vw,23rem);max-width:calc(100% - 3rem);height:100%;height:100dvh;min-height:0;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + .75rem) 1rem calc(env(safe-area-inset-bottom,0px) + 1rem) max(1rem,env(safe-area-inset-left,0px));background:var(--seed-panel);box-shadow:.65rem 0 2.8rem #0003;border-radius:0;animation:system-drawer-in var(--seed-motion-sheet);overflow:hidden}
+.panel .system-menu-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;flex:0 0 auto;min-height:var(--seed-round-control);margin:0 0 .75rem;padding:0;gap:.55rem;border:0}
 .panel .system-menu-header h2{display:block;min-width:0;text-align:left;font-size:var(--seed-title-size);font-weight:var(--seed-title-weight);letter-spacing:var(--seed-title-tracking);line-height:1.2}
 .panel .system-menu-header .close,.system-menu-back{width:var(--seed-round-control);height:var(--seed-round-control);min-height:var(--seed-round-control);padding:0;flex:none;border:0;border-radius:50%;display:grid;place-items:center;background:var(--seed-surface);color:var(--seed-white);cursor:pointer}
 .panel .system-menu-header .close::before,.panel .system-menu-header .close::after{content:none}
 .system-menu-header button svg{width:1.65rem;height:1.65rem;stroke-width:2.4}
 .system-menu-header .currency-pill{background:var(--seed-surface);min-height:2rem;padding:.3rem .65rem;font-weight:var(--seed-button-weight);color:var(--seed-white)}
-.system-menu-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:var(--seed-gap);scrollbar-width:thin;scrollbar-color:var(--seed-gray4) transparent}
+.system-menu-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;justify-content:flex-start;gap:var(--seed-gap);scrollbar-width:thin;scrollbar-color:var(--seed-gray4) transparent}
 .system-menu-body>*{flex-shrink:0}
 .system-menu svg{fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:var(--seed-icon-cap);stroke-linejoin:round}
 .system-menu button{font-family:var(--seed-font);touch-action:manipulation;letter-spacing:var(--seed-button-tracking)}
@@ -47,6 +47,7 @@
 body:has(#travel:not([hidden])) .prompt,body:has(#travel:not([hidden])) .stick,body:has(#travel:not([hidden])) .skill-satellite{visibility:hidden;pointer-events:none}
 @keyframes system-drawer-in{from{transform:translateX(-100%);opacity:.6}to{transform:none;opacity:1}}
 @keyframes system-shade-in{from{opacity:0}to{opacity:1}}
+@media(orientation:portrait){.system-menu-drawer{width:min(23rem,86vw);max-width:calc(100% - 2.75rem)}}
 @media(max-width:23rem){.system-menu-drawer{padding-inline:.75rem}.system-menu-header .currency-pill{padding-inline:.5rem}.system-menu-tile{font-size:.74rem}}
 @media(max-height:470px) and (orientation:landscape){.system-menu-drawer{padding-top:calc(env(safe-area-inset-top,0px) + .4rem);padding-bottom:.5rem}.panel .system-menu-header{margin-bottom:.4rem}.system-menu-body{gap:.4rem}.system-menu-portrait{width:3rem;height:3rem}.system-menu-profile{padding:.45rem .65rem}.system-menu-tile{min-height:3.7rem;padding:.4rem}.system-menu-secondary{gap:0}}
 @media(prefers-reduced-motion:reduce){.system-menu-drawer,.system-menu-shade{animation:none}.system-menu button{transition:none}}
