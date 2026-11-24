@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="./studio-ui.css">
 </head>
 <body data-mode="basic">
-<header class="studio-header"><h1><small>SERNBELD</small>캐릭터 생성</h1></header>
+<header class="studio-header"><button type="button" id="studio-back" hidden aria-label="돌아가기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>돌아가기</span></button><h1>캐릭터 설정</h1></header>
 <main>
 <section class="viewer" aria-label="캐릭터 미리보기">
   <div class="viewer-top">
@@ -25,32 +25,15 @@
       <button type="button" data-body="male" aria-pressed="true">남성</button>
       <button type="button" data-body="female" aria-pressed="false">여성</button>
     </div>
-    <div class="view-actions">
-      <button type="button" id="focus" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.2c5.2 0 8.1 3.6 8.1 8.5 0 5.2-3.8 9.1-8.1 9.1S3.9 16.9 3.9 11.7c0-4.9 2.9-8.5 8.1-8.5Z"/><path d="M9.1 12.5h.01M14.9 12.5h.01M9.7 16.1c1.3.9 3.2.9 4.6 0"/></svg><span class="focus-label">얼굴 확대</span></button>
-      <button type="button" id="rotate-mode" aria-pressed="false" aria-label="부위 조정 대신 회전하기" title="회전 모드"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 7a8 8 0 0 0-13.3-.6L4 8m0-5v5h5M5 17a8 8 0 0 0 13.3.6L20 16m0 5v-5h-5"/></svg></button>
-    </div>
+    <button type="button" class="detail-toggle" id="detail-toggle" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>세부 조정</span></button>
   </div>
   <div class="stage" id="stage" tabindex="0" aria-label="드래그로 캐릭터 회전, 두 손가락으로 확대">
     <canvas id="viewport" aria-label="실시간 캐릭터 미리보기"></canvas><div class="handles" id="handles"></div>
   </div>
   <p id="feedback" aria-live="polite">드래그로 회전 · 두 손가락으로 확대</p>
-  <div class="view-bottom">
-    <div class="angle-bar" role="group" aria-label="시점">
-      <button type="button" data-angle="front" aria-pressed="true">정면</button>
-      <button type="button" data-angle="quarter" aria-pressed="false">사선</button>
-      <button type="button" data-angle="side" aria-pressed="false">측면</button>
-    </div>
-    <div class="zoom"><button type="button" id="zoom-out" aria-label="미리보기 축소"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14"/></svg></button><button type="button" id="zoom-in" aria-label="미리보기 확대"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button></div>
-  </div>
+
 </section>
 <section class="editor" aria-label="캐릭터 설정">
-  <div class="sheet-head">
-    <div class="sheet-name"><span>YOUR CHARACTER</span><h2>외형 설정</h2></div>
-    <div class="mode-switch" role="group" aria-label="편집 모드">
-      <button type="button" data-mode-switch="basic" aria-pressed="true">기본</button>
-      <button type="button" data-mode-switch="advanced" aria-pressed="false">세부 조정</button>
-    </div>
-  </div>
   <nav class="tabs" role="tablist" aria-label="캐릭터 편집 항목">
     <button type="button" role="tab" data-tab="face" data-level="both" aria-controls="panel" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.2c5.2 0 8.1 3.6 8.1 8.5 0 5.2-3.8 9.1-8.1 9.1S3.9 16.9 3.9 11.7c0-4.9 2.9-8.5 8.1-8.5Z"/><path d="M9.1 12.5h.01M14.9 12.5h.01M9.7 16.1c1.3.9 3.2.9 4.6 0"/></svg><span>얼굴형</span></button><button type="button" role="tab" data-tab="eye" data-level="both" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.4 12c2.8-3.8 6-5.7 9.6-5.7s6.8 1.9 9.6 5.7c-2.8 3.8-6 5.7-9.6 5.7S5.2 15.8 2.4 12Z"/><circle cx="12" cy="12" r="2.7"/></svg><span>눈</span></button><button type="button" role="tab" data-tab="brow" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 11.2c2.3-3.7 4.8-4.5 8-3.7 3.2.8 5.5 1.8 8 3.7M5 15.5h.01M19 15.5h.01"/></svg><span>눈썹</span></button>
     <button type="button" role="tab" data-tab="mouth" data-level="both" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.7 10.5c2.7 1.2 5.2 1.7 7.3 1.7s4.6-.5 7.3-1.7M6.4 14.3c1.7 2.2 3.7 3.3 5.6 3.3s3.9-1.1 5.6-3.3"/></svg><span>입</span></button><button type="button" role="tab" data-tab="color" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3C7 7.4 5.1 10.7 5.1 14a6.9 6.9 0 0 0 13.8 0C18.9 10.7 17 7.4 12 3Z"/><path d="M9.2 16a3.1 3.1 0 0 0 2.8 2.4"/></svg><span>색상</span></button><button type="button" role="tab" data-tab="decoration" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.7 9.5h3.1l.7-1h3.2l.5 1h3.6l.5-1h3.2l.7 1h3.1M3.2 9.5v3.3c0 2.6 1.3 3.9 3.7 3.9s3.8-1.3 3.8-3.9v-3.3m2.6 0v3.3c0 2.6 1.4 3.9 3.8 3.9s3.7-1.3 3.7-3.9V9.5"/></svg><span>장식</span></button>
@@ -64,7 +47,7 @@
   </div>
   <div class="footer-actions">
     <button type="button" id="undo" disabled aria-label="마지막 수정 되돌리기" title="되돌리기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 11a8 8 0 1 1 1.7 5M4 5v6h6"/></svg></button>
-    <button type="button" class="primary" id="play" disabled>이 캐릭터로 시작</button>
+    <button type="button" class="primary" id="play" disabled>적용하기</button>
   </div>
   <input id="file-input" type="file" accept=".json,application/json">
 </section>
@@ -332,14 +315,14 @@ const presetFaces={
 };
 const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(()=>0),pose:{}});
 let state=defaults();
-let tab='face',mode='basic',focus=false,part='outline',plane='shape',rotateMode=false;
+let tab='face',mode='basic',focus=true,part='outline',plane='shape';
 let yaw=0,pitch=0,zoom=1,view='front',activeBone='head',pending=false,geometryDirty=true,colorDirty=true;
-let focusMix=0,focusFrameTime=0;
+let focusMix=1,focusFrameTime=0,angleTarget=null,zoomTarget=null;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let lastView={u:[1,0,0],v:[0,1,0],d:[0,0,1],center:[0,0,0],scale:1,width:1,height:1};
 const undoStack=[],pointers=new Map(),bodyCache=new Map();
 const parts={
- outline:{label:'윤곽',anchor:'temple',x:'headWidth',y:'headHeight',z:'forehead'},
+ outline:{label:'머리 전체',anchor:'temple',x:'headWidth',y:'headHeight',z:'forehead'},
  forehead:{label:'이마',anchor:'forehead',x:'temple',y:'foreheadHeight',z:'forehead'},
  eye:{label:'눈',anchor:'socket',x:'eyeSpan',y:'eyeHeight',z:'socket'},
  nose:{label:'코',anchor:'tip',x:'wing',y:'noseY',z:'tip'},
@@ -617,19 +600,23 @@ function draw(){
  const ratio=Math.min(devicePixelRatio||1,2);
  if(canvas.width!==Math.round(width*ratio))canvas.width=Math.round(width*ratio);
  if(canvas.height!==Math.round(height*ratio))canvas.height=Math.round(height*ratio);
+ const now=performance.now(),delta=focusFrameTime?Math.min(50,now-focusFrameTime):16;
+ focusFrameTime=now;
+ const damping=reducedMotion.matches?1:1-Math.exp(-delta/75);
+ if(angleTarget){const diff=Math.atan2(Math.sin(angleTarget[0]-yaw),Math.cos(angleTarget[0]-yaw));yaw+=diff*damping;pitch+=(angleTarget[1]-pitch)*damping;if(Math.abs(diff)+Math.abs(angleTarget[1]-pitch)<.003){[yaw,pitch]=angleTarget;angleTarget=null;}}
+ if(zoomTarget!==null){zoom+=(zoomTarget-zoom)*damping;if(Math.abs(zoomTarget-zoom)<.003){zoom=zoomTarget;zoomTarget=null;}}
  const u=[Math.cos(yaw),0,-Math.sin(yaw)];
  const v=[-Math.sin(yaw)*Math.sin(pitch),Math.cos(pitch),-Math.cos(yaw)*Math.sin(pitch)];
  const d=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)];
  const transforms=matrices(),head=transforms.get('head');
- const now=performance.now(),delta=focusFrameTime?Math.min(80,now-focusFrameTime):16;
- focusFrameTime=now;const goal=focus?1:0;
+ const goal=focus?1:0;
  focusMix=reducedMotion.matches?goal:focusMix+(goal-focusMix)*(1-Math.exp(-delta/95));
  if(Math.abs(focusMix-goal)<.002)focusMix=goal;
  const t=focusMix*focusMix*(3-2*focusMix);
  const fullTarget=[0,.015,.015],faceTarget=transformPoint(body.data.face.focus.map(x=>x/HEIGHT),head);
  const target=fullTarget.map((v,i)=>v+(faceTarget[i]-v)*t);
  const fullScale=Math.min(width/.76,height/1.12)*zoom;
- const detailScale=Math.min(width/.17,height/.205)*zoom;
+ const detailScale=Math.min(width/.20,height/.245)*zoom;
  const scale=fullScale+(detailScale-fullScale)*t;
  lastView={u,v,d,center:target,scale,width,height};
  gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -646,7 +633,7 @@ function draw(){
   gl.drawElements(gl.TRIANGLES,object.indices.length,gl.UNSIGNED_INT,0);
  }
  placeHandles();
- if(focusMix!==(focus?1:0))schedule();
+ if(focusMix!==(focus?1:0)||angleTarget||zoomTarget!==null)schedule();
 }
 function anchorPosition(id,side=1){
  const body=getBody(),anchor=anchors.find(a=>a.id===id&&a.side===side)??anchors.find(a=>a.id===id);
@@ -656,14 +643,14 @@ function anchorPosition(id,side=1){
  return transformPoint(point.map((v,i)=>v*scale[i]+offset[i]),matrices().get('head'));
 }
 function placeHandles(){
- const show=mode==='advanced'&&focus&&!rotateMode&&['face','eye','mouth'].includes(tab);
+ const show=mode==='advanced'&&focus&&['face','eye','mouth'].includes(tab);
  handleLayer.hidden=!show;
  if(!show)return;
  for(const button of handleLayer.querySelectorAll('[data-anchor]')){
   const [key,sideText]=button.dataset.anchor.split(':');
   const xy=project(anchorPosition(parts[key].anchor,Number(sideText)));
   button.style.left=xy[0]+'px';button.style.top=xy[1]+'px';
-  button.hidden=Math.abs(yaw)>1.25&&Number(sideText)===1&&['eye','jaw','outline'].includes(key);
+  button.hidden=!activeParts().includes(key)||(Math.abs(yaw)>1.25&&Number(sideText)===1&&['eye','jaw','outline'].includes(key));
   button.setAttribute('aria-pressed',String(key===part));
  }
  const label=handleLayer.querySelector('.handle-label');
@@ -681,20 +668,23 @@ function createHandles(){
  }
  const label=document.createElement('span');label.className='handle-label';handleLayer.append(label);
 }
+function activeParts(){return tab==='eye'?['eye','forehead']:tab==='mouth'?['mouth','chin']:Object.keys(parts);}
 function selectPart(key){
- part=key;if(!focus)setFocus(true);rotateMode=false;
- $('rotate-mode').setAttribute('aria-pressed','false');
+ if(!parts[key])return;
+ if(mode!=='advanced')chooseMode('advanced');
+ if(!activeParts().includes(key)){tab='face';chooseTab('face');}
+ part=key;if(!focus)setFocus(true);
  renderPanel();schedule();
 }
 function setFocus(on){
- focus=on;zoom=1;$('focus').setAttribute('aria-pressed',String(on));$('focus').querySelector('.focus-label').textContent=on?'전신 보기':'얼굴 확대';
+ focus=Boolean(on);zoomTarget=1;
  $('feedback').textContent=on&&mode==='advanced'?'얼굴 점을 드래그해 세부 비율 조정':'드래그로 회전 · 두 손가락으로 확대';
  schedule();
 }
 function setAngle(key){
  const angles={front:[0,0],quarter:[-.60,.025],side:[-Math.PI/2,0]};
- [yaw,pitch]=angles[key];view=key;
- document.querySelectorAll('[data-angle]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.angle===key)));
+ if(!angles[key])return;
+ angleTarget=angles[key];view=key;
  schedule();
 }
 function setBody(body){
@@ -751,12 +741,12 @@ function selectionCards(kind,options=names[kind]){
 }
 function partButtons(){
  const list=document.createElement('div');list.className='part-list';
- const keys=tab==='eye'?['eye','forehead']:tab==='mouth'?['mouth','chin']:Object.keys(parts);
+ const keys=activeParts();
  for(const key of keys)list.append(button(parts[key].label,()=>selectPart(key),part===key));
  $('panel').append(list);
 }
 function adjust(dx,dy){
- const info=parts[part],side=Math.abs(yaw)>1.05||plane==='depth';
+ const info=parts[part],side=plane==='depth';
  const xkey=side?info.z:info.x,ykey=info.y;
  const xi=controlIndex.get(xkey),yi=controlIndex.get(ykey);
  const xSign=xkey==='socket'?-1:1,ySign=['chinY'].includes(ykey)?-1:1;
@@ -769,8 +759,9 @@ function editPad(){
  const title=document.createElement('div');title.className='pad-title';
  const name=document.createElement('strong');name.textContent=parts[part].label;
  const modes=document.createElement('div');modes.className='segmented';
- modes.append(button('정면',()=>{plane='shape';setAngle('front');renderPanel();},plane==='shape'),button('깊이',()=>{plane='depth';setAngle('side');renderPanel();},plane==='depth'));
- title.append(name,modes);
+ modes.setAttribute('role','group');modes.setAttribute('aria-label','조정 방향');
+ modes.append(button('너비·높이',()=>{plane='shape';setAngle('front');renderPanel();},plane==='shape'),button('깊이·높이',()=>{plane='depth';setAngle('side');renderPanel();},plane==='depth'));
+ title.append(modes);
  const pad=document.createElement('div');pad.className='pad';pad.tabIndex=0;pad.setAttribute('role','application');pad.setAttribute('aria-label',parts[part].label+' 조정. 드래그하거나 방향키를 사용하세요.');
  for(const [position,text] of [['left',plane==='depth'?'뒤로':'좁게'],['right',plane==='depth'?'앞으로':'넓게'],['top','위로'],['bottom','아래로']]){
   const label=document.createElement('small');label.className=position;label.textContent=text;pad.append(label);
@@ -836,8 +827,8 @@ const utilityPanel=$('studio-utilities');
 function renderPanel(){
   const panel=$('panel');utilityPanel.hidden=true;panel.replaceChildren();
   if(mode==='advanced'&&tab==='tools'){utilityPanel.hidden=false;panel.append(utilityPanel);return;}
-  const advancedTitles={face:'얼굴 비율 조정',eye:'눈자리 조정',mouth:'입 주변 조정',pose:'관절 및 자세'};
-  panelHeading(mode==='advanced'?(advancedTitles[tab]??titles[tab]):titles[tab]);
+  if(mode==='basic')panel.setAttribute('aria-label',titles[tab]??'외형 설정');
+  else panel.setAttribute('aria-label','세부 조정');
   if(mode==='advanced'){
     if(tab==='pose'){renderPose();return;}
     if(['face','eye','mouth'].includes(tab)){partButtons();editPad();}
@@ -862,11 +853,11 @@ function renderPanel(){
     for(const [id,preset] of Object.entries(presetFaces)){
       const selected=controls.every((c,i)=>Math.abs(state.values[i]-(preset.values[c.key]??0))<.0001);
       const card=button(preset.label,()=>{
-        remember();state.values=controls.map(c=>preset.values[c.key]??0);markDirty();setFocus(false);renderPanel();
+        remember();state.values=controls.map(c=>preset.values[c.key]??0);markDirty();renderPanel();
       },selected);card.dataset.facePreset=id;presets.append(card);
     }
     panel.append(presets);
-    const hint=document.createElement('p');hint.className='hint';hint.textContent='기본 얼굴을 고른 뒤 눈, 입, 색상을 자유롭게 조합할 수 있어.';panel.append(hint);
+
   }else if(tab==='eye')selectionCards('eye',{...REFERENCE_EYES,'reference-slit':'실눈 · 살짝 뜸'});
   else selectionCards(tab);
 }
@@ -877,14 +868,14 @@ function chooseTab(key){
     const other=mode==='basic'?advanced:basic;
     if(!other.includes(key))return;
     mode=mode==='basic'?'advanced':'basic';
-    document.body.dataset.mode=mode;
-    document.querySelectorAll('[data-mode-switch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeSwitch===mode)));
+    updateMode();
   }
   tab=key;
   if(key==='eye')part='eye';if(key==='mouth')part='mouth';if(key==='brow')part='forehead';
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===key)));
-  rotateMode=false;$('rotate-mode').setAttribute('aria-pressed','false');
-  setFocus(key==='eye'||key==='brow'||key==='mouth'||key==='decoration'||key==='color'||(mode==='advanced'&&key==='face'));
+  if(!activeParts().includes(part))part=activeParts()[0];
+  plane='shape';setFocus(key!=='pose');
+  if(key!=='tools')setAngle('front');
   renderPanel();$('panel').scrollTop=0;
   if(!reducedMotion.matches&&typeof $('panel').animate==='function'){
     $('panel').getAnimations().forEach(animation=>animation.cancel());
@@ -892,19 +883,16 @@ function chooseTab(key){
   }
   schedule();
 }
+function updateMode(){document.body.dataset.mode=mode;$('detail-toggle').setAttribute('aria-pressed',String(mode==='advanced'));$('detail-toggle').querySelector('span').textContent=mode==='advanced'?'기본 설정':'세부 조정';}
 function chooseMode(next){
   if(next===mode||!['basic','advanced'].includes(next))return;
-  mode=next;document.body.dataset.mode=mode;
-  document.querySelectorAll('[data-mode-switch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeSwitch===mode)));
+  mode=next;updateMode();
   chooseTab(['face','eye','mouth'].includes(tab)?tab:'face');
 }
-document.querySelectorAll('[data-mode-switch]').forEach(b=>b.onclick=()=>chooseMode(b.dataset.modeSwitch));
+$('detail-toggle').onclick=()=>chooseMode(mode==='basic'?'advanced':'basic');
 document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>setBody(b.dataset.body));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>chooseTab(b.dataset.tab));
-document.querySelectorAll('[data-angle]').forEach(b=>b.onclick=()=>setAngle(b.dataset.angle));
-$('focus').onclick=()=>setFocus(!focus);
-$('rotate-mode').onclick=()=>{rotateMode=!rotateMode;$('rotate-mode').setAttribute('aria-pressed',String(rotateMode));schedule();};
-$('zoom-in').onclick=()=>{zoom=Math.min(2.8,zoom*1.15);schedule();};$('zoom-out').onclick=()=>{zoom=Math.max(.65,zoom/1.15);schedule();};
+
 $('undo').onclick=()=>{
  if(!undoStack.length)return;state=undoStack.pop();$('undo').disabled=!undoStack.length;
  geometryDirty=true;colorDirty=true;document.querySelectorAll('[data-body]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.body===state.body)));
@@ -917,7 +905,8 @@ stage.onpointerdown=e=>{
  const key=e.target.closest?.('[data-anchor]')?.dataset.anchor;
  pointers.set(e.pointerId,[e.clientX,e.clientY]);stage.setPointerCapture(e.pointerId);
  if(pointers.size>1){directDrag=null;return;}
- if(key&&focus&&!rotateMode){
+ angleTarget=null;zoomTarget=null;
+ if(key&&focus&&mode==='advanced'){
   const [selected,side]=key.split(':');part=selected;remember();directDrag={id:e.pointerId,side:Number(side),x:e.clientX,y:e.clientY};renderPanel();
  }
 };
@@ -936,13 +925,13 @@ stage.onpointermove=e=>{
   adjust((next[0]-previous[0])*side/scale,(previous[1]-next[1])/scale);return;
  }
  yaw-=(next[0]-previous[0])*.009;pitch=Math.max(-.7,Math.min(.7,pitch+(next[1]-previous[1])*.008));view='free';
- document.querySelectorAll('[data-angle]').forEach(b=>b.setAttribute('aria-pressed','false'));schedule();
+ schedule();
 };
 for(const type of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(type,e=>{pointers.delete(e.pointerId);if(directDrag?.id===e.pointerId)directDrag=null;});
-stage.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.65,Math.min(2.8,zoom*Math.exp(-e.deltaY*.001)));schedule();},{passive:false});
+stage.addEventListener('wheel',e=>{e.preventDefault();zoomTarget=null;zoom=Math.max(.65,Math.min(2.8,zoom*Math.exp(-e.deltaY*.001)));schedule();},{passive:false});
 stage.onkeydown=e=>{
  const keys={ArrowLeft:()=>yaw+=.12,ArrowRight:()=>yaw-=.12,ArrowUp:()=>pitch=Math.max(-.7,pitch-.1),ArrowDown:()=>pitch=Math.min(.7,pitch+.1)};
- if(!keys[e.key])return;e.preventDefault();keys[e.key]();schedule();
+ if(!keys[e.key])return;e.preventDefault();angleTarget=null;keys[e.key]();schedule();
 };
 function download(bytes,name,type){
  const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
@@ -1122,10 +1111,12 @@ function applyGameProfile(profile){
 addEventListener('message',e=>{
  if(e.source!==parent||e.origin!==location.origin||e.data?.type!=='sernbeld:edit-character')return;
  applyGameProfile(e.data.character);
- $('play').textContent=e.data.first?'이 캐릭터로 시작':'적용하고 돌아가기';
+ $('studio-back').hidden=Boolean(e.data.first);
+ $('play').textContent='적용하기';
  $('play').disabled=false;
 });
 $('play').onclick=()=>parent.postMessage({type:'sernbeld:apply-character',character:snapshot()},location.origin);
+$('studio-back').onclick=()=>parent.postMessage({type:'sernbeld:cancel-character'},location.origin);
 if(parent===window)$('play').disabled=false;
 parent.postMessage({type:'sernbeld:studio-ready'},location.origin);
 </script>
