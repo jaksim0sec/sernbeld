@@ -463,7 +463,14 @@ function attentionPoseFor(data){
 }
 function poseFor(data){
  const base=attentionPoseFor(data);
- return Object.fromEntries(data.bones.map(b=>[b.id,state.pose[b.id]??base[b.id]??b.axes.map(()=>0)]));
+ return Object.fromEntries(data.bones.map(b=>{
+  const stored=state.pose[b.id];
+  // Legacy saved profiles and validate() contain zero-filled bone arrays.
+  // Those are the original spread-arm bind pose, not an intentional override.
+  // Use relaxed shoulders unless a real non-zero adjustment was made.
+  const hasAdjustment=Array.isArray(stored)&&stored.some(v=>Math.abs(v)>1e-5);
+  return [b.id,hasAdjustment?stored.slice():base[b.id]?.slice()??b.axes.map(()=>0)];
+ }));
 }
 function matrices(){const body=getBody();return worldTransforms(body.data,poseFor(body.data));}
 function tintIris(object){
