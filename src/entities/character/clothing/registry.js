@@ -1,5 +1,6 @@
 import {buildCollar} from './collar.js';
 import {buildShirt,buildShirtCollar} from './shirt.js';
+import {buildPants} from './pants.js';
 
 // One independently equipped item per slot. Existing character bodies and appearance remain untouched.
 export const CLOTHING_SLOTS=Object.freeze({
@@ -81,3 +82,6 @@ export function getClothingAsset(id){return referenceAssets.get(id)??null;}
 export function listClothingAssets(slot){if(slot!==undefined&&!Object.values(slots).includes(slot))throw Error('Unknown clothing slot: '+slot);return [...referenceAssets.values()].filter(d=>slot===undefined||d.slot===slot);}
 registerClothingAsset({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',status:'runtime',manifest:'assets/models/clothing/shirt-v1/manifest.json'});
 registerClothing({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',defaultWhen:actor=>Boolean(actor.shirtAsset),build:buildShirt});
+
+registerClothingAsset({id:'pants.basic-trousers',slot:CLOTHING_SLOTS.PANTS,name:'기본 바지',status:'runtime',manifest:'assets/models/clothing/pants-v1/manifest.json'});
+registerClothing({id:'pants.basic-trousers',slot:CLOTHING_SLOTS.PANTS,name:'기본 바지',defaultWhen:actor=>Boolean(actor.pantsAsset),build:buildPants});

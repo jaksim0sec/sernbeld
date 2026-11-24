@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "pants.basic-trousers",
+  "slot": "pants",
+  "coordinateSystem": "Y-up, metre-scale foot-anchored original reference",
+  "geometry": "Original supplied optimized geometry, lossless gzip",
+  "male": {
+    "path": "pants_male.json.gz",
+    "vertices": 5471,
+    "triangles": 10752,
+    "gitBlob": "0d22567b8937fbd94e6e92a890687d3d2d1357c7"
+  },
+  "female": {
+    "path": "pants_female.json.gz",
+    "vertices": 5471,
+    "triangles": 10752,
+    "gitBlob": "fc31dc074a1705fe3ff5f56900be1c4962e9297d"
+  },
+  "material": {
+    "color": "#806e59",
+    "maleTop": 1.112,
+    "femaleTop": 1.138,
+    "details": "Original rest-space wrinkle height, inset slash pockets, stitch lines, weave and dye"
+  },
+  "runtime": "Shared garment binding, lower-body semantic policy and dual quaternion pose",
+  "sourceChecks": "Rest geometry checks only; runtime pose tests separate"
+}
