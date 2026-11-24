@@ -5,6 +5,6 @@ export async function completeCharacterCreation(page){
  if(!await chooser.count()||!await chooser.evaluate(e=>e.open))return;
  await page.waitForFunction(()=>!!document.querySelector('#character-chooser iframe')?.contentWindow?.CharacterStudio,{timeout:120000});
  const studio=page.frameLocator('#character-chooser iframe');
- await studio.getByRole('button',{name:'이 캐릭터로 시작',exact:true}).click({timeout:120000});
+ await studio.getByRole('button',{name:'적용하기',exact:true}).click({timeout:120000});
  await page.waitForFunction(()=>!window.__dev.avatars.isOpen,{timeout:120000});
 }
