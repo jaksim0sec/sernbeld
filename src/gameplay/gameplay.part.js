@@ -2938,7 +2938,7 @@ var Player = class {
     this.wish.set(0, 0);
     this.yaw = yaw;
     this.pitch = pitch;
-    this.onGround = y == null;
+    this.onGround = y == null || (this.mode==="walk"&&Math.abs(this.pos.y-playerFloor(x,z,this.pos.y+CONTACT_SKIN))<=CONTACT_SKIN);
     this.swimming = false;
     this.running = false;
     this.landImpact = 0;
@@ -2954,12 +2954,15 @@ var Player = class {
     this.nearby=nearby;
     if(!this.renderReady)this.resetInterpolation();
     const h=1/60;
+    let rise=0;
     this.accumulator=Math.min(.1,this.accumulator+Math.max(0,dt));
     while(this.accumulator+1e-9>=h){
       this.previousPos.copy(this.pos);
       this.update(h,input);
+      rise=Math.max(rise,this.stepRise);
       this.accumulator=Math.max(0,this.accumulator-h);
     }
+    this.stepRise=rise;
     const a=Math.min(1,this.accumulator/h);
     this.renderPos.copy(this.previousPos).lerp(this.pos,a);
     if(this.mode==="walk"&&this.onGround&&!this.swimming){
@@ -3070,8 +3073,11 @@ var Player = class {
       const rise=floor-y;
       const atStair=stairSurface(x,z,0,true)!==null;
       const currentTerrain=playerTerrain(p.x,p.z);
-      if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04&&rise>Math.hypot(dx,dz)*1.25+.025){
-        const nx=-dx/(Math.hypot(dx,dz)||1),nz=-dz/(Math.hypot(dx,dz)||1);
+      if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04&&rise>Math.hypot(dx,dz)*Math.tan(50*Math.PI/180)+1e-5){
+        // A steep continuous slope is not an auto-step. The threshold is
+        // independent of speed and dt; keep the contour/tangential component.
+        const e=.035,gx=playerTerrain(x-e,z)-playerTerrain(x+e,z),gz=playerTerrain(x,z-e)-playerTerrain(x,z+e),n=Math.hypot(gx,gz);
+        const len=Math.hypot(dx,dz)||1,nx=n>1e-6?gx/n:-dx/len,nz=n>1e-6?gz/n:-dz/len;
         return {contacts:[{nx,nz,depth:rise}]};
       }
       if(playerCeiling(p.x,p.z,y,floor)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
@@ -3082,7 +3088,7 @@ var Player = class {
     // moving NPC or a bad save position without adding energy to the player.
     if(contacts.length){
       const prior=playerContacts(p.x,p.z,y,this.nearby);
-      const unresolved=contacts.filter(c=>!prior.some(q=>c.nx*q.nx+c.nz*q.nz>.98&&c.depth<q.depth-1e-5));
+      const unresolved=contacts.filter(c=>!prior.some(q=>c.collider===q.collider&&c.depth<q.depth-1e-5));
       if(unresolved.length)return {contacts:unresolved};
     }
     return {x,z,y,contacts:[]};
@@ -5881,7 +5887,7 @@ async function boot() {
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
   if (firstLaunch) teleport({ ...region.arrival });
-  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?sp[1]:null);
+  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?Math.max(sp[1],playerTerrain(sp[0],sp[2])):null);
   else teleport({ ...region.spawn });
   miniMap.update(player, performance.now());
   const persist = () => {

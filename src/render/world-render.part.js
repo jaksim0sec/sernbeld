@@ -633,7 +633,7 @@ function makeOcean() {
   );
   const geo = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const m = new Mesh(geo, mat2);
-  m.scale.set(3e4, 1, 3e4);
+  m.scale.set(4e4, 1, 4e4);
   m.position.y = CFG.seaLevel;
   m.frustumCulled = false;
   m.renderOrder = 1;
@@ -870,7 +870,7 @@ var CONTACT_SKIN=.002;
 function playerContact(o,x,z,radius) {
   if(o.type==="cyl"){
     const dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz),depth=o.r+radius-d;
-    return depth>CONTACT_SKIN?{nx:d>1e-8?dx/d:1,nz:d>1e-8?dz/d:0,depth}:null;
+    return depth>CONTACT_SKIN?{nx:d>1e-8?dx/d:1,nz:d>1e-8?dz/d:0,depth,collider:o}:null;
   }
   const [lx,lz]=local(o,x,z),qx=clamp2(lx,-o.hx,o.hx),qz=clamp2(lz,-o.hz,o.hz);
   let dx=lx-qx,dz=lz-qz,d=Math.hypot(dx,dz),depth=radius-d;
@@ -880,7 +880,7 @@ function playerContact(o,x,z,radius) {
     if(a<b){dx=Math.sign(lx||1);dz=0;depth=radius+a;}
     else{dx=0;dz=Math.sign(lz||1);depth=radius+b;}
   }
-  return {nx:dx*o.cos+dz*o.sin,nz:-dx*o.sin+dz*o.cos,depth};
+  return {nx:dx*o.cos+dz*o.sin,nz:-dx*o.sin+dz*o.cos,depth,collider:o};
 }
 function playerFloor(x,z,maxY,radius=PLAYER.radius) {
   let h=playerTerrain(x,z);

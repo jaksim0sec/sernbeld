@@ -81,7 +81,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(!walking){bodyCut=null;return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const aimYaw=player.yaw+Math.PI;
-  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;}
+  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
   const speed=Math.hypot(player.vel.x,player.vel.z);
   gaitSpeed+=(speed-gaitSpeed)*(1-Math.exp(-dt*12));
   let turnRate=0,turnStep=0;
