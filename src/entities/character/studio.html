@@ -808,6 +808,10 @@ function renderPose(){
 }
 const utilityPanel=$('studio-utilities');
 function renderPanel(){
+  const panel=$('panel'),scroll=panel.scrollTop;
+  renderPanelContents();panel.scrollTop=scroll;
+}
+function renderPanelContents(){
   const panel=$('panel');utilityPanel.hidden=true;panel.replaceChildren();
   if(mode==='advanced'&&tab==='tools'){utilityPanel.hidden=false;panel.append(utilityPanel);return;}
   if(mode==='basic')panel.setAttribute('aria-label',titles[tab]??'외형 설정');
