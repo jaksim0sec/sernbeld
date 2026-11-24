@@ -130,11 +130,11 @@ body[data-mode=basic] .tabs [data-level=advanced],body[data-mode=advanced] .tabs
  .zoom button{min-width:2.5rem;min-height:2.5rem;border-radius:.8rem}
  #feedback{bottom:5.15rem;font-size:.65rem}
  .editor{height:clamp(22rem,48dvh,36rem);flex:0 0 clamp(22rem,48dvh,36rem);border-radius:1.8rem 1.8rem 0 0;box-shadow:0 -1rem 2.4rem #00000040}
- .editor::before{content:"";position:absolute;top:.48rem;left:50%;transform:translateX(-50%);width:2.35rem;height:.24rem;border-radius:2rem;background:#41434c}
+ .editor::before{display:none}
  .sheet-head{padding:1.32rem 1.05rem .45rem}
  .sheet-name h2{font-size:1.11rem}
  .tabs{padding:.5rem 1.05rem .6rem;gap:.28rem}
- .tabs button{flex:1 0 3.6rem;min-height:4.1rem;border-radius:.95rem;padding:.45rem .25rem;font-size:.65rem}
+ .tabs button{flex:1 0 3.1rem;min-height:4.1rem;border-radius:.95rem;padding:.45rem .25rem;font-size:.65rem}
  .tabs svg{width:1.3rem;height:1.3rem}
  .panel{padding:.55rem 1.05rem 1.1rem}
  .footer-actions{padding:.7rem 1.05rem max(.85rem,env(safe-area-inset-bottom))}
@@ -169,3 +169,6 @@ body[data-mode=basic] .tabs [data-level=advanced],body[data-mode=advanced] .tabs
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* Basic creation needs no extra rotation mode; direct preview rotation already works. */
+body[data-mode=basic] #rotate-mode{display:none}
