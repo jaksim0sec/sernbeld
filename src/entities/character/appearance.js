@@ -38,9 +38,10 @@ export function normalizeStudioCharacter(data={}) {
  const source=data?.character ?? data;
  if(!source || typeof source!=='object') throw new Error('Invalid character settings');
  const body=source.body==='female'?'female':'male';
+ const defaultFace={headWidth:-.16,jawWidth:-.28,chinWidth:-.24,chinY:.16};
  const values=Array.isArray(source.values)&&source.values.length===FACE_KEYS.length?
   source.values.map(v=>Number.isFinite(v)?Math.max(-1,Math.min(1,v)):0):
-  FACE_KEYS.map(()=>0);
+  FACE_KEYS.map(key=>defaultFace[key]??0);
  const pick=(key,allowed,defaultValue)=>allowed.includes(source[key])?source[key]:defaultValue;
  return {
   body,eye:pick('eye',EYES,'neutral'),brow:pick('brow',BROWS,'soft'),
