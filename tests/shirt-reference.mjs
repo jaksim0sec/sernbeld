@@ -8,12 +8,19 @@ for(const sex of ['male','female']){
  const {shirt,rig:r,body:b}=loadShirtReference(sex),rig=JSON.parse(r),{gunzipSync}=await import('node:zlib'),body=gunzipSync(Buffer.from(b,'base64'));
  const nv=body.readUInt32LE(0),p=Float32Array.from({length:nv*3},(_,i)=>body.readFloatLE(8+i*4)),n=Float32Array.from({length:nv*3},(_,i)=>body.readFloatLE(8+nv*12+i*4));
  const D={shirt,rig},a={sex,joints:[],body:{mesh:{rest:p,restNorm:n,weights:Uint8Array.from(Buffer.from(rig.body,'base64'))}},shirt:{mesh:{rest:Float32Array.from(shirt.v),restNorm:new Float32Array(shirt.v.length),weights:Uint8Array.from(Buffer.from(rig.shirt,'base64'))}}};
- assert.equal(a.shirt.mesh.rest.length/3,manifest.bodies[sex].vertices);assert.equal(new Set(shirt.f).size,manifest.bodies[sex].vertices);
+ assert.equal(a.shirt.mesh.rest.length/3,manifest.bodies[sex].vertices);
+ const renderTopology=new Function(html.slice(html.indexOf('function gatherRenderAttribute('),html.indexOf('function compactRenderMesh('))+';return renderTopology;')();
+ const render=renderTopology(shirt.f,shirt.v.length/3,shirt.renderPatches),lod=manifest.bodies[sex].renderLod;
+ assert.equal(render.ids.length,lod.vertices);assert.equal(render.index.length,lod.triangles*3);assert(render.index.every(i=>i<render.ids.length));
+ assert(shirt.cuff.every(i=>render.ids.includes(i)));
+ const staticIds=new Set(shirt.renderPatches.map(p=>p[0]));
+ assert([...staticIds].every(i=>i<rig.cloth.base));assert.equal(new Set(shirt.f).size,manifest.bodies[sex].vertices);
  for(let i=0;i<2;i++){let sign=i?1:-1,j={p:rig.joints[i][0],sign,side:0,front:0,kind:'shoulder'},e={p:rig.joints[i][1],sign,side:0,front:0,kind:'elbow',parent:j};a.joints.push(j,e);}
  const {g,poseArrays,buttonAnchors,buttonPositions,meshNormals}=make(D,a);g.restNorm=meshNormals(g.rest,g.faces);const spec=buttonAnchors(g);
  for(const [s,f,e] of [[0,0,0],[90,0,0],[0,0,45],[0,0,90],[0,0,120],[65,30,85],[0,65,90]]){
   a.joints[2].side=s;a.joints[2].front=f;a.joints[3].front=e;const b=poseArrays(a,a.body.mesh)[0],[p,n]=poseArrays(a,g,b);assert(p.every(Number.isFinite)&&n.every(Number.isFinite));assert(buttonPositions(spec,p).every(Number.isFinite));
   if(!s&&!f&&!e)assert.deepEqual(p,g.rest);
+  for(const i of staticIds)for(let ax=0;ax<3;ax++)assert.equal(p[i*3+ax],g.rest[i*3+ax]);
  }
  console.log(sex+': '+g.rest.length/3+' vertices, '+g.faces.length/3+' triangles, seven pose samples OK');
 }

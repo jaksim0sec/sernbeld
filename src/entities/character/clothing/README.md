@@ -16,3 +16,5 @@ actor.clothing.snapshot();
 ```
 
 동일 슬롯 장착 시 기존 의상만 교체된다. 기본 캐릭터에 자동 장착하거나 모델을 교체하지 않는다. 현재 저장·인벤토리·UI 연결 및 애니메이션 시각 검증은 별도 범위다. 첫인칭에는 의상 메시를 숨기며, actor.dispose() 시 같이 정리된다.
+
+데이터 등록 전용 항목: `top.basic-shirt` (`top`, reference-only). `getClothingAsset(id)` / `listClothingAssets(slot)`에서 조회한다. 장착 가능한 `getClothing` / `listClothing`은 변경하지 않으며, 기본 인체 또는 자동 장착 동작에는 영향을 주지 않는다.

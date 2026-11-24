@@ -50,3 +50,14 @@ export function createClothingController(T,actor,fullIndex){
 }
 
 registerClothing({id:'collar.basic',slot:CLOTHING_SLOTS.COLLAR,name:'기본 카라',build:buildCollar});
+
+ // Data-only assets are discoverable separately from equippable definitions.
+const referenceAssets=new Map();
+export function registerClothingAsset(def){
+ if(!def||typeof def.id!=='string'||!def.id||!Object.values(slots).includes(def.slot)||typeof def.manifest!=='string'||def.status!=='reference-only')throw Error('Invalid clothing asset');
+ if(referenceAssets.has(def.id)||definitions.has(def.id))throw Error('Duplicate clothing asset: '+def.id);
+ const entry=Object.freeze({...def});referenceAssets.set(entry.id,entry);return entry;
+}
+export function getClothingAsset(id){return referenceAssets.get(id)??null;}
+export function listClothingAssets(slot){if(slot!==undefined&&!Object.values(slots).includes(slot))throw Error('Unknown clothing slot: '+slot);return [...referenceAssets.values()].filter(d=>slot===undefined||d.slot===slot);}
+registerClothingAsset({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',status:'reference-only',manifest:'assets/models/clothing/shirt-v1/manifest.json'});

@@ -15,7 +15,17 @@ export function loadShirtReference(sex){
  if(p.length!==info.vertices*12||f.length!==info.triangles*6)throw Error('Shirt buffer length mismatch: '+sex);
  const v=Array.from({length:p.length/4},(_,i)=>p.readFloatLE(i*4)),ix=Array.from({length:f.length/2},(_,i)=>f.readUInt16LE(i*2));
  if(v.some(x=>!Number.isFinite(x))||ix.some(i=>i>=info.vertices))throw Error('Invalid shirt buffer: '+sex);
- return {shirt:{v,f:ix,...JSON.parse(readPart('meta.json'))},rig,body};
+ const lod=info.renderLod;let renderPatches=[];
+ if(lod){
+  if(lod.sourcePositionSha256!==info.positionSha256||lod.sourceIndexSha256!==info.indexSha256)throw Error('Render LOD source mismatch: '+sex);
+  renderPatches=JSON.parse(readPart(lod.patchFile));
+  const removed=new Set(renderPatches.map(p=>p[0]));
+  if(removed.size!==renderPatches.length||renderPatches.some(p=>p.length<4||(p.length-1)%3||p.some(i=>!Number.isInteger(i)||i<0||i>=info.vertices)||p.slice(1).some(i=>removed.has(i))))throw Error('Invalid render patch: '+sex);
+  const renderIndices=[];for(let k=0;k<ix.length;k+=3){if(!removed.has(ix[k])&&!removed.has(ix[k+1])&&!removed.has(ix[k+2]))renderIndices.push(ix[k],ix[k+1],ix[k+2]);}
+  for(const patch of renderPatches)renderIndices.push(...patch.slice(1));
+  if(new Set(renderIndices).size!==lod.vertices||renderIndices.length!==lod.triangles*3)throw Error('Render LOD count mismatch: '+sex);
+ }
+ return {shirt:{v,f:ix,...JSON.parse(readPart('meta.json')),renderPatches},rig,body};
 }
 export function exportReference(){
  let template=read('reference-template.html');

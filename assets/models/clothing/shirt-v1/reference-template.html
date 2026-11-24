@@ -39,7 +39,34 @@ function buffer(data,element=false){const o=gl.createBuffer();gl.bindBuffer(elem
 function gpu(vertices,normals,colors,index,mode=gl.TRIANGLES){if(vertices.length/3!==normals.length/3||vertices.length/3!==colors.length/4)throw Error('정점 속성 배열 크기 불일치');return {pos:buffer(vertices),norm:buffer(normals),color:buffer(colors),ind:index?buffer(index,true):null,count:index?index.length:vertices.length/3,mode,indexType:index instanceof Uint16Array?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT,rest:vertices.slice(),restNorm:normals.slice()};}
 function bindAttrib(id,buf,len,type,norm){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.enableVertexAttribArray(id);gl.vertexAttribPointer(id,len,type,norm,0,0);}
 function draw(g,mvp){gl.uniformMatrix4fv(loc.m,false,mvp);gl.uniform1f(loc.cloth,g.isCloth?1:0);gl.uniform1f(loc.placket,g.isPlacket?1:0);if(loc.detail>=0){if(g.detail)bindAttrib(loc.detail,g.detail,4,gl.FLOAT,false);else{gl.disableVertexAttribArray(loc.detail);gl.vertexAttrib4f(loc.detail,0,0,0,0);}}if(loc.restPosition>=0){bindAttrib(loc.restPosition,g.restPosition||g.pos,3,gl.FLOAT,false);}bindAttrib(loc.p,g.pos,3,gl.FLOAT,false);bindAttrib(loc.n,g.norm,3,gl.FLOAT,false);bindAttrib(loc.c,g.color,4,gl.UNSIGNED_BYTE,true);if(g.ind){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,g.ind);gl.drawElements(g.mode,g.count,g.indexType,0);}else gl.drawArrays(g.mode,0,g.count);}
-function geom(vertices,indices,hex){const vp=Float32Array.from(vertices),ids=(vp.length/3<=65536?Uint16Array:Uint32Array).from(indices),ns=new Float32Array(vp.length),c=new Uint8Array(vp.length/3*4),v=typeof hex==='function'?null:rgb(hex).map(x=>Math.round(x*255));for(let i=0;i<ids.length;i+=3){let ia=ids[i]*3,ib=ids[i+1]*3,ic=ids[i+2]*3,ab=[vp[ib]-vp[ia],vp[ib+1]-vp[ia+1],vp[ib+2]-vp[ia+2]],ac=[vp[ic]-vp[ia],vp[ic+1]-vp[ia+1],vp[ic+2]-vp[ia+2]],n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];for(const j of [ia,ib,ic])for(let k=0;k<3;k++)ns[j+k]+=n[k];}for(let i=0;i<vp.length/3;i++){const k=i*3,r=Math.hypot(ns[k],ns[k+1],ns[k+2])||1;for(let a=0;a<3;a++)ns[k+a]/=r;const co=v??hex(i);c.set([co[0],co[1],co[2],0],i*4);}return gpu(vp,ns,c,ids);}
+
+function gatherRenderAttribute(src,ids,stride){
+ const out=new src.constructor(ids.length*stride);
+ for(let i=0;i<ids.length;i++)for(let k=0;k<stride;k++)out[i*stride+k]=src[ids[i]*stride+k];
+ return out;
+}
+function renderTopology(faces,count,patches=[]){
+ const removed=new Set(patches.map(p=>p[0])),out=[];
+ for(let k=0;k<faces.length;k+=3){if(!removed.has(faces[k])&&!removed.has(faces[k+1])&&!removed.has(faces[k+2]))out.push(faces[k],faces[k+1],faces[k+2]);}
+ for(const patch of patches)for(let k=1;k<patch.length;k++)out.push(patch[k]);
+ if(count>65536||out.some(i=>!Number.isInteger(i)||i<0||i>=count||removed.has(i)))throw Error('Invalid render LOD index');
+ const ids=Uint16Array.from([...new Set(out)].sort((a,b)=>a-b)),map=new Int32Array(count).fill(-1);
+ ids.forEach((i,k)=>map[i]=k);
+ return {ids,index:Uint16Array.from(out,i=>map[i])};
+}
+function compactRenderMesh(g,faces,colors,patches=[],detail=null){
+ const {ids,index}=renderTopology(faces,g.rest.length/3,patches);
+ g.renderSource=ids;g.indexType=gl.UNSIGNED_SHORT;g.count=index.length;
+ for(const [buf,arr] of [[g.pos,gatherRenderAttribute(g.rest,ids,3)],[g.norm,gatherRenderAttribute(g.restNorm,ids,3)],[g.color,gatherRenderAttribute(colors,ids,4)]]){
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW);
+ }
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,g.ind);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,index,gl.STATIC_DRAW);
+ if(detail){gl.bindBuffer(gl.ARRAY_BUFFER,g.detail);gl.bufferData(gl.ARRAY_BUFFER,gatherRenderAttribute(detail,ids,4),gl.STATIC_DRAW);}
+ if(g.restPosition&&g.restPosition!==g.pos){gl.bindBuffer(gl.ARRAY_BUFFER,g.restPosition);gl.bufferData(gl.ARRAY_BUFFER,gatherRenderAttribute(g.rest,ids,3),gl.STATIC_DRAW);}
+}
+function renderPoseAttribute(g,arr){return g.renderSource?gatherRenderAttribute(arr,g.renderSource,3):arr;}
+
+function geom(vertices,indices,hex){const vp=Float32Array.from(vertices),ids=(vp.length/3<=65536?Uint16Array:Uint32Array).from(indices),ns=new Float32Array(vp.length),c=new Uint8Array(vp.length/3*4),v=typeof hex==='function'?null:rgb(hex).map(x=>Math.round(x*255));for(let i=0;i<ids.length;i+=3){let ia=ids[i]*3,ib=ids[i+1]*3,ic=ids[i+2]*3,ab=[vp[ib]-vp[ia],vp[ib+1]-vp[ia+1],vp[ib+2]-vp[ia+2]],ac=[vp[ic]-vp[ia],vp[ic+1]-vp[ia+1],vp[ic+2]-vp[ia+2]],n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];for(const j of [ia,ib,ic])for(let k=0;k<3;k++)ns[j+k]+=n[k];}for(let i=0;i<vp.length/3;i++){const k=i*3,r=Math.hypot(ns[k],ns[k+1],ns[k+2])||1;for(let a=0;a<3;a++)ns[k+a]/=r;const co=v??hex(i);c.set([co[0],co[1],co[2],0],i*4);}const g=gpu(vp,ns,c,ids);g.renderColors=c;return g;}
 async function decodeData(id){const txt=document.getElementById(id).textContent.trim();const chunk=32768,parts=[];for(let i=0;i<txt.length;i+=chunk){const b=atob(txt.slice(i,i+chunk));for(let j=0;j<b.length;j++)parts.push(b.charCodeAt(j));}const res=await new Response(new Blob([new Uint8Array(parts)]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const dv=new DataView(res);let o=0;const nv=dv.getUint32(o,true),ni=dv.getUint32(o+4,true);o+=8;const pos=new Float32Array(res.slice(o,o+nv*12));o+=nv*12;const norm=new Float32Array(res.slice(o,o+nv*12));o+=nv*12;const color=new Uint8Array(res.slice(o,o+nv*4));o+=nv*4;const index=new Uint32Array(res.slice(o,o+ni*4));if(!nv||!ni)throw Error('원본 캐릭터 정점이 비어 있음');return {nv,ni,pos,index,mesh:gpu(pos,norm,color,index)};}
 function fitCollarSurface(positions, indices, neck, head, bodyHeight) {
   const span=head[1]-neck[1];
@@ -241,6 +268,9 @@ function collarPieces(sex,body){
   // Align exterior normals where the rear band and outer flap share a seam.
   const usedBand=new Set(band),usedOuter=new Set(outer);for(const i of usedOuter){if(i<=S||!usedBand.has(i))continue;const k=i*3,A=bandMesh.restNorm,B=outerMesh.restNorm;let dot=A[k]*B[k]+A[k+1]*B[k+1]+A[k+2]*B[k+2],sign=dot<0?-1:1;let x=A[k]+sign*B[k],y=A[k+1]+sign*B[k+1],z=A[k+2]+sign*B[k+2],len=Math.hypot(x,y,z);if(len>1e-6){A.set([x/len,y/len,z/len],k);B.set([sign*x/len,sign*y/len,sign*z/len],k);}}
   for(const mesh of [bandMesh,outerMesh]){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.norm);gl.bufferData(gl.ARRAY_BUFFER,mesh.restNorm,gl.STATIC_DRAW);}
+  // Compact after seam-normal alignment, retaining exact per-part attributes.
+  compactRenderMesh(bandMesh,band,bandMesh.renderColors);compactRenderMesh(outerMesh,outer,outerMesh.renderColors);
+  delete bandMesh.renderColors;delete outerMesh.renderColors;
   return {band:bandMesh,outer:outerMesh,checks:fit.diagnostics,topY:fit.topY};
 }
 function shirtPieces(sex){const raw=JSON.parse(document.getElementById('shirt_'+sex).textContent),cuff=new Set(raw.cuff),a=rgb(clothL).map(x=>Math.round(x*255)),b=rgb(pale).map(x=>Math.round(x*255));return {mesh:geom(raw.v,raw.f,i=>cuff.has(i)?b:a),checks:raw.checks};}
@@ -396,7 +426,7 @@ function longPose(a,g,p,bodyP){for(const s of g.cloth.long){const j=a.joints[s.s
 
 function poseArrays(a,g,bodyP){if(g!==a.shirt.mesh)return basePoseArrays(a,g);if(a.joints.every(j=>!j.side&&!j.front))return [g.rest.slice(),g.restNorm.slice()];bodyP=bodyP||basePoseArrays(a,a.body.mesh)[0];let p;if(a.joints.some(j=>j.kind==='shoulder'&&(j.side||j.front))){p=clothInitial(a,g,bodyP);smoothCloth(p,g,4);fitCloth(a,g,p,bodyP);fitRays(a,g,p,bodyP);}else p=g.rest.slice();longPose(a,g,p,bodyP);return [p,meshNormals(p,g.faces)];}
 function selectJoint(j){selected=j;for(let a of actors)for(let k of a.joints)k.button.classList.toggle('active',k===j);posePanel.hidden=false;document.getElementById('jointName').textContent=(j.kind==='shoulder'?'어깨':'팔꿈치');sideAngle.value=j.side;frontAngle.value=j.front;sideAngle.disabled=j.kind==='elbow';}
-function deform(a){const bodyPose=poseArrays(a,a.body.mesh);for(let g of [a.body.mesh,a.shirt.mesh]){const [p,n]=g===a.body.mesh?bodyPose:poseArrays(a,g,bodyPose[0]);for(let [buf,arr] of [[g.pos,p],[g.norm,n]]){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,arr,gl.DYNAMIC_DRAW);}if(g===a.shirt.mesh)poseButtons(a,p);}requestRender();}
+function deform(a){const bodyPose=poseArrays(a,a.body.mesh);for(let g of [a.body.mesh,a.shirt.mesh]){const [p,n]=g===a.body.mesh?bodyPose:poseArrays(a,g,bodyPose[0]);for(let [buf,arr] of [[g.pos,p],[g.norm,n]]){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,renderPoseAttribute(g,arr),gl.DYNAMIC_DRAW);}if(g===a.shirt.mesh)poseButtons(a,p);}requestRender();}
 function changePose(){if(!selected)return;selected.side=+sideAngle.value;selected.front=+frontAngle.value;deform(selected.actor);}
 sideAngle.onchange=frontAngle.onchange=changePose;document.getElementById('resetPose').onclick=()=>{for(let a of actors){for(let j of a.joints){j.side=j.front=0;}deform(a);}if(selected)selectJoint(selected);};
 function projectJoints(a,vp,rect,w,h){for(let j of a.joints){let p=j.parent?jointTransform(j.p,j.parent):j.p;let q=[0,0,0,0];for(let k=0;k<4;k++)q[k]=vp[k]*p[0]+vp[k+4]*p[1]+vp[k+8]*p[2]+vp[k+12];let x=rect[0]+(q[0]/q[3]+1)*rect[2]/2,y=rect[1]+(q[1]/q[3]+1)*rect[3]/2;j.button.style.left=x/w*innerWidth+'px';j.button.style.top=(1-y/h)*innerHeight+'px';j.button.hidden=q[3]<=0||Math.abs(q[0]/q[3])>1||Math.abs(q[1]/q[3])>1;}}
@@ -423,7 +453,7 @@ function render(){
 }
 async function start(){
  if(!gl||!program||!uintExt){if(gl&&!uintExt)status.textContent='이 기기는 32비트 메시를 지원하지 않아';return;}
- try{for(const sex of ['male','female']){const body=await decodeData('data_'+sex);const collar=collarPieces(sex,body);const shirt=shirtPieces(sex);const actor={sex,body,collar,shirt};initPose(actor);fabricDetail(actor);initButtons(actor);actors.push(actor);}
+ try{for(const sex of ['male','female']){const body=await decodeData('data_'+sex);const collar=collarPieces(sex,body);const shirt=shirtPieces(sex);const actor={sex,body,collar,shirt};initPose(actor);fabricDetail(actor);initButtons(actor);const g=actor.shirt.mesh;const patches=JSON.parse(document.getElementById('shirt_'+sex).textContent).renderPatches||[];compactRenderMesh(g,g.faces,g.renderColors,patches,g.detailData);delete g.renderColors;actors.push(actor);}
  render();status.hidden=true;window.__sernbeldViewer={actors,poseArrays,checks:actors.map(a=>({collar:a.collar.checks,shirt:a.shirt.checks})),get camera(){return {yaw,pitch,zoom}}};document.documentElement.dataset.loaded='true';
  }catch(e){console.error(e);status.textContent='모델 읽기 실패: '+e.message;}
 }

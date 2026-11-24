@@ -25,7 +25,19 @@
         "reference-body.04.part",
         "reference-body.05.part",
         "reference-body.06.part"
-      ]
+      ],
+      "renderLod": {
+        "vertices": 20225,
+        "triangles": 40114,
+        "patchFile": "render-patches.json",
+        "sourcePositionSha256": "b796b2ff52839bf881c8d8826e90f056ffa931d8d64b0ac9c4c58ee272a933b0",
+        "sourceIndexSha256": "b45d11ae859fd9ab7e0cd63a61734419b54bb62977961e4940da7e79c19d8134",
+        "removedStaticTorsoVertices": 159,
+        "maxTangentPlaneHeightErrorMeters": 0.0004429713239330638,
+        "maxRestNormalComponentError": 0.05652308289599217,
+        "maxWrinkleHeightErrorMeters": 0.00014959258001333753,
+        "maxCreaseError": 0.032789075123572736
+      }
     },
     "female": {
       "vertices": 32301,
@@ -45,7 +57,19 @@
         "reference-body.02.part",
         "reference-body.03.part",
         "reference-body.04.part"
-      ]
+      ],
+      "renderLod": {
+        "vertices": 32143,
+        "triangles": 63794,
+        "patchFile": "render-patches.json",
+        "sourcePositionSha256": "fba8228cf13b28176377c809674d96817fca877f44aa8fb831b20b97ffb810f2",
+        "sourceIndexSha256": "6ec317e90138edc72787dc8594038860de75099ceaf2daf9de65c07d5d383db4",
+        "removedStaticTorsoVertices": 158,
+        "maxTangentPlaneHeightErrorMeters": 0.00043518886577993335,
+        "maxRestNormalComponentError": 0.05989730105308383,
+        "maxWrinkleHeightErrorMeters": 0.00015964578860870013,
+        "maxCreaseError": 0.03931561727255309
+      }
     }
   }
 }
