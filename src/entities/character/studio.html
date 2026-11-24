@@ -23,7 +23,8 @@
   <p id="feedback" aria-live="polite">드래그로 회전 · 두 손가락으로 확대</p>
 
 </section>
-<section class="editor" aria-label="캐릭터 설정">
+<section class="editor" aria-label="캐릭터 설정" data-snap="middle">
+  <button type="button" id="sheet-grip" aria-label="설정 패널 높이 조절" aria-controls="panel" aria-expanded="true"><span aria-hidden="true"></span></button>
   <nav class="tabs" role="tablist" aria-label="캐릭터 편집 항목">
     <button type="button" role="tab" data-tab="face" data-level="both" aria-controls="panel" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.2c5.2 0 8.1 3.6 8.1 8.5 0 5.2-3.8 9.1-8.1 9.1S3.9 16.9 3.9 11.7c0-4.9 2.9-8.5 8.1-8.5Z"/><path d="M9.1 12.5h.01M14.9 12.5h.01M9.7 16.1c1.3.9 3.2.9 4.6 0"/></svg><span>얼굴형</span></button><button type="button" role="tab" data-tab="eye" data-level="both" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.4 12c2.8-3.8 6-5.7 9.6-5.7s6.8 1.9 9.6 5.7c-2.8 3.8-6 5.7-9.6 5.7S5.2 15.8 2.4 12Z"/><circle cx="12" cy="12" r="2.7"/></svg><span>눈</span></button><button type="button" role="tab" data-tab="brow" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 11.2c2.3-3.7 4.8-4.5 8-3.7 3.2.8 5.5 1.8 8 3.7M5 15.5h.01M19 15.5h.01"/></svg><span>눈썹</span></button>
     <button type="button" role="tab" data-tab="mouth" data-level="both" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.7 10.5c2.7 1.2 5.2 1.7 7.3 1.7s4.6-.5 7.3-1.7M6.4 14.3c1.7 2.2 3.7 3.3 5.6 3.3s3.9-1.1 5.6-3.3"/></svg><span>입</span></button><button type="button" role="tab" data-tab="color" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3C7 7.4 5.1 10.7 5.1 14a6.9 6.9 0 0 0 13.8 0C18.9 10.7 17 7.4 12 3Z"/><path d="M9.2 16a3.1 3.1 0 0 0 2.8 2.4"/></svg><span>색상</span></button><button type="button" role="tab" data-tab="decoration" data-level="basic" aria-controls="panel" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.7 9.5h3.1l.7-1h3.2l.5 1h3.6l.5-1h3.2l.7 1h3.1M3.2 9.5v3.3c0 2.6 1.3 3.9 3.7 3.9s3.8-1.3 3.8-3.9v-3.3m2.6 0v3.3c0 2.6 1.4 3.9 3.8 3.9s3.7-1.3 3.7-3.9V9.5"/></svg><span>장식</span></button>
@@ -895,6 +896,74 @@ function renderPanelContents(){
   }else if(tab==='eye')selectionCards('eye',{...REFERENCE_EYES,'reference-slit':'실눈 · 살짝 뜸'});
   else selectionCards(tab);
 }
+// Non-modal, three-position bottom sheet. Only the handle owns vertical drag;
+// option scrolling, adjustment pads and character gestures stay independent.
+const sheet=document.querySelector('.editor'),sheetGrip=$('sheet-grip'),sheetPanel=$('panel');
+const sheetMedia=matchMedia('(max-width:55rem) and (orientation:portrait)');
+const sheetStops=['collapsed','middle','expanded'];
+let sheetSnap='middle',sheetDrag=null,ignoreSheetClick=false;
+function sheetHeights(){
+ const h=document.querySelector('main').clientHeight;
+ const chrome=sheetGrip.offsetHeight+sheet.querySelector('.tabs').offsetHeight+sheet.querySelector('.footer-actions').offsetHeight;
+ const max=Math.max(chrome+12,h-170);
+ const low=Math.min(max,chrome);
+ const mid=Math.min(max,Math.max(low+80,h*(mode==='advanced'?.49:.42)));
+ return [low,mid,Math.max(mid,Math.min(max,h*.71))];
+}
+function setSheetSnap(next,{animate=true}={}){
+ if(!sheetStops.includes(next))return;
+ sheetSnap=next;sheet.dataset.snap=next;
+ sheetGrip.setAttribute('aria-expanded',String(next!=='collapsed'));
+ if(!sheetMedia.matches){sheet.style.removeProperty('--sheet-height');sheetPanel.inert=false;return;}
+ sheet.classList.toggle('sheet-no-transition',!animate);
+ sheet.style.setProperty('--sheet-height',sheetHeights()[sheetStops.indexOf(next)]+'px');
+ sheetPanel.inert=next==='collapsed';
+ if(!animate)requestAnimationFrame(()=>{if(!sheetDrag)sheet.classList.remove('sheet-no-transition');});
+}
+function toggleSheet(){setSheetSnap(sheetSnap==='collapsed'?'middle':sheetSnap==='middle'?'expanded':'middle');}
+sheetGrip.addEventListener('pointerdown',e=>{
+ if(!sheetMedia.matches||!e.isPrimary||e.button!==0)return;
+ ignoreSheetClick=false;
+ sheetDrag={id:e.pointerId,y:e.clientY,height:sheet.getBoundingClientRect().height,lastY:e.clientY,lastT:performance.now(),velocity:0,moved:false};
+ sheetGrip.setPointerCapture(e.pointerId);
+ sheet.classList.add('sheet-no-transition');
+ sheetPanel.inert=false;
+});
+sheetGrip.addEventListener('pointermove',e=>{
+ const drag=sheetDrag;if(!drag||drag.id!==e.pointerId)return;
+ const now=performance.now(),dy=e.clientY-drag.y,heights=sheetHeights();
+ if(Math.abs(dy)>5)drag.moved=true;
+ if(!drag.moved)return;
+ drag.velocity=(drag.lastY-e.clientY)/Math.max(1,now-drag.lastT);
+ drag.lastY=e.clientY;drag.lastT=now;
+ const height=Math.min(heights[2],Math.max(heights[0],drag.height-dy));
+ sheet.style.setProperty('--sheet-height',height+'px');
+});
+function finishSheetDrag(e,cancelled=false){
+ const drag=sheetDrag;if(!drag||drag.id!==e.pointerId)return;
+ sheetDrag=null;sheet.classList.remove('sheet-no-transition');
+ if(cancelled){setSheetSnap(sheetSnap);return;}
+ if(!drag.moved){setSheetSnap(sheetSnap);return;}
+ ignoreSheetClick=true;
+ const heights=sheetHeights(),height=sheet.getBoundingClientRect().height;
+ const velocity=performance.now()-drag.lastT<120?drag.velocity:0;
+ const projected=height+Math.max(-110,Math.min(110,velocity*110));
+ const index=heights.reduce((best,value,i)=>Math.abs(value-projected)<Math.abs(heights[best]-projected)?i:best,0);
+ setSheetSnap(sheetStops[index]);
+}
+sheetGrip.addEventListener('pointerup',e=>finishSheetDrag(e));
+sheetGrip.addEventListener('pointercancel',e=>finishSheetDrag(e,true));
+sheetGrip.addEventListener('lostpointercapture',e=>finishSheetDrag(e,true));
+sheetGrip.addEventListener('click',()=>{if(ignoreSheetClick){ignoreSheetClick=false;return;}toggleSheet();});
+sheetGrip.addEventListener('keydown',e=>{
+ const direction=e.key==='ArrowUp'?1:e.key==='ArrowDown'?-1:0;
+ if(!direction)return;e.preventDefault();
+ setSheetSnap(sheetStops[Math.max(0,Math.min(2,sheetStops.indexOf(sheetSnap)+direction))]);
+});
+function syncSheet(){if(!sheetDrag)setSheetSnap(sheetSnap,{animate:false});}
+sheetMedia.addEventListener('change',syncSheet);
+window.addEventListener('resize',syncSheet);
+requestAnimationFrame(syncSheet);
 function chooseTab(key){
   const basic=['face','eye','brow','mouth','color','decoration'],advanced=['face','eye','mouth','pose','tools'];
   const allowed=mode==='advanced'?advanced:basic;
@@ -905,6 +974,7 @@ function chooseTab(key){
     updateMode();
   }
   tab=key;
+  if(sheetMedia.matches&&sheetSnap==='collapsed')setSheetSnap('middle');
   if(key==='eye')part='eye';if(key==='mouth')part='mouth';if(key==='brow')part='forehead';
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===key)));
   if(!activeParts().includes(part))part=activeParts()[0];
@@ -921,6 +991,7 @@ function updateMode(){document.body.dataset.mode=mode;$('detail-toggle').setAttr
 function chooseMode(next){
   if(next===mode||!['basic','advanced'].includes(next))return;
   mode=next;updateMode();
+  if(sheetMedia.matches)setSheetSnap(sheetSnap==='collapsed'?'middle':sheetSnap);
   chooseTab(['face','eye','mouth'].includes(tab)?tab:'face');
 }
 $('detail-toggle').onclick=()=>chooseMode(mode==='basic'?'advanced':'basic');
