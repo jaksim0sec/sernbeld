@@ -1427,11 +1427,19 @@ var SunShadow = class {
     this.up = new Vector3().crossVectors(sunDir, this.right).normalize();
     this.c = new Vector3();
   }
+  setResolution(size) {
+    const shadow = this.light.shadow;
+    if (shadow.mapSize.x === size) return;
+    shadow.mapSize.set(size, size);
+    // Three only allocates the target when it has no shadow map.
+    shadow.map?.dispose();
+    shadow.map = null;
+  }
   update(x, z, yaw) {
     const E = CFG.shadowExtent, c = this.c;
     c.set(x - Math.sin(yaw) * E * 0.55, 0, z - Math.cos(yaw) * E * 0.55);
     c.y = sample(c.x, c.z);
-    const texel = 2 * E / CFG.shadowSize;
+    const texel = 2 * E / this.light.shadow.mapSize.x;
     const a = Math.round(c.dot(this.right) / texel) * texel, b = Math.round(c.dot(this.up) / texel) * texel, d = c.dot(this.dir);
     const t = this.light.target.position;
     t.copy(this.right).multiplyScalar(a).addScaledVector(this.up, b).addScaledVector(this.dir, d);
@@ -1984,9 +1992,9 @@ var NEAR = IS_MOBILE ? 80 : 115;
 var FADE = 16;
 // Graphics settings never alter interaction reach, collision, or game time.
 var GRAPHICS = Object.freeze({
-  high: Object.freeze({dpr:CFG.dprMax, floor:IS_MOBILE ? .85 : 1, terrainSplit:.85, terrainCache:140, trees:1, grass:1, rocks:1, npcRange:105, npcDetail:1, shadowMs:IS_MOBILE ? 32 : 0}),
-  medium: Object.freeze({dpr:IS_MOBILE ? 1.25 : 1.5, floor:.75, terrainSplit:.76, terrainCache:120, trees:.86, grass:.85, rocks:.88, npcRange:100, npcDetail:.86, shadowMs:50}),
-  low: Object.freeze({dpr:1, floor:.65, terrainSplit:.65, terrainCache:100, trees:.70, grass:.70, rocks:.75, npcRange:85, npcDetail:.70, shadowMs:90})
+  high: Object.freeze({dpr:CFG.dprMax, floor:IS_MOBILE ? .85 : 1, terrainSplit:.85, terrainCache:140, trees:1, grass:1, rocks:1, npcRange:105, npcDetail:1, shadowScale:1, shadowMs:IS_MOBILE ? 32 : 0}),
+  medium: Object.freeze({dpr:IS_MOBILE ? 1.25 : 1.5, floor:.75, terrainSplit:.76, terrainCache:120, trees:.86, grass:.85, rocks:.88, npcRange:100, npcDetail:.86, shadowScale:.5, shadowMs:0}),
+  low: Object.freeze({dpr:1, floor:.65, terrainSplit:.65, terrainCache:100, trees:.70, grass:.70, rocks:.75, npcRange:85, npcDetail:.70, shadowScale:.25, shadowMs:0})
 });
 function graphicsKey(value) {
   return Object.hasOwn(GRAPHICS, value) ? value : IS_MOBILE ? "medium" : "high";
@@ -4292,6 +4300,12 @@ var SHOW = 105;
 var LOD0 = 14;
 var LOD1 = 38;
 var SHADOW = 12;
+function residentLOD(distance, detail, current) {
+  // Keep the current mesh within 1 m of its boundary.
+  const near = LOD0 * detail + (current === 0 ? 1 : current == null ? 0 : -1);
+  const far = LOD1 * detail + (current === 2 ? -1 : current == null ? 0 : 1);
+  return distance < near ? 0 : distance < far ? 1 : 2;
+}
 var Townsfolk = class {
   constructor(scene, region, makeCharacter) {
     this.places = region.places;
@@ -4439,10 +4453,14 @@ var Townsfolk = class {
       }
       g.position.set(n.x, n.y, n.z);
       g.rotation.y = n.yaw;
-      n.ch.setLOD(d < LOD0 * this.quality.npcDetail ? 0 : d < LOD1 * this.quality.npcDetail ? 1 : 2);
+      const lod = residentLOD(d, this.quality.npcDetail, n.lod);
+      if (lod !== n.lod) {
+        n.ch.setLOD(lod);
+        n.lod = lod;
+      }
       n.ch.setShadow(d < SHADOW);
       n.ch.speed = n.speed;
-      const interval = d < 8 || n.talkT > 0 ? 0 : d < 22 ? 1 / 30 : d < 42 ? 1 / 20 : 1 / 10;
+      const interval = d < SHADOW || n.talkT > 0 ? 0 : d < 22 ? 1 / 30 : d < 42 ? 1 / 20 : 1 / 10;
       n.poseAge = (n.poseAge ?? interval * n.poseOffset) + dt;
       if (n.poseAge >= interval) {
         n.ch.animate(Math.min(.12, n.poseAge), t);
@@ -5983,6 +6001,7 @@ async function boot() {
     grass.setQuality(quality);
     rocks.setQuality(quality);
     folk.quality = quality;
+    sun.setResolution(CFG.shadowSize * quality.shadowScale);
     dprNow = Math.min(devicePixelRatio || 1, quality.dpr);
     frameAvg = 1 / 60; dprClock = 0;
     resize();

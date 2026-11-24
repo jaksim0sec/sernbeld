@@ -23,4 +23,31 @@ const quality=new Function('IS_MOBILE','CFG',part('var GRAPHICS =','var WIND_HEA
 assert.equal(quality.graphicsKey(null),'medium');
 assert.equal(quality.graphicsKey('low'),'low');
 for(const k of ['dpr','terrainSplit','trees','grass','rocks','npcRange','npcDetail'])assert(quality.GRAPHICS.low[k]<quality.GRAPHICS.high[k]);
+for(const preset of [quality.GRAPHICS.medium,quality.GRAPHICS.low]){
+ assert.equal(preset.shadowMs,0,'Character shadows must not hold an older pose');
+ assert(preset.shadowScale<1,'Reduce shadow map size to offset the higher update rate');
+}
+const start=source.indexOf('function residentLOD('),end=source.indexOf('var Townsfolk',start);
+const residentLOD=new Function('LOD0','LOD1',source.slice(start,end)+'return residentLOD;')(14,38);
+for(const preset of Object.values(quality.GRAPHICS)){
+ const detail=preset.npcDetail, near=14*detail, far=38*detail;
+ assert.equal(residentLOD(near+.5,detail,0),0);
+ assert.equal(residentLOD(near-.5,detail,1),1);
+ assert.equal(residentLOD(near+1.1,detail,0),1);
+ assert.equal(residentLOD(far-.5,detail,2),2);
+ assert.equal(residentLOD(far-1.1,detail,2),1);
+}
+const {Townsfolk}=new Function('SHADOW','residentLOD',part('var Townsfolk = class','  // nearest person in front of the player within reach')+'};return {Townsfolk};')(12,residentLOD);
+for(const preset of Object.values(quality.GRAPHICS)){
+ const samples=[];
+ const entry=[0,'plaza','idle'];
+ const resident={x:10,y:0,z:0,entry,poseOffset:0,ch:{
+  group:{position:{set(){}},rotation:{}},setLOD(){},setShadow(){},animate(dt,t){samples.push(t);}
+ }};
+ const folk={entry:()=>entry,queue:[],list:[resident],quality:preset};
+ for(let i=1;i<=60;i++){
+  Townsfolk.prototype.update.call(folk,1/60,i/60,12,{pos:{x:0,z:0}},{x:0,y:0,z:0});
+ }
+ assert.equal(samples.length,60,'A nearby NPC pose updates on every rendered frame');
+}
 console.log('PASS: graphics presets, spatial geometry preservation, route cache and endpoint isolation');
