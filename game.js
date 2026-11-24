@@ -47281,7 +47281,7 @@ function buildScenicWings(G, rnd) {
     const t = terraceAt(b.x, b.z);
     if (!t) continue;
     const y = t.y;
-    G.box(b.x, y - 0.55, b.z, b.w + 2, 1.2, b.w + 2, 0, C.stoneL, PAT.stone);
+    box2(G, b.x, y - 0.55, b.z, b.w + 2, 1.2, b.w + 2, 0, C.stoneL, PAT.stone, true);
     box2(G, b.x, y, b.z, b.w, b.h, b.w, 0, C.stoneL, PAT.stone);
     G.cone(b.x, y + b.h, b.z, b.w * 0.75, 7.5, 8, b.roof, PAT.roof, Math.PI / 8);
     for (const a of [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2]) {
@@ -47309,10 +47309,10 @@ function buildScenicWings(G, rnd) {
     }
   }
   for (const [x, z, y, w] of [[301, -413, 24, 12], [476, -413, 24, 15], [308, -453, 50, 10], [467, -453, 50, 11]]) {
-    G.box(x, y - 0.65, z + 3.4, w, 0.7, 3.9, 0, C.stoneL, PAT.stone);
+    box2(G, x, y - 0.65, z + 3.4, w, 0.7, 3.9, 0, C.stoneL, PAT.stone, true);
     for (let j = 0; j < 4; j++) {
       const fx = x - w * 0.38 + j * w * 0.25;
-      G.box(fx, y + 0.2, z + 5.15, 0.45, 1.2, 0.45, 0, C.stoneL, PAT.stone);
+      box2(G, fx, y + 0.2, z + 5.15, 0.45, 1.2, 0.45, 0, C.stoneL, PAT.stone);
     }
     for (let j = 0; j < 3; j++) {
       const fx = x + (j - 1) * w * 0.28;
@@ -47344,7 +47344,7 @@ function buildKaelGardens(G, rnd) {
     const t = terraceAt(x, z);
     if (!t) continue;
     const y = t.y + 0.25;
-    G.box(x, y, z, 4.2 * s, 0.65, 2.9 * s, 0, C.stoneL, PAT.stone);
+    box2(G, x, y, z, 4.2 * s, 0.65, 2.9 * s, 0, C.stoneL, PAT.stone);
     for (let i = 0; i < 4; i++) {
       const ax = x + (rnd() - 0.5) * 3 * s, az = z + (rnd() - 0.5) * 1.8 * s;
       icosa(G, ax, y + 0.6 + i % 2 * 0.35, az, (0.65 + rnd() * 0.3) * s, i % 3 === 0 ? C.greenD : C.green);
