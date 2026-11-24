@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-38';
+const VERSION = 'sernbeld-pwa-39';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -68,14 +68,18 @@ self.addEventListener('install', event => {
     const cache = await caches.open(SHELL);
     // The install only succeeds once all mandatory local resources are cached.
     // Do NOT activate a partial app shell.
-    await Promise.all(OFFLINE_FILES.map(async path => {
-      const url = absolute(path);
-      const response = await fetch(url, {cache: 'no-store'});
-      if (!response.ok || response.type === 'opaque') {
-        throw new Error('Cannot precache ' + path + ' (HTTP ' + response.status + ')');
+    // Bound concurrent downloads and cache writes; a complete install is
+    // still atomic with respect to activation, not an eager download storm.
+    let cursor=0;
+    async function cacheNext(){
+      while(cursor<OFFLINE_FILES.length){
+        const path=OFFLINE_FILES[cursor++],url=absolute(path);
+        const response=await fetch(url,{cache:'no-store'});
+        if(!response.ok||response.type==='opaque')throw new Error('Cannot precache '+path+' (HTTP '+response.status+')');
+        await cache.put(url,response);
       }
-      await cache.put(url, response);
-    }));
+    }
+    await Promise.all(Array.from({length:3},()=>cacheNext()));
     // Do not replace a currently running game without the player's consent.
     // For the first registration, the browser automatically activates this worker.
   })());

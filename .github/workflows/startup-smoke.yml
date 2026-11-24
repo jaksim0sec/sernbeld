@@ -1,0 +1,23 @@
+name: Cold startup regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pwa.js'
+      - 'sw.js'
+      - 'tests/pwa-startup.mjs'
+      - '.github/workflows/startup-smoke.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/pwa-startup.mjs
+      - run: node tools/build-game.mjs --check && node tests/startup-runtime.mjs
+      - run: npm install --no-save --no-package-lock playwright && npx playwright install chromium
+      - run: node tests/cold-start-browser.mjs

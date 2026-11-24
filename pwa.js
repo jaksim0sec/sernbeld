@@ -10,7 +10,7 @@
     './src/core/entity-registry.js','./src/core/inventory.js','./src/entities/character/reference-eyes.js','./src/entities/character/reference-eye-contours.js','./src/entities/character/combat-stance.js',
     './src/core/region-lifecycle.js','./styles/tokens.css',
     './styles/hud.css','./styles/menus-and-overlays.css','./styles/responsive.css',
-    './styles/world-map.css','./assets/ui-icons.svg'];
+    './styles/world-map.css','./assets/ui-icons.svg','./assets/models/clothing/runtime-bindings-v1.json.gz'];
   let updateNotice;
   const notice = () => {
     if (updateNotice) return updateNotice;
@@ -54,7 +54,7 @@
     location.reload();
   });
   const check = async () => {
-    if (!navigator.onLine || revisionCheckInFlight) return;
+    if (!registration || (!registration.active && !navigator.serviceWorker.controller) || !navigator.onLine || revisionCheckInFlight) return;
     if (Date.now() - lastCheck < 15000) return;
     revisionCheckInFlight = true;
     lastCheck = Date.now();
@@ -87,15 +87,36 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') check();
   });
-  navigator.serviceWorker.register('./sw.js', {scope: './', updateViaCache: 'none'})
-    .then(value => {
-      registration = value;
-      watch();
-      registration.addEventListener('updatefound', watch);
-      check();
-    })
-    .catch(error => {
-      // PWA is an enhancement; a registration failure must not block the running game.
-      console.warn('[PWA] Offline mode unavailable:', error);
+  // Cold startup is the highest priority. Do not compete with mandatory
+  // model downloads and world generation for CPU, memory and bandwidth.
+  let started=false;
+  function startOffline(){
+    if(started)return;started=true;
+    navigator.serviceWorker.register('./sw.js', {scope: './', updateViaCache: 'none'})
+      .then(value => {
+        registration = value;
+        watch();
+        registration.addEventListener('updatefound', watch);
+        check();
+      })
+      .catch(error => {
+        console.warn('[PWA] Offline mode unavailable:', error);
+      });
+  }
+  function afterCharacterCreation(){
+    const chooser=document.getElementById('character-chooser');
+    if(chooser?.open){
+      const observer=new MutationObserver(()=>{
+        if(!chooser.open){observer.disconnect();setTimeout(startOffline,0);}
+      });
+      observer.observe(chooser,{attributes:true,attributeFilter:['open']});
+    }else setTimeout(startOffline,0);
+  }
+  const loading=document.getElementById('loading');
+  if(loading&&!loading.classList.contains('done')){
+    const observer=new MutationObserver(()=>{
+      if(loading.classList.contains('done')){observer.disconnect();afterCharacterCreation();}
     });
+    observer.observe(loading,{attributes:true,attributeFilter:['class']});
+  }else afterCharacterCreation();
 })();
