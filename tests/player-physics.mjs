@@ -46,3 +46,38 @@ clear();box(1,0,2,.3,10);const grazing=env.maktwoWorldRay({x:0,y:1,z:0},{x:0,y:0
 clear();stairs=(x,z,m,e)=>x>=.01&&x<1?.3:null;p=player();for(let j=0;j<12;j++){tick(p,input(1,0));assert(p.renderPos.y>=env.playerTerrain(p.renderPos.x,p.renderPos.z)-.002,'presentation interpolates through a tread');}
 clear();terrain=x=>x<0?0:.2;p=player(-.01);for(let j=0;j<12;j++){tick(p,input(1,0));assert(p.pos.y>=terrain(p.pos.x)-.002,'physics went beneath terrain');}
 console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentation floor');
+
+{
+  // Real Kael geometry regression: visual stone planters, balconies and rails
+  // must use the same registered solid shapes as the player's contact solver.
+  const section=(start,end)=>{
+    const a=game.indexOf(start),b=game.indexOf(end,a);
+    assert(a>=0&&b>a,'Kael collision fixture section missing: '+start);
+    return game.slice(a,b);
+  };
+  const added=[],palette=new Proxy({},{get:()=>0});
+  const build=new Function('addBox','terraceAt','C','PAT','icosa','WALL',
+    section('var box2 =','var off2 =')+
+    section('function buildScenicWings(','function buildKaelGardens(')+
+    section('function buildKaelGardens(','function buildStairs(')+
+    'return {buildScenicWings,buildKaelGardens}');
+  const {buildKaelGardens,buildScenicWings}=build(
+    collider=>added.push(collider),()=>({y:24}),palette,palette,()=>{},2.6);
+  const drawn=()=>({boxes:[],box(...args){this.boxes.push(args);},arch(){},quad(){},cone(){}});
+  const registered=(box,walk=false)=>added.some(c=>
+    Math.abs(c.cx-box[0])<1e-6&&Math.abs(c.cy-(box[1]+box[4]/2))<1e-6&&
+    Math.abs(c.cz-box[2])<1e-6&&Math.abs(c.hx-box[3]/2)<1e-6&&
+    Math.abs(c.hy-box[4]/2)<1e-6&&Math.abs(c.hz-box[5]/2)<1e-6&&c.walk===walk);
+  const gardens=drawn();buildKaelGardens(gardens,()=>.5);
+  assert.equal(gardens.boxes.length,16,'Garden fixture changed');
+  assert(gardens.boxes.every(b=>registered(b)),'A visible stone garden bed has no collision');
+  const scenery=drawn();buildScenicWings(scenery,()=>.5);
+  const decks=scenery.boxes.filter(b=>b[4]===.7&&b[5]===3.9);
+  const rails=scenery.boxes.filter(b=>b[3]===.45&&b[4]===1.2&&b[5]===.45);
+  const bases=scenery.boxes.filter(b=>b[4]===1.2&&b[3]>7&&b[5]>7);
+  assert.equal(decks.length,4);assert.equal(rails.length,16);assert.equal(bases.length,3);
+  assert(decks.every(b=>registered(b,true)),'A balcony deck lacks walkable support');
+  assert(rails.every(b=>registered(b)),'A balcony rail can be walked through');
+  assert(bases.every(b=>registered(b,true)),'A lookout base lacks solid support');
+  console.log('PASS: Kael planter, balcony, railing and lookout geometry has matching colliders');
+}
