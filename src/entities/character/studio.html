@@ -880,7 +880,7 @@ function chooseMode(next){
   if(next===mode||!['basic','advanced'].includes(next))return;
   mode=next;document.body.dataset.mode=mode;
   document.querySelectorAll('[data-mode-switch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeSwitch===mode)));
-  chooseTab('face');
+  chooseTab(['face','eye','mouth'].includes(tab)?tab:'face');
 }
 document.querySelectorAll('[data-mode-switch]').forEach(b=>b.onclick=()=>chooseMode(b.dataset.modeSwitch));
 document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>setBody(b.dataset.body));
