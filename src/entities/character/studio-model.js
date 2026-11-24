@@ -206,11 +206,19 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
    }
   });
  }
+ // Coverage is mutable per actor; never share it through the immutable body pool.
+ const coverAttribute=new T.BufferAttribute(new Uint8Array(geometry.attributes.position.count),1,true);
+ geometry.setAttribute('aClothCover',coverAttribute);
  const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,shirtAsset:factory.source.defaultShirts?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
-  setClothingCoverage(on){uniforms.uClothCover.value=on?1:0;},
+  setClothingCoverage(mask){
+   const a=coverAttribute.array;let changed=false,active=false;
+   for(let i=0;i<a.length;i++){const value=mask?.[i]??0;if(value)active=true;if(a[i]!==value){a[i]=value;changed=true;}}
+   if(changed)coverAttribute.needsUpdate=true;
+   uniforms.uClothCover.value=active?1:0;
+  },
   setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();api.clothing.setFirstPerson(firstPerson);},
   animate(dt,t){
    // NPCs use the same joint-limit/spring pipeline as the player.
@@ -236,6 +244,6 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  };
  // All runtime actors share the same loaded male/female shirt assets.
  api.clothing=createClothingController(T,api,lodIndex[0]);
- if(api.shirtAsset)api.clothing.equip('top.basic-shirt');
+ api.clothing.equipDefaults();
  return api;
 }

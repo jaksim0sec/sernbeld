@@ -1,20 +1,20 @@
-# 의상 등록 (Clothing)
+# 의상 런타임 등록 (Clothing)
 
-인체 메시, 캐릭터 커스터마이징 및 기본 NPC 모델과 독립적인 장착 슬롯이다. 실제 게임에서 생성하는 모든 남녀 캐릭터는 기본 긴소매 셔츠를 자동 장착한다. 인체 메시와 기존 외형 설정은 변경하지 않는다.
+인체 원본, 외형 설정, 애니메이션은 그대로 유지한다. 의상은 실제 게임의 최종 스켈레톤과 IK를 따라가는 독립 장착물이다.
 
-슬롯: `collar` 카라, `top` 상의, `vest` 조끼, `pants` 바지, `shoes` 신발, `hat` 모자. 조끼와 상의는 서로 다른 슬롯이다.
+## 새 의상 등록
 
-`registry.js`의 `registerClothing({id, slot, name, build})`에 의상 정의를 추가한다. `build(THREE, actor, fullIndex)`는 기존 인체를 읽기만 하고, 모델 로컬 좌표로 된 독립 Object3D와 리소스 정리 함수 `{object, dispose}`를 반환한다. fullIndex는 캐릭터의 원본 LOD0 인덱스다.
+슬롯: `collar`, `top`, `vest`, `pants`, `shoes`, `hat`.
 
-등록된 카라 ID: `collar.basic`. 이전 승인된 제스처 뷰어의 V 절개 링, 전면 드레이프, 후면 공유 접합부를 그대로 사용한다. 남녀 모델별로 실제 단면을 맞추며 기존 스켈레톤에 피부 가중치를 전이한다.
+- `registry.js`: `registerClothing({id, slot, name, build, defaultWhen?})`. 동일 슬롯만 교체한다. `build(T, actor, fullIndex)`는 `{object, dispose, bodyCoverage?, firstPersonCoverage?, setFirstPerson?}`를 반환한다. `bodyCoverage`는 인체 정점별 Uint8 마스크(0/255)이며 각 의상은 자기 마스크만 반환한다. 컨트롤러가 활성 의상의 합집합을 계산한다. 다른 의상의 마스크나 공유 인체 정점을 수정하지 않는다.
+- `garment-binding.js`: 발 기준 1.76m reference pose의 position/normal/index를 실제 게임 인체 삼각형에 매핑한다. 정책의 `regions`, `guide(i,asset)`, `constrain(i,asset,weights,bones)`, `fit`, `smoothing`, `parts`, `attributes`로 부위 제약을 지정한다. constrain은 가중치 배열을 수정하고 rigid anchor이면 true를 반환한다. 손가락·반대쪽 팔다리 같은 무관한 본은 의상 설계 시 제외한다. 연결 정점 및 일치하는 seam 정점의 가중치를 함께 평활화하고 4개 본으로 정규화한다. 임의의 공간상 이웃을 연결하지 않는다.
+- `garment-pose.js`: `createGarmentPart(T,actor,lease,partId,materialFactory)`가 실제 스켈레톤의 최종 bone world matrix에서 reference-space dual quaternion을 계산한다. materialFactory는 (공통 pose uniforms, GLSL skinning 함수)를 전달받아 vertex shader에서 `garmentPose(positionOut, normalOut)`를 호출한다. rigid 영역은 회전·이동만 하며 선형 스키닝의 역행렬 불안정성/비틀림 수축을 피한다. CPU에서 같은 변형을 검사할 수 있다.
+- 바인딩은 에셋/정책/체형/참조 프레임별로 캐싱한다. 동일 체형 NPC는 정점 버퍼와 파트 인덱스를 공유하며, 장착 해제는 참조 카운트로 관리한다. 실시간 CPU 정점 변형·천 시뮬레이션은 하지 않는다.
 
-```js
-actor.clothing.equip('collar.basic');
-actor.clothing.getEquipped('collar');
-actor.clothing.unequip('collar');
-actor.clothing.snapshot();
-```
+## 기본 셔츠 및 카라
 
-동일 슬롯 장착 시 기존 의상만 교체된다. 셔츠만 기본 장착하며 인체 모델은 교체하지 않는다. 현재 저장·인벤토리·UI 연결 및 애니메이션 시각 검증은 별도 범위다. 첫인칭에는 의상 메시를 숨기며, actor.dispose() 시 같이 정리된다.
+`shirt-binding.js`는 위 공통 바인더를 호출하는 셔츠 정책이다. 기존 에셋의 어깨/팔꿈치 가중치로 소매 체인을 지정하고, 커프는 전완 본에 고정한다. 몸통과 카라·단추는 몸통 체인에 연결한다. 원본 형상과 텍스처 좌표, 재질, 카라, 단추를 유지한다.
 
-등록된 상의 ID: `top.basic-shirt`. `getClothingAsset(id)` / `listClothingAssets(slot)`에서도 원본 에셋을 조회한다. 상의에는 카라와 단추가 포함된다. 독립 카라 장착 시 통합 카라를 숨기고 해제 시 복원한다. 첫인칭에서는 소매만 표시한다.
+`top.basic-shirt`와 `collar.basic`는 기본 장착되는 별도 슬롯이다. 동일 승인 에셋의 정점과 스키닝을 공유하고 인덱스를 서로 겹치지 않게 분리하여 카라가 두 번 그려지지 않는다. 어느 하나만 교체·해제할 수 있다. 셔츠 데이터가 없는 독립 캐릭터에서는 기존 procedural collar builder를 사용한다. 첫인칭은 소매를 표시하고 카라는 숨긴다.
+
+검증: `node tests/shirt-runtime.mjs`는 실제 게임 모델에 대해 attention pose, rigid cuff edge lengths, shoulder edge strain, 최종 손 IK, actor world transform, 슬롯 및 coverage 합집합, 공유 버퍼 수명을 검사한다. 다른 의상도 같은 기준으로 검사할 것. 렌더러 시각 결과 및 모든 포즈에서의 피부 간섭 완전 해소는 별도 검증 대상이다.

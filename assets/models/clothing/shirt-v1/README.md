@@ -36,3 +36,7 @@ node tests/shirt-reference.mjs
 ## 게임 기본 장착
 
 남녀 각각의 `runtime.json`/`runtime.*.part`는 원본 정점과 카라/단추, 주름, 원본 솔버의 어깨 옆/앞/뒤 및 팔꿈치 자세 보정값을 포함한다. GPU dual-quaternion 스키닝과 자세 보정 보간을 사용하므로 실시간 CPU 충돌 재계산은 하지 않는다. 복합 자세와 실제 게임 스켈레톤에서의 완전한 외형 일치는 아직 검증되지 않았다. 모든 캐릭터가 성별별 지오메트리를 공유하며 인체 원본은 수정하지 않는다. `node tools/bake-shirt-runtime.mjs`로 재생성한다. 첫인칭 소매 표시, 카라 슬롯 중복 방지 및 오프라인 리소스 캐싱을 적용했다.
+
+## 런타임 바인딩 갱신
+
+게임은 현재 원본 reference 형상을 유지한 공통 garment binder와 reference-space dual-quaternion skinning을 사용한다. 기존 corrective 샘플은 원본 보존용으로 남긴다. 셔츠와 승인 카라는 동일 에셋의 별도 인덱스 파트 및 장착 슬롯으로 기본 장착한다. 자세별 CPU 좌표/변형 테스트를 통해 소매 끝의 강체성 및 어깨 연결부 변형을 검사한다. 실시간 시연용 CPU 충돌 솔버는 게임에 도입하지 않는다.

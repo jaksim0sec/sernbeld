@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-35';
+const VERSION = 'sernbeld-pwa-36';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -26,6 +26,8 @@ const OFFLINE_FILES = [
   './src/entities/character/clothing/collar.js',
   './src/entities/character/clothing/shirt.js',
   './src/entities/character/clothing/shirt-binding.js',
+  './src/entities/character/clothing/garment-binding.js',
+  './src/entities/character/clothing/garment-pose.js',
   './src/entities/character/clothing/shirt-source.js',
   './assets/models/clothing/shirt-v1/male/runtime.json',
   './assets/models/clothing/shirt-v1/male/runtime.00.part',
