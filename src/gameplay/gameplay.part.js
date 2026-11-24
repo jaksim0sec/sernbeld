@@ -5686,6 +5686,7 @@ async function boot() {
     reset.innerHTML = "\uCC98\uC74C\uBD80\uD130 \uB2E4\uC2DC<small>\uC800\uC7A5 \uC0AD\uC81C</small>";
     reset.addEventListener("click", () => {
       if (confirm("\uAC00\uBC29\uACFC \uBC1C\uACAC\uD55C \uC6E8\uC774\uD3EC\uC778\uD2B8\uAC00 \uBAA8\uB450 \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4.")) {
+        try{sessionStorage.removeItem('sernbeld.last-screen.v1');}catch{}
         Save.reset();
         location.reload();
       }
@@ -5748,7 +5749,40 @@ async function boot() {
     Save.data.intro = true;
     Save.write();
   });
-  if(!Save.data.characterCreated) avatars.openChooser(true);
+  // Current-tab UI restoration; never persist transient prompts or conversations.
+  const screenKey="sernbeld.last-screen.v1";
+  const screens={
+    character:()=>avatars.isOpen,
+    magic:()=>skillWorkbench.isOpen(),
+    map:()=>fullMap.isOpen(),
+    bag:()=>!ui.bag.hidden,
+    travel:()=>!ui.travel.hidden,
+    board:()=>!ui.boardP.hidden
+  };
+  const rememberScreen=()=>{
+    const active=Object.keys(screens).find(name=>screens[name]());
+    try{if(active)sessionStorage.setItem(screenKey,active);else sessionStorage.removeItem(screenKey);}catch{}
+  };
+  let lastScreen=null;
+  try{lastScreen=sessionStorage.getItem(screenKey);}catch{}
+  if(!Save.data.characterCreated)avatars.openChooser(true);
+  else if(!firstLaunch){
+    const restore={
+      character:()=>avatars.openChooser(),
+      magic:()=>skillWorkbench.open(),
+      map:()=>fullMap.open(),
+      bag:()=>{if(ui.bag.hidden)ui.toggleBag();},
+      travel:()=>{if(ui.travel.hidden)ui.toggleTravel();},
+      board:()=>society.openBoard()
+    };
+    if(Object.hasOwn(restore,lastScreen))restore[lastScreen]();
+  }
+  const screenObserver=new MutationObserver(rememberScreen);
+  for(const target of [ui.bag,ui.travel,ui.boardP,document.getElementById("worldMap"),document.getElementById("skillWorkbench"),document.getElementById("character-chooser")]){
+    if(target)screenObserver.observe(target,{attributes:true,attributeFilter:["hidden","open"]});
+  }
+  addEventListener("pagehide",rememberScreen);
+  rememberScreen();
   let last = performance.now(), lastShadow = -Infinity, shadowCut = -1;
   const tick = (now) => {
     const dt = Math.min(0.1, (now - last) / 1e3);

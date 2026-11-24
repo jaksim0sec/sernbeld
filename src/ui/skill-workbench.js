@@ -201,7 +201,7 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
   }
   function open(event){
     if(!panel.hidden||!canOpen())return;
-    opener=event.currentTarget;
+    opener=event?.currentTarget??toolbar;
     config=loadDraft(library.get(DRAFT_ID));selected=-1;
     enter();panel.hidden=false;document.body.classList.add('skill-editing');
     render();
@@ -234,5 +234,5 @@ export function createSkillWorkbench({library,canOpen,enter,leave}) {
     };
     frame=requestAnimationFrame(advance);
   });
-  return {isOpen:()=>!panel.hidden,dismiss};
+  return {isOpen:()=>!panel.hidden,open,dismiss};
 }
