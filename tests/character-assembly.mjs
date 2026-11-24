@@ -14,6 +14,58 @@ const fetchLocal=async url=>new Response(readFileSync(url));
 const baked=JSON.parse(gunzipSync(readFileSync('assets/models/clothing/runtime-bindings-v1.json.gz')));
 source.garmentBakes=baked.bodies;source.garmentLayers=baked.layers;
 const factory=createStudioGeometry(source);
+const fullFactory=createStudioGeometry({...source,lod:null});
+const bodyPoses=[
+ {},
+ {head:[25,20],neck:[20,0],waist:[-15,20],thigh_left:[30,4],shin_left:[45],
+  upper_arm_left:[40,30,-20],forearm_left:[80]}
+];
+const surfaceErrorLimit=.02;
+
+function skinnedBody(actor,pose){
+ actor.pose(pose);
+ actor.group.updateMatrixWorld(true);
+ const {mesh,bodyVertexCount}=actor;
+ const positions=mesh.geometry.attributes.position;
+ return Array.from({length:bodyVertexCount},(_,i)=>
+  mesh.applyBoneTransform(i,new T.Vector3().fromBufferAttribute(positions,i)).applyMatrix4(mesh.matrixWorld));
+}
+
+function checkBodyLod(actor,profile){
+ const reference=createStudioModel(T,fullFactory,profile,{clothing:false});
+ const skinIndex=reference.mesh.geometry.attributes.skinIndex;
+ const samples=new Map();
+ for(const bone of ['forearm_left','forearm_right','upper_arm_right','waist','head','thigh_left']){
+  const match=reference.bones.indexOf(reference.B[bone]);
+  const vertices=[];
+  for(let i=0;i<reference.bodyVertexCount;i++)if(skinIndex.getX(i)===match)vertices.push(i);
+  assert(vertices.length>16,'Original body lacks '+bone);
+  for(let i=0;i<16;i++)samples.set(vertices[Math.floor(i*vertices.length/16)],bone);
+ }
+ const triangle=new T.Triangle(),nearest=new T.Vector3(),limitSq=surfaceErrorLimit**2;
+ for(const pose of bodyPoses){
+  const expected=skinnedBody(reference,pose),actual=skinnedBody(actor,pose);
+  for(let level=0;level<3;level++){
+   actor.setLOD(level);
+   const indices=actor.mesh.geometry.index.array;
+   for(const [i,bone] of samples){
+    const point=expected[i];
+    let found=false;
+    for(let j=0;j<indices.length;j+=3){
+     const a=actual[indices[j]],b=actual[indices[j+1]],c=actual[indices[j+2]];
+     if(!a||!b||!c)continue;
+     if(point.y<Math.min(a.y,b.y,c.y)-surfaceErrorLimit||
+        point.y>Math.max(a.y,b.y,c.y)+surfaceErrorLimit)continue;
+     triangle.set(a,b,c).closestPointToPoint(point,nearest);
+     if(nearest.distanceToSquared(point)<=limitSq){found=true;break;}
+    }
+    assert(found,profile.body+' LOD'+level+' changed '+bone+' surface by more than 20 mm');
+   }
+  }
+ }
+ actor.setLOD(0);
+ reference.dispose();
+}
 const decode=(s,Type)=>{const b=Buffer.from(s,'base64');return new Type(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));};
 const triKey=(a,b,c)=>[a,b,c].sort((x,y)=>x-y).join(':');
 for(const sex of ['male','female']){
@@ -39,6 +91,7 @@ for(const sex of ['male','female']){
  const actor=createStudioModel(T,factory,normalizeStudioCharacter({body:sex})),pants=actor.clothing.equip('pants.basic-trousers'),shirt=actor.clothing.equip('top.basic-shirt');
  // A resident switching distance LOD must not mutate any other actor's
  // geometry, or render the complete shirt/pants indefinitely.
+ checkBodyLod(actor,actor.profile);
  const nearShirt=shirt.geometry,nearPants=pants.geometry;
  const other=createStudioModel(T,factory,normalizeStudioCharacter({body:sex}));
  actor.setLOD(1);

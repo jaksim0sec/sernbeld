@@ -1,22 +1,11 @@
-// Numeric integration test: use real generated terrain and colliders in a
-// fresh browser, not screenshot comparison or synthetic geometry alone.
+// Run the same generated-world scenarios in Chromium or with Node alone.
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
+import {readFileSync} from 'node:fs';
 import {spawn} from 'node:child_process';
-const port=8794,home='http://127.0.0.1:'+port+'/';
-const server=spawn('python3',['-m','http.server',String(port),'--bind','127.0.0.1'],{stdio:'ignore'});
-let browser;
-try{
- for(let i=0;i<80;i++){try{if((await fetch(home)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
- browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
- const context=await browser.newContext({viewport:{width:780,height:360},isMobile:true,hasTouch:true,serviceWorkers:'block'});
- const page=await context.newPage(),errors=[];
- page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')console.log('BROWSER ERROR '+m.text().slice(0,500));});
- await page.goto(home,{waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>!!window.__dev,{},{timeout:180000});
- const result=await page.evaluate(()=>{
-  const d=window.__dev,p=d.player,T=d.characterTypes;
-  d.renderer.setAnimationLoop(null);
+
+function checkWorld(d=window.__dev) {
+  const p=d.player,T=d.characterTypes;
+  d.renderer?.setAnimationLoop(null);
   const input=(x=0,z=0,jump=false)=>({move(){return {x,y:-z,mag:Math.hypot(x,z)}},run:()=>false,consumeJump(){const j=jump;jump=false;return j;}});
   const verify=(name)=>{const floor=d.playerTerrain(p.pos.x,p.pos.z);if(!Number.isFinite(p.pos.y)||p.pos.y<floor-.004)throw Error(name+' fell through actual terrain: '+JSON.stringify({pos:p.pos,floor}));if(d.playerContacts(p.pos.x,p.pos.z,p.pos.y).length)throw Error(name+' penetrated static collider: '+JSON.stringify(p.pos));};
   const places=[];
@@ -36,6 +25,30 @@ try{
    for(let i=0;i<120;i++){p.advance(1/60,move);verify('actual stair');}
    stairResults.push({start:s.a,move:Math.hypot(p.pos.x-start.x,p.pos.z-start.z),rise:p.pos.y-start.y});
   }
+  // These three visible surfaces are generated independently of the terrain.
+  // Physically walk into each one, then test camera clearance separately.
+  const wallResults=[];
+  const moveIntoWall=input(0,-1);
+  const walls=[
+   {name:'retaining wall buttress',x:447.19,z:-448,front:-448.45},
+   {name:'terrace building front',x:453.75,z:-445,front:-445.45},
+   {name:'stair support',x:438.36,z:-471.85,front:-472.30},
+  ];
+  for(const {name,x,z,front} of walls){
+   const height=d.playerTerrain(x,z);
+   p.teleport(x,z,0,0,height);
+   verify(name+' spawn');
+   if(p.pos.distanceTo(new T.Vector3(x,height,z))>.01)throw Error(name+' start point was relocated');
+   const direction=new T.Vector3(0,0,-1);
+   const cameraHit=d.maktwoWorldRay(new T.Vector3(x,height+1.5,z),direction,1);
+   for(let i=0;i<60;i++){
+    p.advance(i%3===0?1/30:1/60,moveIntoWall);
+    verify(name);
+    if(p.pos.z<front+.34)throw Error(name+' player crossed the rendered face at '+p.pos.toArray());
+   }
+   if(cameraHit>.46||cameraHit<.4)throw Error(name+' camera ray missed the rendered face: '+cameraHit);
+   wallResults.push({name,cameraHit,clearance:p.pos.z-front});
+  }
   // Find an actual open flat segment to exercise movement and landing.
   let clear=null;
   for(const place of Object.values(d.region.places)){
@@ -48,12 +61,66 @@ try{
   p.teleport(...clear,0);const start=p.pos.clone(),move=input(1,0,true);let peak=p.pos.y;
   for(let i=0;i<85;i++){p.advance(1/60,move);verify('actual jump');peak=Math.max(peak,p.pos.y);}
   const jump={rise:peak-start.y,travel:p.pos.distanceTo(start),grounded:p.onGround};
-  return {places,stairs:stairResults,jump};
- });
- console.log('ACTUAL WORLD '+JSON.stringify(result));
- assert(result.places.length>=5);
- assert(result.stairs.length>=5&&result.stairs.filter(s=>s.move>2&&s.rise>.5).length>=5,'Real stairs are not traversable');
- assert(result.jump.rise>.5&&result.jump.grounded&&result.jump.travel>2,'Real jump/landing failed');
- assert.deepEqual(errors,[]);
- await context.close();
-}finally{await browser?.close();server.kill();}
+  return {places,stairs:stairResults,walls:wallResults,jump};
+}
+
+async function loadWorld() {
+ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
+ const slice=(source,start,end)=>{
+  const i=source.indexOf(start),j=source.indexOf(end,i);
+  assert(i>=0&&j>i,'Missing runtime section '+start);
+  return source.slice(i,j);
+ };
+ const game=read('src/gameplay/gameplay.part.js');
+ const load=new Function('requestAnimationFrame',[
+  read('src/vendor/three-gltf.part.js'),
+  read('src/world/region.part.js'),
+  read('src/world/terrain-patch.part.js'),
+  read('src/world/terrain-runtime.part.js'),
+  read('src/render/world-render.part.js'),
+  slice(game,'var TOWN =','function mat'),
+  slice(game,'var C =','function createCutstoneBridge'),
+  slice(game,'var _n =','var CameraRig ='),
+  slice(game,'var NavGrid = class','var NAMED ='),
+  slice(game,'function maktwoWorldRay','function shiftCameraWithinWorld'),
+  `return async () => {
+    await generateWorld(SERNBELD, () => {});
+    buildKael(SERNBELD);
+    return {player: new Player(), characterTypes: {Vector3}, playerTerrain,
+      playerContacts, maktwoWorldRay, region: SERNBELD, stairs: STAIRS,
+      stairBounds: [STAIR_MIN_V, STAIR_MAX_V]};
+  };`
+ ].join('\n'));
+ return load(queueMicrotask)();
+}
+
+async function checkBrowser() {
+ const {chromium}=await import('playwright');
+ const port=8794,home='http://127.0.0.1:'+port+'/';
+ const server=spawn('python3',['-m','http.server',String(port),'--bind','127.0.0.1'],{stdio:'ignore'});
+ let browser;
+ try {
+  for(let i=0;i<80;i++){try{if((await fetch(home)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  const context=await browser.newContext({viewport:{width:780,height:360},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  const page=await context.newPage(),errors=[];
+  page.on('pageerror',e=>errors.push(String(e)));
+  page.on('console',m=>{if(m.type()==='error')console.log('BROWSER ERROR '+m.text().slice(0,500));});
+  await page.goto(home,{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>!!window.__dev,{},{timeout:180000});
+  const result=await page.evaluate(checkWorld);
+  assert.deepEqual(errors,[]);
+  return result;
+ } finally {
+  await browser?.close();
+  server.kill();
+ }
+}
+
+const noBrowser=process.argv.includes('--no-browser');
+const result=noBrowser?checkWorld(await loadWorld()):await checkBrowser();
+console.log('ACTUAL WORLD '+(noBrowser?'(Node) ':'(Chromium) ')+JSON.stringify(result));
+assert(result.places.length>=5);
+assert(result.stairs.length>=5&&result.stairs.filter(s=>s.move>2&&s.rise>.5).length>=5,'Real stairs are not traversable');
+assert.equal(result.walls.length,3);
+assert(result.jump.rise>.5&&result.jump.grounded&&result.jump.travel>2,'Real jump/landing failed');

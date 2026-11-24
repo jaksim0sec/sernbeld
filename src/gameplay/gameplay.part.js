@@ -616,7 +616,7 @@ function buildWalls(G) {
           const tall = t.y - oLow;
           if (tall > 7 && k % 3 === 1) {
             const [bx, bz] = [cx + nx * (ht + 0.45), cz + nz * (ht + 0.45)];
-            G.box(bx, base, bz, 1.6, t.y - 1.4 - base, 0.9, yaw, C.stoneD, PAT.stone);
+            box2(G, bx, base, bz, 1.6, t.y - 1.4 - base, 0.9, yaw, C.stoneD, PAT.stone);
           }
           const foot = terraceAt(cx + nx * (ht + 3), cz + nz * (ht + 3));
           if (foot && tall > 12 && k % 3 === 0 && !inStair(cx + nx * (ht + 3), cz + nz * (ht + 3))) {
@@ -653,7 +653,7 @@ function buildTerraceFrontages(G) {
         const h = Math.min(R.y1 - R.y0 - 5.4, 10.4 + variation % 3 * 1.8);
         const z = wallFront + 1.25;
         const plaster = [C.plaster, C.plaster2, C.plaster3][variation % 3];
-        G.box(x, y, z, w, h, depth, 0, plaster, PAT.timber);
+        box2(G, x, y, z, w, h, depth, 0, plaster, PAT.timber);
         G.roof(x, y + h, z, w, depth, 2.1 + variation * 0.23, 0, roofColors[variation % 4], plaster);
         const face = z + depth * 0.5 + 0.06;
         if ((variation + i) % 3 === 0) {
@@ -807,7 +807,7 @@ function buildStairs(G) {
       G.quad(P2(u0, underside, v1), P2(u0, top, v1), P2(u1, top, v1), P2(u1, underside, v1), C.stoneL, PAT.stone);
       if (k % Math.max(5, Math.ceil(steps / 7)) === 0 && top - base > 3) {
         const supp = P2(u0 + du * 0.5, 0, v1 - 0.25);
-        G.box(supp[0], base, supp[2], 1.55, top - base - 0.2, 1.5, yaw, C.stoneL, PAT.stone);
+        box2(G, supp[0], base, supp[2], 1.55, top - base - 0.2, 1.5, yaw, C.stoneL, PAT.stone);
       }
       if (k === 0) G.quad(P2(0, base, v0), P2(0, top, v0), P2(0, top, v1), P2(0, base, v1), C.stone, PAT.stone);
       if (k === steps - 1) G.quad(P2(L, base, v1), P2(L, top, v1), P2(L, top, v0), P2(L, base, v0), C.stone, PAT.stone);

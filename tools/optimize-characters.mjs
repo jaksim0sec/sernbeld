@@ -16,7 +16,8 @@ import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const SOURCE='assets/models/characters/studio-v1.json.gz';
 const TARGET='assets/models/characters/studio-v1.lod.json.gz';
-export const BODY_RATIOS=[.3,.085,.026];
+// Below 8.5%, the body can lose visible surfaces even with the neck seam locked.
+export const BODY_RATIOS=[.3,.12,.085];
 export const FEATURE_RATIOS=[.4,.14];
 
 const unpack=(encoded,Type)=>{const b=Buffer.from(encoded,'base64');return new Type(b.buffer,b.byteOffset,b.byteLength/Type.BYTES_PER_ELEMENT);};
@@ -157,7 +158,10 @@ export async function buildLod(source){
    const groups=new Int32Array(positions.length/3);
    for(let v=0;v<groups.length;v++){let best=0;for(let k=1;k<4;k++)if(weights[v*4+k]>weights[v*4+best])best=k;groups[v]=part.skin.indexOf(part.skin[joints[v*4+best]])*1;}
    const hand=part.skin.some(id=>id.startsWith('thumb_'));
-   const ratios=hand?[.60,...BODY_RATIOS.slice(1)]:BODY_RATIOS;
+   // The rigid forearm sections need more triangles than the general far mesh.
+   const forearm=part.skin.length===1&&part.skin[0].startsWith('forearm_');
+   const [near,mid,far]=BODY_RATIOS;
+   const ratios=[hand ? .60 : near,mid,forearm ? mid : far];
    const lists=simplify(positions,indices.subarray(part.start,part.start+part.count),ratios,{groups,protectJoints:hand,lock:id=>Boolean(seam[id])});
    lists.forEach((list,i)=>levels[i].push(pack(list)));
   });
