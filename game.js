@@ -52122,7 +52122,7 @@ async function boot() {
     const b=document.createElement("button");b.type="button";b.className=cls;
     if(icon)b.append(menuIcon(icon));const span=document.createElement("span");span.textContent=label;b.append(span);b.onclick=action;return b;
   };
-  const navigateMenu=page=>{ui.menuPage=menuPages.includes(page)?page:"home";ui.renderTravel();};
+  const navigateMenu=page=>{ui.menuPage=menuPages.includes(page)?page:"home";ui.renderTravel();if(!ui.travel.hidden)(ui.menuPage==="home"?ui.travel.querySelector(".system-menu-exit"):$("systemMenuBack")).focus({preventScroll:true});};
   ui.menuBack=()=>{if(ui.menuPage!=="home")navigateMenu("home");else ui.close(ui.travel);};
   $("systemMenuBack").onclick=ui.menuBack;
   // Render the actual saved face once per changed appearance; no extra WebGL context or animation loop.
@@ -52154,6 +52154,8 @@ async function boot() {
     ui.menuPage=page;
     try{sessionStorage.setItem(menuPageKey,page);}catch{}
     $("systemMenuTitle").textContent=menuLabels[page];$("systemMenuBack").hidden=page==="home";
+    ui.travel.querySelector(".system-menu-exit").hidden=page!=="home";$("menuMoney").hidden=page!=="home";
+    ui.travel.dataset.page=page;
     $("menuMoney").textContent="은화 "+Wallet.get().toLocaleString("ko-KR");
     body.replaceChildren();body.scrollTop=0;
     const row=(name,value)=>{const d=el("div","system-menu-row");const a=el("span");a.textContent=name;const b=el("span","system-menu-value");b.textContent=value;d.append(a,b);return d;};
@@ -52161,7 +52163,7 @@ async function boot() {
     const choice=(label,options,current,change)=>{
       const field=el("div","system-menu-field"),name=el("span");name.textContent=label;
       const group=el("div","system-menu-choices");group.setAttribute("role","group");group.setAttribute("aria-label",label);
-      for(const [value,title] of options){const b=menuButton(title,null,()=>{change(value);ui.renderTravel();},"system-menu-choice");b.setAttribute("aria-pressed",String(current===value));group.append(b);}
+      for(const [value,title] of options){const b=menuButton(title,null,()=>{change(value);for(const option of group.children)option.setAttribute("aria-pressed",String(option===b));},"system-menu-choice");b.setAttribute("aria-pressed",String(current===value));group.append(b);}
       field.append(name,group);body.append(field);
     };
     const openCharacter=()=>{ui.close(ui.travel);avatars.openChooser();};
@@ -52170,6 +52172,7 @@ async function boot() {
       const portrait=el("span","system-menu-portrait");portrait.append(playerPortrait());
       const text=el("span","system-menu-profile-copy"),name=el("strong"),sub=el("span");
       name.textContent="내 캐릭터";sub.textContent=region.name+" · "+(Guild.state.registered?"조합원":"여행자");text.append(name,sub);
+      const action=el("span","system-menu-profile-action");action.textContent="외형 변경";text.append(action);
       profile.append(portrait,text,menuIcon("ui-next"));body.append(profile);
       const grid=el("div","system-menu-grid");
       for(const [label,icon,dest] of [["플레이 설정","ui-settings","settings"],["조작법","ui-controls","controls"],["게임 정보","ui-info","info"]]){
