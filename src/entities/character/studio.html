@@ -298,12 +298,12 @@ names.moustache={none:'없음',classic:'클래식 수염',box:'네모 수염',pe
 names.blush=Object.fromEntries(source.blushes.map(b=>[b.id,b.name]));
 const titles={decoration:'안경과 얼굴 장식',face:'얼굴형',eye:'눈매',brow:'눈썹',mouth:'입',color:'피부와 눈동자',pose:'관절 조작'};
 const presetFaces={
- base:{label:'기본',values:{}},
+ slim:{label:'기본',values:{headWidth:-.16,jawWidth:-.28,chinWidth:-.24,chinY:.16}},
+ base:{label:'둥그런',values:{}},
  round:{label:'부드러운',values:{headWidth:.18,cheek:.24,jawWidth:.18,chinY:-.22}},
- slim:{label:'갸름한',values:{headWidth:-.16,jawWidth:-.28,chinWidth:-.24,chinY:.16}},
  angular:{label:'각진',values:{jawWidth:.32,chinWidth:.27,cheek:-.12,chinY:.05}}
 };
-const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(()=>0),pose:{}});
+const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(c=>presetFaces.slim.values[c.key]??0),pose:{}});
 let state=defaults();
 let tab='face',mode='basic',focus=true,part='outline',plane='shape';
 let yaw=0,pitch=0,zoom=1,view='front',activeBone='head',pending=false,geometryDirty=true,colorDirty=true;
