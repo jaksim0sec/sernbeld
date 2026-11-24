@@ -50831,6 +50831,8 @@ var SHADOW = 12;
 var Townsfolk = class {
   constructor(scene, region, makeCharacter) {
     this.places = region.places;
+    this.scene=scene;this.makeCharacter=makeCharacter;
+    this.nextModelAt=0;
     const B2 = BOUNDS;
     this.nav = World.kaelNav || new NavGrid(B2.x0, B2.z0, B2.x1, B2.z1, 2);
     const r = mulberry32(5), houses = [...TOWN.houses].sort(() => r() - 0.5);
@@ -50838,8 +50840,8 @@ var Townsfolk = class {
       const appearance = resolveNpcAppearance(def);
       def.gender = appearance.gender;
       def.character = appearance.character;
-      const ch = makeCharacter(appearance.character, {scale:def.scale ?? 1});
-      scene.add(ch.group);
+      // Resident data/schedules are cheap and stay live regardless of mesh residency.
+      const ch = null;
       const home = houses[i % Math.max(1, houses.length)]?.door ?? this.places.plaza;
       const a = r() * Math.PI * 2, rad = 1.2 + r() * 2.2;
       return {
@@ -50866,6 +50868,16 @@ var Townsfolk = class {
     this.queue = [];
     this.quality = GRAPHICS.high;
     this.facing = new Vector3();
+  }
+  ensureActor(n) {
+    if(n.ch||n.modelFailed)return n.ch;
+    try{
+      const ch=this.makeCharacter(n.def.character,{scale:n.def.scale??1});
+      ch.group.position.set(n.x,n.y,n.z);ch.group.rotation.y=n.yaw;ch.group.visible=false;
+      this.scene.add(ch.group);n.ch=ch;return ch;
+    }catch(error){
+      n.modelFailed=true;console.error("Resident model failed: "+n.def.id,error);return null;
+    }
   }
   entry(def, h) {
     let e = def.day[0];
@@ -50897,6 +50909,7 @@ var Townsfolk = class {
   }
   update(dt, t, hour, player, camPos, camera) {
     const facing = camera ? this.facing.set(0, 0, -1).applyQuaternion(camera.quaternion) : null;
+    let pendingModel=null,pendingDistance=Infinity;
     // Budget aggregate path work; preserve FIFO and guarantee one job progresses.
     const deadline = performance.now() + 2.5;
     for (let k = 0; k < 3 && this.queue.length && (k === 0 || performance.now() < deadline); k++) {
@@ -50949,7 +50962,12 @@ var Townsfolk = class {
       // Keep a generous margin for peripheral vision, especially on portrait screens.
       // Off-camera NPC logic still runs, but their skinned meshes stop rendering.
       const inFront = !facing || d < 4 || dxCam * facing.x + (n.y + .9 - camPos.y) * facing.y + dzCam * facing.z > -Math.max(1, d * .12);
-      const vis = !n.hidden && d < this.quality.npcRange && inFront, g = n.ch.group;
+      const vis = !n.hidden && d < this.quality.npcRange && inFront;
+      if(!n.ch){
+        if(!n.modelFailed&&!n.hidden&&(vis||d<8)&&d<pendingDistance){pendingModel=n;pendingDistance=d;}
+        continue;
+      }
+      const g=n.ch.group;
       g.visible = vis;
       if (!vis) {
         n.poseAge = null;
@@ -50967,13 +50985,18 @@ var Townsfolk = class {
         n.poseAge = 0;
       }
     }
+    // At most one resident model per frame/interval, closest visible first.
+    // Never gate the loading overlay, chooser or resident simulation on all models.
+    if(pendingModel&&t>=this.nextModelAt){
+      this.ensureActor(pendingModel);this.nextModelAt=t+.08;
+    }
   }
   // nearest person in front of the player within reach
   candidate(player) {
     let best = null, bd = 2.6;
     const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
     for (const n of this.list) {
-      if (n.hidden) continue;
+      if (n.hidden||!n.ch) continue;
       const dx = n.x - player.pos.x, dz = n.z - player.pos.z, d = Math.hypot(dx, dz);
       if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.2) {
         bd = d;
@@ -50997,7 +51020,7 @@ var Townsfolk = class {
       line = pool[n.lineI++ % pool.length];
     }
     n.talkT = 5;
-    n.ch.talk = 2.4;
+    if(n.ch)n.ch.talk = 2.4;
     n.path && (n.wait = 0);
     this.onSay?.(n.def, line);
     Save.write();
@@ -51007,7 +51030,7 @@ var Townsfolk = class {
   playerContacts(p) {
     const out=[];
     for(const n of this.list){
-      if(n.hidden||Math.abs(p.pos.y-n.y)>2||Math.hypot(p.pos.x-n.x,p.pos.z-n.z)>2)continue;
+      if(n.hidden||!n.ch||Math.abs(p.pos.y-n.y)>2||Math.hypot(p.pos.x-n.x,p.pos.z-n.z)>2)continue;
       const scale=n.def.scale??1;
       out.push({type:"cyl",x:n.x,z:n.z,r:Math.max(.12,.62*scale-PLAYER.radius),bot:n.y,top:n.y+1.72*scale,walk:false});
     }
@@ -51016,7 +51039,7 @@ var Townsfolk = class {
   labels(camera, player) {
     const out2 = [];
     for (const n of this.list) {
-      if (n.hidden) continue;
+      if (n.hidden||!n.ch) continue;
       const d = Math.hypot(n.x - player.pos.x, n.z - player.pos.z);
       if (d > 11) continue;
       out2.push({ id: n.def.id, name: n.def.name, title: n.def.title, x: n.x, y: n.y + 1.95 * (n.def.scale ?? 1), z: n.z, d });
@@ -52269,7 +52292,7 @@ async function boot() {
     id: 'resident:' + region.id + ':' + i, kind: 'resident', ref: n,
     getState: () => ({lineI: n.lineI}),
     setState: state => { if (Number.isSafeInteger(state.lineI) && state.lineI >= 0) n.lineI = state.lineI; },
-    setActive: active => { n.ch.group.visible = active && !n.hidden; }
+    setActive: active => { if(n.ch)n.ch.group.visible = active && !n.hidden; }
   }));
   WorldRegions.mount(region.id, regionEntries);
   const view = new ViewModel(camera);
@@ -52352,7 +52375,7 @@ async function boot() {
     let target=null,actor=null;
     const previous=renderer.getRenderTarget(),color=renderer.getClearColor(new Color()),alpha=renderer.getClearAlpha(),shadow=renderer.shadowMap.autoUpdate;
     try{
-      actor=makeCharacter(profile);actor.setShadow(false);
+      actor=makeCharacter(profile,{clothing:false});actor.setShadow(false);
       const portraitScene=new Scene();portraitScene.add(actor.group);actor.group.updateMatrixWorld(true);
       const center=actor.model.localToWorld(new Vector3(...actor.data.face.focus.map(v=>v/1428)));
       const half=.145*actor.units;
