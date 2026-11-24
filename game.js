@@ -52121,7 +52121,7 @@ async function boot() {
   await nextFrame2();
   const clock = new GameClock(Save.data.clock.day, Save.data.clock.hour);
   clock.apply();
-  const characterTypes={Group,Bone,Skeleton,SkinnedMesh,BufferGeometry,BufferAttribute,ShaderMaterial,Vector3,Quaternion,Matrix4,Euler,Color,DoubleSide};
+  const characterTypes={Group,Bone,Skeleton,SkinnedMesh,Mesh,MeshBasicMaterial,BufferGeometry,BufferAttribute,ShaderMaterial,Vector2,Vector3,Vector4,Quaternion,Matrix4,Euler,Color,DoubleSide};
   hud.progress(.988,"캐릭터를 준비하는 중");
   await nextFrame2();
   const [studioSource,studioLod]=await Promise.all([loadStudioSource(),loadStudioLod()]);
