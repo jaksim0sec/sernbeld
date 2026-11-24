@@ -27,7 +27,7 @@ for(const sex of ['male','female']){
   const b=actor.clothing.equip(id).userData.garmentBinding;
   if(!b)throw Error('Garment '+id+' must use the garment binder to be baked');
   bindings.set(bakeId,b);
-  return {version:1,policy:bakeId,bodyVertices:actor.bodyVertexCount,vertices:b.rest.length/3,indices:b.geometry.index.count,slots:b.slots,bones:actor.bones.map(b=>b.name),rest:enc(b.rest),actual:enc(b.actual),skinWeight:enc(b.skinWeight),masks:masks(b.masks),firstMasks:masks(b.firstMasks),frame:b.ref.frame.elements,inverseBones:b.ref.inverseBones.map(m=>m.elements),diagnostics:b.diagnostics};
+  return {version:1,revision:b.revision,policy:bakeId,bodyVertices:actor.bodyVertexCount,vertices:b.rest.length/3,indices:b.geometry.index.count,slots:b.slots,bones:actor.bones.map(b=>b.name),rest:enc(b.rest),actual:enc(b.actual),skinWeight:enc(b.skinWeight),masks:masks(b.masks),firstMasks:masks(b.firstMasks),frame:b.ref.frame.elements,inverseBones:b.ref.inverseBones.map(m=>m.elements),diagnostics:b.diagnostics};
  };
  bodies[sex]=Object.fromEntries(entries.map(entry=>[entry.bakeId,record(entry)]));
  const shirt=bindings.get('shirt-v1'),pants=bindings.get('pants-v1');

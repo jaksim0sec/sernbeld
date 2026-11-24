@@ -8,6 +8,8 @@ import {attentionRotations} from '../src/entities/character/attention-pose.js';
 import {loadDefaultShirts} from '../src/entities/character/clothing/shirt-source.js';
 import {loadDefaultPants} from '../src/entities/character/clothing/pants-source.js';
 import {poseGrip} from '../src/entities/character/avatar-motion.js';
+import {acquireGarmentBinding} from '../src/entities/character/clothing/garment-binding.js';
+import {createGarmentPart} from '../src/entities/character/clothing/garment-pose.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const readGz=p=>JSON.parse(gunzipSync(readFileSync(p)));
 const source=readGz('assets/models/characters/studio-v1.json.gz');
@@ -18,42 +20,83 @@ const baked=readGz('assets/models/clothing/runtime-bindings-v1.json.gz');
 source.garmentBakes=baked.bodies;source.garmentLayers=baked.layers;
 const factory=createStudioGeometry(source),errors=[];
 const stats=a=>{const s=a.slice().sort((a,b)=>a-b);return {count:s.length,min:s[0],p50:s[Math.floor((s.length-1)*.5)],p95:s[Math.floor((s.length-1)*.95)],max:s.at(-1)};};
+// Compare the outermost cloth and native skin intersections from the same
+// bone-axis plane. Restrict the skin mesh to vertices owned by this forearm.
+function forearmFrame(actor,side){
+ const origin=actor.B['forearm_'+side].getWorldPosition(new T.Vector3());
+ const axis=actor.B['hand_'+side].getWorldPosition(new T.Vector3()).sub(origin);
+ const length=axis.length();
+ axis.multiplyScalar(1/length);
+ const x=new T.Vector3(Math.abs(axis.x)<.8?1:0,Math.abs(axis.x)<.8?0:1,0);
+ x.addScaledVector(axis,-x.dot(axis)).normalize();
+ return {origin,axis,length,x,z:new T.Vector3().crossVectors(axis,x)};
+}
+function compareSection(frame,t,skin,skinIndex,cloth,clothIndex){
+ const {origin,axis,length,x,z}=frame,center=origin.clone().addScaledVector(axis,t*length),delta=new T.Vector3();
+ const triangles=(points,index)=>{
+  const slice=[];
+  for(let i=0;i<index.length;i+=3){
+   const a=points[index[i]],b=points[index[i+1]],c=points[index[i+2]];
+   if(!a||!b||!c)continue;
+   const ha=delta.subVectors(a,center).dot(axis),hb=delta.subVectors(b,center).dot(axis),hc=delta.subVectors(c,center).dot(axis);
+   if(Math.min(ha,hb,hc)<=0&&Math.max(ha,hb,hc)>=0)slice.push([a,b,c]);
+  }
+  return slice;
+ };
+ const skinSlice=triangles(skin,skinIndex),clothSlice=triangles(cloth,clothIndex),ray=new T.Ray(),hit=new T.Vector3(),direction=new T.Vector3();
+ const outerRadius=triangles=>{
+  let radius=0;
+  for(const triangle of triangles){
+   if(!ray.intersectTriangle(...triangle,false,hit))continue;
+   const distance=hit.distanceTo(center);
+   if(distance<.12)radius=Math.max(radius,distance);
+  }
+  return radius;
+ };
+ const gaps=[];
+ for(let i=0;i<32;i++){
+  const angle=i*Math.PI/16;
+  direction.copy(x).multiplyScalar(Math.cos(angle)).addScaledVector(z,Math.sin(angle));
+  ray.set(center,direction);
+  const skinRadius=outerRadius(skinSlice),clothRadius=outerRadius(clothSlice);
+  if(skinRadius&&clothRadius)gaps.push(clothRadius-skinRadius);
+ }
+ return {count:gaps.length,min:Math.min(...gaps)};
+}
+function sampleSleeve({origin,axis,length,x,z}){
+ const position=[],normal=[],index=[],sides=18,rings=9;
+ for(let row=0;row<rings;row++)for(let i=0;i<sides;i++){
+  const angle=i*2*Math.PI/sides,out=x.clone().multiplyScalar(Math.cos(angle)).addScaledVector(z,Math.sin(angle));
+  const center=origin.clone().addScaledVector(axis,length*(.24+.68*row/(rings-1))).addScaledVector(x,.035);
+  position.push(...center.addScaledVector(out,.042).toArray());normal.push(...out.toArray());
+  if(row===rings-1)continue;
+  const a=row*sides+i,b=row*sides+(i+1)%sides;
+  index.push(a,b,b+sides,a,b+sides,a+sides);
+ }
+ return {position:Float32Array.from(position),normal:Float32Array.from(normal),index:Uint16Array.from(index)};
+}
 for(const sex of ['male','female']){
  const actor=createStudioModel(T,factory,normalizeStudioCharacter({body:sex})),shirt=actor.clothing.equip('top.basic-shirt'),b=shirt.userData.garmentBinding,asset=actor.shirtAsset;
  const att=attentionRotations(actor.data.bones);
  for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
  actor.group.updateMatrixWorld(true);
  shirt.userData.updateGarmentPose();
- // Compare the actual native skinned body to the sleeve, not just the
- // rigid garment transform. Use cross-section ray intersections at the
- // same bone-relative height and azimuth.
- const bodyG=actor.mesh.geometry,bodyPositions=bodyG.attributes.position,bodyJoints=bodyG.attributes.skinIndex,bodyWeights=bodyG.attributes.skinWeight;
- function clearance(name,side,s){
-  const elbow=actor.B['forearm_'+side].getWorldPosition(new T.Vector3()),wrist=actor.B['hand_'+side].getWorldPosition(new T.Vector3()),axis=wrist.clone().sub(elbow),length=axis.length();axis.normalize();
-  const axial=p=>p.clone().sub(elbow).dot(axis)/length;
-  const sleeve=new Map(),bins=Array.from({length:32},()=>[]),count=b.rest.length/3;
-  for(let i=0;i<count;i++)if(asset.influence[i*4+3]===1&&asset.influence[i*4+2]===s)sleeve.set(i,shirt.userData.deformGarmentVertex(i));
-  const index=shirt.geometry.index.array;
-  for(let i=0;i<index.length;i+=3){
-   const p=sleeve.get(index[i]),q=sleeve.get(index[i+1]),r=sleeve.get(index[i+2]);if(!p||!q||!r)continue;
-   const h=[axial(p),axial(q),axial(r)],lo=Math.max(0,Math.floor(Math.min(...h)*32)),hi=Math.min(31,Math.floor(Math.max(...h)*32));
-   for(let k=lo;k<=hi;k++)bins[k].push([p,q,r]);
+ const bodyG=actor.mesh.geometry,bodyPositions=bodyG.attributes.position;
+ function clearance(name,side,object=shirt,belongs=i=>asset.influence[i*4+3]===1&&asset.influence[i*4+2]===(side==='right'?0:1),samples=[.12,.22,.32,.52,.72,.82]){
+  const frame=forearmFrame(actor,side);
+  const joint=actor.bones.indexOf(actor.B['forearm_'+side]);
+  const skin=Array.from({length:actor.bodyVertexCount},(_,i)=>{
+   let weight=0;
+   for(let j=i*4;j<i*4+4;j++)if(bodyG.attributes.skinIndex.array[j]===joint)weight+=bodyG.attributes.skinWeight.array[j];
+   return weight>=128&&bodyG.attributes.aSkin.array[i]?actor.mesh.getVertexPosition(i,new T.Vector3()).applyMatrix4(actor.mesh.matrixWorld):null;
+  });
+  const cloth=Array.from({length:object.geometry.attributes.position.count},(_,i)=>belongs(i)?object.userData.deformGarmentVertex(i):null);
+  const parts=samples.map(t=>compareSection(frame,t,skin,bodyG.index.array,cloth,object.geometry.index.array));
+  for(const [i,{count,min}] of parts.entries()){
+   const required=samples[i]<.18?27:31;
+   assert(count>=required&&min>=-.003,sex+' '+side+' '+name+' at '+samples[i]+' '+JSON.stringify(parts[i]));
   }
-  const arm=new Set(['upper_arm_'+side,'forearm_'+side,'hand_'+side].map(name=>actor.bones.indexOf(actor.B[name])));
-  const samples=[[],[],[]],miss=[0,0,0],inside=[0,0,0],v=new T.Vector3(),hit=new T.Vector3(),ray=new T.Ray();
-  for(let i=0;i<actor.bodyVertexCount;i++){
-   let w=0;for(let k=0;k<4;k++)if(arm.has(bodyJoints.array[i*4+k]))w+=bodyWeights.array[i*4+k]/255;
-   if(w<.7||!bodyG.attributes.aSkin.array[i])continue;
-   actor.mesh.getVertexPosition(i,v).applyMatrix4(actor.mesh.matrixWorld);
-   const t=axial(v);if(t<.04||t>.85)continue;
-   const group=t<.28?0:t<.55?1:2,center=elbow.clone().addScaledVector(axis,t*length),dir=v.clone().sub(center),radius=dir.length();
-   if(radius<.006)continue;
-   ray.set(center,dir.normalize());let best=Infinity;
-   for(const tri of bins[Math.floor(t*32)])if(ray.intersectTriangle(...tri,false,hit))best=Math.min(best,hit.distanceTo(center));
-   if(!Number.isFinite(best)){miss[group]++;continue;}
-   const gap=best-radius;samples[group].push(gap);if(gap<-.004)inside[group]++;
-  }
-  console.log('SLEEVE CLEARANCE '+sex+' '+side+' '+name+' '+JSON.stringify({bands:samples.map(stats),miss,inside}));
+  console.log('SLEEVE SECTIONS '+sex+' '+side+' '+name+' '+JSON.stringify(parts));
  }
  // Check native body duplicates at the neck junction independently of the
  // garment. An animated seam may separate even if the rest triangles match.
@@ -72,7 +115,33 @@ for(const sex of ['male','female']){
   }
   console.log('NECK SEAM '+sex+' '+name+' '+JSON.stringify(stats(gaps)));
  }
- seamError('attention');clearance('attention','right',0);clearance('attention','left',1);
+ seamError('attention');clearance('attention','right');clearance('attention','left');
+ if(sex==='male'){
+  // An independently built, offset tube with no shirt channels or source rig.
+  const side='right',frame=forearmFrame(actor,side);
+  const tube=sampleSleeve(frame),policy={
+   limbs:[{parent:'upper_arm_right',joint:'forearm_right',tip:'hand_right'}],
+   limbRegion:()=>0
+  };
+  const lease=acquireGarmentBinding(T,actor,tube,policy,bodyG.index);
+  const part=createGarmentPart(T,actor,lease,'main',(uniforms,skin)=>new T.ShaderMaterial({
+   uniforms,vertexShader:skin+'void main(){vec3 p,n;garmentPose(p,n);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
+   fragmentShader:'void main(){gl_FragColor=vec4(1.);}'
+  }));
+  actor.model.add(part.object);
+  actor.group.updateMatrixWorld(true);
+  part.object.userData.updateGarmentPose();
+  clearance('independent sleeve',side,part.object,()=>true,[.32,.52,.72]);
+  actor.pose({upper_arm_right:[40,25],forearm_right:[90,0]});
+  actor.group.updateMatrixWorld(true);
+  part.object.userData.updateGarmentPose();
+  clearance('independent sleeve bent',side,part.object,()=>true,[.32,.52,.72]);
+  part.object.removeFromParent();
+  part.dispose();
+  for(const [name,r] of Object.entries(att))actor.B[name].quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
+  actor.group.updateMatrixWorld(true);
+  shirt.userData.updateGarmentPose();
+ }
  const sides=['right','left'].map((side,s)=>{
   const elbow=actor.B['forearm_'+side],wrist=actor.B['hand_'+side],id=actor.bones.indexOf(elbow);
   const E=elbow.getWorldPosition(new T.Vector3()),W=wrist.getWorldPosition(new T.Vector3()),dir=W.clone().sub(E),length=dir.length();dir.normalize();
@@ -94,13 +163,23 @@ for(const sex of ['male','female']){
   actor.group.updateMatrixWorld(true);
   if(!pose)poseGrip(T,actor,'right',new T.Vector3(-.22,1.28,.38),new T.Vector3(.1,.8,.6).normalize(),new T.Vector3(1,0,0),new T.Vector3(-1,-.7,-.2));
   actor.group.updateMatrixWorld(true);shirt.userData.updateGarmentPose();
-  seamError(name);clearance(name,'right',0);clearance(name,'left',1);
+  seamError(name);clearance(name,'right');clearance(name,'left');
   for(const {side,elbow,distal,cuffs} of sides){
    const error=p=>shirt.userData.deformGarmentVertex(p.i).distanceTo(p.local.clone().applyMatrix4(elbow.matrixWorld));
    const d=stats(distal.map(error)),c=stats(cuffs.map(error));
    console.log('FOREARM TRACK '+sex+' '+side+' '+name+' '+JSON.stringify({distal:d,cuff:c}));
    if(d.count<50||d.p95>.012||c.max>.002)errors.push({sex,side,name,d,c});
   }
+ }
+ for(const [name,speed] of [['walk',2.6],['run',5]]){
+  actor.speed=speed;
+  for(let frame=0;frame<21;frame++)actor.animate(1/60,frame/60);
+  actor.group.updateMatrixWorld(true);shirt.userData.updateGarmentPose();
+  for(const side of ['right','left'])clearance(name,side);
+ }
+ for(const level of [1,2]){
+  actor.setLOD(level);
+  for(const side of ['right','left'])clearance('run LOD'+level,side,shirt,undefined,[.22,.32,.52,.72,.82]);
  }
  actor.dispose();
 }

@@ -1,4 +1,5 @@
 import {attentionRotations} from '../attention-pose.js';
+import {fitGarmentLimbs,retargetedNormals} from './limb-fit.js';
 
 // Common garment binding in the foot-anchored reference pose. The asset
 // supplies anatomical weight constraints, render parts and coverage policy.
@@ -215,6 +216,9 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   for(let q=0;q<4;q++)for(let b=0;b<groups.length;b++)if(groups[b].has(ji[k+q]))regions[b*n+i]+=weights[k+q];
  }
  const count=asset.position.length/3,rest=asset.position.slice(),field=new Float32Array(count*boneCount),locked=new Uint8Array(count);
+ const limbs=policy.limbs&&fitGarmentLimbs(T,asset,rest,policy,{
+  positions:posed,index:fullIndex.array,mask:skin,joints:ji,weights,boneIndex:byName,inverseBones:ref.inverseBones
+ });
  let lo=Infinity,hi=-Infinity;
  for(let i=1;i<rest.length;i+=3){lo=Math.min(lo,rest[i]);hi=Math.max(hi,rest[i]);}
  const bodySurface=surface(posed,posedN,fullIndex.array,(a,b,c)=>a<n&&b<n&&c<n&&skin[a]&&skin[b]&&skin[c]&&Math.max(posed[a*3+1],posed[b*3+1],posed[c*3+1])>=lo-.10&&Math.min(posed[a*3+1],posed[b*3+1],posed[c*3+1])<=hi+.10,regions);
@@ -227,13 +231,14 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   maxDistance=Math.max(maxDistance,hit.distance);if(hit.distance>.075)misses++;
   sum.fill(0);
   for(const [id,factor] of [[hit.a,hit.u],[hit.b,hit.v],[hit.c,hit.w]])for(let q=0;q<4;q++)sum[ji[id*4+q]]+=factor*weights[id*4+q];
-  locked[i]=policy.constrain?.(i,asset,sum,byName)?1:0;
+  const anchor=policy.constrain?.(i,asset,sum,byName), limbAnchor=limbs?.constrain(i,sum);
+  locked[i]=anchor||limbAnchor?1:0;
   if(sum.some(w=>!Number.isFinite(w)||w< -1e-6))throw Error('Invalid garment skin weights at '+i+': '+Array.from(sum));
   for(let b=0;b<boneCount;b++)sum[b]=Math.max(0,sum[b]);
   const total=sum.reduce((a,b)=>a+b,0);
   if(!(total>1e-8))throw Error('Empty garment skin weights at '+i);
   for(let b=0;b<boneCount;b++)field[i*boneCount+b]=sum[b]/total;
-  if((policy.fit?.(i,asset)??true)&&hit.distance<.035&&hit.alignment>.35){
+  if(!limbs?.fitted[i]&&(policy.fit?.(i,asset)??true)&&hit.distance<.035&&hit.alignment>.35){
    const gap=dot(x-hit.x,y-hit.y,z-hit.z,hit.nx,hit.ny,hit.nz),fit=Math.max(0,Math.min(.012,.0025-gap));
    rest[j]+=hit.nx*fit;rest[j+1]+=hit.ny*fit;rest[j+2]+=hit.nz*fit;maxFit=Math.max(maxFit,fit);
   }
@@ -272,7 +277,8 @@ function assembleBinding(T,asset,policy,record){
  const attributes=[['aJoint',pack(joints,0,Uint8Array),4,false],['aWeight',pack(skinWeight,0,Float32Array),4,false]];
  if(slots===8)attributes.push(['aJointExtra',pack(joints,4,Uint8Array),4,false],['aWeightExtra',pack(skinWeight,4,Float32Array),4,false]);
  const g=new T.BufferGeometry();
- for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],...attributes,...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
+ const normals=policy.limbs?retargetedNormals(T,asset,rest,policy):asset.normal;
+ for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',normals,3,false],...attributes,...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
  g.setIndex(new T.BufferAttribute(asset.index,1));g.computeBoundingBox();g.computeBoundingSphere();
  const parts=new Map(),partLods=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
@@ -292,7 +298,7 @@ function assembleBinding(T,asset,policy,record){
   }
   partLods.set(part.id,levels);
  }
- return {...record,geometry:g,parts,partLods,joints,boneIds,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
+ return {...record,geometry:g,parts,partLods,joints,boneIds,revision:policy.bakeRevision,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
 }
 function unpackBake(text,Type,length){
  const raw=atob(text),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
@@ -301,7 +307,7 @@ function unpackBake(text,Type,length){
 }
 export function hydrateGarmentBinding(T,actor,asset,policy,bake){
  const n=actor.bodyVertexCount,count=asset.position.length/3,slots=bake.slots;
- if(bake.version!==1||bake.policy!==policy.bakeId||bake.bodyVertices!==n||bake.vertices!==count||bake.indices!==asset.index.length||![4,8].includes(slots)||JSON.stringify(bake.bones)!==JSON.stringify(actor.bones.map(b=>b.name)))throw Error('Garment bake does not match asset or rig');
+ if(bake.version!==1||bake.revision!==policy.bakeRevision||bake.policy!==policy.bakeId||bake.bodyVertices!==n||bake.vertices!==count||bake.indices!==asset.index.length||![4,8].includes(slots)||JSON.stringify(bake.bones)!==JSON.stringify(actor.bones.map(b=>b.name)))throw Error('Garment bake does not match asset or rig');
  const rest=unpackBake(bake.rest,Float32Array,count*3),actual=unpackBake(bake.actual,Uint8Array,count*slots),skinWeight=unpackBake(bake.skinWeight,Float32Array,count*slots);
  if(rest.some(v=>!Number.isFinite(v))||actual.some(i=>i>=actor.bones.length)||skinWeight.some(w=>!Number.isFinite(w)||w<0||w>1.00001))throw Error('Invalid garment bake weights');
  for(let i=0;i<count;i++){let sum=0;for(let j=0;j<slots;j++)sum+=skinWeight[i*slots+j];if(Math.abs(sum-1)>1e-5)throw Error('Unnormalized garment bake weights');}

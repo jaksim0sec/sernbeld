@@ -27,6 +27,7 @@ const OFFLINE_FILES = [
   './src/entities/character/clothing/shirt.js',
   './src/entities/character/clothing/shirt-binding.js',
   './src/entities/character/clothing/garment-binding.js',
+  './src/entities/character/clothing/limb-fit.js',
   './src/entities/character/clothing/garment-pose.js',
   './src/entities/character/clothing/shirt-source.js',
   './src/entities/character/clothing/pants-source.js',
