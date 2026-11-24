@@ -1,77 +1,31 @@
 import {attentionRotations} from '../attention-pose.js';
+import {bindShirtGeometry} from './shirt-binding.js';
 
-// Clothing stays independent of the character mesh. The approved attention
-// pose is the reference frame; the current full game skeleton drives it.
-// DQ blending avoids collapsing the circular elbow rings. Four pre-baked
-// pose-space corrections per side come from the original cloth solver.
-const names=['pelvis','waist','ribcage','neck','upper_arm_right','forearm_right','upper_arm_left','forearm_left'];
-const pools=new WeakMap(),clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
-const radians=180/Math.PI;
-function referenceRig(T,actor){
- const rotations=attentionRotations(actor.data.bones),world=new Map(),frame=new T.Matrix4().compose(new T.Vector3(0,-actor.mesh.geometry.boundingBox.min.y*actor.units,0),new T.Quaternion(),new T.Vector3().setScalar(actor.units));
- function rest(bone){
-  if(world.has(bone.name))return world.get(bone.name);
-  const q=new T.Quaternion(),r=rotations[bone.name];
-  if(r)q.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
-  const local=new T.Matrix4().compose(actor.rest[bone.name],q,new T.Vector3(1,1,1));
-  const m=bone.parent?.isBone?rest(bone.parent).clone().multiply(local):local;
-  world.set(bone.name,m);return m;
- }
- const matrices=names.map(name=>{if(!actor.B[name])throw Error('Missing shirt bone '+name);return frame.clone().multiply(rest(actor.B[name]));});
- return {inverse:matrices.map(m=>m.clone().invert()),heights:matrices.slice(0,4).map(m=>m.elements[13]),matrices};
-}
-function torsoWeights(y,heights,collar){
- // Each torso point uses two neighbouring bones; no arm influence for buttons/collar.
- const hi=collar?3:2;
- for(let i=0;i<hi;i++){const a=heights[i],b=heights[i+1];if(y<=b)return [i,i+1,b>a+1e-5?smooth(a,b,y):0];}
- return [hi,hi,0];
-}
-function makeGeometry(T,asset,heights){
- const {position,normal,color,detail,influence,index,corrections}=asset,n=position.length/3;
- const joints=new Uint8Array(n*4),weights=new Float32Array(n*4);
- for(let i=0;i<n;i++){
-  const k=i*4,side=influence[k+2],kind=influence[k+3],arm=4+side*2,s=influence[k]/255,e=influence[k+1]/255;
-  const [a,b,t]=torsoWeights(position[i*3+1],heights,kind===2);
-  joints.set([a,b,arm,arm+1],k);weights.set([(1-s)*(1-t),(1-s)*t,s*(1-e),s*e],k);
- }
- const g=new T.BufferGeometry();
- for(const [name,array,size,normalized] of [['position',position,3,false],['normal',normal,3,false],['aColor',color,3,true],['aDetail',detail,4,false],['aInfluence',influence,4,false],['aJoint',joints,4,false],['aWeight',weights,4,false],...corrections.map((a,i)=>['aCorrection'+i,a,3,false])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
- g.setIndex(new T.BufferAttribute(index,1));g.computeBoundingBox();g.computeBoundingSphere();
- return g;
-}
-function acquire(T,asset,heights){
- let byT=pools.get(asset);if(!byT){byT=new WeakMap();pools.set(asset,byT);}
- let shared=byT.get(T);if(!shared){shared={geometry:makeGeometry(T,asset,heights),users:0};byT.set(T,shared);}
+// Share the actual-skeleton binding per source body and Three runtime.
+// No per-frame CPU cloth collision solve, and no per-NPC geometry rebuild.
+const pools=new WeakMap();
+function acquire(T,actor,asset){
+ let byT=pools.get(asset);if(!byT)pools.set(asset,byT=new WeakMap());
+ let byBody=byT.get(T);if(!byBody)byT.set(T,byBody=new WeakMap());
+ let shared=byBody.get(actor.data);
+ if(!shared){shared={...bindShirtGeometry(T,actor,asset),users:0};byBody.set(actor.data,shared);}
  shared.users++;
- return {geometry:shared.geometry,release(){if(--shared.users===0){shared.geometry.dispose();byT.delete(T);}}};
+ return {...shared,release(){if(--shared.users===0){shared.geometry.dispose();byBody.delete(actor.data);}}};
 }
-const transformGLSL=`
-attribute vec4 aJoint,aWeight,aInfluence;
-attribute vec3 aCorrection0,aCorrection1,aCorrection2,aCorrection3;
-uniform vec4 uReal[8],uDual[8],uCorrectRight,uCorrectLeft;
-vec4 qmul(vec4 a,vec4 b){return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz));}
-vec4 qconj(vec4 q){return vec4(-q.xyz,q.w);}
-vec3 qrotate(vec4 q,vec3 p){return p+2.*cross(q.xyz,cross(q.xyz,p)+q.w*p);}
-void clothingPose(out vec3 p,out vec3 n){
- vec4 a=uReal[int(aJoint.x)],b=uReal[int(aJoint.y)],c=uReal[int(aJoint.z)],d=uReal[int(aJoint.w)];
- vec4 A=uDual[int(aJoint.x)],B=uDual[int(aJoint.y)],C=uDual[int(aJoint.z)],D=uDual[int(aJoint.w)];
- float sb=dot(a,b)<0.?-1.:1.,sc=dot(a,c)<0.?-1.:1.,sd=dot(a,d)<0.?-1.:1.;
- vec4 q=a*aWeight.x+b*(aWeight.y*sb)+c*(aWeight.z*sc)+d*(aWeight.w*sd);
- vec4 dual=A*aWeight.x+B*(aWeight.y*sb)+C*(aWeight.z*sc)+D*(aWeight.w*sd);
- float len=max(length(q),.00001);q/=len;dual/=len;dual-=q*dot(q,dual);
- vec4 k=mix(uCorrectRight,uCorrectLeft,aInfluence.z);
- vec3 rest=position+.00001*(aCorrection0*k.x+aCorrection1*k.y+aCorrection2*k.z+aCorrection3*k.w);
- p=qrotate(q,rest)+2.*qmul(dual,qconj(q)).xyz;n=qrotate(q,normal);
-}
-`;
-const vertex=transformGLSL+`
-attribute vec3 aColor;attribute vec4 aDetail;
+const vertex=`
+#include <common>
+#include <skinning_pars_vertex>
+attribute vec3 aColor,aRest;attribute vec4 aDetail,aInfluence;
 uniform vec2 uBend;
 varying vec3 vNormal,vColor,vPos,vRest,vFlags;varying vec2 vDetail;
 void main(){
- vec3 p,n;clothingPose(p,n);vec4 mv=modelViewMatrix*vec4(p,1.);
- vNormal=normalMatrix*n;vPos=mv.xyz;vColor=aColor;vRest=position;
+ vec3 objectNormal=normal;
+ #include <skinbase_vertex>
+ #include <skinnormal_vertex>
+ vec3 transformed=position;
+ #include <skinning_vertex>
+ vec4 mv=modelViewMatrix*vec4(transformed,1.);
+ vNormal=normalMatrix*objectNormal;vPos=mv.xyz;vColor=aColor;vRest=aRest;
  float sleeve=step(.5,aInfluence.w)*(1.-step(1.5,aInfluence.w));
  vFlags=vec3(max(sleeve,aInfluence.x/255.),step(1.5,aInfluence.w)*(1.-step(2.5,aInfluence.w)),1.-step(1.5,aInfluence.w));
  float bend=mix(uBend.x,uBend.y,step(0.,aDetail.z));
@@ -101,37 +55,31 @@ void main(){
 `;
 export function buildShirt(T,actor){
  const asset=actor.shirtAsset;if(!asset)throw Error('Shirt assets must be preloaded');
- const ref=referenceRig(T,actor),shared=acquire(T,asset,ref.heights);
- const uniforms={uReal:{value:names.map(()=>new T.Vector4(0,0,0,1))},uDual:{value:names.map(()=>new T.Vector4(0,0,0,0))},uCorrectRight:{value:new T.Vector4()},uCorrectLeft:{value:new T.Vector4()},uBend:{value:new T.Vector2()},uFirst:{value:0},uCollar:{value:1}};
+ const shared=acquire(T,actor,asset);
+ const uniforms={uBend:{value:new T.Vector2()},uFirst:{value:0},uCollar:{value:1}};
  const material=new T.ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:fragment,side:T.DoubleSide});
- const object=new T.Mesh(shared.geometry,material);object.name='clothing:top.basic-shirt';
- // The baked vertices are in metres, in the actor's foot-anchored frame.
- object.scale.setScalar(1/actor.units);object.position.y=actor.mesh.geometry.boundingBox.min.y;object.frustumCulled=false;
- // Body continues to supply the existing shadow; do not render undeformed
- // shadow geometry with the stock depth shader.
- object.castShadow=false;object.receiveShadow=false;
- const inverse=new T.Matrix4(),matrix=new T.Matrix4(),p=new T.Vector3(),scale=new T.Vector3(),qs=names.map(()=>new T.Quaternion()),relative=new T.Quaternion(),euler=new T.Euler(0,0,0,'ZXY');
+ const object=new T.SkinnedMesh(shared.geometry,material);object.name='clothing:top.basic-shirt';
+ // Exactly the same bone texture, bind matrix and final IK pose as the body.
+ // Both meshes are siblings in actor.model with identical local transforms.
+ object.bind(actor.skeleton,actor.mesh.bindMatrix);
+ object.frustumCulled=false;object.castShadow=false;object.receiveShadow=false;
+ const coverage=new Uint8Array(actor.mesh.geometry.attributes.position.count);
+ coverage.set(shared.covered.subarray(0,coverage.length));
+ actor.mesh.geometry.setAttribute('aClothCover',new T.BufferAttribute(coverage,1,true));
+ const rotations=attentionRotations(actor.data.bones);
+ const ref=['forearm_right','forearm_left'].map(name=>{
+  const r=rotations[name];
+  return new T.Quaternion().setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
+ });
  function updatePose(){
-  inverse.copy(object.matrixWorld).invert();
-  for(let i=0;i<names.length;i++){
-   matrix.multiplyMatrices(inverse,actor.B[names[i]].matrixWorld).multiply(ref.inverse[i]);
-   const q=qs[i];matrix.decompose(p,q,scale);q.normalize();
-   uniforms.uReal.value[i].set(q.x,q.y,q.z,q.w);
-   uniforms.uDual.value[i].set(.5*(p.x*q.w+p.y*q.z-p.z*q.y),.5*(-p.x*q.z+p.y*q.w+p.z*q.x),.5*(p.x*q.y-p.y*q.x+p.z*q.w),-.5*(p.x*q.x+p.y*q.y+p.z*q.z));
-  }
-  for(let s=0;s<2;s++){
-   const arm=4+s*2,sign=s?1:-1;
-   relative.copy(qs[2]).invert().multiply(qs[arm]);euler.setFromQuaternion(relative,'ZXY');
-   const side=sign*euler.z*radians,front=-euler.x*radians;
-   relative.copy(qs[arm]).invert().multiply(qs[arm+1]);euler.setFromQuaternion(relative,'ZXY');
-   const bend=Math.abs(euler.x*radians),a=smooth(0,75,side),b=smooth(0,75,front),c=smooth(0,35,-front),w=Math.max(1,a+b+c);
-   (s?uniforms.uCorrectLeft:uniforms.uCorrectRight).value.set(a/w,b/w,c/w,smooth(0,90,bend));
-   if(s)uniforms.uBend.value.y=Math.sin(Math.min(120,bend)*Math.PI/240);else uniforms.uBend.value.x=Math.sin(Math.min(120,bend)*Math.PI/240);
-  }
+  const bend=(name,i)=>Math.sin(Math.min(2*Math.PI/3,actor.B[name].quaternion.angleTo(ref[i]))*.75);
+  uniforms.uBend.value.set(bend('forearm_right',0),bend('forearm_left',1));
+  material.uniformsNeedUpdate=true;
  }
  object.onBeforeRender=updatePose;
  object.userData.updateClothingPose=updatePose;
- object.userData.clothingDiagnostics={vertices:asset.meta.vertices,triangles:asset.meta.triangles,sourceJoints:asset.meta.sourceJoints,attentionJoints:ref.matrices.slice(4).map(m=>[m.elements[12],m.elements[13],m.elements[14]])};
+ object.userData.clothingDiagnostics={vertices:asset.meta.vertices,triangles:asset.meta.triangles,sourceJoints:asset.meta.sourceJoints,...shared.diagnostics};
+ object.userData.referenceRest=shared.rest;
  let disposed=false;
- return {object,setFirstPerson(on){uniforms.uFirst.value=on?1:0;object.visible=true;},setExternalCollar(on){uniforms.uCollar.value=on?0:1;},dispose(){if(disposed)return;disposed=true;material.dispose();shared.release();}};
+ return {object,bodyCoverage:true,setFirstPerson(on){uniforms.uFirst.value=on?1:0;object.visible=true;},setExternalCollar(on){uniforms.uCollar.value=on?0:1;},dispose(){if(disposed)return;disposed=true;material.dispose();shared.release();}};
 }

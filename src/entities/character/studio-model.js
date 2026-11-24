@@ -80,6 +80,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  for(const [key,values,size] of [['position',position,3],['normal',normal,3],['color',color,3],['skinWeight',skinWeight,4],['aSkin',aSkin,1],['aArm',aArm,1]])
   geometry.setAttribute(key,new T.BufferAttribute(values,size,key==='skinWeight'||key==='aSkin'||key==='aArm'));
  geometry.setAttribute('skinIndex',new T.BufferAttribute(skinIndex,4));
+ geometry.setAttribute('aClothCover',new T.BufferAttribute(new Uint8Array(vertexCount),1,true));
  const fullIndex=new T.BufferAttribute(levelIndex(0),1);
  geometry.setIndex(fullIndex);geometry.computeBoundingBox();
  if(bodyLod)lodIndex=[fullIndex,new T.BufferAttribute(levelIndex(1),1),new T.BufferAttribute(levelIndex(2),1)];
@@ -118,14 +119,14 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  const uniforms={uSkinLight:{value:vecColor(palette.light)},uSkinShadow:{value:vecColor(palette.shadow)},
   uHeadOffset:{value:new T.Vector3(...data.headOffset.map(x=>x/1428))},uHeadScale:{value:new T.Vector3(...data.face.scale.map(x=>x/(32*1428)))},
   uCheekCenter:{value:new T.Vector3(...cheek)},uBlushColor:{value:vecColor(blush.color)},uBlushStrength:{value:blush.strength},
-  uHeadForward:{value:new T.Vector3(0,0,1)},uFirst:{value:0}};
+  uHeadForward:{value:new T.Vector3(0,0,1)},uFirst:{value:0},uClothCover:{value:0}};
  const material=new T.ShaderMaterial({uniforms,side:T.DoubleSide,vertexShader:`
  #include <common>
  #include <skinning_pars_vertex>
  attribute vec3 color;
- attribute float aSkin,aArm;
+ attribute float aSkin,aArm,aClothCover;
  varying vec3 vNormal,vWorldNormal,vLocal,vColor;
- varying float vSkin,vArm;
+ varying float vSkin,vArm,vCovered;
  uniform vec3 uHeadOffset,uHeadScale;
  void main(){
   vec3 objectNormal=normal;
@@ -136,15 +137,16 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   vNormal=normalize(normalMatrix*objectNormal);
   vWorldNormal=normalize(mat3(modelMatrix)*objectNormal);
   vLocal=(position-uHeadOffset)/uHeadScale;
-  vColor=color;vSkin=aSkin;vArm=aArm;
+  vColor=color;vSkin=aSkin;vArm=aArm;vCovered=aClothCover;
   gl_Position=projectionMatrix*modelViewMatrix*vec4(transformed,1.);
  }`,fragmentShader:`
  varying vec3 vNormal,vWorldNormal,vLocal,vColor;
- varying float vSkin,vArm;
+ varying float vSkin,vArm,vCovered;
  uniform vec3 uSkinLight,uSkinShadow,uHeadForward,uCheekCenter,uBlushColor;
- uniform float uBlushStrength,uFirst;
+ uniform float uBlushStrength,uFirst,uClothCover;
  void main(){
   if(uFirst>.5&&vArm<.5)discard;
+  if(uClothCover>.5&&vCovered>.999)discard;
   vec3 wn=normalize(vWorldNormal);
   float neckMask=smoothstep(.22,.31,vLocal.z)*(1.-smoothstep(.24,.36,abs(vLocal.x)))*smoothstep(-.66,-.58,vLocal.y)*(1.-smoothstep(.02,.14,vLocal.y));
   wn=normalize(mix(wn,uHeadForward,neckMask*.38));
@@ -208,6 +210,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
+  setClothingCoverage(on){uniforms.uClothCover.value=on?1:0;},
   setFirst(first){firstPerson=Boolean(first);uniforms.uFirst.value=firstPerson?1:0;applyIndex();api.clothing.setFirstPerson(firstPerson);},
   animate(dt,t){
    // NPCs use the same joint-limit/spring pipeline as the player.

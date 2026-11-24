@@ -25,7 +25,7 @@ export function listClothing(slot){if(slot!==undefined&&!Object.values(slots).in
 
 export function createClothingController(T,actor,fullIndex){
  const equipped=new Map();let firstPerson=false,disposed=false;
- function sync(){for(const {instance} of equipped.values()){if(instance.setFirstPerson)instance.setFirstPerson(firstPerson);else instance.object.visible=!firstPerson;instance.setExternalCollar?.(equipped.has(slots.COLLAR));}}
+ function sync(){for(const {instance} of equipped.values()){if(instance.setFirstPerson)instance.setFirstPerson(firstPerson);else instance.object.visible=!firstPerson;instance.setExternalCollar?.(equipped.has(slots.COLLAR));}actor.setClothingCoverage?.([...equipped.values()].some(v=>v.instance.bodyCoverage));}
  function release(slot){
   const old=equipped.get(slot);if(!old)return false;
   equipped.delete(slot);old.instance.object.removeFromParent();old.instance.dispose();sync();return true;
