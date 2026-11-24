@@ -90,5 +90,5 @@ export function createGarmentPart(T,actor,lease,id,materialFactory){
  object.userData.clothingDiagnostics=shared.diagnostics;
  object.userData.referenceRest=shared.rest;
  let disposed=false;
- return {object,bodyCoverage:shared.masks.get(id),firstPersonCoverage:shared.firstMasks.get(id),dispose(){if(disposed)return;disposed=true;material.dispose();pose.release();lease.release();}};
+ return {object,bodyCoverage:shared.masks.get(id),firstPersonCoverage:shared.firstMasks.get(id),setLOD(level){const levels=shared.partLods.get(id);const next=levels[Math.min(levels.length-1,Math.max(0,level|0))];if(object.geometry!==next)object.geometry=next;},dispose(){if(disposed)return;disposed=true;material.dispose();pose.release();lease.release();}};
 }

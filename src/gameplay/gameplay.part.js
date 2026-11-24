@@ -6146,7 +6146,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { playerTerrain, playerFloor, playerFootSurface, graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

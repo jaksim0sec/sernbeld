@@ -18,6 +18,6 @@ jobs:
         with:
           node-version: 22
       - run: node tests/pwa-startup.mjs
-      - run: node tools/build-game.mjs --check && node tests/startup-runtime.mjs
+      - run: node tools/build-game.mjs && node tests/startup-runtime.mjs
       - run: npm install --no-save --no-package-lock playwright && npx playwright install chromium
       - run: node tests/cold-start-browser.mjs

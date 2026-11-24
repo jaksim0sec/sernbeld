@@ -37,6 +37,22 @@ for(const sex of ['male','female']){
  }
  assert(protectedTriangles>0);
  const actor=createStudioModel(T,factory,normalizeStudioCharacter({body:sex})),pants=actor.clothing.equip('pants.basic-trousers'),shirt=actor.clothing.equip('top.basic-shirt');
+ // A resident switching distance LOD must not mutate any other actor's
+ // geometry, or render the complete shirt/pants indefinitely.
+ const nearShirt=shirt.geometry,nearPants=pants.geometry;
+ const other=createStudioModel(T,factory,normalizeStudioCharacter({body:sex}));
+ actor.setLOD(1);
+ const midShirt=shirt.geometry.index.count,midPants=pants.geometry.index.count;
+ actor.setLOD(2);
+ const farShirt=shirt.geometry.index.count,farPants=pants.geometry.index.count;
+ assert(midShirt<nearShirt.index.count*.65&&farShirt<midShirt,'shirt LOD did not reduce submitted geometry');
+ assert(midPants<nearPants.index.count*.75&&farPants<midPants,'pants LOD did not reduce submitted geometry');
+ assert.equal(other.clothing.equip('top.basic-shirt').geometry,nearShirt);
+ assert.equal(other.clothing.equip('pants.basic-trousers').geometry,nearPants);
+ assert.equal(pants.geometry.attributes.aLayerCover,nearPants.attributes.aLayerCover,'distance LOD lost layer coverage');
+ actor.setLOD(0);assert.equal(shirt.geometry,nearShirt);assert.equal(pants.geometry,nearPants);
+ other.dispose();
+ console.log('GARMENT LOD '+sex+' shirt '+[nearShirt.index.count,midShirt,farShirt].map(x=>x/3).join('/')+' pants '+[nearPants.index.count,midPants,farPants].map(x=>x/3).join('/'));
  const attr=pants.geometry.attributes.aLayerCover;
  assert(attr.array.some(x=>x===255)&&attr.array.some(x=>x===0),'No useful waistband layer');
  assert.equal(pants.material.uniforms.uLayerCover.value,1);

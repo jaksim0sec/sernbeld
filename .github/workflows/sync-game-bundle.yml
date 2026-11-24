@@ -7,6 +7,10 @@ on:
       - 'src/render/world-render.part.js'
       - 'src/entities/character/clothing/**'
       - 'src/entities/character/studio-model.js'
+      - 'src/entities/character/studio-integration.js'
+      - 'tests/player-physics.mjs'
+      - 'tests/character-assembly.mjs'
+      - 'tests/world-playability.mjs'
       - 'src/entities/character/studio-geometry.js'
       - 'src/entities/character/attention-pose.js'
       - 'assets/models/characters/**'
@@ -41,6 +45,11 @@ jobs:
           node tests/foundation.mjs
           node tests/startup-runtime.mjs
           node tests/character-assembly.mjs
+      - name: Verify movement on the actual generated world
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install chromium
+          node tests/world-playability.mjs
       - name: Commit generated bundle
         run: |
           git add game.js assets/models/characters/studio-v1.lod.json.gz assets/models/clothing/runtime-bindings-v1.json.gz

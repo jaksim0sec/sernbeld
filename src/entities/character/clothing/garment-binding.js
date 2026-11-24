@@ -274,15 +274,25 @@ function assembleBinding(T,asset,policy,record){
  const g=new T.BufferGeometry();
  for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],...attributes,...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
  g.setIndex(new T.BufferAttribute(asset.index,1));g.computeBoundingBox();g.computeBoundingSphere();
- const parts=new Map();
+ const parts=new Map(),partLods=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
   const list=[];for(let i=0;i<asset.index.length;i+=3){const a=asset.index[i],b=asset.index[i+1],c=asset.index[i+2];if(part.accept(a,b,c,asset))list.push(a,b,c);}
   if(!list.length)throw Error('Empty garment part: '+part.id);
   const pg=new T.BufferGeometry();for(const [name,attr] of Object.entries(g.attributes))pg.setAttribute(name,attr);
   pg.setIndex(new T.BufferAttribute(new asset.index.constructor(list),1));pg.boundingBox=g.boundingBox.clone();pg.boundingSphere=g.boundingSphere.clone();
   parts.set(part.id,pg);
+  const levels=[pg];
+  for(const array of record.lod?.get(part.id)??[]){
+   // A different immutable index per level, sharing every vertex attribute.
+   // Never mutate a geometry used by a nearby character.
+   const reduced=new T.BufferGeometry();
+   for(const [name,attr] of Object.entries(g.attributes))reduced.setAttribute(name,attr);
+   reduced.setIndex(new T.BufferAttribute(array,1));reduced.boundingBox=g.boundingBox.clone();reduced.boundingSphere=g.boundingSphere.clone();
+   levels.push(reduced);
+  }
+  partLods.set(part.id,levels);
  }
- return {...record,geometry:g,parts,joints,boneIds,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
+ return {...record,geometry:g,parts,partLods,joints,boneIds,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
 }
 function unpackBake(text,Type,length){
  const raw=atob(text),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
@@ -300,7 +310,16 @@ export function hydrateGarmentBinding(T,actor,asset,policy,bake){
  const ref={frame:matrix(bake.frame),inverseBones:bake.inverseBones.map(matrix),pivots:bake.diagnostics.attentionJoints};
  if(!(ref.frame.elements[0]>0))throw Error('Invalid garment bake scale');
  const readMasks=entries=>new Map(Object.entries(entries).map(([id,data])=>[id,unpackBake(data,Uint8Array,n)]));
- return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,masks:readMasks(bake.masks),firstMasks:readMasks(bake.firstMasks),diagnostics:{...bake.diagnostics,prebaked:true}});
+ const lod=new Map();
+ for(const [id,levels] of Object.entries(bake.lod??{})){
+  let previous=Infinity;
+  lod.set(id,levels.map(({data,count:indices})=>{
+   if(!Number.isInteger(indices)||indices<=0||indices%3||indices>=previous)throw Error('Invalid garment LOD count');
+   const arr=unpackBake(data,Uint32Array,indices);if(arr.some(v=>v>=count))throw Error('Invalid garment LOD index');
+   previous=indices;return new asset.index.constructor(arr);
+  }));
+ }
+ return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,lod,masks:readMasks(bake.masks),firstMasks:readMasks(bake.firstMasks),diagnostics:{...bake.diagnostics,prebaked:true}});
 }
 // Compute a conservative angular/height coverage field of an outer garment.
 // Radial intersection tests work for both inward and outward overlap, so an
@@ -382,5 +401,5 @@ export function acquireGarmentBinding(T,actor,asset,policy,fullIndex){
  }
  shared.users++;
  let released=false;
- return {shared,release(){if(released)return;released=true;if(--shared.users===0){for(const g of shared.parts.values())g.dispose();shared.geometry.dispose();byFrame.delete(key);}}};
+ return {shared,release(){if(released)return;released=true;if(--shared.users===0){for(const levels of shared.partLods.values())for(const g of levels)g.dispose();shared.geometry.dispose();byFrame.delete(key);}}};
 }

@@ -25,13 +25,14 @@ export function getClothing(id){return definitions.get(id)??null;}
 export function listClothing(slot){if(slot!==undefined&&!Object.values(slots).includes(slot))throw Error('Unknown clothing slot: '+slot);return [...definitions.values()].filter(d=>slot===undefined||d.slot===slot);}
 
 export function createClothingController(T,actor,fullIndex){
- const equipped=new Map();let firstPerson=false,disposed=false;
+ const equipped=new Map();let firstPerson=false,disposed=false,distanceLOD=0;
  const coverage=new Uint8Array(actor.mesh.geometry.attributes.position.count);
  function syncVisibility(){
   const active=new Set([...equipped.values()].map(({entry})=>entry.layerId).filter(Boolean));
   for(const {instance} of equipped.values()){
    if(instance.setFirstPerson)instance.setFirstPerson(firstPerson);else instance.object.visible=!firstPerson;
    instance.setLayers?.(active);
+   instance.setLOD?.(firstPerson?0:distanceLOD);
   }
  }
  function syncCoverage(){
@@ -64,6 +65,7 @@ export function createClothingController(T,actor,fullIndex){
   unequip(slot){if(!release(slot))return false;syncVisibility();syncCoverage();return true;},
   getEquipped(slot){return equipped.get(slot)?.entry.id??null;},
   snapshot(){return Object.fromEntries([...equipped].map(([slot,v])=>[slot,v.entry.id]));},
+  setLOD(level){level=Math.max(0,Math.min(2,level|0));if(distanceLOD===level)return;distanceLOD=level;for(const {instance} of equipped.values())instance.setLOD?.(firstPerson?0:level);},
   setFirstPerson(on){on=Boolean(on);if(firstPerson===on)return;firstPerson=on;syncVisibility();syncCoverage();},
   dispose(){if(disposed)return;disposed=true;for(const slot of [...equipped.keys()])release(slot);syncCoverage();}
  };

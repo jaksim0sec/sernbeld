@@ -112,7 +112,8 @@ export function buildPants(T,actor,fullIndex){
  if(!geometry.hasAttribute('aLayerCover')){
   const bytes=encoded?Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)):new Uint8Array(geometry.attributes.position.count);
   if(bytes.length!==geometry.attributes.position.count)throw Error('Incompatible garment layer mask');
-  geometry.setAttribute('aLayerCover',new T.BufferAttribute(bytes,1,true));
+  const attribute=new T.BufferAttribute(bytes,1,true);
+  for(const g of b.partLods.get('main'))g.setAttribute('aLayerCover',attribute);
  }
  return {...instance,setFirstPerson(on){instance.object.visible=!on;},setLayers(active){instance.object.material.uniforms.uLayerCover.value=active.has('shirt-v1')&&encoded?1:0;}};
 }
