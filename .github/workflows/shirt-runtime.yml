@@ -9,6 +9,7 @@ on:
       - 'src/entities/character/studio-model.js'
       - 'src/entities/character/studio-source.js'
       - 'tests/shirt-runtime.mjs'
+      - 'tests/garment-alignment.mjs'
       - 'tests/pants-runtime.mjs'
       - '.github/workflows/shirt-runtime.yml'
   workflow_dispatch:
@@ -22,5 +23,6 @@ jobs:
           node-version: 22
       - run: node tests/shirt-reference.mjs
       - run: node tests/shirt-runtime.mjs
+      - run: node tests/garment-alignment.mjs
       - run: node tests/pants-runtime.mjs
       - run: node tests/studio-model.mjs
