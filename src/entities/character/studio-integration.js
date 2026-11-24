@@ -2,7 +2,7 @@ import {normalizeStudioCharacter} from './appearance.js';
 import {animatePlayer,armTargets,mountWeapon,poseGrip} from './avatar-motion.js';
 const clamp01=x=>Math.max(0,Math.min(1,x));
 
-export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,view,height,runSpeed=5}){
+export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,groundSurface,view,height,runSpeed=5}){
  let profile=normalizeStudioCharacter(Save.data.character??{body:'male'}),actor=makeCharacter(profile);
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
@@ -79,7 +79,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const walking=player.mode==='walk',firstPerson=!third&&walking;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
   if(!walking){bodyCut=null;return;}
-  const pose=attackPose(combat.swing);
+  const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const aimYaw=player.yaw+Math.PI;
   if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;}
   const speed=Math.hypot(player.vel.x,player.vel.z);
@@ -88,14 +88,14 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(firstPerson)bodyYaw=aimYaw;
   else{
    const target=combat.swing?(combat.swing.aimYaw??player.yaw)+Math.PI:
-    player.moveHeading??(player.moveHeading===undefined&&speed>.22?Math.atan2(player.vel.x,player.vel.z):bodyYaw);
+    speed>.12?(player.moveHeading??Math.atan2(player.vel.x,player.vel.z)):bodyYaw;
    const delta=wrap(target-bodyYaw);
    turnStep=delta*(1-Math.exp(-(pose?17:11)*dt));
    bodyYaw+=turnStep;
    turnRate=turnStep/Math.max(.001,dt);
   }
   if(!firstPerson){
-   actor.group.position.copy(player.pos);
+   actor.group.position.copy(renderPos);
    actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
   }
   animatePlayer(actor,dt,t,player,pose,Save.data.equip,{
@@ -106,7 +106,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   if(firstPerson){
    // First evaluate the skeleton in world/player space, BEFORE camera-locking the
    // first-person arms. Otherwise the head follows the camera and cannot drive it.
-   actor.group.position.copy(player.pos);
+   actor.group.position.copy(renderPos);
    yawQ.setFromAxisAngle(upAxis,aimYaw);
    actor.group.quaternion.copy(yawQ);
    actor.B.head.getWorldPosition(headTarget);
@@ -158,14 +158,20 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.group.position.copy(camera.position).sub(displacement.copy(eye).applyQuaternion(actor.group.quaternion));
   }else{
    headCut=null;lastHeadMode=null;headRoll=0;
-   actor.group.position.copy(player.pos);actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
+   actor.group.position.copy(renderPos);actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
    let desired=0;
    if(player.onGround&&!player.swimming){
-    const low=Math.min(actor.B.foot_left.getWorldPosition(displacement).y,actor.B.foot_right.getWorldPosition(displacement).y);
-    desired=Math.max(-.12,Math.min(.07,player.pos.y+ankleRest*actor.group.scale.y-low));
+    let best=-Infinity;
+    for(const side of ['left','right']){
+      const foot=actor.B['foot_'+side].getWorldPosition(displacement);
+      const surface=groundSurface?.(foot.x,foot.z,player.pos.y)??renderPos.y;
+      best=Math.max(best,surface+ankleRest*actor.group.scale.y-foot.y);
+    }
+    desired=Math.max(-.16,Math.min(.18,best));
    }
-   footOffset=actor._combatStance?0:footOffset+(desired-footOffset)*(1-Math.exp(-dt*22));
+   footOffset=actor._combatStance||!player.onGround||player.swimming?0:footOffset+(desired-footOffset)*(1-Math.exp(-dt*24));
    actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
+   if(player.onGround&&!player.swimming&&!actor._combatStance&&groundSurface)fitFeet(actor,renderPos,ankleRest,dt);
   }
   actor.group.updateWorldMatrix(true,false);
   const moving=clamp01(speed/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
@@ -183,6 +189,44 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     if(room<reach)_grip.addScaledVector(_blade,-(reach-room));
    }
    poseGrip(T,actor,side,_grip,_blade,_inward,_pole);
+  }
+ }
+ // Ground-adaptive two-segment leg pose. This is presentation only; it
+ // never writes player position/velocity. Preserve the swing phase and lift
+ // a foot only when its sole would intersect the actual support surface.
+ const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
+ function fitFeet(a,root,ankleRest,dt){
+  const scale=a.units*a.group.scale.x,sole=ankleRest*a.group.scale.y;
+  for(const side of ['left','right']){
+   const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
+   if(!hip||!knee||!foot)continue;
+   foot.getWorldPosition(footV);
+   const surface=groundSurface(footV.x,footV.z,player.pos.y);
+   if(surface===null||Math.abs(surface-player.pos.y)>.5)continue;
+   const delta=surface+sole-footV.y;
+   // Do not pin the raised swing foot to the floor. Correct only penetration
+   // or a near-contact foot; airborne legs keep the authored pose.
+   if(delta<-.09||Math.abs(delta)<.004)continue;
+   hip.getWorldPosition(hipV);knee.getWorldPosition(kneeV);foot.getWorldQuaternion(footWorldQ);
+   goalV.copy(footV);goalV.y+=Math.max(-.09,Math.min(.27,delta));
+   dirV.copy(goalV).sub(hipV);
+   const l1=knee.position.length()*scale,l2=foot.position.length()*scale;
+   const d=Math.min(l1+l2-.001,Math.max(Math.abs(l1-l2)+.005,dirV.length()));
+   if(dirV.lengthSq()<1e-8)continue;dirV.normalize();
+   poleV.copy(kneeV).sub(hipV);poleV.addScaledVector(dirV,-poleV.dot(dirV));
+   if(poleV.lengthSq()<1e-7){poleV.set(0,0,1).transformDirection(a.group.matrixWorld);poleV.addScaledVector(dirV,-poleV.dot(dirV));}
+   if(poleV.lengthSq()<1e-7)continue;poleV.normalize();
+   const along=(d*d+l1*l1-l2*l2)/(2*d);
+   newKnee.copy(hipV).addScaledVector(dirV,along).addScaledVector(poleV,Math.sqrt(Math.max(0,l1*l1-along*along)));
+   goalV.copy(hipV).addScaledVector(dirV,d);
+   oldDir.copy(kneeV).sub(hipV).normalize();newDir.copy(newKnee).sub(hipV).normalize();
+   hip.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
+   hip.parent.getWorldQuaternion(qParent);hip.quaternion.copy(qParent.invert().multiply(qA));
+   knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
+   oldDir.copy(footV).sub(kneeV).normalize();newDir.copy(goalV).sub(kneeV).normalize();
+   knee.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
+   knee.parent.getWorldQuaternion(qParent);knee.quaternion.copy(qParent.invert().multiply(qA));
+   foot.parent.getWorldQuaternion(qParent);foot.quaternion.copy(qParent.invert().multiply(footWorldQ));
   }
  }
  const trail=[];
@@ -212,12 +256,11 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   // Retarget the schoolyard head-follow camera onto the actual animated head.
   // The avatar is only an aim target: collision, camera recoil and the existing
   // camera boom remain authoritative. Never move the player to fit the camera.
-  const head=actor.B.head.getWorldPosition(new T.Vector3());
-  const bodyTarget=new T.Vector3(player.pos.x,player.pos.y+1.02,player.pos.z);
-  const headTarget=new T.Vector3(head.x,Math.max(player.pos.y+.82,Math.min(player.pos.y+1.76,head.y)),head.z);
-  const desiredTarget=bodyTarget.lerp(headTarget,.36);
-  if(!thirdAim)thirdAim=desiredTarget.clone();
-  else thirdAim.lerp(desiredTarget,1-Math.exp(-dt*25));
+  const p=player.renderPos??player.pos;
+  const reset=cut!==player.teleportId||lastMode!==player.mode;
+  const desiredTarget=new T.Vector3(p.x,p.y+1.23,p.z);
+  if(reset||!thirdAim)thirdAim=desiredTarget.clone();
+  else thirdAim.lerp(desiredTarget,1-Math.exp(-dt*30));
   const target=thirdAim;
   const direction=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
   const desired=3.1,margin=.22;
@@ -229,7 +272,6 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    const origin=target.clone().addScaledVector(right,x*.18).addScaledVector(up,y*.14);
    room=Math.min(room,Math.max(.05,worldRay(origin,direction,desired+margin)-margin));
   }
-  const reset=cut!==player.teleportId||lastMode!==player.mode;
   boom=reset||room<boom?room:room+(boom-room)*Math.exp(-dt*8);
   cut=player.teleportId;lastMode=player.mode;
   camera.position.copy(target).addScaledVector(direction,boom);

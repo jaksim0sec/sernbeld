@@ -29,8 +29,8 @@ var PLAYER = {
   run: 5,
   jump: 7,
   gravity: 24,
-  step: 0.5,
-  // max rise per 0.5 m sub-step (~45 degree slope)
+  step: 0.48,
+  // maximum auto-step height in metres, independent of horizontal frame distance
   wade: 1.15
   // deepest water you can walk into
 };

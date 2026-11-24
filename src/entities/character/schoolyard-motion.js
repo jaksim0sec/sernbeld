@@ -51,7 +51,7 @@ export function sampleSchoolyardClip(name,time,weight=1){
 export function createSchoolyardMotion(actor){
  const rig=actor.data.bones,angles={},vel={},targets={};
  for(const b of rig){angles[b.id]=new Float32Array(b.axes.length);vel[b.id]=new Float32Array(b.axes.length);targets[b.id]=new Float32Array(b.axes.length);}
- let prevGround=true,landing=0,airAge=0,turnFlex=0,prevYaw=null,clock=0;
+ let prevGround=true,landing=0,airAge=0,turnFlex=0,prevYaw=null,clock=0,stepLift=0;
  let anim=null;
  const api={
   play(name){if(!SCHOOLYARD_CLIPS[name])return false;anim={name,time:0};return true;},
@@ -76,6 +76,7 @@ export function createSchoolyardMotion(actor){
    turnFlex+=(clamp(Math.abs(turn)*.16,0,1)-turnFlex)*(1-Math.exp(-12*dt));
    const crouch=grounded?(5+7*moving+11*turnFlex+12*landing):0;
    const stepping=Math.max(moving,first?0:turnFlex*.38);
+   stepLift=Math.max(stepLift*Math.exp(-dt*10),grounded?clamp((player.stepRise||0)*2.5,0,1):0);
    for(const id in targets)targets[id].fill(0);
    const put=(id,...a)=>{const b=targets[id];if(b)for(let i=0;i<b.length;i++)b[i]=a[i]??0;};
    // Schoolyard V3 pelvis/lumbar/thoracic split, asymmetrical stride,
@@ -105,8 +106,9 @@ export function createSchoolyardMotion(actor){
     }else{
      const hip=(27+10*run)*stepping*q+(side==='left'?1:-1)*2+crouch*.53;
      const knee=((40+22*run)*Math.max(push,0)+5)*stepping+crouch*.65;
-     put('thigh_'+side,hip,4);
-     put('shin_'+side,knee);
+     const lift=stepLift*Math.max(0,q);
+     put('thigh_'+side,hip+lift*16,4);
+     put('shin_'+side,knee+lift*22);
      // Shin rotates opposite the hip axis in the studio rig.
      put('foot_'+side,clamp(knee-hip,-35,30)*.65);
      put('upper_arm_'+side,-23*moving*q+6*turnFlex,6);

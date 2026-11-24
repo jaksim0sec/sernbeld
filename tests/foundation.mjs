@@ -61,3 +61,5 @@ assert.equal(restored.makeUnique('flower').id!==blade2.id,true,'serial never reu
 console.log('PASS: foundation events, registry and inventory');
 
 await import('./world-performance.mjs');
+
+await import('./player-physics.mjs');

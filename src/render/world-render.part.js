@@ -310,6 +310,11 @@ function makeSky() {
   return m;
 }
 function makeTerrainMaterial() {
+  const stairClip=STAIRS.map(s=>{
+    const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],L=Math.hypot(dx,dz);
+    const f=v=>Number(v).toFixed(6);
+    return `{vec2 q=p-vec2(${f(s.a[0])},${f(s.a[1])});float u=dot(q,vec2(${f(dx/L)},${f(dz/L)}));float v=dot(q,vec2(${f(s.n[0])},${f(s.n[1])}));if(u>.002&&u<${f(L-.002)}&&v>${f(STAIR_MIN_V+.002)}&&v<${f(STAIR_MAX_V-.002)})discard;}`;
+  }).join('\n');
   return makeLitMaterial({
     head: (
       /* glsl */
@@ -319,6 +324,7 @@ function makeTerrainMaterial() {
       /* glsl */
       `
       vec2 p=vWorld.xz; float slope=1.-N.y;
+      ${stairClip}
       float nL=texture2D(uNoise,p*0.00055).r;
       float nM=texture2D(uNoise,p*0.0042+.37).g;
       float nS=texture2D(uNoise,p*0.031+.71).b;
@@ -631,7 +637,7 @@ function makeOcean() {
   m.position.y = CFG.seaLevel;
   m.frustumCulled = false;
   m.renderOrder = 1;
-  m.userData.follow = true;
+  m.userData.follow = false;
   return m;
 }
 function makeRivers() {
@@ -847,6 +853,71 @@ function groundAt(x, z, feetY) {
   }
   return g;
 }
+// Player contacts use the rendered stair treads, not the NPC navigation ramp.
+// The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
+function playerTerrain(x,z) {
+  const tread=stairSurface(x,z,0,true);
+  if(tread!==null)return tread;
+  const gx=(x+HALF)/CFG.cell,gz=(z+HALF)/CFG.cell;
+  if(gx<0||gz<0||gx>=GRID_N-1||gz>=GRID_N-1)return sample(x,z);
+  const i=Math.floor(gx),j=Math.floor(gz),u=gx-i,v=gz-j,k=j*GRID_N+i,H=World.H;
+  const a=H[k],b=H[k+1],c=H[k+GRID_N],d=H[k+GRID_N+1];
+  return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
+}
+var CONTACT_SKIN=.002;
+// Circular horizontal cross-section of a standing capsule/cylinder. Positive
+// penetration means overlap; normals always point out of the obstacle.
+function playerContact(o,x,z,radius) {
+  if(o.type==="cyl"){
+    const dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz),depth=o.r+radius-d;
+    return depth>CONTACT_SKIN?{nx:d>1e-8?dx/d:1,nz:d>1e-8?dz/d:0,depth}:null;
+  }
+  const [lx,lz]=local(o,x,z),qx=clamp2(lx,-o.hx,o.hx),qz=clamp2(lz,-o.hz,o.hz);
+  let dx=lx-qx,dz=lz-qz,d=Math.hypot(dx,dz),depth=radius-d;
+  if(d>1e-8){if(depth<=CONTACT_SKIN)return null;dx/=d;dz/=d;}
+  else{
+    const a=o.hx-Math.abs(lx),b=o.hz-Math.abs(lz);
+    if(a<b){dx=Math.sign(lx||1);dz=0;depth=radius+a;}
+    else{dx=0;dz=Math.sign(lz||1);depth=radius+b;}
+  }
+  return {nx:dx*o.cos+dz*o.sin,nz:-dx*o.sin+dz*o.cos,depth};
+}
+function playerFloor(x,z,maxY,radius=PLAYER.radius) {
+  let h=playerTerrain(x,z);
+  if(h>maxY+CONTACT_SKIN)h=-Infinity;
+  for(const o of query(x,z,radius)){
+    // A solid top is a support, including low decorative blocks that were
+    // previously marked non-walkable. NPCs are never registered as supports.
+    if(o.top>maxY+CONTACT_SKIN||o.top<=h)continue;
+    if(radius===0?inside(o,x,z,0):playerContact(o,x,z,radius))h=o.top;
+  }
+  return h;
+}
+function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius) {
+  const contacts=[];
+  for(const o of query(x,z,radius)){
+    if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
+    const c=playerContact(o,x,z,radius);if(c)contacts.push(c);
+  }
+  for(const o of nearby){
+    if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
+    const c=playerContact(o,x,z,radius);if(c)contacts.push(c);
+  }
+  return contacts;
+}
+function playerCeiling(x,z,y,targetY) {
+  let top=targetY;
+  for(const o of query(x,z,PLAYER.radius)){
+    if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
+    top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
+  }
+  return Math.max(y,top);
+}
+function playerFootSurface(x,z,feetY) {
+  const h=playerFloor(x,z,feetY+PLAYER.step,0);
+  return Number.isFinite(h)?h:null;
+}
+
 function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
   for (const o of query(x, z, radius + 1)) {
     if (o.top <= feetY + 0.025 || o.bot >= feetY + height - 0.025) continue;
