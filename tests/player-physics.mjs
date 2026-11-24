@@ -81,3 +81,49 @@ console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentat
   assert(bases.every(b=>registered(b,true)),'A lookout base lacks solid support');
   console.log('PASS: Kael planter, balcony, railing and lookout geometry has matching colliders');
 }
+
+{
+  // All authored Kael flights, including perpendicular side alleys and landings.
+  const tr=read('src/world/terrain-runtime.part.js');
+  const {STAIRS,v0,v1}=new Function(part(tr,'var S =','var P =')+
+    part(tr,'var WALL =','var S =')+
+    part(tr,'var STAIR_V =','function stairSurface')+
+    'return {STAIRS,v0:STAIR_MIN_V,v1:STAIR_MAX_V};')();
+  const palette=new Proxy({},{get:()=>0});
+  let faces=0,rails=0;
+  const eq=(a,b)=>Math.abs(a-b)<1e-6;
+  for(const s of STAIRS){
+    clear();
+    const [nx,nz]=s.n,L=Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1]);
+    const ux=(s.b[0]-s.a[0])/L,uz=(s.b[1]-s.a[1])/L;
+    const uv=p=>[(p[0]-s.a[0])*ux+(p[2]-s.a[1])*uz,(p[0]-s.a[0])*nx+(p[2]-s.a[1])*nz];
+    const point=(u,v)=>[s.a[0]+ux*u+nx*v,s.a[1]+uz*u+nz*v];
+    const quads=[],boxes=[];
+    new Function('STAIRS','STAIR_MIN_V','STAIR_MAX_V','groundNoStair','C','PAT','addBox','G',
+      part(game,'var box2 =','var off2 =')+
+      part(game,'function buildStairs(','var ROOFS =')+'buildStairs(G);'
+    )([s],v0,v1,()=>s.y0-8,palette,palette,addBox,{quad(...a){quads.push(a.slice(0,4));},box(...a){boxes.push(a);}});
+    const fascia=quads.filter(q=>q.every(p=>eq(uv(p)[1],v1))&&!eq(q[0][1],q[1][1])&&eq(q[1][1],q[2][1]));
+    assert.equal(fascia.length,Math.max(1,Math.ceil(Math.abs(s.y1-s.y0)/.3)));
+    for(const q of fascia){
+      const lo=q[0][1],hi=q[1][1],u=(uv(q[0])[0]+uv(q[3])[0])/2;
+      const [x,z]=point(u,v1-.02);
+      assert(all.some(o=>eq(o.cx,x)&&eq(o.cz,z)&&eq(o.bot,lo)&&eq(o.top,hi)&&eq(o.hx,Math.abs(uv(q[3])[0]-uv(q[0])[0])/2)&&eq(o.hz,.02)&&!o.walk),'Rendered stair side missing exact solid');
+      faces++;
+    }
+    for(const [x,y,z,w,h,d,yaw] of boxes){
+      assert(all.some(o=>eq(o.cx,x)&&eq(o.cz,z)&&eq(o.bot,y)&&eq(o.top,y+h)&&eq(o.hx,w/2)&&eq(o.hz,d/2)&&eq(o.yaw,yaw)&&!o.walk),'Rendered stair box differs from solid');
+      if(eq(d,.45))rails++;
+    }
+    const q=fascia[Math.floor(fascia.length/2)],u=(uv(q[0])[0]+uv(q[3])[0])/2;
+    const y=q[1][1]-.8,[x,z]=point(u,v1+1);
+    terrain=()=>y;p=player(x,z,y);
+    assert(env.maktwoWorldRay({x,y:y+.2,z},{x:-nx,y:0,z:-nz},2)<1.02,'Camera ray passed through stair side');
+    for(let k=0;k<60;k++){
+      tick(p,input(-nx,nz),1,k%3===0?1/30:1/60);
+      assert(uv([p.pos.x,p.pos.y,p.pos.z])[1]>=v1+PLAYER.radius-.004,'Player crossed the visible stair side');
+    }
+  }
+  assert(STAIRS.length>=13&&faces>500&&rails>100);
+  console.log('PASS: '+STAIRS.length+' Kael flights/landings, '+faces+' fascia faces, '+rails+' parapets; side approach and camera ray');
+}

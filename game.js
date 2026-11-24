@@ -47387,6 +47387,11 @@ function buildStairs(G) {
       }
       const underside = Math.max(base, top - 1.15);
       G.quad(P2(u0, underside, v1), P2(u0, top, v1), P2(u1, top, v1), P2(u1, underside, v1), C.stoneL, PAT.stone);
+      // Match the rendered stone fascia, without extending into the lane.
+      if (top > underside) {
+        const thickness = 0.04, center = P2((u0 + u1) / 2, (top + underside) / 2, v1 - thickness / 2);
+        addBox({ cx: center[0], cy: center[1], cz: center[2], hx: du / 2, hy: (top - underside) / 2, hz: thickness / 2, yaw, walk: false });
+      }
       if (k % Math.max(5, Math.ceil(steps / 7)) === 0 && top - base > 3) {
         const supp = P2(u0 + du * 0.5, 0, v1 - 0.25);
         box2(G, supp[0], base, supp[2], 1.55, top - base - 0.2, 1.5, yaw, C.stoneL, PAT.stone);
@@ -47398,10 +47403,10 @@ function buildStairs(G) {
     const vb = STAIR_MAX_V + 0.12, n = Math.max(1, Math.ceil(L / 3));
     for (let k = 0; k < n; k++) {
       const u0 = k * L / n, u1 = (k + 1) * L / n, um = (u0 + u1) / 2;
-      const cx = s.a[0] + ux * um + nx * vb, cz = s.a[1] + uz * um + nz * vb, y = s.y0 + rise * um / L;
+      const cx = s.a[0] + ux * um + nx * vb, cz = s.a[1] + uz * um + nz * vb;
       const y0 = Math.min(s.y0 + rise * u0 / L, s.y0 + rise * u1 / L);
-      G.box(cx, y0 - 0.2, cz, L / n + 0.05, Math.abs(rise) / n + 1.1, 0.45, yaw, C.cap, PAT.stone, { topCol: C.cap });
-      addBox({ cx, cy: y + 0.2, cz, hx: L / n / 2, hy: 1.4, hz: 0.25, yaw, walk: false });
+      // Register the exact rendered parapet, including its segment overlap.
+      box2(G, cx, y0 - 0.2, cz, L / n + 0.05, Math.abs(rise) / n + 1.1, 0.45, yaw, C.cap, PAT.stone, false, true, { topCol: C.cap });
     }
   }
 }
