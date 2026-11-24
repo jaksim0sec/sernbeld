@@ -154,7 +154,7 @@ function smoothField(position,metric,index,field,locked,boneCount,passes,gradien
   const a=u*3,b=v*3,l=Math.hypot(centers[a]-centers[b],centers[a+1]-centers[b+1],centers[a+2]-centers[b+2]);
   eu.push(u);ev.push(v);limits.push(Math.min(2,gradientLimit*Math.max(l,.00001)));
  }
- for(let pass=0;pass<24;pass++){
+ for(let pass=0;pass<48;pass++){
   let maxViolation=0;
   for(let i=0;i<eu.length;i++){
    const e=pass%2?eu.length-1-i:i,u=eu[e],v=ev[e],a=u*boneCount,b=v*boneCount;
@@ -173,17 +173,17 @@ function smoothField(position,metric,index,field,locked,boneCount,passes,gradien
  }
  return ids;
 }
-function normalizedTop4(field,offset,boneCount,indices,weights,k){
+function normalizedInfluences(field,offset,boneCount,indices,weights,k,slots){
  let sum=0;
- const best=[-1,-1,-1,-1],value=[0,0,0,0];
+ const best=new Int16Array(slots).fill(-1),value=new Float32Array(slots);
  for(let b=0;b<boneCount;b++){
-  const w=field[offset+b];if(w<=value[3])continue;
-  let j=3;while(j>0&&w>value[j-1]){value[j]=value[j-1];best[j]=best[j-1];j--;}
+  const w=field[offset+b];if(w<=value[slots-1])continue;
+  let j=slots-1;while(j>0&&w>value[j-1]){value[j]=value[j-1];best[j]=best[j-1];j--;}
   value[j]=w;best[j]=b;
  }
  for(const w of value)sum+=w;
  if(!(sum>1e-8))throw Error('Garment vertex has no bone influence');
- for(let j=0;j<4;j++){indices[k+j]=Math.max(0,best[j]);weights[k+j]=value[j]/sum;}
+ for(let j=0;j<slots;j++){indices[k+j]=Math.max(0,best[j]);weights[k+j]=value[j]/sum;}
 }
 function coverageMask(rest,asset,posed,posedN,skin,accept){
  const n=posed.length/3,covered=new Uint8Array(n);
@@ -242,17 +242,23 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
  const compact=new Float32Array(count*active.length);
  for(let i=0;i<count;i++)for(let b=0;b<active.length;b++)compact[i*active.length+b]=field[i*boneCount+active[b]];
  const welded=smoothField(asset.position,rest,asset.index,compact,locked,active.length,policy.smoothing??8,policy.gradientLimit??24);
- const actual=new Uint8Array(count*4),skinWeight=new Float32Array(count*4);
+ // Use eight channels only if requested and actually needed. Keeping all
+ // local influences avoids discontinuities when the fourth-ranked bone changes.
+ const slots=policy.maxInfluences===8&&active.length>4?8:4;
+ const actual=new Uint8Array(count*slots),skinWeight=new Float32Array(count*slots);
  for(let i=0;i<count;i++){
-  normalizedTop4(compact,i*active.length,active.length,actual,skinWeight,i*4);
-  for(let j=0;j<4;j++)actual[i*4+j]=active[actual[i*4+j]];
+  normalizedInfluences(compact,i*active.length,active.length,actual,skinWeight,i*slots,slots);
+  for(let j=0;j<slots;j++)actual[i*slots+j]=active[actual[i*slots+j]];
  }
  const boneIds=[...new Set(actual.filter((_,i)=>skinWeight[i]>0))].sort((a,b)=>a-b),palette=new Map(boneIds.map((id,i)=>[id,i]));
  const joints=Uint8Array.from(actual,(id,i)=>skinWeight[i]>0?palette.get(id):0);
+ const pack=(src,offset,Type)=>{const dst=new Type(count*4);for(let i=0;i<count;i++)dst.set(src.subarray(i*slots+offset,i*slots+offset+4),i*4);return dst;};
+ const attributes=[['aJoint',pack(joints,0,Uint8Array),4,false],['aWeight',pack(skinWeight,0,Float32Array),4,false]];
+ if(slots===8)attributes.push(['aJointExtra',pack(joints,4,Uint8Array),4,false],['aWeightExtra',pack(skinWeight,4,Float32Array),4,false]);
  // Keep reference-space positions intact. Runtime dual-quaternion blending
  // avoids inverse blended LBS matrices and preserves rigid cuffs under twist.
  const g=new T.BufferGeometry();
- for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],['aJoint',joints,4,false],['aWeight',skinWeight,4,false],...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
+ for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],...attributes,...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
  g.setIndex(new T.BufferAttribute(asset.index,1));g.computeBoundingBox();g.computeBoundingSphere();
  const parts=new Map(),masks=new Map(),firstMasks=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
@@ -265,7 +271,7 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset)));
  }
  const coveredCount=[...masks.values()].reduce((sum,mask)=>sum+mask.reduce((n,v)=>n+(v?1:0),0),0);
- return {geometry:g,parts,masks,firstMasks,rest,actual,skinWeight,boneIds,ref,welded,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,boneCount:boneIds.length,rigidVertices:locked.reduce((a,b)=>a+b,0)}};
+ return {geometry:g,parts,masks,firstMasks,rest,actual,skinWeight,joints,slots,boneIds,ref,welded,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,boneCount:boneIds.length,rigidVertices:locked.reduce((a,b)=>a+b,0)}};
 }
 const pools=new WeakMap();
 // Cache by asset, policy, constructor surface, body and reference frame.

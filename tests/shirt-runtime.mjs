@@ -75,7 +75,7 @@ for(const sex of ['male','female']){
  const shoulderEdges=edgeList(g.index.array,rest,(a,b)=>shoulder(a)||shoulder(b));
  const allEdges=edgeList(asset.index,rest);
  for(let i=0;i<n;i++){
-  const k=i*4,w=bind.skinWeight.subarray(k,k+4);assert(Math.abs(w.reduce((a,b)=>a+b,0)-1)<1e-6);
+  const k=i*bind.slots,w=bind.skinWeight.subarray(k,k+bind.slots);assert(Math.abs(w.reduce((a,b)=>a+b,0)-1)<1e-6);
   if(cuff(i,0)||cuff(i,1)){
    const side=cuff(i,0)?'right':'left';
    assert.equal(actor.bones[bind.actual[k]].name,'forearm_'+side);assert(w[0]>.99999,'cuff not rigid');

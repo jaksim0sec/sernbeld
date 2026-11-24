@@ -1,17 +1,17 @@
 // Reference-space dual-quaternion skinning driven by the final game bones.
-export function garmentSkinningGLSL(count){
- if(!Number.isInteger(count)||count<1||count>64)throw Error('Invalid garment bone palette');
+export function garmentSkinningGLSL(count,slots=4){
+ if(!Number.isInteger(count)||count<1||count>64||![4,8].includes(slots))throw Error('Invalid garment bone palette');
  return `
 attribute vec4 aJoint,aWeight;
+${slots===8?'attribute vec4 aJointExtra,aWeightExtra;':''}
 uniform vec4 uGarmentReal[${count}],uGarmentDual[${count}];
 vec4 garmentMul(vec4 a,vec4 b){return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz));}
 vec3 garmentRotate(vec4 q,vec3 p){return p+2.*cross(q.xyz,cross(q.xyz,p)+q.w*p);}
+vec4 blendReal(vec4 j,vec4 w){return uGarmentReal[int(j.x)]*w.x+uGarmentReal[int(j.y)]*w.y+uGarmentReal[int(j.z)]*w.z+uGarmentReal[int(j.w)]*w.w;}
+vec4 blendDual(vec4 j,vec4 w){return uGarmentDual[int(j.x)]*w.x+uGarmentDual[int(j.y)]*w.y+uGarmentDual[int(j.z)]*w.z+uGarmentDual[int(j.w)]*w.w;}
 void garmentPose(out vec3 p,out vec3 n){
- vec4 a=uGarmentReal[int(aJoint.x)],b=uGarmentReal[int(aJoint.y)],c=uGarmentReal[int(aJoint.z)],d=uGarmentReal[int(aJoint.w)];
- vec4 A=uGarmentDual[int(aJoint.x)],B=uGarmentDual[int(aJoint.y)],C=uGarmentDual[int(aJoint.z)],D=uGarmentDual[int(aJoint.w)];
- vec3 s=vec3(dot(a,b)<0.?-1.:1.,dot(a,c)<0.?-1.:1.,dot(a,d)<0.?-1.:1.);
- vec4 q=a*aWeight.x+b*(aWeight.y*s.x)+c*(aWeight.z*s.y)+d*(aWeight.w*s.z);
- vec4 dual=A*aWeight.x+B*(aWeight.y*s.x)+C*(aWeight.z*s.y)+D*(aWeight.w*s.z);
+ vec4 q=blendReal(aJoint,aWeight),dual=blendDual(aJoint,aWeight);
+ ${slots===8?'if(aWeightExtra.x>0.){q+=blendReal(aJointExtra,aWeightExtra);dual+=blendDual(aJointExtra,aWeightExtra);}':''}
  float len=max(length(q),1.e-6);q/=len;dual/=len;dual-=q*dot(q,dual);
  p=garmentRotate(q,position)+2.*garmentMul(dual,vec4(-q.xyz,q.w)).xyz;
  n=garmentRotate(q,normal);
@@ -23,8 +23,12 @@ export function acquireGarmentPose(T,actor,binding){
  let map=states.get(actor);if(!map)states.set(actor,map=new Map());
  let state=map.get(binding);
  if(!state){
-  const {boneIds,ref}=binding,real=boneIds.map(()=>new T.Vector4(0,0,0,1)),dual=boneIds.map(()=>new T.Vector4(0,0,0,0));
-  const m=new T.Matrix4(),inverse=new T.Matrix4(),p=new T.Vector3(),q=new T.Quaternion(),scale=new T.Vector3(),r=new T.Quaternion(),d=new T.Quaternion(),conj=new T.Quaternion(),anchor=new T.Vector4(),tmp=new T.Vector3();
+  const {boneIds,ref,slots}=binding,real=boneIds.map(()=>new T.Vector4(0,0,0,1)),dual=boneIds.map(()=>new T.Vector4(0,0,0,0));
+  const palette=new Map(boneIds.map((id,i)=>[actor.bones[id],i]));
+  const parents=boneIds.map(id=>{let p=actor.bones[id].parent;while(p?.isBone){if(palette.has(p))return palette.get(p);p=p.parent;}return -1;});
+  const depth=i=>parents[i]<0?0:1+depth(parents[i]);
+  const signOrder=boneIds.map((_,i)=>i).sort((a,b)=>depth(a)-depth(b));
+  const m=new T.Matrix4(),inverse=new T.Matrix4(),p=new T.Vector3(),q=new T.Quaternion(),scale=new T.Vector3(),r=new T.Quaternion(),d=new T.Quaternion(),conj=new T.Quaternion(),tmp=new T.Vector3();
   const uniforms={uGarmentReal:{value:real},uGarmentDual:{value:dual}};
   function update(){
    // The world matrices are final (including IK). Cancel the actor's world
@@ -36,14 +40,20 @@ export function acquireGarmentPose(T,actor,binding){
     real[i].set(q.x,q.y,q.z,q.w);
     dual[i].set(.5*(p.x*q.w+p.y*q.z-p.z*q.y),.5*(-p.x*q.z+p.y*q.w+p.z*q.x),.5*(p.x*q.y-p.y*q.x+p.z*q.w),-.5*(p.x*q.x+p.y*q.y+p.z*q.z));
    }
+   // Quaternion signs are chosen once along the bone hierarchy. Per-vertex
+   // dominant-bone sign choices can flip discontinuously between neighbors.
+   for(const i of signOrder){
+    const parent=parents[i],negative=parent<0?real[i].w<0:real[i].dot(real[parent])<0;
+    if(negative){real[i].multiplyScalar(-1);dual[i].multiplyScalar(-1);}
+   }
   }
   // CPU counterpart of the exact shader, for objective deformation tests.
   // Caller updates matrices and pose once before sampling a frame.
   function deformVertex(i,out=new T.Vector3()){
-   const j=i*4,ids=binding.geometry.attributes.aJoint.array,w=binding.skinWeight;
-   anchor.copy(real[ids[j]]);let rx=0,ry=0,rz=0,rw=0,dx=0,dy=0,dz=0,dw=0;
-   for(let k=0;k<4;k++){
-    const id=ids[j+k],a=real[id],b=dual[id],weight=w[j+k]*(anchor.dot(a)<0?-1:1);
+   const j=i*slots,ids=binding.joints,w=binding.skinWeight;
+   let rx=0,ry=0,rz=0,rw=0,dx=0,dy=0,dz=0,dw=0;
+   for(let k=0;k<slots;k++){
+    const id=ids[j+k],a=real[id],b=dual[id],weight=w[j+k];
     rx+=a.x*weight;ry+=a.y*weight;rz+=a.z*weight;rw+=a.w*weight;
     dx+=b.x*weight;dy+=b.y*weight;dz+=b.z*weight;dw+=b.w*weight;
    }
@@ -65,7 +75,7 @@ export function createGarmentPart(T,actor,lease,id,materialFactory){
  const pose=acquireGarmentPose(T,actor,shared);
  let material,object;
  try{
-  material=materialFactory(pose.uniforms,garmentSkinningGLSL(shared.boneIds.length));
+  material=materialFactory(pose.uniforms,garmentSkinningGLSL(shared.boneIds.length,shared.slots));
   object=new T.Mesh(geometry,material);
   object.scale.setScalar(1/actor.units);object.position.y=actor.mesh.geometry.boundingBox.min.y;
   object.frustumCulled=false;object.castShadow=false;object.receiveShadow=false;
