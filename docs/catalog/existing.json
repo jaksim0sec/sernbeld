@@ -1,0 +1,87 @@
+[
+  {
+    "id": "top.basic-shirt",
+    "kind": "garment",
+    "title": "기본 긴소매 셔츠",
+    "stage": "INTEGRATED",
+    "source": [
+      "assets/models/clothing/shirt-v1/manifest.json",
+      "assets/models/clothing/shirt-v1/README.md"
+    ],
+    "runtime": "src/entities/character/clothing/shirt.js",
+    "approval": "승인 원본 외형만; 현재 게임 변형 승인 아님",
+    "slot": "top",
+    "rig": "studio-v1",
+    "bodies": [
+      "male",
+      "female"
+    ],
+    "checks": [
+      {
+        "criterion": "장착/기본 관절",
+        "result": "PASS",
+        "evidence": "tests/shirt-runtime.mjs; 0eedd8b CI"
+      },
+      {
+        "criterion": "피부 간격/극단 포즈",
+        "result": "PARTIAL",
+        "evidence": "docs/knowledge/INDEX.md"
+      }
+    ]
+  },
+  {
+    "id": "pants.basic-trousers",
+    "kind": "garment",
+    "title": "기본 바지",
+    "stage": "INTEGRATED",
+    "source": [
+      "assets/models/clothing/pants-v1/manifest.json"
+    ],
+    "runtime": "src/entities/character/clothing/pants.js",
+    "approval": "게임 연결; 최종 실기기 외형 별도",
+    "slot": "pants",
+    "rig": "studio-v1",
+    "bodies": [
+      "male",
+      "female"
+    ],
+    "checks": [
+      {
+        "criterion": "장착/기본 관절",
+        "result": "PASS",
+        "evidence": "tests/pants-runtime.mjs; 0eedd8b CI"
+      },
+      {
+        "criterion": "실기기 및 전체 레이어 조합",
+        "result": "NOT RUN",
+        "evidence": "개별 재검증 필요"
+      }
+    ]
+  },
+  {
+    "id": "world.kael-cutstone",
+    "kind": "asset",
+    "title": "카엘 석재 구조물",
+    "stage": "INTEGRATED",
+    "source": [
+      "assets/kael-cutstone-v7.glb.gz"
+    ],
+    "runtime": "src/gameplay/gameplay.part.js",
+    "approval": "현재 게임의 기준 참조; 신규 아트 승인 아님",
+    "collision": "mixed",
+    "units": "m; 기존 런타임 변환 참조",
+    "pivot": "기존 createCutstoneBridge 변환",
+    "checks": [
+      {
+        "criterion": "카엘 실월드 이동",
+        "result": "PASS",
+        "evidence": "tests/world-playability.mjs; 0eedd8b CI"
+      },
+      {
+        "criterion": "실기기 전체 시각 품질",
+        "result": "NOT RUN",
+        "evidence": "실기기 별도"
+      }
+    ]
+  }
+]

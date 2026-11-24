@@ -15,10 +15,13 @@ assert.match(listing.stdout, /browser.*dev-studio\.mjs/m);
 assert.equal(run('tools/verify.mjs', 'typo').status, 2);
 
 const garments = run('tools/check-garment.mjs', '--module', 'tools/dev/sample-garments.js',
-  'hat.preview-cap', 'hat.preview-crown');
+  'hat.preview-cap', 'hat.preview-crown', 'top.preview-long-sleeves', 'top.preview-short-sleeves');
 assert.equal(garments.status, 0, garments.stderr);
 assert.match(garments.stdout, /male hat\.preview-cap/);
 assert.match(garments.stdout, /female hat\.preview-crown/);
+assert.match(garments.stdout, /male top\.preview-long-sleeves/);
+assert.match(garments.stdout, /female top\.preview-short-sleeves/);
+assert.match(garments.stdout, /POSE METRICS female top\.preview-long-sleeves 0 bend/);
 assert.notEqual(run('tools/check-garment.mjs', 'absent-garment').status, 0);
 const temp = mkdtempSync(join(tmpdir(), 'sernbeld-garment-'));
 try {
@@ -43,4 +46,4 @@ try {
 } finally {
   rmSync(temp, {recursive:true, force:true});
 }
-console.log('PASS named validation groups two independent garments on both runtime bodies, and GLB extraction');
+console.log('PASS named validation groups rigid and deformable reference-derived fixtures on both runtime bodies, and GLB extraction');

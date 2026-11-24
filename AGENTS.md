@@ -18,3 +18,5 @@
 - 요구사항별로 결과와 보존 기준을 먼저 정한다. 공용 도구와 [승인 선례](docs/references/INDEX.md)를 재사용하고, 실패 시 [재현과 판단 근거](docs/knowledge/INDEX.md)를 확인한다.
 - 통합 전에 최신 main을 다시 확인하고, 다른 작업과 겹친 경로·계약을 비교한다. 생성물과 소스는 한 변경으로 검증한다. 검증 결과와 사용자 승인 범위는 각각 기록한다.
 - 작업 종료 시 변경된 계약, 확인한 실패 원인, 승인 선례와 현재 상태 중 해당하는 기준 문서만 갱신한다. 갱신 대상은 [지식 관리](docs/knowledge/INDEX.md)에 있다.
+
+- M 이상 신규 콘텐츠의 메타데이터를 [산출물 계약](docs/contracts/DELIVERABLES.md)의 카탈로그에 남긴다. 장기·병렬 작업은 시작할 때 구조화 작업 기록을 추가하고 `node tools/check-infra.mjs`로 범위 중복과 링크를 검사한다. [인프라 명세](docs/core/INFRASTRUCTURE_SPEC.md)는 인프라 자체를 개편할 때 읽는다.

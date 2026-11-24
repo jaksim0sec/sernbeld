@@ -106,3 +106,5 @@ for(const sex of ['male','female']){
 }
 assert.deepEqual(errors,[],'Distal sleeve fails to follow actual forearm frame');
 console.log('PASS distal sleeves follow actual final arm transform');
+
+console.warn('PARTIAL garment clearance: diagnostic only; complete skin fit is not asserted');

@@ -21,3 +21,7 @@ node tools/verify.mjs all
 통합 직전에 최신 `origin/main`과 겹치는 경로·공통 계약을 비교하고, 최신 변경이 들어간 최종 트리를 검증한다. 빠진 권한 또는 WebGL 환경 제약과 미검증 범위를 결과에 적는다.
 
 Pages 배포는 GitHub 저장소의 Settings → Pages → Source가 **GitHub Actions**일 때 [main 검증·배포](../../.github/workflows/main-validation.yml)에서 자동으로 이뤄진다. 배포 Job은 데이터·기능·브라우저 검증을 통과한 실행의 아티팩트만 받는다. 브랜치 직접 게시가 설정된 저장소는 그 게시 소스를 전환하기 전까지 여전히 별도 경로로 배포된다. 실제 배포 성공은 Actions와 공개 URL에서 SHA 기준으로 확인한다.
+
+## 부분 검증과 인프라 검사
+
+`node tools/verify.mjs build`에는 카탈로그·작업 기록·문서 링크 검사와 그 부정 사례 테스트가 포함된다. 실행기는 종료 코드와 명시적인 PARTIAL/NOT RUN/STRESS TARGET NOT MET 진단을 구분한다. 기존 여성 극단 포즈, 지도 드래그 후 터치, 피부 간격 진단만 명시적 유예로 두고 새 부분 검증은 기본적으로 차단한다. `node tools/verify.mjs --strict all`은 유예도 차단한다. 일반 CI 성공을 유예된 품질의 통과로 표현하지 않는다. 로그 기반 분류이며 무진단 테스트의 검증 범위는 여전히 요구별 기록으로 관리한다.

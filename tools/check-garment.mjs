@@ -9,6 +9,7 @@ import {getClothing} from '../src/entities/character/clothing/registry.js';
 import {loadDefaultShirts} from '../src/entities/character/clothing/shirt-source.js';
 import {loadDefaultPants} from '../src/entities/character/clothing/pants-source.js';
 import {poseActor, poses} from './dev/poses.js';
+import {edgeMetrics} from './infra-contract.mjs';
 
 const args = process.argv.slice(2);
 if (args[0] === '--module') {
@@ -35,7 +36,8 @@ const factory = createStudioGeometry(source);
 for (const body of ['male','female']) {
   const actor = createStudioModel(T, factory, normalizeStudioCharacter({body}));
   try {
-    for (const {id,slot} of entries) {
+    for (const {id,slot,validation} of entries) {
+      const reference=new Map();
       const prior = actor.clothing.getEquipped(slot);
       const object = actor.clothing.equip(id);
       assert.equal(actor.clothing.getEquipped(slot), id);
@@ -59,9 +61,11 @@ for (const body of ['male','female']) {
               assert(levels, 'Garment geometry is outside the registered LOD levels');
               assert.equal(mesh.geometry, levels[Math.min(levels.length - 1, level)], 'Wrong garment LOD');
               mesh.userData.updateGarmentPose();
-              for (const i of [0, Math.floor(pos.count / 2), pos.count - 1]) {
-                assert(mesh.userData.deformGarmentVertex(i).toArray().every(Number.isFinite), 'Invalid posed vertex');
-              }
+              const used=new Set(mesh.geometry.index?.array??Array.from({length:pos.count},(_,i)=>i));
+              const points=new Float64Array(pos.count*3);
+              for(const i of used) {const p=mesh.userData.deformGarmentVertex(i);assert(p.toArray().every(Number.isFinite),'Invalid posed vertex');p.toArray(points,i*3);}
+              if(validation?.minBones){const active=new Set();for(const i of used)for(let k=0;k<binding.slots;k++){const j=i*binding.slots+k;if(binding.skinWeight[j]>.01)active.add(binding.actual[j]);}assert(active.size>=validation.minBones,'Insufficient deformation bone coverage');}
+              if(mesh.geometry.index){const key=mesh.uuid+':'+level;if(pose==='attention')reference.set(key,points);else{const baseline=reference.get(key);assert(baseline,'Missing reference pose');const metrics=edgeMetrics(baseline,points,mesh.geometry.index.array);console.log('POSE METRICS',body,id,level,pose,JSON.stringify(metrics));if(validation?.maxP95!==undefined)assert(metrics.p95<=validation.maxP95,'Excessive garment edge strain');if(validation?.maxExtension!==undefined)assert(metrics.maxExtension<=validation.maxExtension,'Excessive garment edge extension');}}
             }
           });
           assert(meshes > 0, 'No garment meshes');

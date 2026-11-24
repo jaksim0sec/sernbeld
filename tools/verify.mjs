@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {classifyCheck} from './infra-contract.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const groups = {
   build: [['tools/build-game.mjs','--check'], ['--check','game.js'],
-    ['tools/optimize-characters.mjs','--check'], ['tools/bake-garments.mjs','--check']],
+    ['tools/optimize-characters.mjs','--check'], ['tools/bake-garments.mjs','--check'],
+    ['tests/infra-contract.mjs'], ['tools/check-infra.mjs']],
   core: ['foundation', 'durable-items', 'region-lifecycle', 'wildlife-removal',
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
     'startup-runtime', 'pwa-startup'].map(name => ['tests/' + name + '.mjs']),
@@ -22,7 +24,8 @@ const groups = {
   ]
 };
 
-const args = process.argv.slice(2);
+const strict = process.argv.includes('--strict');
+const args = process.argv.slice(2).filter(a=>a!=='--strict');
 if (args.length === 1 && args[0] === '--list') {
   for (const [group, commands] of Object.entries(groups)) {
     console.log(group + ': ' + commands.map(command => command.join(' ')).join(', '));
@@ -33,18 +36,24 @@ if (args.length === 1 && args[0] === '--list') {
     console.error('Usage: node tools/verify.mjs [all|--list|' + Object.keys(groups).join('|') + ']');
     process.exit(2);
   }
-  const failures = [];
+  const failures = [], partial = [];
+  let passed = 0;
   let count = 0;
   for (const group of selected) {
     for (const command of groups[group]) {
       const label = command.join(' ');
       console.log('\n[' + group + '] ' + label);
-      const result = spawnSync(process.execPath, command, {cwd, stdio:'inherit'});
-      if (result.status !== 0) failures.push(label + ' (' + (result.error?.message ?? result.signal ?? result.status) + ')');
+      const result = spawnSync(process.execPath, command, {cwd, encoding:'utf8', maxBuffer:64*1024*1024});
+      process.stdout.write(result.stdout??''); process.stderr.write(result.stderr??'');
+      const outcome=classifyCheck(label,result.status,(result.stdout??'')+'\n'+(result.stderr??''));
+      if(outcome.result==='PASS')passed++;
+      if(outcome.result==='PARTIAL')partial.push(label+' — '+outcome.diagnostics.join(' | '));
+      if(outcome.blocking || (strict && outcome.result==='PARTIAL')) failures.push(label+' ('+(result.error?.message??result.signal??outcome.result)+')');
       count++;
     }
   }
-  console.log('\n' + (count - failures.length) + '/' + count + ' checks passed');
+  console.log('\n'+passed+'/'+count+' PASS; '+partial.length+' PARTIAL; '+failures.length+' blocking');
+  for(const line of partial)console.warn('PARTIAL '+line);
   if (failures.length) {
     console.error('Failed:\n' + failures.join('\n'));
     process.exitCode = 1;

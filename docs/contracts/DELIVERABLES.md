@@ -17,3 +17,7 @@
 ## 저장 호환
 
 게임 저장 키 `sernbeld.save.v1`과 데이터 버전의 실제 읽기·정규화는 `Save` 정의를 확인한다. 기존 스택과 개별 고유 아이템, 지역 기본값 대비 변경분, 사용자 기술 스키마는 각 코어 모듈이 관리한다. 기존 저장 로드, 새 저장 작성, 재로드, 모르는 필드/버전 처리를 변경 전후에 검증한다. 지역의 표시·갱신과 저장된 상태의 수명은 별도로 확인한다.
+
+## 기계 검사 가능한 산출물 카탈로그
+
+`docs/catalog/*.json`은 배열 단위로 저장한다. 기존 런타임 레지스트리를 대체하지 않고, 새 콘텐츠의 영속 ID·현재 단계·원본/런타임 경로·승인 범위·검증 근거를 연결한다. 기존 사례는 [existing.json](../catalog/existing.json) 참고. `id`, `kind`, `title`, `stage`, `source`, `approval`, `checks`가 공통 필드다. REGISTERED/INTEGRATED에는 실제 `runtime` 경로, asset/building에는 `collision`(decorative/walkable/blocking/mixed), `units`, `pivot`, garment에는 `slot`, `rig`, `bodies`가 필요하다. `checks`는 criterion/result/evidence를 사용하며 미검증을 숨기지 않는다. `node tools/check-infra.mjs`로 배치 내외 중복 ID·경로·필수 필드를 검사한다. 이것은 등록 메타데이터 검사이며 실제 런타임 사용을 보증하지 않는다.
