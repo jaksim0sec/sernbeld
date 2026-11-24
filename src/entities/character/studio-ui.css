@@ -99,6 +99,7 @@ body[data-mode=basic] .tabs [data-level=advanced],body[data-mode=advanced] .tabs
 .footer-actions #play{display:block;flex:1 1 auto;min-width:0;min-height:3.35rem;padding:.8rem 1rem;border:0;border-radius:100rem;background:var(--white);color:var(--black);font-size:.95rem;font-weight:780;letter-spacing:-.035em}
 .footer-actions #play:hover:not(:disabled){background:var(--gray1);color:var(--black)}
 #file-input{display:none}.error{color:#ffb1b1}
+#sheet-grip{display:none}
 @media(max-width:55rem) and (orientation:portrait){
  main{display:flex;flex-direction:column;height:100dvh;min-height:0}
  body>header.studio-header{right:0;height:4.5rem;padding:0 1rem}
@@ -106,14 +107,20 @@ body[data-mode=basic] .tabs [data-level=advanced],body[data-mode=advanced] .tabs
  .viewer-top{top:4.65rem;left:1rem;right:1rem}
  .segmented button{min-height:2.4rem;padding:.4rem .8rem}
  .detail-toggle{min-height:2.9rem;padding:.45rem .85rem}
- .editor{flex:0 0 clamp(15rem,40dvh,24rem);height:clamp(15rem,40dvh,24rem);border-radius:1.8rem 1.8rem 0 0;box-shadow:0 -.7rem 2rem #0002}
- .tabs{padding:.8rem .75rem .6rem;gap:.14rem}
+ .editor{flex:0 0 var(--sheet-height,42dvh);height:var(--sheet-height,42dvh);border-radius:1.8rem 1.8rem 0 0;box-shadow:0 -.7rem 2rem #0003;transition:height 360ms cubic-bezier(.22,.8,.24,1),flex-basis 360ms cubic-bezier(.22,.8,.24,1);will-change:height,flex-basis}
+ .editor.sheet-no-transition{transition:none}
+ #sheet-grip{display:grid;place-items:center;flex:0 0 1.75rem;width:100%;height:1.75rem;min-height:1.75rem;padding:0;background:transparent;border-radius:0;touch-action:none;cursor:ns-resize;transform:none}
+ #sheet-grip span{display:block;width:2.35rem;height:.25rem;border-radius:1rem;background:var(--gray3);transition:background .2s,transform .2s}
+ #sheet-grip:active span{background:var(--gray1);transform:scaleX(1.18)}
+ .editor[data-snap=collapsed] .panel{padding-block:0;overflow:hidden}
+ .editor[data-snap=collapsed] .tabs{padding-top:.2rem;padding-bottom:.35rem}
+ .tabs{padding:.15rem .75rem .6rem;gap:.14rem}
  .tabs button{min-height:3.9rem;font-size:.67rem}
  .tabs svg{width:1.35rem;height:1.35rem}
  .panel{padding:.15rem 1rem .6rem}
  .footer-actions{padding:.6rem 1rem max(.75rem,env(safe-area-inset-bottom))}
  #feedback{bottom:1.8rem}
- body[data-mode=advanced] .editor{flex-basis:clamp(18rem,49dvh,29rem);height:clamp(18rem,49dvh,29rem)}
+
 }
 @media(max-width:55rem) and (orientation:landscape){
  main{grid-template-columns:minmax(0,1fr) minmax(18rem,44vw)}
