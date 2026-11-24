@@ -3243,7 +3243,7 @@ var Explore = class {
       if (n) c = { dist: Math.hypot(n.x - p.x, n.z - p.z), verb: "\uC90D\uAE30", label: this.itemName(n), act: () => this.gather(n) };
       else {
         const w = this.waypoints.userData.list.find((v) => v.on && (v.x - p.x) ** 2 + (v.z - p.z) ** 2 < 9);
-        if (w) c = { dist: 3, verb: "\uC774\uB3D9\uD558\uAE30", label: w.name, act: () => this.ui.toggleTravel() };
+        if (w) c = { dist: 3, verb: "\uC774\uB3D9\uD558\uAE30", label: w.name, act: () => this.ui.onWaypoint?.(w.name) };
       }
       for (const prov of this.providers) {
         const o = prov(this.player);
@@ -3642,6 +3642,7 @@ var GameUI = class {
     this.prompt.addEventListener("click", () => this.onInteract?.());
     $2("bagBtn").addEventListener("click", () => this.toggleBag());
     $2("tpBtn").addEventListener("click", () => this.toggleTravel());
+    this.travel.querySelector(".system-menu-shade").addEventListener("click",()=>this.close(this.travel));
     for (const p of [this.bag, this.travel, this.boardP]) p.querySelector(".close").addEventListener("click", () => this.close(p));
     this.selected = null;
     for (const button of document.querySelectorAll("[data-ui-panel]")) button.addEventListener("click", () => {
@@ -3700,7 +3701,7 @@ var GameUI = class {
     this.bag.hidden = true;
     this.boardP.hidden = true;
     this.travel.hidden = !this.travel.hidden;
-    if (!this.travel.hidden) this.renderTravel?.();
+    if (!this.travel.hidden) {this.menuPage="home";this.renderTravel?.();}
   }
   renderBag() {
     $2("bagMoney").textContent = `\uC740\uD654 ${Wallet.get()}`;
@@ -5635,75 +5636,109 @@ async function boot() {
   ui.hurt(combat.hp / combat.max, 0);
   ui.onInteract = () => explore.interact();
   const toggleFly = () => player.setMode(player.mode === "fly" ? "walk" : "fly");
-  ui.setTravel((body) => {
-    const wp = region.waypoints.map((w) => {
-      const on = Save.data.waypoints.includes(w.name), b = document.createElement("button");
-      b.type = "button";
-      b.disabled = !on;
-      b.innerHTML = `${w.name}<small>${on ? "\uC774\uB3D9" : "\uBBF8\uBC1C\uACAC"}</small>`;
-      b.addEventListener("click", () => {
-        explore.travelTo(w.name);
-        ui.close(ui.travel);
-      });
-      return b;
-    });
-    const dev = region.teleports.map((t) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.innerHTML = `${t.name}<small>\uBC14\uB85C \uAC00\uAE30</small>`;
-      b.addEventListener("click", () => {
-        teleport(t);
-        ui.close(ui.travel);
-      });
-      return b;
-    });
-    const fly = document.createElement("button");
-    fly.type = "button";
-    fly.innerHTML = `${player.mode === "fly" ? "\uAC77\uAE30\uB85C \uB3CC\uC544\uAC00\uAE30" : "\uC790\uC720 \uBE44\uD589"}<small>F</small>`;
-    fly.addEventListener("click", () => {
-      toggleFly();
-      ui.close(ui.travel);
-    });
-    const MOTION = [[1, "\uBCF4\uD1B5"], [0.4, "\uC57D\uD558\uAC8C"], [0, "\uB044\uAE30"]];
-    const motion = document.createElement("button");
-    motion.type = "button";
-    const cur = MOTION.findIndex((m) => m[0] === Save.data.settings.motion);
-    motion.innerHTML = `\uD654\uBA74 \uD754\uB4E4\uB9BC<small>${MOTION[Math.max(0, cur)][1]}</small>`;
-    motion.addEventListener("click", () => {
-      const nx = MOTION[(Math.max(0, cur) + 1) % 3];
-      Save.data.settings.motion = rig.motion = nx[0];
-      Save.write();
-      ui.renderTravel();
-    });
-    const viewMode=document.createElement('button');viewMode.type='button';
-    viewMode.innerHTML=`시점 전환<small>${avatars.mode==='third'?'3인칭 · 공격 반동 잠금':'1인칭'}</small>`;
-    viewMode.onclick=()=>{avatars.setThird(avatars.mode!=='third');ui.renderTravel();};
-    const characterButton=document.createElement('button');characterButton.type='button';
-    characterButton.innerHTML='내 캐릭터<small>얼굴 · 체형 · 장식</small>';
-    characterButton.onclick=()=>{ui.close(ui.travel);avatars.openChooser();};
-    const reset = document.createElement("button");
-    reset.type = "button";
-    reset.innerHTML = "\uCC98\uC74C\uBD80\uD130 \uB2E4\uC2DC<small>\uC800\uC7A5 \uC0AD\uC81C</small>";
-    reset.addEventListener("click", () => {
-      if (confirm("\uAC00\uBC29\uACFC \uBC1C\uACAC\uD55C \uC6E8\uC774\uD3EC\uC778\uD2B8\uAC00 \uBAA8\uB450 \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4.")) {
-        try{sessionStorage.removeItem('sernbeld.last-screen.v1');}catch{}
-        Save.reset();
-        location.reload();
+  ui.onWaypoint=name=>{fullMap.open();const w=fullMap.discovered().find(w=>w.name===name);if(w)fullMap.selectWaypoint(w);};
+  const menuLabels={home:"메뉴",settings:"플레이 설정",controls:"조작법",info:"게임 정보",dev:"개발자 도구",data:"데이터 관리"};
+  const menuPages=Object.keys(menuLabels);
+  const menuPageKey="sernbeld.menu-page.v1";
+  const menuIcon=id=>{const s=document.createElementNS("http://www.w3.org/2000/svg","svg");s.setAttribute("viewBox","0 0 24 24");s.setAttribute("aria-hidden","true");const u=document.createElementNS(s.namespaceURI,"use");u.setAttribute("href","./assets/ui-icons.svg#"+id);s.append(u);return s;};
+  const menuButton=(label,icon,action,cls="system-menu-tile")=>{
+    const b=document.createElement("button");b.type="button";b.className=cls;
+    if(icon)b.append(menuIcon(icon));const span=document.createElement("span");span.textContent=label;b.append(span);b.onclick=action;return b;
+  };
+  const navigateMenu=page=>{ui.menuPage=menuPages.includes(page)?page:"home";ui.renderTravel();};
+  ui.menuBack=()=>{if(ui.menuPage!=="home")navigateMenu("home");else ui.close(ui.travel);};
+  $("systemMenuBack").onclick=ui.menuBack;
+  // Render the actual saved face once per changed appearance; no extra WebGL context or animation loop.
+  let portraitKey="",portraitCanvas=null;
+  function playerPortrait(){
+    const profile=avatars.profile,key=JSON.stringify(profile);
+    if(key===portraitKey&&portraitCanvas)return portraitCanvas;
+    const c=document.createElement("canvas");c.width=c.height=128;c.setAttribute("aria-hidden","true");
+    let target=null,actor=null;
+    const previous=renderer.getRenderTarget(),color=renderer.getClearColor(new Color()),alpha=renderer.getClearAlpha(),shadow=renderer.shadowMap.autoUpdate;
+    try{
+      actor=makeCharacter(profile);actor.setShadow(false);
+      const portraitScene=new Scene();portraitScene.add(actor.group);actor.group.updateMatrixWorld(true);
+      const center=actor.model.localToWorld(new Vector3(...actor.data.face.focus.map(v=>v/1428)));
+      const half=.145*actor.units;
+      const portraitCamera=new OrthographicCamera(-half,half,half,-half,.01,20);
+      portraitCamera.position.copy(center).add(new Vector3(.05,.015,3));portraitCamera.lookAt(center);
+      target=new WebGLRenderTarget(128,128);
+      renderer.shadowMap.autoUpdate=false;renderer.setRenderTarget(target);renderer.setClearColor(0,0);renderer.clear();renderer.render(portraitScene,portraitCamera);
+      const pixels=new Uint8Array(128*128*4);renderer.readRenderTargetPixels(target,0,0,128,128,pixels);
+      const context=c.getContext("2d"),image=context.createImageData(128,128);
+      for(let y=0;y<128;y++)image.data.set(pixels.subarray((127-y)*512,(128-y)*512),y*512);
+      context.putImageData(image,0,0);portraitCanvas=c;portraitKey=key;return c;
+    }catch(error){console.warn("Menu portrait unavailable",error);return menuIcon("ui-person");}
+    finally{renderer.setRenderTarget(previous);renderer.setClearColor(color,alpha);renderer.shadowMap.autoUpdate=shadow;target?.dispose();actor?.dispose();}
+  }
+  ui.setTravel(body=>{
+    const page=menuPages.includes(ui.menuPage)?ui.menuPage:"home";
+    ui.menuPage=page;
+    try{sessionStorage.setItem(menuPageKey,page);}catch{}
+    $("systemMenuTitle").textContent=menuLabels[page];$("systemMenuBack").hidden=page==="home";
+    $("menuMoney").textContent="은화 "+Wallet.get().toLocaleString("ko-KR");
+    body.replaceChildren();body.scrollTop=0;
+    const row=(name,value)=>{const d=el("div","system-menu-row");const a=el("span");a.textContent=name;const b=el("span","system-menu-value");b.textContent=value;d.append(a,b);return d;};
+    const heading=label=>{const h=el("h3","system-menu-section");h.textContent=label;body.append(h);};
+    const choice=(label,options,current,change)=>{
+      const field=el("div","system-menu-field"),name=el("span");name.textContent=label;
+      const group=el("div","system-menu-choices");group.setAttribute("role","group");group.setAttribute("aria-label",label);
+      for(const [value,title] of options){const b=menuButton(title,null,()=>{change(value);ui.renderTravel();},"system-menu-choice");b.setAttribute("aria-pressed",String(current===value));group.append(b);}
+      field.append(name,group);body.append(field);
+    };
+    const openCharacter=()=>{ui.close(ui.travel);avatars.openChooser();};
+    if(page==="home"){
+      const profile=menuButton("",null,openCharacter,"system-menu-profile");profile.replaceChildren();
+      const portrait=el("span","system-menu-portrait");portrait.append(playerPortrait());
+      const text=el("span","system-menu-profile-copy"),name=el("strong"),sub=el("span");
+      name.textContent="내 캐릭터";sub.textContent=region.name+" · "+(Guild.state.registered?"조합원":"여행자");text.append(name,sub);
+      profile.append(portrait,text,menuIcon("ui-next"));body.append(profile);
+      const grid=el("div","system-menu-grid");
+      for(const [label,icon,dest] of [["플레이 설정","ui-settings","settings"],["조작법","ui-controls","controls"],["게임 정보","ui-info","info"]]){
+        grid.append(menuButton(label,icon,()=>navigateMenu(dest)));
       }
-    });
-    const list = (items) => {
-      const d = document.createElement("div");
-      d.className = "travel-list";
-      d.append(...items);
-      return d;
-    };
-    const sec = (t) => {
-      const p = document.createElement("p");
-      p.className = "section";
-      p.textContent = t;
-      return p;
-    };
-    body.replaceChildren(sec("\uC6E8\uC774\uD3EC\uC778\uD2B8"), list(wp), sec("\uC124\uC815"), list([motion,viewMode,characterButton]), sec("\uAC80\uC218\uC6A9"), list([...dev, fly, reset]));
+      body.append(grid);
+      const secondary=el("div","system-menu-secondary");
+      for(const [label,icon,dest] of [["개발자 도구","ui-dev","dev"],["데이터 관리","ui-save","data"]]){
+        const b=menuButton(label,icon,()=>navigateMenu(dest),"system-menu-link");b.append(menuIcon("ui-next"));secondary.append(b);
+      }
+      body.append(secondary);return;
+    }
+    if(page==="settings"){
+      choice("카메라 시점",[["first","1인칭"],["third","3인칭"]],avatars.mode,v=>avatars.setThird(v==="third"));
+      choice("화면 흔들림",[[1,"보통"],[.4,"약하게"],[0,"끄기"]],Save.data.settings.motion,v=>{Save.data.settings.motion=rig.motion=v;Save.write();});
+      return;
+    }
+    if(page==="controls"){
+      heading("터치");
+      for(const [a,b] of [["이동","왼쪽 드래그"],["시점","오른쪽 드래그"],["점프 · 공격","화면 버튼"],["상호작용","표시된 행동 누르기"]])body.append(row(a,b));
+      heading("키보드 · 마우스");
+      for(const [a,b] of [["이동","W A S D"],["달리기","Shift"],["점프","Space"],["시점","마우스 드래그"],["공격","클릭"],["상호작용","E"],["가방 · 지도","I · M"],["닫기","Esc"]])body.append(row(a,b));
+      return;
+    }
+    if(page==="info"){
+      heading("현재 세계");
+      body.append(row("지역",region.name),row("발견한 웨이포인트",Save.data.waypoints.length+" / "+region.waypoints.length),row("조합 가입",Guild.state.registered?"가입":"미가입"));
+      heading("세른벨드");body.append(row("게임","SERNBELD"),row("저장 방식","기기 내 저장"));return;
+    }
+    if(page==="dev"){
+      const fly=menuButton(player.mode==="fly"?"걷기로 돌아가기":"자유 비행",null,()=>{toggleFly();ui.close(ui.travel);},"system-menu-link");
+      body.append(fly);heading("검수용 이동");
+      for(const t of region.teleports)body.append(menuButton(t.name,null,()=>{teleport(t);ui.close(ui.travel);},"system-menu-link"));
+      return;
+    }
+    if(page==="data"){
+      heading("저장 데이터");
+      body.append(row("저장 위치","현재 브라우저"));
+      const reset=menuButton("처음부터 다시",null,()=>{
+        if(confirm("가방, 캐릭터와 발견한 웨이포인트 등 모든 게임 진행을 초기화할까?")){
+          try{sessionStorage.removeItem("sernbeld.last-screen.v1");sessionStorage.removeItem(menuPageKey);}catch{}
+          Save.reset();location.reload();
+        }
+      },"system-menu-link system-menu-danger");
+      const note=el("p","system-menu-note");note.textContent="현재 기기에 저장된 게임 진행을 삭제해. 이 작업은 되돌릴 수 없어.";body.append(reset,note);
+    }
   });
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
@@ -5756,7 +5791,7 @@ async function boot() {
     {name:"magic",target:document.getElementById("skillWorkbench"),attribute:"hidden",isOpen:()=>skillWorkbench.isOpen(),restore:()=>skillWorkbench.open()},
     {name:"map",target:document.getElementById("worldMap"),attribute:"hidden",isOpen:()=>fullMap.isOpen(),restore:()=>fullMap.open()},
     {name:"bag",target:ui.bag,attribute:"hidden",isOpen:()=>!ui.bag.hidden,restore:()=>{if(ui.bag.hidden)ui.toggleBag();}},
-    {name:"travel",target:ui.travel,attribute:"hidden",isOpen:()=>!ui.travel.hidden,restore:()=>{if(ui.travel.hidden)ui.toggleTravel();}},
+    {name:"travel",target:ui.travel,attribute:"hidden",isOpen:()=>!ui.travel.hidden,restore:()=>{let page="home";try{page=sessionStorage.getItem(menuPageKey)||"home";}catch{}if(ui.travel.hidden)ui.toggleTravel();navigateMenu(page);}},
     {name:"board",target:ui.boardP,attribute:"hidden",isOpen:()=>!ui.boardP.hidden,restore:()=>society.openBoard()}
   ];
   let lastScreen=null,openOrder=[];
@@ -5804,6 +5839,7 @@ async function boot() {
     }
     shared.uTime.value = t;
     for (const code of input.consumeToggles()) {
+      if(!ui.travel.hidden){if(code==="Escape")ui.menuBack();break;}
       if (skillWorkbench.isOpen()) {
         if (code === "Escape") {
           skillWorkbench.dismiss();
@@ -5828,7 +5864,7 @@ async function boot() {
     }
     clock.update(dt);
     folk.hour = clock.hour;
-    if (fullMap.isOpen()) {
+    if (fullMap.isOpen() || !ui.travel.hidden) {
       input.keys.clear();
       input.stick.x = input.stick.y = 0;
       input.consumeLook();
