@@ -313,7 +313,10 @@ function makeTerrainMaterial() {
   const stairClip=STAIRS.map(s=>{
     const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],L=Math.hypot(dx,dz);
     const f=v=>Number(v).toFixed(6);
-    return `{vec2 q=p-vec2(${f(s.a[0])},${f(s.a[1])});float u=dot(q,vec2(${f(dx/L)},${f(dz/L)}));float v=dot(q,vec2(${f(s.n[0])},${f(s.n[1])}));if(u>.002&&u<${f(L-.002)}&&v>${f(STAIR_MIN_V+.002)}&&v<${f(STAIR_MAX_V-.002)})discard;}`;
+    const steps=Math.max(1,Math.ceil(Math.abs(s.y1-s.y0)/.3));
+    // Keep the actual ground below a raised stair. Only remove terrain
+    // that would protrude through the authored tread.
+    return `{vec2 q=p-vec2(${f(s.a[0])},${f(s.a[1])});float u=dot(q,vec2(${f(dx/L)},${f(dz/L)}));float v=dot(q,vec2(${f(s.n[0])},${f(s.n[1])}));if(u>.002&&u<${f(L-.002)}&&v>${f(STAIR_MIN_V+.002)}&&v<${f(STAIR_MAX_V-.002)}){float k=min(${f(steps-1)},floor(u/${f(L)}*${f(steps)}));float tread=k<.5?${f(s.y0+.06)}:k>${f(steps-1.5)}?${f(s.y1+.06)}:${f(s.y0+.06)}+${f(s.y1-s.y0)}*(k+.5)/${f(steps)};if(vWorld.y>tread-.015)discard;}}`;
   }).join('\n');
   return makeLitMaterial({
     head: (
@@ -447,6 +450,65 @@ function buildNodeGeometry(size, x0, z0) {
   geo.computeBoundingSphere();
   return geo;
 }
+// The terrain cut needs a vertical boundary wherever the original heightfield
+// is above a stair. It is terrain geometry, not a new stair wall or collider.
+// Split at every tread and heightfield triangle edge, so the seam shares the
+// actual rendered terrain surface rather than guessing a wall height.
+function buildStairTerrainSeams() {
+  const positions=[], indices=[];
+  for(const s of STAIRS){
+    const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],L=Math.hypot(dx,dz);
+    const ux=dx/L,uz=dz/L,[nx,nz]=s.n,steps=Math.max(1,Math.ceil(Math.abs(s.y1-s.y0)/.3));
+    const pt=(u,v)=>[s.a[0]+ux*u+nx*v,s.a[1]+uz*u+nz*v];
+    const edge=(a,b,ox,oz,tread)=>{
+      const vx=b[0]-a[0],vz=b[1]-a[1],ts=[0,1];
+      // Terrain triangles meet on grid x, z, and x+z diagonals.
+      for(const [start,delta] of [[a[0]+HALF,vx],[a[1]+HALF,vz],[a[0]+a[1]+2*HALF,vx+vz]]){
+        if(Math.abs(delta)<1e-9)continue;
+        const end=start+delta;
+        for(let k=Math.floor(Math.min(start,end)/CFG.cell)+1;k*CFG.cell<Math.max(start,end)-1e-8;k++)
+          ts.push((k*CFG.cell-start)/delta);
+      }
+      ts.sort((a,b)=>a-b);
+      for(let i=1;i<ts.length;i++){
+        let t0=ts[i-1],t1=ts[i];if(t1-t0<1e-8)continue;
+        const mid=(t0+t1)*.5;
+        // A connected flight/landing replaces the terrain on both sides.
+        if(stairSurface(a[0]+vx*mid+ox*.01,a[1]+vz*mid+oz*.01)!==null)continue;
+        const h=t=>heightfieldTriangle(a[0]+vx*t,a[1]+vz*t);
+        let h0=h(t0),h1=h(t1),bottom=tread-.015;
+        if(h0<=bottom&&h1<=bottom)continue;
+        if(h0<bottom){t0+=(t1-t0)*(bottom-h0)/(h1-h0);h0=bottom;}
+        if(h1<bottom){t1=t0+(t1-t0)*(bottom-h0)/(h1-h0);h1=bottom;}
+        const x0=a[0]+vx*t0,z0=a[1]+vz*t0,x1=a[0]+vx*t1,z1=a[1]+vz*t1;
+        const j=positions.length/3;
+        positions.push(x0,bottom,z0,x1,bottom,z1,x1,h1,z1,x0,h0,z0);
+        // Face the cut (towards the stair), not into the terrain mass.
+        if((-vz)*(-ox)+vx*(-oz)>0)indices.push(j,j+1,j+2,j,j+2,j+3);
+        else indices.push(j,j+2,j+1,j,j+3,j+2);
+      }
+    };
+    for(let k=0;k<steps;k++){
+      const u0=L*k/steps,u1=L*(k+1)/steps;
+      const tread=k===0?s.y0+.06:k===steps-1?s.y1+.06:s.y0+(s.y1-s.y0)*(k+.5)/steps+.06;
+      edge(pt(u0,STAIR_MIN_V),pt(u1,STAIR_MIN_V),-nx,-nz,tread);
+      edge(pt(u0,STAIR_MAX_V),pt(u1,STAIR_MAX_V),nx,nz,tread);
+    }
+    edge(pt(0,STAIR_MIN_V),pt(0,STAIR_MAX_V),-ux,-uz,s.y0+.06);
+    edge(pt(L,STAIR_MIN_V),pt(L,STAIR_MAX_V),ux,uz,s.y1+.06);
+  }
+  const geo=new BufferGeometry();
+  geo.setAttribute("position",new BufferAttribute(new Float32Array(positions),3));
+  geo.setIndex(indices);geo.computeVertexNormals();geo.computeBoundingSphere();
+  return geo;
+}
+function stairTerrainIntersects(size,x,z){
+  return STAIRS.some(s=>{
+    const xs=[s.a[0]+s.n[0]*STAIR_MIN_V,s.a[0]+s.n[0]*STAIR_MAX_V,s.b[0]+s.n[0]*STAIR_MIN_V,s.b[0]+s.n[0]*STAIR_MAX_V];
+    const zs=[s.a[1]+s.n[1]*STAIR_MIN_V,s.a[1]+s.n[1]*STAIR_MAX_V,s.b[1]+s.n[1]*STAIR_MIN_V,s.b[1]+s.n[1]*STAIR_MAX_V];
+    return x<=Math.max(...xs)&&x+size>=Math.min(...xs)&&z<=Math.max(...zs)&&z+size>=Math.min(...zs);
+  });
+}
 var TerrainLOD = class {
   constructor(scene, material) {
     this.scene = scene;
@@ -457,6 +519,12 @@ var TerrainLOD = class {
     this.last = [Infinity, Infinity, Infinity];
     this.split = SPLIT;
     this.cacheLimit = 140;
+    this.heightfieldTriangle=heightfieldTriangle;
+    this.stairSeams=new Mesh(buildStairTerrainSeams(),material);
+    this.stairSeams.name='terrain-stair-cut-boundaries';
+    this.stairSeams.receiveShadow=true;
+    this.stairSeams.matrixAutoUpdate=false;
+    scene.add(this.stairSeams);
   }
   setQuality(q) {
     this.split = q.terrainSplit;
@@ -472,7 +540,7 @@ var TerrainLOD = class {
     const visit = (size, x0, z0) => {
       const dx = Math.max(0, Math.abs(cx - (x0 + size / 2)) - size / 2), dz = Math.max(0, Math.abs(cz - (z0 + size / 2)) - size / 2);
       const d = Math.hypot(dx, dz, Math.max(0, cy - 200));
-      if (size > CFG.chunk && d < size * this.split) {
+      if (size > CFG.chunk && (d < size * this.split || stairTerrainIntersects(size,x0,z0))) {
         const h = size / 2;
         visit(h, x0, z0);
         visit(h, x0 + h, z0);
@@ -858,6 +926,9 @@ function groundAt(x, z, feetY) {
 function playerTerrain(x,z) {
   const tread=stairSurface(x,z,0,true);
   if(tread!==null)return tread;
+  return heightfieldTriangle(x,z);
+}
+function heightfieldTriangle(x,z){
   const gx=(x+HALF)/CFG.cell,gz=(z+HALF)/CFG.cell;
   if(gx<0||gz<0||gx>=GRID_N-1||gz>=GRID_N-1)return sample(x,z);
   const i=Math.floor(gx),j=Math.floor(gz),u=gx-i,v=gz-j,k=j*GRID_N+i,H=World.H;
