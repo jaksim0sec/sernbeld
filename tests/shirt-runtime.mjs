@@ -6,7 +6,16 @@ import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter} from '../src/entities/character/appearance.js';
 import {attentionRotations} from '../src/entities/character/attention-pose.js';
 import {loadDefaultShirts} from '../src/entities/character/clothing/shirt-source.js';
-const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
+// Test with the exact constructor surface passed by boot(), not the full Three export.
+const allThree=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
+const gameSource=readFileSync('src/gameplay/gameplay.part.js','utf8');
+const declared=gameSource.match(/const characterTypes=\{([^}]+)\};/);
+assert(declared,'Game character constructor declaration missing');
+const T=Object.fromEntries(declared[1].split(',').map(raw=>{
+ const name=raw.trim();
+ assert.equal(typeof allThree[name],'function','Missing game constructor: '+name);
+ return [name,allThree[name]];
+}));
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
 const shirts=await loadDefaultShirts(async url=>new Response(readFileSync(url)));
