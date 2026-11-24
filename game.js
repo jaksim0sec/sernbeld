@@ -45885,15 +45885,15 @@ function makeSky() {
   m.frustumCulled = false;
   return m;
 }
-function makeTerrainMaterial() {
-  const stairClip=STAIRS.map(s=>{
+function makeTerrainMaterial({clipStairs = true} = {}) {
+  const stairClip=clipStairs ? STAIRS.map(s=>{
     const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],L=Math.hypot(dx,dz);
     const f=v=>Number(v).toFixed(6);
     const steps=Math.max(1,Math.ceil(Math.abs(s.y1-s.y0)/.3));
     // Keep the actual ground below a raised stair. Only remove terrain
     // that would protrude through the authored tread.
     return `{vec2 q=p-vec2(${f(s.a[0])},${f(s.a[1])});float u=dot(q,vec2(${f(dx/L)},${f(dz/L)}));float v=dot(q,vec2(${f(s.n[0])},${f(s.n[1])}));if(u>.002&&u<${f(L-.002)}&&v>${f(STAIR_MIN_V+.002)}&&v<${f(STAIR_MAX_V-.002)}){float k=min(${f(steps-1)},floor(u/${f(L)}*${f(steps)}));float tread=k<.5?${f(s.y0+.06)}:k>${f(steps-1.5)}?${f(s.y1+.06)}:${f(s.y0+.06)}+${f(s.y1-s.y0)}*(k+.5)/${f(steps)};if(vWorld.y>tread-.015)discard;}}`;
-  }).join('\n');
+  }).join('\n') : '';
   return makeLitMaterial({
     head: (
       /* glsl */
@@ -46096,7 +46096,8 @@ var TerrainLOD = class {
     this.split = SPLIT;
     this.cacheLimit = 140;
     this.heightfieldTriangle=heightfieldTriangle;
-    this.stairSeams=new Mesh(buildStairTerrainSeams(),material);
+    // The cut face must still shade and write depth at the edge of the mask.
+    this.stairSeams=new Mesh(buildStairTerrainSeams(),makeTerrainMaterial({clipStairs:false}));
     this.stairSeams.name='terrain-stair-cut-boundaries';
     this.stairSeams.receiveShadow=true;
     this.stairSeams.matrixAutoUpdate=false;

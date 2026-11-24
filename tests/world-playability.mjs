@@ -15,7 +15,10 @@ function checkWorld(d=window.__dev) {
    for(let i=0;i<90;i++){p.advance(1/60,input());verify(name+' idle');}
    places.push({name,pos:p.pos.toArray()});
   }
-  const seams=d.terrain?.stairSeams.geometry??d.stairSeams;
+  const {stairSeams,material}=d.terrain;
+  if(!/\bdiscard\b/.test(material.fragmentShader))throw Error('Terrain must still clip over the stair treads');
+  if(/\bdiscard\b/.test(stairSeams.material.fragmentShader)||!stairSeams.material.depthWrite)throw Error('Terrain cut boundaries must write depth without stair clipping');
+  const seams=stairSeams.geometry;
   const sp=seams.attributes.position,si=seams.index;
   if(!sp.count||!si.count)throw Error('Missing terrain cut boundary geometry');
   for(let i=0;i<sp.count;i+=4){
@@ -23,7 +26,7 @@ function checkWorld(d=window.__dev) {
    if(top0<lo-.0001||top1<lo-.0001||Math.abs(sp.getY(i+1)-lo)>.0001)throw Error('Invalid terrain cut boundary');
    for(const j of [i+2,i+3]){
     const x=sp.getX(j),z=sp.getZ(j),top=sp.getY(j);
-    if(Math.abs(top-(d.terrain?.heightfieldTriangle??d.heightfieldTriangle)(x,z))>.004)throw Error('Terrain cut boundary does not meet heightfield');
+    if(Math.abs(top-d.terrain.heightfieldTriangle(x,z))>.004)throw Error('Terrain cut boundary does not meet heightfield');
    }
   }
   const stairResults=[];
@@ -98,7 +101,7 @@ async function loadWorld() {
     await generateWorld(SERNBELD, () => {});
     buildKael(SERNBELD);
     return {player: new Player(), characterTypes: {Vector3}, playerTerrain,
-      playerContacts, maktwoWorldRay, heightfieldTriangle, stairSeams:buildStairTerrainSeams(), region: SERNBELD, stairs: STAIRS,
+      playerContacts, maktwoWorldRay, terrain:new TerrainLOD(new Scene(),makeTerrainMaterial()), region: SERNBELD, stairs: STAIRS,
       stairBounds: [STAIR_MIN_V, STAIR_MAX_V]};
   };`
  ].join('\n'));
