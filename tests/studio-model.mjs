@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {attentionRotations} from '../src/entities/character/attention-pose.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry,controls} from '../src/entities/character/studio-geometry.js';
@@ -11,6 +12,22 @@ import {createSchoolyardMotion} from '../src/entities/character/schoolyard-motio
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
 const factory=createStudioGeometry(source);
+// Check the actual male and female arm rigs against the fixed editor stance.
+for(const body of ['male','female']){
+ const bones=source.bodies[body].bones,rotations=attentionRotations(bones);
+ const rotate=(m,[x,y,z])=>[m[0]*x+m[3]*y+m[6]*z,m[1]*x+m[4]*y+m[7]*z,m[2]*x+m[5]*y+m[8]*z];
+ const delta=(a,b)=>a.map((v,i)=>v-b[i]);
+ const unit=v=>v.map(x=>x/Math.hypot(...v));
+ for(const side of ['left','right']){
+  const upper=bones.find(b=>b.id==='upper_arm_'+side),fore=bones.find(b=>b.id==='forearm_'+side),hand=bones.find(b=>b.id==='hand_'+side);
+  const elbow=unit(rotate(rotations[upper.id],delta(fore.pivot,upper.pivot)));
+  const wrist=unit(rotate(rotations[upper.id],rotate(rotations[fore.id],delta(hand.pivot,fore.pivot))));
+  assert(elbow[1]<-.99&&Math.abs(elbow[2])<1e-7,body+' '+side+' upper arm is not lowered');
+  assert(wrist[1]<-.99999&&Math.abs(wrist[0])<1e-7&&Math.abs(wrist[2])<1e-7,body+' '+side+' forearm is not vertical');
+ }
+}
+console.log('PASS fixed editor attention stance on both rigs');
+
 for(const body of ['male','female'])for(const side of [1,-1]){
  const actor=createStudioModel(T,factory,normalizeStudioCharacter({body}));
  const motion=createSchoolyardMotion(actor),player={vel:new T.Vector3(),onGround:true,yaw:0,pitch:0};

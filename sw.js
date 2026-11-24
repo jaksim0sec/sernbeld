@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-27';
+const VERSION = 'sernbeld-pwa-28';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -24,6 +24,7 @@ const OFFLINE_FILES = [
   './src/entities/character/studio-model.js',
   './src/entities/character/studio-source.js',
   './src/entities/character/studio-integration.js',
+  './src/entities/character/attention-pose.js',
   './src/entities/character/studio.html',
   './src/entities/character/studio-ui.css',
   './assets/models/characters/studio-v1.json.gz',
