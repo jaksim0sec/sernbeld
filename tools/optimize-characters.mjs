@@ -94,6 +94,18 @@ export function simplify(positions,indices,ratios,{lock=null,groups=null,protect
   const [,u,v,su,sv]=heap.pop();
   if(removed[u]||removed[v]||version[u]!==su||version[v]!==sv||locked[u])continue;
   if(protectJoints&&level===0&&groups[ids[u]]!==groups[ids[v]])continue;
+  // Link condition: an edge collapse may not join disjoint fans or
+  // create duplicate/non-manifold faces. This protects connected shells.
+  const un=new Set(),vn=new Set(),opposite=new Set();
+  let incident=0;
+  for(const t of vt[u])if(alive[t]){
+   const face=[tri[t*3],tri[t*3+1],tri[t*3+2]];
+   for(const w of face)if(w!==u)un.add(w);
+   if(face.includes(v)){incident++;for(const w of face)if(w!==u&&w!==v)opposite.add(w);}
+  }
+  if(incident!==2||opposite.size!==2)continue;
+  for(const t of vt[v])if(alive[t])for(let e=0;e<3;e++)if(tri[t*3+e]!==v)vn.add(tri[t*3+e]);
+  if([...un].some(w=>w!==v&&w!==u&&vn.has(w)&&!opposite.has(w)))continue;
   if(flips(u,v))continue;
   for(const t of vt[u]){if(!alive[t])continue;const a=tri[t*3],b=tri[t*3+1],c=tri[t*3+2];
    if(a===v||b===v||c===v){alive[t]=0;live--;continue;}
@@ -126,13 +138,27 @@ export async function buildLod(source){
   const indices=unpack(data.f,data.indexType==='Uint32Array'?Uint32Array:Uint16Array);
   const joints=unpack(data.wi,Uint8Array),weights=unpack(data.ww,Uint8Array);
   const levels=BODY_RATIOS.map(()=>[]);
+  const neck=new Uint8Array(positions.length/3);
+  const neckPivot=data.bones.find(b=>b.id==='neck').pivot[1],headPivot=data.bones.find(b=>b.id==='head').pivot[1];
+  // The fitted head/neck junction is authored at rimOriginal. Preserve
+  // its complete one-ring plus the narrow neck articulation band.
+  for(const id of data.face.rimOriginal)neck[id]=1;
+  for(let v=0;v<neck.length;v++){
+   const y=positions[v*3+1];
+   if(y>=Math.min(neckPivot,headPivot)-38&&y<=Math.max(neckPivot,headPivot)+30)neck[v]=1;
+  }
+  const seam=neck.slice();
+  for(let i=0;i<indices.length;i+=3){
+   const a=indices[i],b=indices[i+1],c=indices[i+2];
+   if(neck[a]||neck[b]||neck[c])seam[a]=seam[b]=seam[c]=1;
+  }
   data.parts.forEach(part=>{
    // Keep skinning clean: collapses across different dominant joints are discouraged.
    const groups=new Int32Array(positions.length/3);
    for(let v=0;v<groups.length;v++){let best=0;for(let k=1;k<4;k++)if(weights[v*4+k]>weights[v*4+best])best=k;groups[v]=part.skin.indexOf(part.skin[joints[v*4+best]])*1;}
    const hand=part.skin.some(id=>id.startsWith('thumb_'));
    const ratios=hand?[.60,...BODY_RATIOS.slice(1)]:BODY_RATIOS;
-   const lists=simplify(positions,indices.subarray(part.start,part.start+part.count),ratios,{groups,protectJoints:hand});
+   const lists=simplify(positions,indices.subarray(part.start,part.start+part.count),ratios,{groups,protectJoints:hand,lock:id=>Boolean(seam[id])});
    lists.forEach((list,i)=>levels[i].push(pack(list)));
   });
   result.bodies[name]={levels,triangles:levels.map(l=>l.reduce((s,p)=>s+Buffer.from(p,'base64').length/12,0))};

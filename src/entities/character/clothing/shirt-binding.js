@@ -34,7 +34,12 @@ export const SHIRT_BINDING_POLICY=Object.freeze({
  maxInfluences:8,
  attributes:asset=>[['aRest',asset.position,3,false],['aColor',asset.color,3,true],['aDetail',asset.detail,4,false],['aInfluence',asset.influence,4,false]],
  parts:[
-  {id:'top',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]!==2),coverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices,firstPersonCoverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices&&[a,b,c].every(i=>asset.influence[i*4+3]===1||asset.influence[i*4]>=128)},
+  {id:'top',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]!==2),coverageAllowed(i,p,ref,actor){
+   // Neck, head and facial features remain intact even when a nearby collar
+   // overlaps the neck in reference space. Only the torso/arms may be masked.
+   const neck=actor.data.bones.find(b=>b.id==='neck').pivot[1]/1428;
+   return p[i*3+1]<neck*ref.frame.elements[0]+ref.frame.elements[13]-.012;
+  },coverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices,firstPersonCoverage:(a,b,c,asset)=>Math.max(a,b,c)<asset.meta.shirtVertices&&[a,b,c].every(i=>asset.influence[i*4+3]===1||asset.influence[i*4]>=128)},
   {id:'collar',accept:(a,b,c,asset)=>[a,b,c].every(i=>asset.influence[i*4+3]===2)}
  ]
 });

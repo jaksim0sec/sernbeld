@@ -74,7 +74,7 @@ export function createStudioModel(T, factory, profile, {scale=1,clothing=true}={
  const levelIndex=level=>{
   let count=0;for(const src of sources)count+=(src.levels[level]??src.levels[0]).length;
   const out=new IndexArray(count);let o=0;
-  sources.forEach((src,s)=>{const remap=marks[s];for(const id of src.levels[level]??src.levels[0])out[o++]=remap[id];});
+  sources.forEach((src,s)=>{const remap=marks[s];for(const id of src.levels[level]??src.levels[0]){const v=remap[id];if(v<0||v===undefined)throw Error('Invalid character LOD topology');out[o++]=v;}});
   return out;
  };
  geometry=new T.BufferGeometry();
@@ -210,7 +210,7 @@ export function createStudioModel(T, factory, profile, {scale=1,clothing=true}={
  // Coverage is mutable per actor; never share it through the immutable body pool.
  const coverAttribute=new T.BufferAttribute(new Uint8Array(geometry.attributes.position.count),1,true);
  geometry.setAttribute('aClothCover',coverAttribute);
- const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,bodyVertexCount,garmentBakes:factory.source.garmentBakes?.[profile.body],shirtAsset:factory.source.defaultShirts?.[profile.body],pantsAsset:factory.source.defaultPants?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
+ const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,bodyVertexCount,garmentBakes:factory.source.garmentBakes?.[profile.body],garmentLayers:factory.source.garmentLayers?.[profile.body],shirtAsset:factory.source.defaultShirts?.[profile.body],pantsAsset:factory.source.defaultPants?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},

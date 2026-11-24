@@ -28,8 +28,10 @@ export function createClothingController(T,actor,fullIndex){
  const equipped=new Map();let firstPerson=false,disposed=false;
  const coverage=new Uint8Array(actor.mesh.geometry.attributes.position.count);
  function syncVisibility(){
+  const active=new Set([...equipped.values()].map(({entry})=>entry.layerId).filter(Boolean));
   for(const {instance} of equipped.values()){
    if(instance.setFirstPerson)instance.setFirstPerson(firstPerson);else instance.object.visible=!firstPerson;
+   instance.setLayers?.(active);
   }
  }
  function syncCoverage(){
@@ -81,7 +83,7 @@ export function registerClothingAsset(def){
 export function getClothingAsset(id){return referenceAssets.get(id)??null;}
 export function listClothingAssets(slot){if(slot!==undefined&&!Object.values(slots).includes(slot))throw Error('Unknown clothing slot: '+slot);return [...referenceAssets.values()].filter(d=>slot===undefined||d.slot===slot);}
 registerClothingAsset({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',status:'runtime',manifest:'assets/models/clothing/shirt-v1/manifest.json'});
-registerClothing({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',defaultWhen:actor=>Boolean(actor.shirtAsset),build:buildShirt});
+registerClothing({id:'top.basic-shirt',slot:CLOTHING_SLOTS.TOP,name:'기본 긴소매 셔츠',layerId:'shirt-v1',defaultWhen:actor=>Boolean(actor.shirtAsset),build:buildShirt});
 
 registerClothingAsset({id:'pants.basic-trousers',slot:CLOTHING_SLOTS.PANTS,name:'기본 바지',status:'runtime',manifest:'assets/models/clothing/pants-v1/manifest.json'});
 registerClothing({id:'pants.basic-trousers',slot:CLOTHING_SLOTS.PANTS,name:'기본 바지',defaultWhen:actor=>Boolean(actor.pantsAsset),build:buildPants});

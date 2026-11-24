@@ -12,7 +12,8 @@ const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio
 source.lod=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.lod.json.gz')));
 const fetchLocal=async url=>new Response(readFileSync(url));
 [source.defaultShirts,source.defaultPants]=await Promise.all([loadDefaultShirts(fetchLocal),loadDefaultPants(fetchLocal)]);
-source.garmentBakes=JSON.parse(gunzipSync(readFileSync('assets/models/clothing/runtime-bindings-v1.json.gz'))).bodies;
+const baked=JSON.parse(gunzipSync(readFileSync('assets/models/clothing/runtime-bindings-v1.json.gz')));
+source.garmentBakes=baked.bodies;source.garmentLayers=baked.layers;
 const factory=createStudioGeometry(source);
 for(const sex of ['male','female']){
  const start=performance.now(),actors=[];

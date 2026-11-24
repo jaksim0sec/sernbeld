@@ -185,18 +185,18 @@ function normalizedInfluences(field,offset,boneCount,indices,weights,k,slots){
  if(!(sum>1e-8))throw Error('Garment vertex has no bone influence');
  for(let j=0;j<slots;j++){indices[k+j]=Math.max(0,best[j]);weights[k+j]=value[j]/sum;}
 }
-function coverageMask(rest,asset,posed,posedN,skin,accept){
+function coverageMask(rest,asset,posed,posedN,skin,accept,allow){
  const n=posed.length/3,covered=new Uint8Array(n);
  if(!accept)return covered;
  const cloth=surface(rest,asset.normal,asset.index,accept,null,true);
  let lo=Infinity,hi=-Infinity;
  for(let i=1;i<rest.length;i+=3){lo=Math.min(lo,rest[i]);hi=Math.max(hi,rest[i]);}
  for(let i=0;i<n;i++){
-  const j=i*3;if(!skin[i]||posed[j+1]<lo||posed[j+1]>hi)continue;
+  const j=i*3;if(!skin[i]||posed[j+1]<lo||posed[j+1]>hi||(allow&&!allow(i,posed)))continue;
   const hit=cloth.nearest(posed[j],posed[j+1],posed[j+2],posedN[j],posedN[j+1],posedN[j+2],.04);
   if(!hit||hit.alignment<.35||cloth.nearEdge(hit,.009))continue;
   const gap=dot(posed[j]-hit.x,posed[j+1]-hit.y,posed[j+2]-hit.z,hit.nx,hit.ny,hit.nz);
-  if(gap<=.012)covered[i]=255;
+  if(gap<=.004&&gap>=-.035)covered[i]=255;
  }
  return covered;
 }
@@ -255,8 +255,9 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
  }
  const masks=new Map(),firstMasks=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
-  if(part.coverage)masks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.coverage(a,b,c,asset)));
-  if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset)));
+  const allow=part.coverageAllowed?(i,p)=>part.coverageAllowed(i,p,ref,actor,asset):null;
+  if(part.coverage)masks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.coverage(a,b,c,asset),allow));
+  if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset),allow));
  }
  const coveredCount=[...masks.values()].reduce((sum,mask)=>sum+mask.reduce((n,v)=>n+(v?1:0),0),0);
  return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,welded,masks,firstMasks,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,rigidVertices:locked.reduce((a,b)=>a+b,0),prebaked:false}});
@@ -301,6 +302,65 @@ export function hydrateGarmentBinding(T,actor,asset,policy,bake){
  const readMasks=entries=>new Map(Object.entries(entries).map(([id,data])=>[id,unpackBake(data,Uint8Array,n)]));
  return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,masks:readMasks(bake.masks),firstMasks:readMasks(bake.firstMasks),diagnostics:{...bake.diagnostics,prebaked:true}});
 }
+// Compute a conservative angular/height coverage field of an outer garment.
+// Radial intersection tests work for both inward and outward overlap, so an
+// inner waistband cannot poke through an outer tunic. This is a material
+// coverage layer, not a modification of either garment's original geometry.
+export function bakeGarmentLayer(inner,outer,{accept=()=>true,centerZ=0,margin=.006}={}){
+ const ip=inner.rest,op=outer.rest,idx=outer.geometry.index.array;
+ const rows=96,cols=96,lo=Math.min(...ip.filter((_,i)=>i%3===1)),hi=Math.max(...ip.filter((_,i)=>i%3===1)),height=hi-lo;
+ const cells=new Float32Array(rows*cols).fill(Infinity),tris=[];
+ for(let k=0;k<idx.length;k+=3){
+  const a=idx[k],b=idx[k+1],c=idx[k+2];if(!accept(a,b,c))continue;
+  const A=a*3,B=b*3,C=c*3;
+  if(Math.max(op[A+1],op[B+1],op[C+1])<lo||Math.min(op[A+1],op[B+1],op[C+1])>hi)continue;
+  tris.push([A,B,C]);
+ }
+ // At each height, intersect outer triangles with the horizontal plane,
+ // then rasterize the resulting segments into a radial coverage table.
+ for(let r=0;r<rows;r++){
+  const y=lo+height*r/(rows-1),segments=[];
+  for(const [a,b,c] of tris){
+   const p=[];
+   for(const [u,v] of [[a,b],[b,c],[c,a]]){
+    const y0=op[u+1],y1=op[v+1];
+    if((y0<=y&&y1>y)||(y1<=y&&y0>y)){
+     const t=(y-y0)/(y1-y0);p.push([op[u]+(op[v]-op[u])*t,op[u+2]+(op[v+2]-op[u+2])*t-centerZ]);
+    }
+   }
+   if(p.length===2)segments.push(p);
+  }
+  for(let c=0;c<cols;c++){
+   const angle=c/cols*Math.PI*2,dx=Math.sin(angle),dz=Math.cos(angle);
+   let far=0;
+   for(const [[x,z],[X,Z]] of segments){
+    const ux=X-x,uz=Z-z,det=dx*uz-dz*ux;if(Math.abs(det)<1e-8)continue;
+    const t=(x*uz-z*ux)/det,s=(x*dz-z*dx)/det;
+    if(t>0&&s>=0&&s<=1)far=Math.max(far,t);
+   }
+   if(far>0)cells[r*cols+c]=far;
+  }
+ }
+ const out=new Uint8Array(ip.length/3);
+ for(let i=0;i<out.length;i++){
+  const x=ip[i*3],y=ip[i*3+1],z=ip[i*3+2]-centerZ,angle=(Math.atan2(x,z)+Math.PI*2)%(Math.PI*2);
+  const c=Math.round(angle/(Math.PI*2)*cols)%cols,r=Math.round((y-lo)/height*(rows-1));
+  const dr=Math.max(1,Math.ceil(margin/height*(rows-1))),radius=Math.hypot(x,z);
+  // Only discard if the surrounding samples are all covered. Keep
+  // openings/hem borders visible and allow small outward protrusion.
+  let covered=r>=dr&&r<rows-dr;
+  // At the top edge of the inner garment, the outer coverage is known at
+  // the last row; it is safe to hide that closed waistband too.
+  if(r>=dr)covered=true;
+  for(let j=Math.max(0,r-dr);covered&&j<=Math.min(rows-1,r+dr);j++)for(let k=-1;k<=1;k++){
+   const f=cells[j*cols+(c+k+cols)%cols];
+   if(!Number.isFinite(f)||radius>f+.045){covered=false;break;}
+  }
+  if(covered)out[i]=255;
+ }
+ return out;
+}
+
 const pools=new WeakMap();
 // Cache by asset, policy, constructor surface, body and reference frame.
 // The same immutable vertex buffers are shared by all NPCs of a body shape.

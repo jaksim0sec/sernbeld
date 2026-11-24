@@ -13,6 +13,7 @@ on:
       - 'assets/models/clothing/shirt-v1/**'
       - 'assets/models/clothing/pants-v1/**'
       - 'tools/bake-garments.mjs'
+      - 'tools/optimize-characters.mjs'
       - '.github/workflows/sync-game-bundle.yml'
 permissions:
   contents: write
@@ -33,14 +34,16 @@ jobs:
       - name: Reassemble and verify runtime
         run: |
           node tools/build-game.mjs
+          node tools/optimize-characters.mjs
           node tools/bake-garments.mjs
           node --check game.js
           node tools/build-game.mjs --check
           node tests/foundation.mjs
           node tests/startup-runtime.mjs
+          node tests/character-assembly.mjs
       - name: Commit generated bundle
         run: |
-          git add game.js assets/models/clothing/runtime-bindings-v1.json.gz
+          git add game.js assets/models/characters/studio-v1.lod.json.gz assets/models/clothing/runtime-bindings-v1.json.gz
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

@@ -50,20 +50,22 @@ function bindingPolicy(actor,asset){
 const vertex=skin=>`
 ${skin}
 attribute vec3 aRest;attribute vec4 aDetail;
-varying vec3 vNormal,vPos,vRest;varying vec2 vDetail;
+attribute float aLayerCover;
+varying vec3 vNormal,vPos,vRest;varying vec2 vDetail;varying float vLayerCover;
 void main(){
  vec3 p,n;garmentPose(p,n);
  vec4 mv=modelViewMatrix*vec4(p,1.);
- vNormal=normalMatrix*n;vPos=mv.xyz;vRest=aRest;vDetail=vec2(aDetail.x,aDetail.w);
+ vNormal=normalMatrix*n;vPos=mv.xyz;vRest=aRest;vDetail=vec2(aDetail.x,aDetail.w);vLayerCover=aLayerCover;
  gl_Position=projectionMatrix*mv;
 }
 `;
 // Adapt the supplied trousers shader; preserve the original wrinkle height,
 // inset pocket, lip, stitches, dye and filtered weave in rest space.
 const fragment=`
-uniform vec3 uColor;uniform float uPantsTop;
-varying vec3 vNormal,vPos,vRest;varying vec2 vDetail;
+uniform vec3 uColor;uniform float uPantsTop,uLayerCover;
+varying vec3 vNormal,vPos,vRest;varying vec2 vDetail;varying float vLayerCover;
 void main(){
+ if(uLayerCover>.5&&vLayerCover>.999)discard;
  vec3 V=normalize(-vPos),N=normalize(vNormal+vec3(0.,0.,.000001));if(dot(N,V)<0.)N=-N;
  float down=uPantsTop-vRest.y;
  float angle=atan(abs(vRest.x),vRest.z-.045);
@@ -99,9 +101,18 @@ export function buildPants(T,actor,fullIndex){
  const asset=actor.pantsAsset;if(!asset)throw Error('Pants assets must be preloaded');
  const lease=acquireGarmentBinding(T,actor,asset,bindingPolicy(actor,asset),fullIndex);
  const instance=createGarmentPart(T,actor,lease,'main',(uniforms,skin)=>new T.ShaderMaterial({
-  uniforms:{...uniforms,uColor:{value:new T.Color('#806e59')},uPantsTop:{value:asset.meta.top}},
+  uniforms:{...uniforms,uColor:{value:new T.Color('#806e59')},uPantsTop:{value:asset.meta.top},uLayerCover:{value:0}},
   vertexShader:vertex(skin),fragmentShader:fragment,side:T.DoubleSide
  }));
  instance.object.name='clothing:pants.basic-trousers';
- return {...instance,setFirstPerson(on){instance.object.visible=!on;}};
+ // Shared layer mask is baked per compatible outer garment. A material
+ // uniform selects it per equipped outfit without changing shared buffers.
+ const b=instance.object.userData.garmentBinding,encoded=actor.garmentLayers?.['pants-v1|shirt-v1'];
+ const geometry=instance.object.geometry;
+ if(!geometry.hasAttribute('aLayerCover')){
+  const bytes=encoded?Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)):new Uint8Array(geometry.attributes.position.count);
+  if(bytes.length!==geometry.attributes.position.count)throw Error('Incompatible garment layer mask');
+  geometry.setAttribute('aLayerCover',new T.BufferAttribute(bytes,1,true));
+ }
+ return {...instance,setFirstPerson(on){instance.object.visible=!on;},setLayers(active){instance.object.material.uniforms.uLayerCover.value=active.has('shirt-v1')&&encoded?1:0;}};
 }

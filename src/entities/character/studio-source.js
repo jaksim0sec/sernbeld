@@ -13,13 +13,13 @@ export function loadGarmentBakes(fetchImpl=fetch){
  return bakePending??=fetchImpl(new URL('../../../assets/models/clothing/runtime-bindings-v1.json.gz',import.meta.url)).then(async r=>{
   if(!r.ok)throw Error('Garment binding HTTP '+r.status);
   const data=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
-  if(data.version!==1||!data.bodies?.male||!data.bodies?.female)throw Error('Invalid garment bindings');
-  return data.bodies;
+  if(data.version!==2||!data.bodies?.male||!data.bodies?.female||!data.layers?.male||!data.layers?.female)throw Error('Invalid garment bindings');
+  return data;
  }).catch(error=>{console.warn('Prebaked clothing unavailable; shared runtime fallback',error);bakePending=null;return null;});
 }
 export function loadStudioSource(){
  return pending??=Promise.all([loadStudioBody(),loadDefaultShirts(),loadDefaultPants(),loadGarmentBakes()]).then(([body,shirts,pants,bakes])=>{
-  const source={...body};Object.defineProperties(source,{defaultShirts:{value:shirts},defaultPants:{value:pants},garmentBakes:{value:bakes}});return source;
+  const source={...body};Object.defineProperties(source,{defaultShirts:{value:shirts},defaultPants:{value:pants},garmentBakes:{value:bakes?.bodies},garmentLayers:{value:bakes?.layers}});return source;
  }).catch(error=>{pending=null;throw error;});
 }
 // Optional reduced triangle lists for the game runtime (tools/optimize-characters.mjs).
