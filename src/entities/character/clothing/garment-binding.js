@@ -201,7 +201,10 @@ function coverageMask(rest,asset,posed,posedN,skin,accept){
  return covered;
 }
 export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.geometry.index){
- const ref=referenceSkin(T,actor),body=actor.mesh.geometry,src=body.attributes.position.array,nrm=body.attributes.normal.array,skin=body.attributes.aSkin.array,ji=body.attributes.skinIndex.array,raw=body.attributes.skinWeight.array,n=src.length/3;
+ const ref=referenceSkin(T,actor),body=actor.mesh.geometry;
+ const n=policy.bakeId?actor.bodyVertexCount:body.attributes.position.count;
+ if(!Number.isInteger(n)||n<1||n>body.attributes.position.count)throw Error('Invalid garment body topology');
+ const src=body.attributes.position.array.subarray(0,n*3),nrm=body.attributes.normal.array.subarray(0,n*3),skin=body.attributes.aSkin.array.subarray(0,n),ji=body.attributes.skinIndex.array.subarray(0,n*4),raw=body.attributes.skinWeight.array.subarray(0,n*4);
  const weights=Float32Array.from(raw,w=>w/255),posed=new Float32Array(src.length),posedN=new Float32Array(src.length);
  const boneCount=actor.bones.length,names=actor.bones.map(b=>b.name),byName=new Map(names.map((name,i)=>[name,i]));
  const groups=(policy.regions??[]).map(group=>new Set(group.map(name=>byName.get(name)).filter(i=>i!==undefined)));
@@ -214,7 +217,7 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
  const count=asset.position.length/3,rest=asset.position.slice(),field=new Float32Array(count*boneCount),locked=new Uint8Array(count);
  let lo=Infinity,hi=-Infinity;
  for(let i=1;i<rest.length;i+=3){lo=Math.min(lo,rest[i]);hi=Math.max(hi,rest[i]);}
- const bodySurface=surface(posed,posedN,fullIndex.array,(a,b,c)=>skin[a]&&skin[b]&&skin[c]&&Math.max(posed[a*3+1],posed[b*3+1],posed[c*3+1])>=lo-.10&&Math.min(posed[a*3+1],posed[b*3+1],posed[c*3+1])<=hi+.10,regions);
+ const bodySurface=surface(posed,posedN,fullIndex.array,(a,b,c)=>a<n&&b<n&&c<n&&skin[a]&&skin[b]&&skin[c]&&Math.max(posed[a*3+1],posed[b*3+1],posed[c*3+1])>=lo-.10&&Math.min(posed[a*3+1],posed[b*3+1],posed[c*3+1])<=hi+.10,regions);
  const sum=new Float64Array(boneCount);
  let maxFit=0,maxDistance=0,misses=0;
  for(let i=0;i<count;i++){
@@ -250,28 +253,53 @@ export function bindGarmentGeometry(T,actor,asset,policy,fullIndex=actor.mesh.ge
   normalizedInfluences(compact,i*active.length,active.length,actual,skinWeight,i*slots,slots);
   for(let j=0;j<slots;j++)actual[i*slots+j]=active[actual[i*slots+j]];
  }
+ const masks=new Map(),firstMasks=new Map();
+ for(const part of policy.parts??[{id:'main',accept:()=>true}]){
+  if(part.coverage)masks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.coverage(a,b,c,asset)));
+  if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset)));
+ }
+ const coveredCount=[...masks.values()].reduce((sum,mask)=>sum+mask.reduce((n,v)=>n+(v?1:0),0),0);
+ return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,welded,masks,firstMasks,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,rigidVertices:locked.reduce((a,b)=>a+b,0),prebaked:false}});
+}
+// The expensive surface lookup and graph solve run only in the offline baker.
+// Hydration uses the same geometry assembly path and original material data.
+function assembleBinding(T,asset,policy,record){
+ const {rest,actual,skinWeight,slots}=record,count=rest.length/3;
  const boneIds=[...new Set(actual.filter((_,i)=>skinWeight[i]>0))].sort((a,b)=>a-b),palette=new Map(boneIds.map((id,i)=>[id,i]));
  const joints=Uint8Array.from(actual,(id,i)=>skinWeight[i]>0?palette.get(id):0);
  const pack=(src,offset,Type)=>{const dst=new Type(count*4);for(let i=0;i<count;i++)dst.set(src.subarray(i*slots+offset,i*slots+offset+4),i*4);return dst;};
  const attributes=[['aJoint',pack(joints,0,Uint8Array),4,false],['aWeight',pack(skinWeight,0,Float32Array),4,false]];
  if(slots===8)attributes.push(['aJointExtra',pack(joints,4,Uint8Array),4,false],['aWeightExtra',pack(skinWeight,4,Float32Array),4,false]);
- // Keep reference-space positions intact. Runtime dual-quaternion blending
- // avoids inverse blended LBS matrices and preserves rigid cuffs under twist.
  const g=new T.BufferGeometry();
  for(const [name,array,size,normalized] of [['position',rest,3,false],['normal',asset.normal,3,false],...attributes,...(policy.attributes?.(asset)??[])])g.setAttribute(name,new T.BufferAttribute(array,size,normalized));
  g.setIndex(new T.BufferAttribute(asset.index,1));g.computeBoundingBox();g.computeBoundingSphere();
- const parts=new Map(),masks=new Map(),firstMasks=new Map();
+ const parts=new Map();
  for(const part of policy.parts??[{id:'main',accept:()=>true}]){
   const list=[];for(let i=0;i<asset.index.length;i+=3){const a=asset.index[i],b=asset.index[i+1],c=asset.index[i+2];if(part.accept(a,b,c,asset))list.push(a,b,c);}
   if(!list.length)throw Error('Empty garment part: '+part.id);
   const pg=new T.BufferGeometry();for(const [name,attr] of Object.entries(g.attributes))pg.setAttribute(name,attr);
   pg.setIndex(new T.BufferAttribute(new asset.index.constructor(list),1));pg.boundingBox=g.boundingBox.clone();pg.boundingSphere=g.boundingSphere.clone();
   parts.set(part.id,pg);
-  if(part.coverage)masks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.coverage(a,b,c,asset)));
-  if(part.firstPersonCoverage)firstMasks.set(part.id,coverageMask(rest,asset,posed,posedN,skin,(a,b,c)=>part.firstPersonCoverage(a,b,c,asset)));
  }
- const coveredCount=[...masks.values()].reduce((sum,mask)=>sum+mask.reduce((n,v)=>n+(v?1:0),0),0);
- return {geometry:g,parts,masks,firstMasks,rest,actual,skinWeight,joints,slots,boneIds,ref,welded,diagnostics:{attentionJoints:ref.pivots,coveredCount,maxFit,maxDistance,misses,boneCount:boneIds.length,rigidVertices:locked.reduce((a,b)=>a+b,0)}};
+ return {...record,geometry:g,parts,joints,boneIds,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
+}
+function unpackBake(text,Type,length){
+ const raw=atob(text),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+ if(bytes.byteLength!==length*Type.BYTES_PER_ELEMENT)throw Error('Invalid garment bake buffer size');
+ return new Type(bytes.buffer);
+}
+export function hydrateGarmentBinding(T,actor,asset,policy,bake){
+ const n=actor.bodyVertexCount,count=asset.position.length/3,slots=bake.slots;
+ if(bake.version!==1||bake.policy!==policy.bakeId||bake.bodyVertices!==n||bake.vertices!==count||bake.indices!==asset.index.length||![4,8].includes(slots)||JSON.stringify(bake.bones)!==JSON.stringify(actor.bones.map(b=>b.name)))throw Error('Garment bake does not match asset or rig');
+ const rest=unpackBake(bake.rest,Float32Array,count*3),actual=unpackBake(bake.actual,Uint8Array,count*slots),skinWeight=unpackBake(bake.skinWeight,Float32Array,count*slots);
+ if(rest.some(v=>!Number.isFinite(v))||actual.some(i=>i>=actor.bones.length)||skinWeight.some(w=>!Number.isFinite(w)||w<0||w>1.00001))throw Error('Invalid garment bake weights');
+ for(let i=0;i<count;i++){let sum=0;for(let j=0;j<slots;j++)sum+=skinWeight[i*slots+j];if(Math.abs(sum-1)>1e-5)throw Error('Unnormalized garment bake weights');}
+ const matrix=values=>{if(!Array.isArray(values)||values.length!==16||values.some(v=>!Number.isFinite(v)))throw Error('Invalid garment bake reference matrix');return new T.Matrix4().fromArray(values);};
+ if(bake.inverseBones.length!==actor.bones.length)throw Error('Invalid garment bake bone count');
+ const ref={frame:matrix(bake.frame),inverseBones:bake.inverseBones.map(matrix),pivots:bake.diagnostics.attentionJoints};
+ if(!(ref.frame.elements[0]>0))throw Error('Invalid garment bake scale');
+ const readMasks=entries=>new Map(Object.entries(entries).map(([id,data])=>[id,unpackBake(data,Uint8Array,n)]));
+ return assembleBinding(T,asset,policy,{rest,actual,skinWeight,slots,ref,masks:readMasks(bake.masks),firstMasks:readMasks(bake.firstMasks),diagnostics:{...bake.diagnostics,prebaked:true}});
 }
 const pools=new WeakMap();
 // Cache by asset, policy, constructor surface, body and reference frame.
@@ -281,8 +309,17 @@ export function acquireGarmentBinding(T,actor,asset,policy,fullIndex){
  let byT=byPolicy.get(policy);if(!byT)byPolicy.set(policy,byT=new WeakMap());
  let byBody=byT.get(T);if(!byBody)byT.set(T,byBody=new WeakMap());
  let byFrame=byBody.get(actor.data);if(!byFrame)byBody.set(actor.data,byFrame=new Map());
- const key=actor.units.toFixed(6)+':'+actor.mesh.geometry.boundingBox.min.y.toFixed(6);
- let shared=byFrame.get(key);if(!shared){shared={...bindGarmentGeometry(T,actor,asset,policy,fullIndex),users:0};byFrame.set(key,shared);}
+ // Body-only garments have identical body vertex ordering across all face
+ // styles. Keep the reference frame in the binding and apply that frame to
+ // each actor, instead of re-fitting the entire garment for every face height.
+ const key=policy.bakeId?'body:'+actor.bodyVertexCount:actor.units.toFixed(6)+':'+actor.mesh.geometry.boundingBox.min.y.toFixed(6);
+ let shared=byFrame.get(key);
+ if(!shared){
+  let binding;
+  const bake=policy.bakeId&&actor.garmentBakes?.[policy.bakeId];
+  if(bake)try{binding=hydrateGarmentBinding(T,actor,asset,policy,bake);}catch(error){console.warn('Garment bake rejected: '+policy.bakeId,error);}
+  shared={...(binding??bindGarmentGeometry(T,actor,asset,policy,fullIndex)),users:0};byFrame.set(key,shared);
+ }
  shared.users++;
  let released=false;
  return {shared,release(){if(released)return;released=true;if(--shared.users===0){for(const g of shared.parts.values())g.dispose();shared.geometry.dispose();byFrame.delete(key);}}};

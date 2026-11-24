@@ -7,7 +7,7 @@ const policies=new WeakMap();
 const smooth=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
 function bindingPolicy(actor,asset){
  let map=policies.get(actor.data);if(!map)policies.set(actor.data,map=new Map());
- const key=asset.meta.sex+':'+actor.units.toFixed(6)+':'+actor.mesh.geometry.boundingBox.min.y.toFixed(6);
+ const key=asset.meta.sex;
  if(map.has(key))return map.get(key);
  const sides=['left','right'],pivot=name=>actor.data.bones.find(b=>b.id===name).pivot;
  const frameY=name=>(pivot(name)[1]/1428-actor.mesh.geometry.boundingBox.min.y)*actor.units;
@@ -16,6 +16,7 @@ function bindingPolicy(actor,asset){
  const {hem,top,crotch}=asset.meta;
  const sideOf=x=>x*leftSign>=0?0:1;
  const policy=Object.freeze({
+  bakeId:'pants-v1',
   regions:sides.map(side=>['thigh_'+side,'shin_'+side,'foot_'+side]),
   guide(i,a){const x=a.position[i*3],y=a.position[i*3+1];return {region:sideOf(x),amount:1-smooth(crotch-.09,crotch+.06,y)};},
   constrain(i,a,weights,bones){

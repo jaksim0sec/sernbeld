@@ -59,7 +59,7 @@ try{
     d.frame();
     const projectedBody=[0,1.76].map(y=>d.player.pos.clone().add(new T.Vector3(0,y,0)).project(d.camera).toArray());
     const root=a.bodyRoot,before=d.camera.position.toArray(),q=d.camera.quaternion.toArray();
-    const npc=d.folk.list.map(n=>({id:n.def.id,gender:n.def.gender,body:n.ch.profile.body,vertices:n.ch.mesh.geometry.attributes.position.count,features:n.ch.mesh.userData.studioFeatures.length,values:n.ch.profile.values}));
+    const npc=d.folk.list.map(n=>{const ch=d.folk.ensureActor(n);return {id:n.def.id,gender:n.def.gender,body:ch.profile.body,vertices:ch.mesh.geometry.attributes.position.count,features:ch.mesh.userData.studioFeatures.length,values:ch.profile.values};});
     const grip=a.handWeapons.right;
     if(!grip)throw Error('Default equipped sword missing');
     const palm=grip.userData.grip;

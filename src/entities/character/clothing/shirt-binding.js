@@ -9,6 +9,7 @@ const armGroups=['right','left'].map(side=>[...chain(side),'hand_'+side,...['thu
 function channels(asset,i){const k=i*4;return {side:asset.influence[k+2],shoulder:asset.influence[k]/255,elbow:asset.influence[k+1]/255,kind:asset.influence[k+3]};}
 function smooth(a,b,x){const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);}
 export const SHIRT_BINDING_POLICY=Object.freeze({
+ bakeId:'shirt-v1',
  regions:armGroups,
  guide(i,asset){const c=channels(asset,i);return {region:c.side,amount:c.kind<2?c.shoulder:0};},
  constrain(i,asset,weights,bones){

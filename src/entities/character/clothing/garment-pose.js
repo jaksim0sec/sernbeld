@@ -77,7 +77,10 @@ export function createGarmentPart(T,actor,lease,id,materialFactory){
  try{
   material=materialFactory(pose.uniforms,garmentSkinningGLSL(shared.boneIds.length,shared.slots));
   object=new T.Mesh(geometry,material);
-  object.scale.setScalar(1/actor.units);object.position.y=actor.mesh.geometry.boundingBox.min.y;
+  // Transform from the shared garment reference frame into the actor's
+  // actual model-local coordinates; face morphs do not require a new binding.
+  const frame=shared.ref.frame.elements,units=frame[0];
+  object.scale.setScalar(1/units);object.position.y=-frame[13]/units;
   object.frustumCulled=false;object.castShadow=false;object.receiveShadow=false;
  }catch(err){pose.release();lease.release();material?.dispose();throw err;}
  object.onBeforeRender=()=>{pose.update();material.uniformsNeedUpdate=true;};

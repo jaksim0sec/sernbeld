@@ -4,7 +4,7 @@ import {createClothingController} from './clothing/registry.js';
 // Immutable geometry attributes can be shared by identical character profiles.
 const geometryPools=new WeakMap();
 // Native Three.js skinning of the supplied studio geometry. One material/draw per character.
-export function createStudioModel(T, factory, profile, {scale=1}={}){
+export function createStudioModel(T, factory, profile, {scale=1,clothing=true}={}){
  const built=factory.build(profile),{body,features,palette,blush,cheek}=built,data=body.data;
  const group=new T.Group(),model=new T.Group();group.add(model);group.scale.setScalar(scale);
  group.name='SERNBELD Studio Character';group.userData.appearance=profile;
@@ -22,14 +22,14 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  geometryPools.set(factory,pool);
  // Pose is animation state, not geometry. Identical faces still share buffers.
  const geometryKey=JSON.stringify({...profile,pose:undefined});
- let shared=pool.get(geometryKey),geometry,lodIndex,firstIndex;
+ let shared=pool.get(geometryKey),geometry,lodIndex,firstIndex,bodyVertexCount;
  // Full appearance equality is required: never share a modified face with another NPC.
  if(shared){
   geometry=new T.BufferGeometry();
   for(const [name,attribute] of Object.entries(shared.template.attributes))geometry.setAttribute(name,attribute);
   geometry.setIndex(shared.lodIndex[0]);
   geometry.boundingBox=shared.template.boundingBox.clone();
-  lodIndex=shared.lodIndex;firstIndex=shared.firstIndex;
+  lodIndex=shared.lodIndex;firstIndex=shared.firstIndex;bodyVertexCount=shared.bodyVertexCount;
   shared.geometries.add(geometry);shared.users++;
  }else{
  const lod=factory.source.lod,bodyLod=lod?.bodies?.[profile.body]??null;
@@ -47,9 +47,10 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
   sources.push({levels,p:f.positions,n:f.normals,ji:f.jointIds,we:f.weights,pal:f.skins,isSkin:f.skin??true,col:f.colors,material:f.material});
  }
  let vertexCount=0;
- const marks=sources.map(src=>{
+ const marks=sources.map((src,i)=>{
   const remap=new Int32Array(src.p.length/3).fill(-1);
   for(const id of src.levels[0])if(remap[id]<0)remap[id]=vertexCount++;
+  if(i===data.parts.length-1)bodyVertexCount=vertexCount;
   return remap;
  });
  const position=new Float32Array(vertexCount*3),normal=new Float32Array(vertexCount*3),color=new Float32Array(vertexCount*3);
@@ -103,7 +104,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  firstIndex=(()=>{const src=fullIndex.array,out=[];
   for(let i=0;i<src.length;i+=3)if(aArm[src[i]]>127||aArm[src[i+1]]>127||aArm[src[i+2]]>127)out.push(src[i],src[i+1],src[i+2]);
   return new T.BufferAttribute(IndexArray.from(out),1);})();
- shared={template:geometry,lodIndex,firstIndex,users:1,geometries:new Set([geometry])};
+ shared={template:geometry,lodIndex,firstIndex,bodyVertexCount,users:1,geometries:new Set([geometry])};
  pool.set(geometryKey,shared);
  }
  let distanceLOD=0,firstPerson=false;
@@ -209,7 +210,7 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  // Coverage is mutable per actor; never share it through the immutable body pool.
  const coverAttribute=new T.BufferAttribute(new Uint8Array(geometry.attributes.position.count),1,true);
  geometry.setAttribute('aClothCover',coverAttribute);
- const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,shirtAsset:factory.source.defaultShirts?.[profile.body],pantsAsset:factory.source.defaultPants?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
+ const api={group,model,mesh,B,bones,skeleton,data,rest,units,profile,bodyVertexCount,garmentBakes:factory.source.garmentBakes?.[profile.body],shirtAsset:factory.source.defaultShirts?.[profile.body],pantsAsset:factory.source.defaultPants?.[profile.body],speed:0,talk:0,phase:0,pose,grip,
   setLOD(i){distanceLOD=Math.max(0,Math.min(2,i|0));applyIndex();},
   get lodLevels(){return lodIndex.map(i=>i.count/3);},
   setShadow(on){mesh.castShadow=on;},
@@ -244,6 +245,6 @@ export function createStudioModel(T, factory, profile, {scale=1}={}){
  };
  // All runtime actors share the same loaded male/female shirt assets.
  api.clothing=createClothingController(T,api,lodIndex[0]);
- api.clothing.equipDefaults();
+ if(clothing)api.clothing.equipDefaults();
  return api;
 }

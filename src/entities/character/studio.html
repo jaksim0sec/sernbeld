@@ -45,10 +45,10 @@
 </main>
 
 <script type="module">
-import {loadStudioSource} from "./studio-source.js";
+import {loadStudioBody} from "./studio-source.js";
 import {attentionRotations} from "./attention-pose.js";
 import {REFERENCE_EYES,makeReferenceEyes} from "./reference-eyes.js";
-const studioSource=await loadStudioSource();
+const studioSource=await loadStudioBody();
 "use strict";
 const groups = {
   head:'두상 · 이마 · 관자', eye:'눈자리 · 눈썹뼈', cheek:'광대 · 볼',
