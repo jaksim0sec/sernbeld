@@ -1,0 +1,431 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SERNBELD | Shirt with buttons</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#182522;color:#c7d4cc;font-family:system-ui,sans-serif;overscroll-behavior:none}canvas{display:block;width:100vw;height:100dvh;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}#status{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-size:13px;pointer-events:none}#status[hidden]{display:none}#joints{position:fixed;inset:0;pointer-events:none}.joint{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border:2px solid #e2d8bc;border-radius:50%;background:#263b35b0;color:white;pointer-events:auto;touch-action:none;padding:0;cursor:pointer}.joint.active{background:#e4c67c;color:#17221e}#pose{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#172522e8;padding:10px 14px;border-radius:12px;display:flex;gap:10px;align-items:center;max-width:94vw;font-size:12px}#pose input{width:85px}#pose button{background:#354b43;color:white;border:0;padding:6px;border-radius:5px}#pose[hidden]{display:none}</style></head><body><canvas id="view" aria-label="남녀 상의 모델. 드래그로 회전, 두 손가락 또는 휠로 확대 및 축소"></canvas><div id="status" role="status">모델 읽는 중…</div><div id="joints"></div><div id="pose" hidden><span id="jointName"></span><label>옆 <input id="sideAngle" type="range" min="-20" max="110" value="0"></label><label>앞 <input id="frontAngle" type="range" min="-45" max="120" value="0"></label><button id="resetPose">초기화</button></div><script id="shirt_male" type="application/json">__SHIRT_SHIRT_MALE__</script><script id="data_male" type="text/plain">__SHIRT_DATA_MALE__</script><script id="shirt_female" type="application/json">__SHIRT_SHIRT_FEMALE__</script><script id="data_female" type="text/plain">__SHIRT_DATA_FEMALE__</script><script id="rig_male" type="application/json">__SHIRT_RIG_MALE__</script><script id="rig_female" type="application/json">__SHIRT_RIG_FEMALE__</script><script>
+
+'use strict';
+const status=document.getElementById('status'),canvas=document.getElementById('view');
+const gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true,powerPreference:'high-performance'});
+if(!gl)status.textContent='이 브라우저는 WebGL을 지원하지 않아';
+const uintExt=gl?((typeof WebGL2RenderingContext!=='undefined'&&gl instanceof WebGL2RenderingContext)?true:gl.getExtension('OES_element_index_uint')):false;
+// Shading only: preserve all positions, indices and pose calculations.
+const derivatives=!!(gl&&gl.getExtension('OES_standard_derivatives'));
+const VS=`attribute vec3 aPosition,aNormal,aRestPosition;attribute vec4 aColor,aDetail;uniform mat4 uMVP;uniform mat3 uViewNormal;uniform vec3 uEye;uniform vec2 uElbow;varying vec3 vNormal,vColor,vPos,vView,vRest;varying float vSkin;varying vec2 vDetail;void main(){vNormal=uViewNormal*aNormal;vColor=aColor.rgb;vRest=aRestPosition;vSkin=aColor.a;vPos=uViewNormal*aPosition;vView=uViewNormal*(uEye-aPosition);float bend=mix(uElbow.x,uElbow.y,step(0.,aDetail.z));vDetail=vec2(aDetail.x+bend*aDetail.y,aDetail.w);gl_Position=uMVP*vec4(aPosition,1.0);}`;
+const FS=(derivatives?'#extension GL_OES_standard_derivatives : enable\n':'')+`precision ${gl&&gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT)?.precision?'highp':'mediump'} float;varying vec3 vNormal,vColor,vPos,vView,vRest;varying float vSkin;varying vec2 vDetail;uniform vec3 uSkinLight,uSkinShadow;uniform float uBrightness,uCloth,uPlacket;
+vec3 tos(vec3 c){return mix(c*12.92,1.055*pow(max(c,0.0),vec3(.4166667))-.055,step(vec3(.0031308),c));}
+void main(){vec3 V=normalize(vView);vec3 N=normalize(vNormal+vec3(0.,0.,.000001));if(dot(N,V)<0.)N=-N;
+vec3 C=N;
+${derivatives?`// Screen-space surface gradient of a rest-space wrinkle height, in metres.
+vec3 px=dFdx(vPos),py=dFdy(vPos);vec3 sx=cross(py,N),sy=cross(N,px);float det=dot(px,sx);float hx=dFdx(vDetail.x),hy=dFdy(vDetail.x);if(abs(det)>1.e-12){vec3 grad=(sx*hx+sy*hy)/det;float len=length(grad);C=normalize(N-grad*min(1.,.78/max(len,.00001)));}`:''}
+vec3 L=normalize(vec3(-.43,.69,.66));float d=dot(N,L);float skinBand=smoothstep(.12,.25,d);vec3 skin=mix(uSkinShadow,uSkinLight,skinBand);
+float lit=dot(C,L);float band=smoothstep(-.24,.78,lit);float soft=clamp(lit*.5+.5,0.,1.);
+vec3 shade=mix(vec3(.59,.57,.55),vec3(1.01,1.00,.985),band)*(.92+.08*soft);
+// Rest-space weave, filtered to avoid shimmering at mobile viewing distances.
+float grain=0.;
+${derivatives?`vec3 phase=vRest*1010.;vec3 footprint=fwidth(phase);vec3 fade=1.-smoothstep(vec3(.55),vec3(2.9),footprint);vec3 q=sin(phase)*fade;vec3 blend=abs(N);blend/=max(dot(blend,vec3(1.)),.0001);grain=dot(blend,vec3(q.y*q.z,q.x*q.z,q.x*q.y));`:''}
+float crease=clamp(vDetail.y,0.,1.);vec3 cloth=vColor*shade*(1.-.22*crease+.025*grain);
+// Narrow self-fabric front placket, shaded in rest space, never on the back or collar.
+float front=smoothstep(.040,.060,vRest.z)*uPlacket;
+float x=vRest.x-.001;float edge=abs(x-.011);
+float panel=1.-smoothstep(.0105,.0125,abs(x));
+float seam=1.-smoothstep(.00065,.00165,edge);
+float stitch=1.-smoothstep(.00045,.0014,abs(x+.010));
+cloth*=1.+front*(.018*panel-.15*seam-.07*stitch);
+vec3 col=mix(vColor,mix(cloth,skin,vSkin),max(uCloth,vSkin));gl_FragColor=vec4(tos(max(col*uBrightness,0.)),1.);}`;
+const pale='#e5dfd2',clothL='#d2c8bb',clothR='#d2c8bb';
+function rgb(s){const n=parseInt(s.slice(1),16);return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255].map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4);}
+function makeShader(src,kind){const sh=gl.createShader(kind);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error('셰이더 오류: '+gl.getShaderInfoLog(sh));return sh;}
+function makeProgram(){const p=gl.createProgram();gl.attachShader(p,makeShader(VS,gl.VERTEX_SHADER));gl.attachShader(p,makeShader(FS,gl.FRAGMENT_SHADER));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error('프로그램 오류: '+gl.getProgramInfoLog(p));return p;}
+let program=null,loc=null;
+if(gl&&uintExt){try{program=makeProgram();loc={p:gl.getAttribLocation(program,'aPosition'),n:gl.getAttribLocation(program,'aNormal'),c:gl.getAttribLocation(program,'aColor'),m:gl.getUniformLocation(program,'uMVP'),light:gl.getUniformLocation(program,'uSkinLight'),shadow:gl.getUniformLocation(program,'uSkinShadow'),brightness:gl.getUniformLocation(program,'uBrightness'),detail:gl.getAttribLocation(program,'aDetail'),restPosition:gl.getAttribLocation(program,'aRestPosition'),cloth:gl.getUniformLocation(program,'uCloth'),placket:gl.getUniformLocation(program,'uPlacket'),eye:gl.getUniformLocation(program,'uEye'),viewNormal:gl.getUniformLocation(program,'uViewNormal'),elbow:gl.getUniformLocation(program,'uElbow')};gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(.095,.145,.135,1);}catch(e){status.textContent=e.message;}}
+function buffer(data,element=false){const o=gl.createBuffer();gl.bindBuffer(element?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,o);gl.bufferData(element?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);return o;}
+function gpu(vertices,normals,colors,index,mode=gl.TRIANGLES){if(vertices.length/3!==normals.length/3||vertices.length/3!==colors.length/4)throw Error('정점 속성 배열 크기 불일치');return {pos:buffer(vertices),norm:buffer(normals),color:buffer(colors),ind:index?buffer(index,true):null,count:index?index.length:vertices.length/3,mode,indexType:index instanceof Uint16Array?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT,rest:vertices.slice(),restNorm:normals.slice()};}
+function bindAttrib(id,buf,len,type,norm){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.enableVertexAttribArray(id);gl.vertexAttribPointer(id,len,type,norm,0,0);}
+function draw(g,mvp){gl.uniformMatrix4fv(loc.m,false,mvp);gl.uniform1f(loc.cloth,g.isCloth?1:0);gl.uniform1f(loc.placket,g.isPlacket?1:0);if(loc.detail>=0){if(g.detail)bindAttrib(loc.detail,g.detail,4,gl.FLOAT,false);else{gl.disableVertexAttribArray(loc.detail);gl.vertexAttrib4f(loc.detail,0,0,0,0);}}if(loc.restPosition>=0){bindAttrib(loc.restPosition,g.restPosition||g.pos,3,gl.FLOAT,false);}bindAttrib(loc.p,g.pos,3,gl.FLOAT,false);bindAttrib(loc.n,g.norm,3,gl.FLOAT,false);bindAttrib(loc.c,g.color,4,gl.UNSIGNED_BYTE,true);if(g.ind){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,g.ind);gl.drawElements(g.mode,g.count,g.indexType,0);}else gl.drawArrays(g.mode,0,g.count);}
+function geom(vertices,indices,hex){const vp=Float32Array.from(vertices),ids=(vp.length/3<=65536?Uint16Array:Uint32Array).from(indices),ns=new Float32Array(vp.length),c=new Uint8Array(vp.length/3*4),v=typeof hex==='function'?null:rgb(hex).map(x=>Math.round(x*255));for(let i=0;i<ids.length;i+=3){let ia=ids[i]*3,ib=ids[i+1]*3,ic=ids[i+2]*3,ab=[vp[ib]-vp[ia],vp[ib+1]-vp[ia+1],vp[ib+2]-vp[ia+2]],ac=[vp[ic]-vp[ia],vp[ic+1]-vp[ia+1],vp[ic+2]-vp[ia+2]],n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];for(const j of [ia,ib,ic])for(let k=0;k<3;k++)ns[j+k]+=n[k];}for(let i=0;i<vp.length/3;i++){const k=i*3,r=Math.hypot(ns[k],ns[k+1],ns[k+2])||1;for(let a=0;a<3;a++)ns[k+a]/=r;const co=v??hex(i);c.set([co[0],co[1],co[2],0],i*4);}return gpu(vp,ns,c,ids);}
+async function decodeData(id){const txt=document.getElementById(id).textContent.trim();const chunk=32768,parts=[];for(let i=0;i<txt.length;i+=chunk){const b=atob(txt.slice(i,i+chunk));for(let j=0;j<b.length;j++)parts.push(b.charCodeAt(j));}const res=await new Response(new Blob([new Uint8Array(parts)]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const dv=new DataView(res);let o=0;const nv=dv.getUint32(o,true),ni=dv.getUint32(o+4,true);o+=8;const pos=new Float32Array(res.slice(o,o+nv*12));o+=nv*12;const norm=new Float32Array(res.slice(o,o+nv*12));o+=nv*12;const color=new Uint8Array(res.slice(o,o+nv*4));o+=nv*4;const index=new Uint32Array(res.slice(o,o+ni*4));if(!nv||!ni)throw Error('원본 캐릭터 정점이 비어 있음');return {nv,ni,pos,index,mesh:gpu(pos,norm,color,index)};}
+function fitCollarSurface(positions, indices, neck, head, bodyHeight) {
+  const span=head[1]-neck[1];
+  if(!(span>bodyHeight*.012))throw Error('목 관절 범위를 확인할 수 없음');
+  const N=192, K=180, TAU=Math.PI*2, mix=(a,b,t)=>a+(b-a)*t;
+  const lo=neck[1]-bodyHeight*.045, hi=head[1]+bodyHeight*.009;
+  const triangles=[];
+  for(let k=0;k<indices.length;k+=3){
+    const a=indices[k]*3,b=indices[k+1]*3,c=indices[k+2]*3;
+    const ya=positions[a+1],yb=positions[b+1],yc=positions[c+1];
+    if(Math.max(ya,yb,yc)<lo||Math.min(ya,yb,yc)>hi)continue;
+    if(Math.min(Math.abs(positions[a]),Math.abs(positions[b]),Math.abs(positions[c]))>bodyHeight*.18)continue;
+    triangles.push([a,b,c]);
+  }
+  const grid=[];
+  function ray(segs,x,z,dx,dz){
+    let best=Infinity;
+    for(const [ax,az,bx,bz] of segs){
+      const ex=bx-ax,ez=bz-az,den=dx*ez-dz*ex;
+      if(Math.abs(den)<1e-12)continue;
+      const vx=ax-x,vz=az-z,t=(vx*ez-vz*ex)/den,u=(vx*dz-vz*dx)/den;
+      if(t>1e-8&&u>=-1e-7&&u<=1+1e-7&&t<best)best=t;
+    }
+    return best;
+  }
+  for(let j=0;j<=K;j++){
+    const y=mix(lo,hi,(j+.00013)/K),segments=[];
+    for(const tri of triangles){
+      const q=[];
+      for(let i=0;i<3;i++){
+        const a=tri[i],b=tri[(i+1)%3],ay=positions[a+1],by=positions[b+1];
+        if((ay<=y&&by>y)||(by<=y&&ay>y)){
+          const t=(y-ay)/(by-ay);q.push(mix(positions[a],positions[b],t),mix(positions[a+2],positions[b+2],t));
+        }
+      }
+      if(q.length===4)segments.push(q);
+    }
+    // Find the interior of the central section, not the bounds of the arms/head.
+    const t=Math.max(0,Math.min(1,(y-neck[1])/span));
+    const x=mix(neck[0],head[0],t),z0=mix(neck[2],head[2],t);
+    const crossings=[];
+    for(const [ax,az,bx,bz] of segments){
+      if((ax<=x&&bx>x)||(bx<=x&&ax>x))crossings.push(mix(az,bz,(x-ax)/(bx-ax)));
+    }
+    crossings.sort((a,b)=>a-b);
+    const uniq=crossings.filter((v,i)=>!i||v-crossings[i-1]>bodyHeight*1e-6);
+    let pair=null,score=Infinity;
+    for(let i=0;i+1<uniq.length;i+=2){
+      const a=uniq[i],b=uniq[i+1],w=b-a;
+      if(w<bodyHeight*.022||w>bodyHeight*.25)continue;
+      const s=Math.abs((a+b)/2-z0)+(z0<a||z0>b?bodyHeight*.05:0);
+      if(s<score){score=s;pair=[a,b];}
+    }
+    if(!pair){grid.push(null);continue;}
+    const z=(pair[0]+pair[1])/2,rs=[];
+    for(let i=0;i<N;i++){const a=i/N*TAU;rs.push(ray(segments,x,z,Math.sin(a),Math.cos(a)));}
+    if(rs.some(v=>!Number.isFinite(v)||v<bodyHeight*.008||v>bodyHeight*.18)){grid.push(null);continue;}
+    const r=rs.reduce((s,v)=>s+v,0)/N;
+    grid.push({y,x,z,rs,r,ratio:Math.max(...rs)/Math.min(...rs)});
+  }
+  const choices=grid.filter(g=>g&&g.y>=neck[1]+span*.20&&g.y<=neck[1]+span*.78&&g.ratio<2.3);
+  if(!choices.length)throw Error('유효한 목 단면을 찾지 못함');
+  const minR=Math.min(...choices.map(g=>g.r));
+  // Raised collar, 30 mm standing band; retain the fitted radial clearance.
+  const candidates=choices.filter(g=>g.r<minR*1.13&&g.y>=lo+minR*.85);
+  if(!candidates.length)throw Error('카라를 배치할 목 구간 부족');
+  const top=candidates.reduce((a,b)=>Math.abs(b.y-(neck[1]+span*.72))<Math.abs(a.y-(neck[1]+span*.72))?b:a);
+  const r=top.r, margin=Math.max(r*.065,bodyHeight*.0013)+.0005, bandH=.030;
+  function section(y,a){
+    if(y<lo||y>hi)return null;
+    const f=Math.max(0,Math.min(K-1e-7,(y-lo)/(hi-lo)*K-.00013));
+    const j=Math.floor(f),t=f-j,A=grid[j],B=grid[j+1];
+    if(!A||!B)return null;
+    const af=((a%TAU+TAU)%TAU)/TAU*N,i=Math.floor(af),q=af-i;
+    const rad=g=>mix(g.rs[i%N],g.rs[(i+1)%N],q);
+    return {x:mix(A.x,B.x,t),z:mix(A.z,B.z,t),r:mix(rad(A),rad(B),t)};
+  }
+  const S=112,R=14,join=37,vertices=[],faces=[],groups=[];
+  const smooth01=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  const start=19*Math.PI/180,baseGap=2.8*Math.PI/180,hemGap=36*Math.PI/180;
+  const point=(y,a,extra=0)=>{
+    const s=section(y,a);if(!s)throw Error('목 단면이 끊긴 위치에 카라가 도달함');
+    return [s.x+Math.sin(a)*(s.r+margin+extra),y,s.z+Math.cos(a)*(s.r+margin+extra)];
+  };
+  function vertex(p){vertices.push(...p);return vertices.length/3-1;}
+  const seam=[];
+  for(let i=0;i<=S;i++){const a=mix(start,TAU-start,i/S);seam.push(vertex(point(top.y,a)));}
+  function connect(a,b,reverse=false,from=0,to=S){
+    for(let i=from;i<to;i++){
+      const quad=[a[i],b[i],a[i+1],a[i+1],b[i],b[i+1]];
+      if(reverse)for(let k=0;k<6;k+=3)faces.push(quad[k],quad[k+2],quad[k+1]);else faces.push(...quad);
+    }
+  }
+  // 1. Neck ring, with the triangular cut in front. Bottom gap remains tiny.
+  const bandRows=[seam];
+  let prev=seam;
+  for(let j=1;j<=R;j++){
+    const t=j/R,a0=mix(start,baseGap,t),row=[];
+    for(let i=0;i<=S;i++){
+      const a=mix(a0,TAU-a0,i/S);const front=Math.max(0,Math.cos(a));
+      const drop=bandH+.012*front**2;
+      row.push(vertex(point(top.y-drop*t,a)));
+    }
+    connect(prev,row);prev=row;bandRows.push(row);
+  }
+  const fullBand=faces.slice();
+  // Remove only the concealed inner strip next to each merge. This makes the
+  // rear band and outer flap a single surface without a three-face T junction.
+  const trimmed=[];for(let k=0;k<fullBand.length;k+=6){const i=k/6%S;if(i!==join-1&&i!==S-join)trimmed.push(...fullBand.slice(k,k+6));}
+  faces.length=0;faces.push(...trimmed);
+  groups.push({start:0,count:faces.length,materialIndex:0});
+  // 2. Independent outer pattern, joined to the SAME vertices on the top seam.
+  // Front edges spread diagonally; the rear is shorter. No shoulder-sized plates.
+  prev=seam;
+  for(let j=1;j<=R;j++){
+    const t=j/R,a0=mix(start,hemGap,t),row=[];
+    for(let i=0;i<=S;i++){
+      const u=i/S,edge=Math.min(i,S-i),rawA=mix(a0,TAU-a0,u);
+      if(edge>=join){row.push(bandRows[j][i]);continue;}
+      const sign=rawA<=Math.PI?1:-1,theta=sign===1?rawA:TAU-rawA;
+      const warp=theta<Math.PI/2?Math.sin(Math.PI*(theta-a0)/(Math.PI/2-a0))*.16*t:0;
+      const a=sign===1?theta-warp:TAU-theta+warp,front=(1+Math.cos(a))*.5;
+      const seamA=mix(start,TAU-start,u),base=section(top.y,seamA);
+      const forward=Math.max(0,Math.cos(a));
+      const drop=Math.min(r*(.32+.48*front),span*.58)+.028*forward**.85;
+      let y=top.y-drop*t;
+      let s=section(y,a);if(!s)throw Error('외측 카라 단면 부족');
+      // A width ceiling follows the original collar, not the widening shoulders.
+      const halfWidth=Math.max(.069,r*1.71);
+      const limit=halfWidth+.005;
+      const widthAt=q=>Math.abs(q.x+Math.sin(a)*(q.r+margin+.006*t));
+      if(widthAt(s)>limit){
+        let lower=y,upper=top.y;
+        for(let k=0;k<18;k++){
+          const mid=(lower+upper)*.5, q=section(mid,a);
+          if(q&&widthAt(q)<=limit)upper=mid;else lower=mid;
+        }
+        y=upper;s=section(y,a);
+      }
+      // Only the rear retains its earlier outward flare. Front cloth follows the torso
+      // with a small, smoothly increasing separation from the inner neck band.
+      const oldSpread=r*(.35+.22*front)*t;
+      const fittedExtra=(.004+.002*Math.sin(Math.PI*t))*t;
+      const oldOuter=Math.max(s.r+r*.035*t,base.r+oldSpread);
+      const b=Math.min(1,Math.max(0,(Math.cos(a)+.30)/.65));
+      const blend=b*b*(3-2*b);
+      const outer=mix(oldOuter,s.r+fittedExtra,blend)+margin;
+      // Preserve the front drape; progressively merge with the original band at the rear.
+      const fold=smooth01((join-edge)/(join-20));
+      const bandA=mix(mix(start,baseGap,t),TAU-mix(start,baseGap,t),u);
+      const bandY=top.y-(bandH+.012*Math.max(0,Math.cos(bandA))**2)*t;
+      const outA=mix(bandA,a,fold),outY=mix(bandY,y,fold);
+      const fitted=section(outY,outA);if(!fitted)throw Error('후면 접합 단면 부족');
+      const extra=Math.max(0,outer-s.r-margin)*fold;
+      row.push(vertex([fitted.x+Math.sin(outA)*(fitted.r+margin+extra),outY,fitted.z+Math.cos(outA)*(fitted.r+margin+extra)]));
+    }
+    connect(prev,row,true,0,join);connect(prev,row,true,S-join,S);prev=row;
+  }
+  groups.push({start:groups[0].count,count:faces.length-groups[0].count,materialIndex:1});
+  // Inspect all triangle centroids and edge midpoints against sampled skin.
+  let clearance=Infinity,degenerate=0;const edges=new Map();
+  function measure(x,y,z){
+    const c=section(y,0);if(!c)return -Infinity;
+    const dx=x-c.x,dz=z-c.z,a=Math.atan2(dx,dz),s=section(y,a);
+    return s?Math.hypot(dx,dz)-s.r:-Infinity;
+  }
+  for(let k=0;k<faces.length;k+=3){
+    const ids=faces.slice(k,k+3),p=ids.map(i=>vertices.slice(i*3,i*3+3));
+    const u=p[1].map((v,i)=>v-p[0][i]),v=p[2].map((v,i)=>v-p[0][i]);
+    if(Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<1e-12)degenerate++;
+    for(let i=0;i<3;i++){
+      const a=ids[i],b=ids[(i+1)%3],key=a<b?`${a}:${b}`:`${b}:${a}`;
+      edges.set(key,(edges.get(key)||0)+1);
+      clearance=Math.min(clearance,measure(...p[i].map((v,j)=>(v+p[(i+1)%3][j])*.5)));
+    }
+    clearance=Math.min(clearance,measure(...p[0].map((v,i)=>(v+p[1][i]+p[2][i])/3)));
+  }
+  const nonManifold=[...edges.values()].filter(n=>n>2).length;
+  const backJoinEdges=Array.from({length:R},(_,j)=>[join,S-join].map(i=>{const a=bandRows[j][i],b=bandRows[j+1][i];return edges.get(`${Math.min(a,b)}:${Math.max(a,b)}`)||0;})).flat();
+  if(backJoinEdges.some(n=>n!==2))throw Error('뒷목 접합선이 연결되지 않음');
+  if(degenerate||nonManifold||clearance<-margin*.20)throw Error(`카라 검증 실패 (간격 ${clearance.toFixed(5)}, 퇴화면 ${degenerate}, 비다양체 ${nonManifold})`);
+  const bbox=[0,1,2].map(axis=>{let min=Infinity,max=-Infinity;for(let i=axis;i<vertices.length;i+=3){min=Math.min(min,vertices[i]);max=Math.max(max,vertices[i]);}return [min,max];});
+  return {vertices,faces,groups,fullBand,topY:top.y,radius:r,center:[top.x,top.y,top.z],diagnostics:{neckDiameter:2*r,bandHeight:bandH,frontBandHeight:bandH+.012*Math.cos(baseGap)**2,rows:R,segments:S,rearJoinIndex:join,rearJoinEdges:backJoinEdges.length,rearOuterGap:0,rearHemDifference:0,collarWidth:bbox[0][1]-bbox[0][0],collarHeight:bbox[1][1]-bbox[1][0],minSampledSkinGap:clearance,seamVertices:seam.length,triangles:faces.length/3,degenerate,nonManifold}};
+}
+
+
+function collarPieces(sex,body){
+ const y=sex==='male'?1.475:1.445;
+ const fit=fitCollarSurface(body.pos,body.index,[0,y,.025],[0,y+.045,.025],1.76);
+ const {vertices:v,faces:ix,groups}=fit;
+ const band=ix.slice(0,groups[0].count),outer=ix.slice(groups[1].start);
+ // Same surface and color transition as the validated rear-joined model.
+ const S=fit.diagnostics.segments,join=fit.diagnostics.rearJoinIndex;
+ const base=rgb(clothL),R=fit.diagnostics.rows;
+  // The inner neck band is the shaded reverse of the same fabric, not a white insert.
+  const bandColor=i=>{const j=i%(S+1),edge=Math.min(j,S-j),t=clamp((edge-12)/(join-12),0,1),f=t*t*(3-2*t),row=clamp(Math.floor(i/(S+1))/R,0,1),shadow=(.70+.11*row)*(1-f)+f;return base.map(c=>Math.round(c*shadow*255));};
+  const bandMesh=geom(v,band,bandColor),outerMesh=geom(v,outer,clothL);
+  for(const mesh of [bandMesh,outerMesh]){mesh.isCloth=true;mesh.restPosition=mesh.pos;}
+  // Align exterior normals where the rear band and outer flap share a seam.
+  const usedBand=new Set(band),usedOuter=new Set(outer);for(const i of usedOuter){if(i<=S||!usedBand.has(i))continue;const k=i*3,A=bandMesh.restNorm,B=outerMesh.restNorm;let dot=A[k]*B[k]+A[k+1]*B[k+1]+A[k+2]*B[k+2],sign=dot<0?-1:1;let x=A[k]+sign*B[k],y=A[k+1]+sign*B[k+1],z=A[k+2]+sign*B[k+2],len=Math.hypot(x,y,z);if(len>1e-6){A.set([x/len,y/len,z/len],k);B.set([sign*x/len,sign*y/len,sign*z/len],k);}}
+  for(const mesh of [bandMesh,outerMesh]){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.norm);gl.bufferData(gl.ARRAY_BUFFER,mesh.restNorm,gl.STATIC_DRAW);}
+  return {band:bandMesh,outer:outerMesh,checks:fit.diagnostics,topY:fit.topY};
+}
+function shirtPieces(sex){const raw=JSON.parse(document.getElementById('shirt_'+sex).textContent),cuff=new Set(raw.cuff),a=rgb(clothL).map(x=>Math.round(x*255)),b=rgb(pale).map(x=>Math.round(x*255));return {mesh:geom(raw.v,raw.f,i=>cuff.has(i)?b:a),checks:raw.checks};}
+// Rest-space fabric details. No vertex displacement: wrinkles cannot introduce clipping.
+function fabricDetail(a){
+ const g=a.shirt.mesh,cl=g.cloth,p=g.rest,out=new Float32Array(p.length/3*4),gauss=x=>Math.exp(-x*x),TAU=Math.PI*2;
+ const groove=x=>gauss(x)-.58*gauss((x-1.15)/.92);let lo=Infinity,hi=-Infinity;
+ for(let i=0;i<cl.base;i++){lo=Math.min(lo,p[i*3+1]);hi=Math.max(hi,p[i*3+1]);}
+ for(let i=0;i<cl.base;i++){
+  let x=p[i*3],y=p[i*3+1],z=p[i*3+2],u=clamp((y-lo)/Math.max(.001,hi-lo),0,1),theta=Math.atan2(x,z-.04),side=Math.abs(Math.sin(theta)),env=smooth(0,.045,u)*(1-smooth(.72,.95,u));
+  // Long, irregular folds hanging from the shoulder and terminating at the hem.
+  let phase=5*theta+1.05*Math.sin(u*3.3)+.38*Math.sin(3*theta+u*4),ridge=Math.cos(phase),vertical=.0023*env*(.38+.62*side)*(ridge+.28*Math.cos(8*theta-u*4));
+  // Local diagonal tension folds near the waist and axilla, not an all-over ripple.
+  let weight=smooth(.30,.75,side),v1=(u-.22-.20*(1-side))/.047,v2=(u-.35-.23*(1-side))/.047,v3=(u-.65+.19*(1-side))/.040;
+  let local=weight*env*(.0032*groove(v1)+.0023*groove(v2)+.0027*groove(v3));
+  out[i*4]=vertical-local;
+  out[i*4+3]=clamp(.27*env*gauss((ridge+1)*2.5)+weight*env*(.65*gauss(v1)+.42*gauss(v2)+.56*gauss(v3))+.24*gauss((u-.014)/.022)+.16*gauss((u-.98)/.025),0,1);
+ }
+ for(const side of cl.sides){const n=side.loop.length;for(let r=0;r<side.rows;r++){let t=(r+1)/side.rows,env=Math.sin(Math.PI*t)**1.4;for(let l=0;l<n;l++){let i=side.start+r*n+l,th=l/n*TAU,phase=3*th+t*2.1+.28*Math.sin(5*th);out[i*4]=.0021*env*(Math.cos(phase)+.3*Math.sin(5*th-t*2.7));out[i*4+3]=.42*env*gauss((Math.cos(phase)+1)*2.0);}}}
+ for(const side of cl.long){const end=side.rings.find(r=>r.cuff)?.y??side.rings.at(-1).y;for(const r of side.rings){const y=r.y,d=side.y0-y,dy=y-side.ey,dist=Math.max(0,y-end),env=smooth(0,.035,d)*smooth(0,.018,dist);for(let l=0;l<side.n;l++){
+  let i=r.start+l,k=i*3,x=p[k]-r.c[0],z=p[k+2]-r.c[2],th=Math.atan2(x,z),front=.20+.80*Math.max(0,Math.cos(th)),fade=smooth(0,.025,d),elbow=gauss(dy/.051)*front*fade;
+  let phase=(dy+.010*Math.sin(th*1.5))*TAU/.032,gather=gauss((dist-.026)/.028)*fade,cphase=5*th+dist*25;
+  let lengthFold=.0016*env*Math.cos(3*th+d*12),cuffFold=.0029*gather*Math.cos(cphase)*smooth(0,.009,dist),bendFold=.0035*elbow*Math.cos(phase);
+  out[i*4]=r.cuff?0:lengthFold+cuffFold+.0009*elbow*Math.cos(phase);out[i*4+1]=r.cuff?0:bendFold;out[i*4+2]=side.sign;
+  out[i*4+3]=r.cuff?(r.lip?.40:.06):clamp(.53*gather*gauss((Math.cos(cphase)+1)*1.8)+.34*elbow*gauss((Math.cos(phase)+1)*2),0,1);
+ }}}
+ g.isCloth=true;g.detailData=out;g.detail=buffer(out);g.restPosition=buffer(g.rest);
+}
+
+// A small button follows the actual shirt triangles instead of a fixed-depth plane.
+function buttonAnchors(g){
+ const p=g.rest,f=g.faces,base=g.cloth.base,tri=[];let lo=Infinity,hi=-Infinity;
+ for(let k=0;k<f.length;k+=3){let a=f[k],b=f[k+1],c=f[k+2];if(Math.max(a,b,c)>=base)continue;
+  let A=a*3,B=b*3,C=c*3;const xs=[p[A],p[B],p[C]],ys=[p[A+1],p[B+1],p[C+1]];
+  if(Math.min(...xs)>.015||Math.max(...xs)<-.015||Math.max(p[A+2],p[B+2],p[C+2])<.05)continue;
+  let dx=p[B]-p[A],dy=p[B+1]-p[A+1],ex=p[C]-p[A],ey=p[C+1]-p[A+1],det=dx*ey-dy*ex;if(Math.abs(det)<1e-12)continue;
+  tri.push({a,b,c,A,dx,dy,ex,ey,det,lo:Math.min(...ys),hi:Math.max(...ys)});lo=Math.min(lo,...ys);hi=Math.max(hi,...ys);
+ }
+ function anchor(x,y){let best=null,z=-Infinity;for(const t of tri){if(y<t.lo-1e-7||y>t.hi+1e-7)continue;let rx=x-p[t.A],ry=y-p[t.A+1],v=(rx*t.ey-ry*t.ex)/t.det,w=(t.dx*ry-t.dy*rx)/t.det,u=1-v-w;if(Math.min(u,v,w)<-1e-6)continue;let d=u*p[t.A+2]+v*p[t.b*3+2]+w*p[t.c*3+2];if(d>z){z=d;best={ids:[t.a,t.b,t.c],w:[u,v,w]};}}if(!best||z<.045)throw Error('단추 표면 위치를 찾지 못함');return best;}
+ const anchors=[],faces=[],colors=[],centers=[],n=24,r=.0048;
+ function vertex(x,y,h,c){let a=anchor(x,y);anchors.push({...a,h});colors.push(c);return anchors.length-1;}
+ function fan(center,ring){for(let k=0;k<n;k++)faces.push(center,ring[k],ring[(k+1)%n]);}
+ function strip(a,b){for(let k=0;k<n;k++){let l=(k+1)%n;faces.push(a[k],a[l],b[k],a[l],b[l],b[k]);}}
+ for(let i=0;i<5;i++){
+  const y=hi-(hi-lo)*(.17+i*.163),x=.001;centers.push([x,y]);let prev=null;
+  for(const [radius,h,c] of [[.88,.0004,'#a99e8c'],[1,.0012,'#b0a491'],[.96,.0025,'#bfb39f'],[.78,.0032,'#c0b5a2']]){
+   let ring=[];for(let k=0;k<n;k++){let t=k/n*Math.PI*2;ring.push(vertex(x+r*radius*Math.cos(t),y+r*radius*Math.sin(t),h,c));}if(prev)strip(prev,ring);prev=ring;
+  }
+  fan(vertex(x,y,.0032,'#c0b5a2'),prev);
+  // Two understated thread dimples, kept inside the button face.
+  for(const sign of [-1,1]){const xx=x+sign*.00125,yy=y;let ring=[];for(let k=0;k<n;k++){let t=k/n*Math.PI*2;ring.push(vertex(xx+.00057*Math.cos(t),yy+.00057*Math.sin(t),.00332,'#857b6a'));}fan(vertex(xx,yy,.00334,'#857b6a'),ring);}
+ }
+ return {anchors,faces,colors,centers};
+}
+function buttonPositions(spec,p){let out=new Float32Array(spec.anchors.length*3);for(let i=0;i<spec.anchors.length;i++){let {ids,w,h}=spec.anchors[i],k=i*3;for(let j=0;j<3;j++)out[k+j]=w[0]*p[ids[0]*3+j]+w[1]*p[ids[1]*3+j]+w[2]*p[ids[2]*3+j];out[k+2]+=h;}return out;}
+function initButtons(a){const g=a.shirt.mesh;g.isPlacket=true;const spec=buttonAnchors(g),p=buttonPositions(spec,g.rest),mesh=geom(p,spec.faces,i=>rgb(spec.colors[i]).map(c=>Math.round(c*255)));mesh.isCloth=true;mesh.restPosition=buffer(mesh.rest);a.buttons={spec,mesh};}
+function poseButtons(a,p){const b=a.buttons;if(!b)return;const v=buttonPositions(b.spec,p),n=meshNormals(v,b.spec.faces);for(const [buf,arr] of [[b.mesh.pos,v],[b.mesh.norm,n]]){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,arr,gl.DYNAMIC_DRAW);}}
+
+function perspective(fov,aspect,near,far){const t=1/Math.tan(fov/2),d=near-far;return Float32Array.of(t/aspect,0,0,0,0,t,0,0,0,0,(far+near)/d,-1,0,0,(2*far*near)/d,0)}
+function lookAt(eye,center){const n=(v)=>{const r=Math.hypot(...v)||1;return v.map(x=>x/r)},sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0),z=n(sub(eye,center)),x=n(cross([0,1,0],z)),y=cross(z,x);return Float32Array.of(x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1)}
+function mul(a,b){const c=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)c[j*4+i]+=a[k*4+i]*b[j*4+k];return c;}
+function translate(x,y,z){return Float32Array.of(1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1);}
+const actors=[];
+let yaw=0,pitch=0,zoom=1,queued=false;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const pointers=new Map();
+function requestRender(){if(!queued){queued=true;requestAnimationFrame(()=>{queued=false;render();});}}
+canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);});
+canvas.addEventListener('pointermove',e=>{
+ if(!pointers.has(e.pointerId))return;
+ const prev=pointers.get(e.pointerId),before=[...pointers.values()];
+ pointers.set(e.pointerId,[e.clientX,e.clientY]);
+ if(pointers.size===1){yaw-=(e.clientX-prev[0])*.009;pitch=clamp(pitch+(e.clientY-prev[1])*.006,-1.20,1.20);}
+ else if(pointers.size===2){const after=[...pointers.values()];const distance=a=>Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);const d=distance(before);if(d>1)zoom=clamp(zoom*distance(after)/d,.40,4.5);}
+ requestRender();
+});
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(ev,e=>pointers.delete(e.pointerId));
+canvas.addEventListener('wheel',e=>{e.preventDefault();const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?innerHeight:1);zoom=clamp(zoom*Math.exp(-delta*.0015),.40,4.5);requestRender();},{passive:false});
+addEventListener('resize',requestRender);canvas.addEventListener('contextmenu',e=>e.preventDefault());
+function panels(w,h){if(w/h>=.9){const half=Math.floor(w/2);return [[0,0,half,h],[half,0,w-half,h]];}const half=Math.floor(h/2);return [[0,half,w,h-half],[0,0,w,half]];}
+
+const jointsLayer=document.getElementById('joints'),posePanel=document.getElementById('pose'),sideAngle=document.getElementById('sideAngle'),frontAngle=document.getElementById('frontAngle');
+let selected=null;
+const smooth=(a,b,v)=>{let t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t)};
+function rot(x,y,z,rx,rz){let c=Math.cos(rx),s=Math.sin(rx), yy=y*c-z*s,zz=y*s+z*c;c=Math.cos(rz);s=Math.sin(rz);return [x*c-yy*s,x*s+yy*c,zz];}
+function jointTransform(p,j,normal=false){let q=rot(p[0]-(normal?0:j.p[0]),p[1]-(normal?0:j.p[1]),p[2]-(normal?0:j.p[2]),-j.front*Math.PI/180,j.sign*j.side*Math.PI/180);return q.map((v,k)=>v+(normal?0:j.p[k]));}
+function initPose(a){const rig=JSON.parse(document.getElementById('rig_'+a.sex).textContent);a.joints=[];for(let i=0;i<2;i++){let sign=i===0?-1:1;let shoulder={p:rig.joints[i][0],sign,side:0,front:0,kind:'shoulder'},elbow={p:rig.joints[i][1],sign,side:0,front:0,kind:'elbow',parent:shoulder};for(let j of [shoulder,elbow]){j.actor=a;let b=document.createElement('button');b.className='joint';b.textContent=j.kind==='shoulder'?'S':'E';b.title=j.kind==='shoulder'?'어깨':'팔꿈치';b.onclick=()=>selectJoint(j);j.button=b;jointsLayer.append(b);a.joints.push(j);}}for(let [g,key] of [[a.body.mesh,'body'],[a.shirt.mesh,'shirt']]){const raw=atob(rig[key]);if(raw.length!==g.rest.length/3*2)throw Error('스키닝 정점 수 불일치');g.weights=Uint8Array.from(raw,c=>c.charCodeAt(0));}initClothRig(a,rig);}
+// Z * X rotation, represented by unit quaternion, then interpolated from identity.
+function weightedRotation(j,w){const a=-j.front*Math.PI/360,b=j.sign*j.side*Math.PI/360,sa=Math.sin(a),ca=Math.cos(a),sb=Math.sin(b),cb=Math.cos(b);const x=cb*sa,y=sb*sa,z=sb*ca,q=cb*ca,len=Math.hypot(x,y,z);if(len<1e-10||w===0)return [0,0,0,1];const half=Math.atan2(len,q)*w,k=Math.sin(half)/len;return [x*k,y*k,z*k,Math.cos(half)];}
+function rotateWeighted(p,q){const [x,y,z,w]=q,tx=2*(y*p[2]-z*p[1]),ty=2*(z*p[0]-x*p[2]),tz=2*(x*p[1]-y*p[0]);return [p[0]+w*tx+y*tz-z*ty,p[1]+w*ty+z*tx-x*tz,p[2]+w*tz+x*ty-y*tx];}
+function applyWeighted(p,j,q,normal){const c=normal?[0,0,0]:j.p;const r=rotateWeighted([p[0]-c[0],p[1]-c[1],p[2]-c[2]],q);return [r[0]+c[0],r[1]+c[1],r[2]+c[2]];}
+function poseStrength(j){return smooth(0,80,Math.hypot(j.side,j.front));}
+function initClothRig(a,rig){
+ const g=a.shirt.mesh, raw=JSON.parse(document.getElementById('shirt_'+a.sex).textContent);g.cloth=rig.cloth;g.faces=Uint16Array.from(raw.f);g.grid=Float32Array.from(rig.cloth.grid);g.adj=Array.from({length:g.rest.length/3},()=>new Set());
+ for(let i=0;i<g.faces.length;i+=3){let A=g.faces[i],B=g.faces[i+1],C=g.faces[i+2];g.adj[A].add(B).add(C);g.adj[B].add(A).add(C);g.adj[C].add(A).add(B);}
+ g.adj=g.adj.map(s=>Uint32Array.from(s));a.skinFaces=Uint32Array.from(rig.cloth.skinFaces);g.active=new Float32Array(g.rest.length/3);initLongRig(a,g);
+}
+function basePoseArrays(a,g){let p=g.rest.slice(),n=g.restNorm.slice();const tables=a.joints.map(j=>Array.from({length:256},(_,i)=>weightedRotation(j,i/255)));for(let i=0;i<p.length;i+=3){let w=g.weights[i/3*2],e=g.weights[i/3*2+1];if(!w&&!e)continue;let idx=p[i]<0?0:2,j=a.joints[idx],k=a.joints[idx+1];for(let normal of [false,true]){let v=normal?n:p,q=[v[i],v[i+1],v[i+2]];if(e)q=applyWeighted(q,k,tables[idx+1][e],normal);if(w){if(!normal&&a.sex==='female'&&g===a.body.mesh&&w<255&&w>0&&!e){let full=applyWeighted(q,j,tables[idx][255],false),t=w/255,kk=4*t*(1-t),str=poseStrength(j),below=Math.max(j.p[1]-.015-q[1],0);q=q.map((v,k)=>v+(full[k]-v)*t);q[1]+=Math.min(below,.09)*kk*str*.88;q[0]-=j.sign*Math.min(below,.085)*kk*str*.20*Math.abs(j.side)/Math.max(Math.hypot(j.side,j.front),1e-6);}else q=applyWeighted(q,j,tables[idx][w],normal);}for(let t=0;t<3;t++)v[i+t]=q[t];}}return [p,n];}
+function torsoRadius(g,y,theta){let yf=clamp((y-1.15)/.002,0,165),af=((theta%(2*Math.PI)+2*Math.PI)%(2*Math.PI))/(2*Math.PI)*180,i=Math.min(164,Math.floor(yf)),j=Math.min(179,Math.floor(af)),t=yf-i,u=af-j,k=i*181+j;return (g.grid[k]*(1-u)+g.grid[k+1]*u)*(1-t)+(g.grid[k+181]*(1-u)+g.grid[k+182]*u)*t;}
+// V4: independently anchored torso and cuff; pose-space cross-sections form the sleeve.
+const sub3=(a,b)=>a.map((v,k)=>v-b[k]), dot3=(a,b)=>a.reduce((s,v,k)=>s+v*b[k],0), norm3=v=>{let l=Math.hypot(...v)||1;return v.map(x=>x/l)}, cross3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], lerp3=(a,b,t)=>a.map((v,k)=>v+(b[k]-v)*t);
+function armFrame(a,side){let j=a.joints[side.sign>0?2:0],e=a.joints[side.sign>0?3:1],axis=norm3(sub3(e.p,j.p)),u=norm3([side.sign,0,0].map((v,k)=>v-axis[k]*side.sign*axis[0])),v=cross3(axis,u),A=jointTransform(axis,j,true),U=jointTransform(u,j,true),V=jointTransform(v,j,true);return {j,axis,u,v,A,U,V,local:q=>{let d=sub3(q,j.p);return [dot3(d,A),dot3(d,U),dot3(d,V)]},world:(h,x,y)=>j.p.map((q,k)=>q+h*A[k]+x*U[k]+y*V[k])};}
+function armSections(a,bodyP,F,maxH){const K=42,M=120,minH=.018,step=(maxH-minH)/K,sections=Array.from({length:K+1},()=>[]),coords=new Float32Array(bodyP.length);for(let i=0;i<bodyP.length;i+=3){const q=F.local([bodyP[i],bodyP[i+1],bodyP[i+2]]);coords.set(q,i);}
+ for(let i=0;i<a.skinFaces.length;i+=3){let ids=[a.skinFaces[i]*3,a.skinFaces[i+1]*3,a.skinFaces[i+2]*3],lo=Math.min(...ids.map(k=>coords[k])),hi=Math.max(...ids.map(k=>coords[k]));if(hi<minH||lo>maxH||ids.every(k=>Math.hypot(coords[k+1],coords[k+2])>.14))continue;let start=Math.max(0,Math.ceil((lo-minH)/step)),end=Math.min(K,Math.floor((hi-minH)/step));for(let s=start;s<=end;s++){let h=minH+s*step,q=[];for(let k=0;k<3;k++){let x=ids[k],y=ids[(k+1)%3],u=coords[x],v=coords[y];if((u<=h&&v>h)||(v<=h&&u>h)){let t=(h-u)/(v-u);q.push(coords[x+1]+t*(coords[y+1]-coords[x+1]),coords[x+2]+t*(coords[y+2]-coords[x+2]));}}if(q.length===4)sections[s].push(q);}}
+ let radii=sections.map(segs=>{let out=new Float32Array(M);for(let l=0;l<M;l++){let th=l*2*Math.PI/M,dx=Math.cos(th),dy=Math.sin(th),r=0;for(let [x,y,X,Y] of segs){let ex=X-x,ey=Y-y,den=dx*ey-dy*ex;if(Math.abs(den)<1e-12)continue;let t=(x*ey-y*ex)/den,u=(x*dy-y*dx)/den;if(t>.003&&u>=-1e-6&&u<=1+1e-6&&t<.075&&t>r)r=t;}out[l]=r>.003?r:NaN;}return out;});
+ for(let pass=0;pass<2;pass++){let old=radii;radii=old.map((row,i)=>Float32Array.from(row,(r,l)=>{if(!Number.isFinite(r))return r;let neighbors=[old[Math.max(0,i-1)][l],old[Math.min(K,i+1)][l],row[(l+M-1)%M],row[(l+1)%M]].filter(Number.isFinite);if(!neighbors.length)return r;let avg=neighbors.reduce((s,v)=>s+v,0)/neighbors.length;return r+clamp((avg-r)*.45,-.002,.002);}));}
+ return (h,angle)=>{if(h<minH||h>maxH)return NaN;let f=clamp((h-minH)/step,0,K-1e-7),i=Math.floor(f),t=f-i,q=((angle%(2*Math.PI)+2*Math.PI)%(2*Math.PI))*M/(2*Math.PI),l=Math.floor(q),u=q-l,rr=[radii[i][l],radii[i][(l+1)%M],radii[i+1][l],radii[i+1][(l+1)%M]];if(rr.some(v=>!Number.isFinite(v)))return NaN;return (rr[0]*(1-u)+rr[1]*u)*(1-t)+(rr[2]*(1-u)+rr[3]*u)*t;};}
+function clothInitial(a,g,bodyP){const p=g.rest.slice(),active=g.active;active.fill(0);const male=a.sex==='male',base=g.cloth.base;bodyP=bodyP||basePoseArrays(a,a.body.mesh)[0];for(let side of g.cloth.sides){let F=armFrame(a,side),j=F.j,str=poseStrength(j);if(str<1e-8)continue;let N=side.loop.length,R=side.rows,hemStart=side.start+(R-1)*N,hem=[],localHem=[],hMax=0;for(let l=0;l<N;l++){let k=(hemStart+l)*3,q=jointTransform(Array.from(g.rest.slice(k,k+3)),j),h=F.local(q);hem.push(q);localHem.push(h);hMax=Math.max(hMax,h[0]);}
+ // The lower opening moves toward the actual armpit as the arm rises. The top stays attached to the torso.
+ const ang=Math.hypot(j.side,j.front),lower=male?1.265:1.255,top=j.p[1]-(male?.051:.044);for(let i=0;i<base;i++){let k=i*3,x=p[k],y=p[k+1],z=p[k+2];if(x*side.sign<=0)continue;let up=Math.min(.1,Math.max(top-y,0)*smooth(lower-.095,lower+.005,y)*smooth(.065,.105,Math.abs(x)))*str;let cap=smooth(.075,.125,Math.abs(x))*smooth(j.p[1]-.055,j.p[1]+.015,y);p[k]+=side.sign*.003*cap*str;p[k+1]+=up+.002*cap*str;if(up>1e-7||cap>1e-7){let cy=.025+.02*clamp((1.46-p[k+1])/.10,0,1),dz=p[k+2]-cy,theta=Math.atan2(p[k],dz),rad=Math.hypot(p[k],dz),target=torsoRadius(g,p[k+1],theta)+.008;target=Math.max(rad,Math.min(target,rad+(male?.035:.018)));p[k]=Math.sin(theta)*target;p[k+2]=cy+Math.cos(theta)*target;}
+ active[i]=smooth(.056,.10,Math.abs(x))*smooth(lower-.10,lower-.02,y)*(1-smooth(j.p[1]+.04,j.p[1]+.09,y))*str;
+ }
+ let sample=armSections(a,bodyP,F,hMax+.003),guideH=hMax*(male?.32:.39);for(let l=0;l<N;l++){let k=side.loop[l]*3,root=Array.from(p.slice(k,k+3)),q=localHem[l],angle=Math.atan2(q[2],q[1]),hemR=Math.hypot(q[1],q[2]);let target=(h)=>{let r=sample(h,angle);if(!Number.isFinite(r))r=hemR-.008;r=Math.max(r+(male?.008:.012),hemR*.96);return F.world(h,Math.cos(angle)*r,Math.sin(angle)*r);};let guide=target(guideH);
+ for(let row=0;row<R;row++){let t=(row+1)/R,i=side.start+row*N+l,k=i*3;let point;if(t<=.40){let u=t/.40;point=lerp3(root,guide,u); // ruled connection, no overshooting shoulder spline
+ // a limited radial fit near the upper arm prevents the chord entering the skin.
+ let [h,x,y]=F.local(point),r=Math.hypot(x,y),theta=Math.atan2(y,x),surf=sample(h,theta);if(Number.isFinite(surf)&&r>1e-5&&h>guideH*.30){let d=clamp(surf+(male?.007:.012)-r,0,.023)*smooth(guideH*.30,guideH*.70,h)*smooth(0,.22,u);point=F.world(h,x*(r+d)/r,y*(r+d)/r);}
+ }else{let u=(t-.40)/.60,h=guideH+(q[0]-guideH)*u;point=lerp3(target(h),hem[l],smooth(.70,1,u));}if(row===R-1)point=hem[l];
+ // Small angles interpolate from the validated rest shape, not the previous corrective deformation.
+ let rigid=jointTransform(Array.from(g.rest.slice(k,k+3)),j),rr=Array.from(g.rest.slice(k,k+3)),rootRest=Array.from(g.rest.slice(side.loop[l]*3,side.loop[l]*3+3)),rootRigid=jointTransform(rootRest,j),baseline=rigid.map((v,k)=>v+(1-smooth(0,.70,t))*(root[k]-rootRigid[k]));let blend=smooth(0,55,Math.hypot(j.side,j.front));point=lerp3(baseline,point,blend);p.set(point,k);active[i]=str*(1-smooth(.85,1,t));}
+ }
+ }return p;}
+function smoothCloth(p,g,iterations){const active=g.active,adj=g.adj;for(let it=0;it<iterations;it++){let prev=p.slice();for(let i=0;i<active.length;i++){let w=active[i]*.55,nb=adj[i];if(w<1e-5||!nb.length)continue;let k=i*3,dx=0,dy=0,dz=0;for(let j of nb){let b=j*3;dx+=prev[b]-prev[k];dy+=prev[b+1]-prev[k+1];dz+=prev[b+2]-prev[k+2];}p[k]+=w*dx/nb.length;p[k+1]+=w*dy/nb.length;p[k+2]+=w*dz/nb.length;}}}
+// Collision triangles are the actual posed skin triangles, not a bounding capsule.
+function skinGrid(a,p){const step=.018,inv=1/step,cells=new Map(),tris=[];const key=(x,y,z)=>((x+128)*256+(y+32))*256+(z+128);for(let i=0;i<a.skinFaces.length;i+=3){let ia=a.skinFaces[i]*3,ib=a.skinFaces[i+1]*3,ic=a.skinFaces[i+2]*3;let A=[p[ia],p[ia+1],p[ia+2]],B=[p[ib],p[ib+1],p[ib+2]],C=[p[ic],p[ic+1],p[ic+2]],ab=B.map((v,k)=>v-A[k]),ac=C.map((v,k)=>v-A[k]),nn=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]],len=Math.hypot(...nn);if(len<1e-10)continue;nn=nn.map(v=>v/len);let id=tris.length;tris.push([A,B,C,ab,ac,nn]);let lo=A.map((v,k)=>Math.floor((Math.min(v,B[k],C[k])-.010)*inv)),hi=A.map((v,k)=>Math.floor((Math.max(v,B[k],C[k])+.010)*inv));for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++){let k=key(x,y,z),list=cells.get(k);if(list)list.push(id);else cells.set(k,[id]);}}
+ return {tris,cells,inv,key};}
+function closestTri(x,y,z,t){const [A,B,C,ab,ac,n]=t,apx=x-A[0],apy=y-A[1],apz=z-A[2],d1=ab[0]*apx+ab[1]*apy+ab[2]*apz,d2=ac[0]*apx+ac[1]*apy+ac[2]*apz;if(d1<=0&&d2<=0)return A;const bpx=x-B[0],bpy=y-B[1],bpz=z-B[2],d3=ab[0]*bpx+ab[1]*bpy+ab[2]*bpz,d4=ac[0]*bpx+ac[1]*bpy+ac[2]*bpz;if(d3>=0&&d4<=d3)return B;const vc=d1*d4-d3*d2;if(vc<=0&&d1>=0&&d3<=0){let v=d1/(d1-d3);return [A[0]+v*ab[0],A[1]+v*ab[1],A[2]+v*ab[2]];}const cpx=x-C[0],cpy=y-C[1],cpz=z-C[2],d5=ab[0]*cpx+ab[1]*cpy+ab[2]*cpz,d6=ac[0]*cpx+ac[1]*cpy+ac[2]*cpz;if(d6>=0&&d5<=d6)return C;const vb=d5*d2-d1*d6;if(vb<=0&&d2>=0&&d6<=0){let w=d2/(d2-d6);return [A[0]+w*ac[0],A[1]+w*ac[1],A[2]+w*ac[2]];}const va=d3*d6-d5*d4;if(va<=0&&(d4-d3)>=0&&(d5-d6)>=0){let w=(d4-d3)/((d4-d3)+(d5-d6));return [B[0]+w*(C[0]-B[0]),B[1]+w*(C[1]-B[1]),B[2]+w*(C[2]-B[2])];}let den=1/(va+vb+vc),v=vb*den,w=vc*den;return [A[0]+ab[0]*v+ac[0]*w,A[1]+ab[1]*v+ac[1]*w,A[2]+ab[2]*v+ac[2]*w];}
+function closestSkin(p,k,grid){let x=p[k],y=p[k+1],z=p[k+2],cell=grid.cells.get(grid.key(Math.floor(x*grid.inv),Math.floor(y*grid.inv),Math.floor(z*grid.inv)));if(!cell)return null;let best=.035**2,ans=null;for(let id of cell){let t=grid.tris[id],q=closestTri(x,y,z,t),dx=x-q[0],dy=y-q[1],dz=z-q[2],d=dx*dx+dy*dy+dz*dz;if(d<best){best=d;let n=t[5];ans=[dx*n[0]+dy*n[1]+dz*n[2],n[0],n[1],n[2]];}}return ans;}
+function fitCloth(a,g,p,bodyP){let grid=skinGrid(a,bodyP);for(let pass=0;pass<5;pass++){let correction=new Float32Array(p.length);for(let i=0;i<g.active.length;i++){let weight=g.active[i];if(weight<.025)continue;let k=i*3,hit=closestSkin(p,k,grid);if(!hit)continue;let [sd,nx,ny,nz]=hit;let margin=a.sex==='female'?.009:.006;if(sd<margin){let d=Math.min(.015,margin-sd)*Math.min(1,weight*3);correction[k]=d*nx;correction[k+1]=d*ny;correction[k+2]=d*nz;}}for(let i=0;i<g.active.length;i++){if(g.active[i]<.025)continue;let k=i*3,nb=g.adj[i],x=0,y=0,z=0;for(let j of nb){x+=correction[j*3];y+=correction[j*3+1];z+=correction[j*3+2];}p[k]+=.85*correction[k]+.15*x/nb.length;p[k+1]+=.85*correction[k+1]+.15*y/nb.length;p[k+2]+=.85*correction[k+2]+.15*z/nb.length;}if(pass<2)smoothCloth(p,g,2);}return p;}
+function rayExit(p,k,n,grid){const x=p[k],y=p[k+1],z=p[k+2],dx=n[k],dy=n[k+1],dz=n[k+2];if(dx*dx+dy*dy+dz*dz<.5)return null;let ids=new Set();for(let dist=0;dist<=.055;dist+=.008){let cell=grid.cells.get(grid.key(Math.floor((x+dx*dist)*grid.inv),Math.floor((y+dy*dist)*grid.inv),Math.floor((z+dz*dist)*grid.inv)));if(cell)for(let id of cell)ids.add(id);}let best=.055,exit=false;for(let id of ids){let [A,B,C,ab,ac,normal]=grid.tris[id],hx=dy*ac[2]-dz*ac[1],hy=dz*ac[0]-dx*ac[2],hz=dx*ac[1]-dy*ac[0],det=ab[0]*hx+ab[1]*hy+ab[2]*hz;if(Math.abs(det)<1e-12)continue;let inv=1/det,sx=x-A[0],sy=y-A[1],sz=z-A[2],u=(sx*hx+sy*hy+sz*hz)*inv;if(u<-.00001||u>1.00001)continue;let qx=sy*ab[2]-sz*ab[1],qy=sz*ab[0]-sx*ab[2],qz=sx*ab[1]-sy*ab[0],v=(dx*qx+dy*qy+dz*qz)*inv;if(v<-.00001||u+v>1.00001)continue;let t=(ac[0]*qx+ac[1]*qy+ac[2]*qz)*inv;if(t>0.0001&&t<best){best=t;exit=(dx*normal[0]+dy*normal[1]+dz*normal[2])>.05;}}return exit?best:null;}
+function fitRays(a,g,p,bodyP){let grid=skinGrid(a,bodyP);for(let pass=0;pass<2;pass++){let n=meshNormals(p,g.faces),d=new Float32Array(p.length);for(let i=0;i<g.active.length;i++){if(g.active[i]<.02)continue;let k=i*3,t=rayExit(p,k,n,grid);if(t===null)continue;let q=Math.min(.030,t+.006)*Math.min(1,g.active[i]*4);d[k]=q*n[k];d[k+1]=q*n[k+1];d[k+2]=q*n[k+2];}for(let i=0;i<g.active.length;i++){if(g.active[i]<.02)continue;let k=i*3,nb=g.adj[i];for(let ax=0;ax<3;ax++){let s=0;for(let j of nb)s+=d[j*3+ax];p[k+ax]+=.90*d[k+ax]+.10*s/nb.length;}}if(pass===0)smoothCloth(p,g,2);}return p;}
+function meshNormals(p,f){let n=new Float32Array(p.length);for(let i=0;i<f.length;i+=3){let a=f[i]*3,b=f[i+1]*3,c=f[i+2]*3,ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2],vx=p[c]-p[a],vy=p[c+1]-p[a+1],vz=p[c+2]-p[a+2],x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx;for(let j of [a,b,c]){n[j]+=x;n[j+1]+=y;n[j+2]+=z;}}for(let i=0;i<n.length;i+=3){let l=Math.hypot(n[i],n[i+1],n[i+2])||1;n[i]/=l;n[i+1]/=l;n[i+2]/=l;}return n;}
+// Long sleeve: shared upper hem, elbow transition, rigid forearm and folded cuff.
+function initLongRig(a,g){for(const s of g.cloth.long){const P=a.body.mesh.rest;s.triangles=new Uint32Array(s.skin);s.skin=null;for(const r of s.rings){if(r.cuff||Math.abs(r.y-s.ey)>.095)continue;const ids=[];for(let k=0;k<s.triangles.length;k+=3){const ia=s.triangles[k],ib=s.triangles[k+1],ic=s.triangles[k+2],lo=Math.min(P[ia*3+1],P[ib*3+1],P[ic*3+1]),hi=Math.max(P[ia*3+1],P[ib*3+1],P[ic*3+1]);if(hi>=r.y-.075&&lo<=r.y+.075)ids.push(ia,ib,ic);}r.tris=Uint32Array.from(ids);}}}
+function section2D(body,ids,C,X,Y,Z){const out=[];for(let i=0;i<ids.length;i+=3){let pts=[];for(let l=0;l<3;l++){const k=ids[i+l]*3,d=[body[k]-C[0],body[k+1]-C[1],body[k+2]-C[2]];pts.push([dot3(d,X),dot3(d,Y),dot3(d,Z)]);}let q=[];for(let l=0;l<3;l++){let A=pts[l],B=pts[(l+1)%3];if((A[1]<=0&&B[1]>0)||(B[1]<=0&&A[1]>0)){let t=-A[1]/(B[1]-A[1]);q.push(A[0]+(B[0]-A[0])*t,A[2]+(B[2]-A[2])*t);}}if(q.length===4)out.push(q);}return out;}
+function radialSection(segs,x,z){let len=Math.hypot(x,z);if(len<1e-8)return 0;let dx=x/len,dz=z/len,m=0;for(let [a,b,c,d] of segs){let ex=c-a,ez=d-b,det=dx*ez-dz*ex;if(Math.abs(det)<1e-10)continue;let t=(a*ez-b*ex)/det,u=(a*dz-b*dx)/det;if(t>0&&t<.095&&u>=-1e-5&&u<=1.00001)m=Math.max(m,t);}return m;}
+function longPose(a,g,p,bodyP){for(const s of g.cloth.long){const j=a.joints[s.sign>0?2:0],e=a.joints[s.sign>0?3:1];if(!j.side&&!j.front&&!e.front&&!e.side)continue;let bend=Math.abs(e.front)*Math.PI/180;const upper=Math.min(s.y0-s.ey,.062),lower=.080;const n=s.n;
+ const delta=[];for(let l=0;l<n;l++){let k=(s.root+l)*3,rigid=jointTransform(Array.from(g.rest.slice(k,k+3)),j);delta.push([p[k]-rigid[0],p[k+1]-rigid[1],p[k+2]-rigid[2]]);}
+ const states=[];
+ for(const r of s.rings){let t=smooth(s.ey+upper,s.ey-lower,r.y),w=r.cuff?1:t;const Q=weightedRotation(e,w),q=p=>jointTransform(applyWeighted(p,e,Q,false),j),axis=p=>jointTransform(rotateWeighted(p,Q),j,true);let C=q(r.c),X=axis([1,0,0]),Y=axis([0,1,0]),Z=axis([0,0,1]);
+ if(bend>1e-5&&t>0&&t<1&&!r.cuff){const factor=4*t*(1-t)*Math.sin(bend/2)*.008;let inward=axis([0,0,1]);C=C.map((v,k)=>v+inward[k]*factor);}
+ const segs=bend>1e-5&&r.tris?section2D(bodyP,r.tris,C,X,Y,Z):null;const fade=1-smooth(0,.032,s.y0-r.y),off=new Float32Array(n),rs=[];
+ for(let l=0;l<n;l++){let k=(r.start+l)*3,x=g.rest[k]-r.c[0],z=g.rest[k+2]-r.c[2],rad=Math.hypot(x,z);rs.push([x,z,rad]);if(segs&&rad>1e-7){let hit=radialSection(segs,x,z);if(hit>0)off[l]=clamp(hit+.006-rad,0,.016);}}
+ // A single ray can intersect the opposing limb at a flexed elbow. Use a bounded,
+ // angularly coherent correction field instead of projecting each vertex independently.
+ const window=Math.max(2,Math.round(n*.035));let filtered=Float32Array.from(off,(_,l)=>{let v=[];for(let k=-window;k<=window;k++)v.push(off[(l+k+n)%n]);v.sort((a,b)=>a-b);return v[Math.floor(v.length/2)];});
+ for(let it=0;it<3;it++){let src=filtered;filtered=Float32Array.from(src,(_,l)=>{let sum=0,weight=0;for(let k=-window;k<=window;k++){let w=window+1-Math.abs(k);sum+=src[(l+k+n)%n]*w;weight+=w;}return sum/weight;});}
+ let strength=(1-smooth(.070,.098,Math.abs(r.y-s.ey)))*smooth(0,.018,s.y0-r.y);if(r.cuff)strength=0;for(let l=0;l<n;l++)filtered[l]*=strength;
+ states.push({r,C,X,Z,fade,rs,off:filtered});
+ }
+ for(let it=0;it<2;it++){let copy=states.map(s=>s.off.slice());for(let i=1;i<states.length-1;i++){if(states[i].r.cuff)continue;for(let l=0;l<n;l++)states[i].off[l]=.5*copy[i][l]+.25*(copy[i-1][l]+copy[i+1][l]);}}
+ for(const st of states){const {r,C,X,Z,fade,rs,off}=st;for(let l=0;l<n;l++){let k=(r.start+l)*3,[x,z,rad]=rs[l],scale=rad>1e-8?1+off[l]/rad:1;x*=scale;z*=scale;let v=C.map((v,k)=>v+x*X[k]+z*Z[k]+delta[l][k]*fade);p.set(v,k);}}
+ }return p;}
+
+function poseArrays(a,g,bodyP){if(g!==a.shirt.mesh)return basePoseArrays(a,g);if(a.joints.every(j=>!j.side&&!j.front))return [g.rest.slice(),g.restNorm.slice()];bodyP=bodyP||basePoseArrays(a,a.body.mesh)[0];let p;if(a.joints.some(j=>j.kind==='shoulder'&&(j.side||j.front))){p=clothInitial(a,g,bodyP);smoothCloth(p,g,4);fitCloth(a,g,p,bodyP);fitRays(a,g,p,bodyP);}else p=g.rest.slice();longPose(a,g,p,bodyP);return [p,meshNormals(p,g.faces)];}
+function selectJoint(j){selected=j;for(let a of actors)for(let k of a.joints)k.button.classList.toggle('active',k===j);posePanel.hidden=false;document.getElementById('jointName').textContent=(j.kind==='shoulder'?'어깨':'팔꿈치');sideAngle.value=j.side;frontAngle.value=j.front;sideAngle.disabled=j.kind==='elbow';}
+function deform(a){const bodyPose=poseArrays(a,a.body.mesh);for(let g of [a.body.mesh,a.shirt.mesh]){const [p,n]=g===a.body.mesh?bodyPose:poseArrays(a,g,bodyPose[0]);for(let [buf,arr] of [[g.pos,p],[g.norm,n]]){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,arr,gl.DYNAMIC_DRAW);}if(g===a.shirt.mesh)poseButtons(a,p);}requestRender();}
+function changePose(){if(!selected)return;selected.side=+sideAngle.value;selected.front=+frontAngle.value;deform(selected.actor);}
+sideAngle.onchange=frontAngle.onchange=changePose;document.getElementById('resetPose').onclick=()=>{for(let a of actors){for(let j of a.joints){j.side=j.front=0;}deform(a);}if(selected)selectJoint(selected);};
+function projectJoints(a,vp,rect,w,h){for(let j of a.joints){let p=j.parent?jointTransform(j.p,j.parent):j.p;let q=[0,0,0,0];for(let k=0;k<4;k++)q[k]=vp[k]*p[0]+vp[k+4]*p[1]+vp[k+8]*p[2]+vp[k+12];let x=rect[0]+(q[0]/q[3]+1)*rect[2]/2,y=rect[1]+(q[1]/q[3]+1)*rect[3]/2;j.button.style.left=x/w*innerWidth+'px';j.button.style.top=(1-y/h)*innerHeight+'px';j.button.hidden=q[3]<=0||Math.abs(q[0]/q[3])>1||Math.abs(q[1]/q[3])>1;}}
+
+function render(){
+ if(!gl||!program)return;
+ const dpr=Math.min(devicePixelRatio||1,2),scale=Math.min(dpr,2048/Math.max(1,innerWidth),2048/Math.max(1,innerHeight));
+ const w=Math.max(2,Math.round(innerWidth*scale)),h=Math.max(2,Math.round(innerHeight*scale));
+ if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+ gl.disable(gl.SCISSOR_TEST);gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ gl.useProgram(program);gl.uniform3fv(loc.light,Float32Array.from(rgb('#f3d0bb')));gl.uniform3fv(loc.shadow,Float32Array.from(rgb('#dcad99')));gl.uniform1f(loc.brightness,1.0);
+ gl.enable(gl.SCISSOR_TEST);
+ const rects=panels(w,h);
+ for(let i=0;i<actors.length;i++){
+  const a=actors[i],rect=rects[i];gl.viewport(...rect);gl.scissor(...rect);gl.clear(gl.DEPTH_BUFFER_BIT);
+  const aspect=rect[2]/rect[3],fov=36*Math.PI/180;
+  const center=[0,1.24,.045];
+  const d=Math.max(1.04,.64/Math.max(aspect,.18)/Math.tan(fov/2)/2)/zoom;
+  const eye=[center[0]+Math.sin(yaw)*d*Math.cos(pitch),center[1]+Math.sin(pitch)*d,center[2]+Math.cos(yaw)*d*Math.cos(pitch)];
+  const view=lookAt(eye,center),vp=mul(perspective(fov,aspect,.008,30),view);gl.uniformMatrix3fv(loc.viewNormal,false,Float32Array.of(view[0],view[1],view[2],view[4],view[5],view[6],view[8],view[9],view[10]));gl.uniform3fv(loc.eye,eye);gl.uniform2f(loc.elbow,Math.sin(Math.min(120,Math.abs(a.joints[1].front))*Math.PI/240),Math.sin(Math.min(120,Math.abs(a.joints[3].front))*Math.PI/240));
+  projectJoints(a,vp,rect,w,h);draw(a.body.mesh,vp);draw(a.shirt.mesh,vp);draw(a.buttons.mesh,vp);draw(a.collar.band,vp);draw(a.collar.outer,vp);
+ }
+ gl.disable(gl.SCISSOR_TEST);
+}
+async function start(){
+ if(!gl||!program||!uintExt){if(gl&&!uintExt)status.textContent='이 기기는 32비트 메시를 지원하지 않아';return;}
+ try{for(const sex of ['male','female']){const body=await decodeData('data_'+sex);const collar=collarPieces(sex,body);const shirt=shirtPieces(sex);const actor={sex,body,collar,shirt};initPose(actor);fabricDetail(actor);initButtons(actor);actors.push(actor);}
+ render();status.hidden=true;window.__sernbeldViewer={actors,poseArrays,checks:actors.map(a=>({collar:a.collar.checks,shirt:a.shirt.checks})),get camera(){return {yaw,pitch,zoom}}};document.documentElement.dataset.loaded='true';
+ }catch(e){console.error(e);status.textContent='모델 읽기 실패: '+e.message;}
+}
+start();
+</script></body></html>

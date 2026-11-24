@@ -1,0 +1,24 @@
+# Shirt v1 / 승인된 긴소매 셔츠
+
+이 디렉터리는 SERNBELD_shirt_final.html 승인본의 재현 가능한 원본 에셋이다. 의상 ID 예정값은 `top.basic-shirt`이며, 현재 상태는 **reference-only**이다. 기존 clothing registry의 `top` 슬롯을 사용하되 실제 게임용 build 함수는 아직 등록하지 않는다.
+
+## 보존 범위
+
+- 남녀 개별 메시, 기존 삼각형 순서, 소매·팔꿈치·어깨 곡면 보정, 카라, 소맷부리, 중앙 여밈선, 단추 5개, 천 재질 및 주름 셰이더.
+- 좌표는 승인된 뷰어와 동일한 Float32, 인덱스는 손실 없이 Uint16으로 변환했다. 중복·미사용 정점이 없어 정점 삭제나 단순화는 적용하지 않았다.
+- rig와 reference-body의 .part 파일은 전송 크기 때문에 분할된 원본 텍스트이다. manifest 순서로 연결하며 게임 로딩 대상이 아니다. 참조 신체는 리그 검증용이며 현재 게임의 신체 에셋을 교체하지 않는다.
+- manifest의 SHA-256으로 좌표·인덱스·참조 리그·참조 신체의 무손실 복원을 검사한다.
+
+```sh
+node tools/export-shirt-reference.mjs
+node tests/shirt-reference.mjs
+```
+
+첫 명령은 독립적인 포즈 뷰어 HTML을 다시 생성한다. 두 번째 명령은 남녀 각 7개 포즈와 단추 계산을 검사한다. 승인본과 무손실 재패킹본의 해당 14개 포즈에서 좌표·노멀·단추 좌표 배열의 완전 일치를 로컬 Node에서 확인했다. 실제 게임의 WebGL 및 스켈레톤 통합은 아직 검증되지 않았다.
+
+## 실제 장착 이식 시 필수 조건
+
+- 기존 `src/entities/character/clothing/registry.js`의 top 슬롯, equip/unequip, first-person visibility, dispose 계약을 지킨다.
+- 현재 game character skeleton과 참조 뷰어의 shoulder/elbow 기준 자세 및 좌표 변환을 확인한다. 단순 skinWeight 전이나 정적 SkinnedMesh로 곡면 재구성 알고리즘을 대체하지 않는다.
+- 기존 collar 슬롯과 셔츠 내 카라 접합을 이중 생성하지 않도록 소유권을 정한다. 승인된 외형을 보존하고, 캐릭터 메시를 교체하지 않는다.
+- 몸통 원본, 무기 애니메이션, 카메라, NPC 기존 동작을 변경하지 않는다. 실제 게임의 기본 자세, 팔꿈치 90/120도, 어깨 측면·전면 회전, 복합 포즈, 장착/해제, 양 성별, 모바일 성능을 비교 검증한 다음 등록한다.

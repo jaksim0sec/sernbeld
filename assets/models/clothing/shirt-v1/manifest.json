@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "id": "top.basic-shirt",
+  "status": "reference-only",
+  "referenceFrame": "foot-anchored 1.76m, +Y up, +Z front",
+  "bodies": {
+    "male": {
+      "vertices": 20384,
+      "triangles": 40432,
+      "positionSha256": "b796b2ff52839bf881c8d8826e90f056ffa931d8d64b0ac9c4c58ee272a933b0",
+      "indexSha256": "b45d11ae859fd9ab7e0cd63a61734419b54bb62977961e4940da7e79c19d8134",
+      "rigSha256": "cc51ccb5407d48304c4b9e9b70154a1efe3510780da98cd08b1f34d110f13a38",
+      "bodySha256": "8a011c9f3c8794e4ea938ad773c3fea880a3e0abe7a734694469f136016bfaf7",
+      "rigParts": [
+        "rig.00.part",
+        "rig.01.part",
+        "rig.02.part",
+        "rig.03.part"
+      ],
+      "bodyParts": [
+        "reference-body.00.part",
+        "reference-body.01.part",
+        "reference-body.02.part",
+        "reference-body.03.part",
+        "reference-body.04.part",
+        "reference-body.05.part",
+        "reference-body.06.part"
+      ]
+    },
+    "female": {
+      "vertices": 32301,
+      "triangles": 64110,
+      "positionSha256": "fba8228cf13b28176377c809674d96817fca877f44aa8fb831b20b97ffb810f2",
+      "indexSha256": "6ec317e90138edc72787dc8594038860de75099ceaf2daf9de65c07d5d383db4",
+      "rigSha256": "3e5c3378bec848f4984d3991e3fe659448303eec70153430ae33cab0c4689cc2",
+      "bodySha256": "8cbb37cab54807e313eac0295c04706b05bce0fa3a6e4aa134fe9e0613bcd87d",
+      "rigParts": [
+        "rig.00.part",
+        "rig.01.part",
+        "rig.02.part"
+      ],
+      "bodyParts": [
+        "reference-body.00.part",
+        "reference-body.01.part",
+        "reference-body.02.part",
+        "reference-body.03.part",
+        "reference-body.04.part"
+      ]
+    }
+  }
+}
