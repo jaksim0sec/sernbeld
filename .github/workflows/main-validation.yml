@@ -1,0 +1,72 @@
+name: Main validation and Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sernbeld-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/verify.mjs build core clothing world
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright pngjs three
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/verify.mjs browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sernbeld-browser-evidence
+          path: test-results/
+          if-no-files-found: ignore
+
+  package:
+    if: github.ref == 'refs/heads/main'
+    needs: [contracts, browser]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage the verified tree
+        run: |
+          mkdir /tmp/sernbeld-site
+          git archive HEAD | tar -xf - -C /tmp/sernbeld-site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/sernbeld-site
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Publish verified Pages artifact
+        id: publish
+        uses: actions/deploy-pages@v4

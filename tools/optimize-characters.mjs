@@ -184,7 +184,12 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
  const source=JSON.parse(gunzipSync(await readFile(path.join(root,SOURCE))));
  const lod=await buildLod(source);
  const json=Buffer.from(JSON.stringify(lod));
- await writeFile(path.join(root,TARGET),gzipSync(json,{level:9}));
+ const target=path.join(root,TARGET);
+ const check=process.argv.includes('--check');
+ if(check){
+  const existing=gunzipSync(await readFile(target));
+  if(!existing.equals(json))throw Error(TARGET+' is stale. Run node tools/optimize-characters.mjs');
+ }else await writeFile(target,gzipSync(json,{level:9}));
  for(const [name,b] of Object.entries(lod.bodies))console.log(name,'triangles per level',b.triangles.join(' / '));
- console.log('features',Object.keys(lod.features).length,'written',TARGET,((performance.now()-t0)/1000).toFixed(1)+'s');
+ console.log('features',Object.keys(lod.features).length,check?'verified':'written',TARGET,((performance.now()-t0)/1000).toFixed(1)+'s');
 }

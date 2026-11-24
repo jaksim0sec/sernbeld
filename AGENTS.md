@@ -1,0 +1,20 @@
+# 세른벨드 작업 진입점
+
+기준 저장소는 `jaksim0sec/sernbeld`, 통합 기준은 `main`이다. 먼저 현재 HEAD, 원격 main, 작업 트리와 관련 최근 변경을 확인한다. 사용자 작업을 유지하고 요청 없이 새 브랜치를 만들거나 기존 브랜치를 변경하지 않는다.
+
+[현재 구현과 기준 자료](docs/core/CURRENT_STATE.md)에서 현재·과거·제안을 구분한다. 요청이 걸치는 행을 함께 읽고, 각 문서가 연결한 코드·도구로 바로 들어간다.
+
+| 작업 | 먼저 읽을 문서 | 실제 시작점 |
+| --- | --- | --- |
+| 의상·장착·리그 | [의상 제작](docs/workflows/CLOTHING.md), [기준 리그](docs/contracts/CHARACTER_RIG.md) | [공용 의상 스튜디오](tools/dev/index.html), [장착 계약](src/entities/character/clothing/README.md) |
+| 3D 에셋·생태·건축 | [에셋·월드 제작](docs/workflows/MODEL_ASSETS.md), [산출물 계약](docs/contracts/DELIVERABLES.md) | [에셋 스튜디오](tools/dev/assets.html), [아트·세계관](세른벨드_게임_컨셉_종합.md#2-아트-디렉션과-세계의-분위기) |
+| UI·마법진 | [UI/UX 설계 지침](docs/UI_UX_DESIGN_GUIDELINES.md), [UI 작업과 실행 검증](docs/workflows/UI_UX.md) | [SEED](styles/seed.css), [UI 작업대](tools/dev/ui.html) |
+| 물리·충돌·동선 | [디버깅과 최적화](docs/workflows/DEBUGGING.md), [에셋·월드 제작](docs/workflows/MODEL_ASSETS.md) | [물리 검증](tests/player-physics.mjs), [카엘 실월드 검증](tests/world-playability.mjs) |
+| NPC·아이템·스킬·저장·콘텐츠 기획 | [산출물과 등록](docs/contracts/DELIVERABLES.md), [현재 구현](docs/core/CURRENT_STATE.md) | [게임 기획](세른벨드_게임_컨셉_종합.md), [코어 모듈](src/core/) |
+| 최적화·리팩터링 | [디버깅과 최적화](docs/workflows/DEBUGGING.md), [구조](docs/STRUCTURE.md) | 변경 대상의 계약, 실제 성능과 보존 비교 |
+| 빌드·PWA·배포 | [검증·통합](docs/validation/VALIDATION_POLICY.md), [PWA](docs/PWA.md) | [검증 실행기](tools/verify.mjs), [검증·배포 CI](.github/workflows/main-validation.yml) |
+
+- S(간단 수정)는 관련 규격과 최소 검증만 수행한다. M(새 콘텐츠)은 분야별 작업 흐름을 따른다. L(시스템 변경)은 통합 검증을 하고 [작업 기록](docs/tasks/INDEX.md)을 남긴다. XL(공용 계약 개편)은 영향과 의존 작업을 먼저 조정한다. 주요 디자인이나 비호환 계약 변경은 적용 전에 사용자와 범위를 합의한다.
+- 요구사항별로 결과와 보존 기준을 먼저 정한다. 공용 도구와 [승인 선례](docs/references/INDEX.md)를 재사용하고, 실패 시 [재현과 판단 근거](docs/knowledge/INDEX.md)를 확인한다.
+- 통합 전에 최신 main을 다시 확인하고, 다른 작업과 겹친 경로·계약을 비교한다. 생성물과 소스는 한 변경으로 검증한다. 검증 결과와 사용자 승인 범위는 각각 기록한다.
+- 작업 종료 시 변경된 계약, 확인한 실패 원인, 승인 선례와 현재 상태 중 해당하는 기준 문서만 갱신한다. 갱신 대상은 [지식 관리](docs/knowledge/INDEX.md)에 있다.

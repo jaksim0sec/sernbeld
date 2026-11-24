@@ -1,0 +1,36 @@
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0;
+  padding: clamp(.85rem, 2.5vw, 2rem);
+  background: var(--seed-black);
+  color: var(--seed-white);
+  font: 1rem/var(--seed-line) var(--seed-font);
+}
+main { max-width: 80rem; margin: auto; }
+nav { display: flex; flex-wrap: wrap; gap: .6rem 1rem; margin-bottom: 1rem; }
+nav a { color: var(--seed-gray1); min-height: var(--seed-touch); display: inline-grid; align-items: center; }
+nav a[aria-current] { color: var(--seed-white); text-decoration-thickness: .12em; text-underline-offset: .3em; }
+h1 { margin: 0 0 1rem; font-size: var(--seed-title-size); letter-spacing: var(--seed-title-tracking); }
+.controls { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: .75rem; }
+label { display: grid; gap: .2rem; font-size: .85rem; color: var(--seed-gray1); }
+select, input[type=file], button {
+  max-width: 100%;
+  min-height: var(--seed-touch);
+  padding: .3rem .55rem;
+  border: 1px solid var(--seed-gray4);
+  border-radius: .55rem;
+  background: var(--seed-surface);
+  color: var(--seed-white);
+  font: inherit;
+}
+input[type=file] { max-width: min(18rem, 85vw); }
+label:has(input[type=checkbox]) { display: flex; align-items: center; min-height: var(--seed-touch); gap: .45rem; }
+a:focus-visible, input:focus-visible, select:focus-visible, button:focus-visible { outline: var(--seed-focus); outline-offset: var(--seed-focus-offset); }
+[role=status] { display: block; min-height: 1.6rem; margin: .35rem 0; color: var(--seed-gray1); font-size: .9rem; }
+.stage { height: clamp(24rem, 65vh, 44rem); border: 1px solid var(--seed-gray4); border-radius: var(--seed-radius-card); overflow: hidden; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.frame-scroll { max-width: 100%; overflow: auto; }
+iframe { display: block; width: min(100%, 24.375rem); height: 46rem; border: 0; outline: 1px solid var(--seed-gray4); border-radius: .65rem; background: var(--seed-panel); }
+
+[hidden] { display: none !important; }

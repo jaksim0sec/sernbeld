@@ -2,6 +2,8 @@
 
 Character resources are separate from world shaders and from the monolithic running `game.js`.
 
+For current player and NPC work start at [Active character runtime](#active-character-runtime) and the [rig contract](contracts/CHARACTER_RIG.md). The registered female asset below is the earlier standalone model.
+
 ## Registered defaults
 
 | Registry ID | Location | Status |

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>세른벨드 3D 에셋 스튜디오</title>
+  <link rel="stylesheet" href="../../styles/seed.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+  <nav aria-label="개발 스튜디오">
+    <a href="./index.html">의상</a>
+    <a aria-current="page" href="./assets.html">3D 에셋</a>
+    <a href="./ui.html">UI · 월드</a>
+  </nav>
+  <h1>3D 에셋 스튜디오</h1>
+  <div class="controls">
+    <label>모델 GLB<input id="model" type="file" accept=".glb,.gz"></label>
+    <label>충돌 GLB<input id="collision" type="file" accept=".glb,.gz"></label>
+    <label><input id="bounds" type="checkbox">모델 범위</label>
+  </div>
+  <output id="status" role="status">카엘 기준 모델을 불러오는 중</output>
+  <div class="stage"><canvas aria-label="3D 에셋 미리보기"></canvas></div>
+</main>
+<script type="module" src="./assets.js"></script>
+</body>
+</html>

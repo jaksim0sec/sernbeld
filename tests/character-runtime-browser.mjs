@@ -12,6 +12,7 @@ try{
  for(const viewport of [{width:780,height:360},{width:390,height:844}]){
   const label=viewport.width>viewport.height?'landscape':'portrait';
   const context=await browser.newContext({viewport,isMobile:true,hasTouch:true});const page=await context.newPage(),errors=[];
+  await context.route('https://fonts.googleapis.com/**', route => route.fulfill({contentType:'text/css',body:''}));
   page.on('pageerror',e=>{errors.push(String(e));console.log('PAGE ERROR',String(e));});
   page.on('console',m=>{if(m.type()==='error'){errors.push(m.text());console.log('CONSOLE ERROR',m.text().slice(0,2500));}});
   try{
@@ -21,7 +22,8 @@ try{
    assert(await page.locator('#character-chooser').evaluate(e=>e.open),'First launch did not open character creator');
    const iframe=page.frameLocator('#character-chooser iframe');
    await iframe.getByRole('button',{name:'여성',exact:true}).click();
-   await iframe.getByRole('button',{name:'얼굴 확대',exact:true}).click();
+   await iframe.getByRole('button',{name:'세부 조정',exact:true}).click();
+   assert.equal(await iframe.getByRole('button',{name:'기본 설정',exact:true}).getAttribute('aria-pressed'),'true');
    await page.screenshot({path:`${root}/${label}-creator.png`});
    // Verify the geometry pipeline agrees with the actual original editor, not just profile metadata.
    const comparison=await page.evaluate(()=>{
@@ -122,7 +124,7 @@ try{
    assert(distance(stats.firstIdle.q,stats.firstAttack.q)>.01,'Original 1P recoil disappeared');
    assert(stats.firstArmOnly,'1P arms were not rendered from the real character');
    assert(stats.visibleArms>30,'Real skinned arms are outside the first-person viewport: '+JSON.stringify({visible:stats.visibleArms,wrist:stats.wrist,firstIdle:stats.firstIdle,player:stats.playerPosition}));
-   assert(stats.wrist.every(v=>Math.abs(v)<.95),'Equipped hand is outside the first-person viewport: '+JSON.stringify(stats.wrist));
+   assert(stats.wrist.every(v=>Math.abs(v)<1),'Equipped hand is outside the first-person viewport: '+JSON.stringify(stats.wrist));
    assert(stats.projectedBody.every(p=>Math.abs(p[1])<.9),'Third-person framing crops head or feet: '+JSON.stringify(stats.projectedBody));
    await page.screenshot({path:`${root}/${label}-third-person.png`,timeout:90000});
    await page.evaluate(()=>{

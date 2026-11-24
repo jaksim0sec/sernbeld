@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>세른벨드 의상 스튜디오</title>
+  <link rel="stylesheet" href="../../styles/seed.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+  <nav aria-label="개발 스튜디오">
+    <a aria-current="page" href="./index.html">의상</a>
+    <a href="./assets.html">3D 에셋</a>
+    <a href="./ui.html">UI · 월드</a>
+  </nav>
+  <h1>의상 스튜디오</h1>
+  <div class="controls">
+    <label>체형<select id="body"><option value="male">남성</option><option value="female">여성</option></select></label>
+    <label>자세<select id="pose"></select></label>
+    <label>LOD<select id="lod"><option>0</option><option>1</option><option>2</option></select></label>
+    <label><input type="checkbox" id="compare">기준 인체 비교</label>
+    <label><input type="checkbox" id="first">1인칭 표시 범위</label>
+  </div>
+  <div class="controls" id="slots"></div>
+  <output id="status" role="status">캐릭터 데이터를 불러오는 중</output>
+  <div class="stage"><canvas aria-label="의상 미리보기"></canvas></div>
+</main>
+<script type="module" src="./garments.js"></script>
+</body>
+</html>

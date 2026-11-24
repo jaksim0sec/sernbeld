@@ -2,7 +2,7 @@
 
 ## 범위
 - `index.html`에서 설치 매니페스트 및 `pwa.js`를 로드한다.
-- `sw.js`가 게임 실행에 필요한 HTML/JS/CSS, SVG, GLB 및 기본 여성 모델 데이터를 **전부 받아야 설치에 성공**한다.
+- `sw.js`가 게임 실행에 필요한 HTML/JS/CSS, SVG, GLB 및 Character Studio와 기본 의상 데이터를 **전부 받아야 설치에 성공**한다.
 - Google Fonts는 외부 리소스라 오프라인에서 시스템 대체 폰트를 사용한다.
 - `file://`에서는 동작하지 않는다. HTTPS(GitHub Pages 포함) 또는 `localhost`에서 접속해야 한다.
 - 설치 후 첫 온라인 방문을 완료해야 오프라인 실행할 수 있다. 최초 캐시 저장 전에 탭을 닫지 않는 것이 좋다.

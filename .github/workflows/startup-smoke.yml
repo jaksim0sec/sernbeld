@@ -1,13 +1,5 @@
 name: Cold startup regression
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'pwa.js'
-      - 'sw.js'
-      - 'tests/pwa-startup.mjs'
-      - 'tests/garment-render.mjs'
-      - '.github/workflows/startup-smoke.yml'
   workflow_dispatch:
 jobs:
   validate:

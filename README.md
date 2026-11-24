@@ -1,6 +1,6 @@
 # SERNBELD / 세른벨드
 
-카엘 항구 3D 오픈월드 프로토타입.
+카엘 항구 3D 오픈월드 프로토타입. 개발은 [AGENTS.md](AGENTS.md)에서 시작한다. 공용 제작 화면은 저장소의 HTTP 서버에서 [개발 스튜디오](tools/dev/index.html)를 연다.
 
 ## 실행
 정적 HTTP 서버에서 `index.html`을 연다. 예: `python -m http.server 8000` 또는 GitHub Pages.
@@ -18,7 +18,7 @@ HTTPS(GitHub Pages 등) 또는 localhost에서 접속하면 `sw.js`가 오프라
 - `styles.css`: 기존 호환용 CSS 진입점
 - `assets/ui-icons.svg`: 11종 공용 UI 아이콘, HTML에서 15번 사용
 - `assets/kael-cutstone-v7.glb.gz`: 압축 3D 에셋
-- `assets/models/characters/female-base-v1.mesh.json`: 여성 기본 인체 원본 스키닝 메시 (47관절)
+- `assets/models/characters/female-base-v1.mesh.json`: 독립 여성 스키닝 에셋. 실제 게임의 남녀 기준은 `assets/models/characters/studio-v1.json.gz`
 - `src/render/materials/standard-skin.js`: 사람 캐릭터용 표준 2톤 툰 스킨 재질
 - `src/entities/character/`: 여성 기본 모델 로더 및 공용 모델·스킨 레지스트리
 - `src/core/`: 독립 ES 모듈로 구현한 공통 사건·활성 엔티티 식별·혼합형 아이템 보관 기반
@@ -43,7 +43,7 @@ node tools/optimize-characters.mjs   # studio-v1.json.gz가 바뀌면 캐릭터 
 node tests/studio-model.mjs
 ```
 
-브라우저 회귀 검증은 `.github/workflows/refactor-regression.yml`과 `tests/webgl-smoke.mjs`로 준비했다. 실제 결과 확인 전에는 동작이 완전히 같다고 판정하지 않는다.
+[검증·통합 기준](docs/validation/VALIDATION_POLICY.md)에 분야별 명령과 main 배포 기준이 있다.
 
 ## 주의
 이 구조화 단계에서는 기존 대형 번들의 실행 순서와 JS 스코프를 변경하지 않는다. 원본 빌드 소스가 확보되면 본격적인 독립 ESM 모듈화로 이행한다.

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>세른벨드 UI · 월드 작업대</title>
+  <link rel="stylesheet" href="../../styles/seed.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+  <nav aria-label="개발 스튜디오">
+    <a href="./index.html">의상</a>
+    <a href="./assets.html">3D 에셋</a>
+    <a aria-current="page" href="./ui.html">UI · 월드</a>
+  </nav>
+  <h1>UI · 월드 작업대</h1>
+  <div class="controls">
+    <label>화면<select id="screen"><option value="character">캐릭터 생성</option><option value="game">실제 게임</option></select></label>
+    <label>화면 크기<select id="size"><option value="portrait">390 × 736</option><option value="landscape">780 × 360</option><option value="desktop">1180 × 700</option></select></label>
+    <button id="open-game" type="button" hidden>현재 저장으로 게임 열기</button>
+    <label id="places" hidden>카엘로 이동<select id="place"><option value="">장소 선택</option></select></label>
+  </div>
+  <output id="status" role="status"></output>
+  <div class="frame-scroll"><iframe title="세른벨드 기준 화면"></iframe></div>
+</main>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

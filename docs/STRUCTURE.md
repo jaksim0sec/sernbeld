@@ -1,5 +1,7 @@
 # 세른벨드 코드 구조 및 유지보수
 
+현재 분야별 진입점은 [현재 구현](core/CURRENT_STATE.md)에 있다. 아래 날짜가 붙은 항목은 해당 시점의 변경 이력이다.
+
 ## 실제 게임 진입점
 - `index.html`: 게임 DOM 진입점. CSS 파일들을 **기존 캐스케이드 순서대로** 불러온다.
 - `styles/`: `tokens.css`, `hud.css`, `menus-and-overlays.css`, `responsive.css`, `world-map.css`

@@ -1,17 +1,5 @@
 name: Shirt runtime
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'assets/models/clothing/shirt-v1/**'
-      - 'assets/models/clothing/pants-v1/**'
-      - 'src/entities/character/clothing/**'
-      - 'src/entities/character/studio-model.js'
-      - 'src/entities/character/studio-source.js'
-      - 'tests/shirt-runtime.mjs'
-      - 'tests/garment-alignment.mjs'
-      - 'tests/pants-runtime.mjs'
-      - '.github/workflows/shirt-runtime.yml'
   workflow_dispatch:
 jobs:
   validate:
