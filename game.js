@@ -46025,6 +46025,13 @@ var TerrainLOD = class {
     this.active = /* @__PURE__ */ new Set();
     this.frame = 0;
     this.last = [Infinity, Infinity, Infinity];
+    this.split = SPLIT;
+    this.cacheLimit = 140;
+  }
+  setQuality(q) {
+    this.split = q.terrainSplit;
+    this.cacheLimit = q.terrainCache;
+    this.last = [Infinity, Infinity, Infinity];
   }
   update(cx, cz, cy) {
     const l = this.last;
@@ -46035,7 +46042,7 @@ var TerrainLOD = class {
     const visit = (size, x0, z0) => {
       const dx = Math.max(0, Math.abs(cx - (x0 + size / 2)) - size / 2), dz = Math.max(0, Math.abs(cz - (z0 + size / 2)) - size / 2);
       const d = Math.hypot(dx, dz, Math.max(0, cy - 200));
-      if (size > CFG.chunk && d < size * SPLIT) {
+      if (size > CFG.chunk && d < size * this.split) {
         const h = size / 2;
         visit(h, x0, z0);
         visit(h, x0 + h, z0);
@@ -46060,9 +46067,9 @@ var TerrainLOD = class {
     for (const m of this.active) if (!next.has(m)) this.scene.remove(m);
     for (const m of next) if (!this.active.has(m)) this.scene.add(m);
     this.active = next;
-    if (this.cache.size > 140) {
+    if (this.cache.size > this.cacheLimit) {
       const old = [...this.cache].filter(([, m]) => !next.has(m)).sort((a, b) => a[1].userData.used - b[1].userData.used);
-      for (const [k, m] of old.slice(0, this.cache.size - 100)) {
+      for (const [k, m] of old.slice(0, this.cache.size - Math.max(next.size, this.cacheLimit - 30))) {
         m.geometry.dispose();
         this.cache.delete(k);
       }
@@ -46929,6 +46936,24 @@ var Geo = class {
     this.quad(P2(-hx, y0, hz), P2(-hx, y + rh, 0), P2(hx, y + rh, 0), P2(hx, y0, hz), C.woodL, 0);
     this.quad(P2(hx, y0, -hz), P2(hx, y + rh, 0), P2(-hx, y + rh, 0), P2(-hx, y0, -hz), C.woodL, 0);
   }
+  // Preserve all triangles and attributes, but let camera/shadow frusta
+  // reject spatial batches independently. Collision registration is unchanged.
+  meshChunks(mat2, cell = 80) {
+    const chunks = new Map();
+    for (let i = 0; i < this.t.length; i += 3) {
+      const p = i * 3;
+      const x = (this.p[p] + this.p[p + 3] + this.p[p + 6]) / 3;
+      const z = (this.p[p + 2] + this.p[p + 5] + this.p[p + 8]) / 3;
+      const key = Math.floor(x / cell) + ":" + Math.floor(z / cell);
+      let chunk = chunks.get(key);
+      if (!chunk) chunks.set(key, chunk = new Geo());
+      for (let k = 0; k < 9; k++) {
+        chunk.p.push(this.p[p + k]); chunk.n.push(this.n[p + k]); chunk.c.push(this.c[p + k]);
+      }
+      for (let k = 0; k < 3; k++) chunk.t.push(this.t[i + k]);
+    }
+    return Array.from(chunks.values(), chunk => chunk.mesh(mat2));
+  }
   mesh(mat2) {
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(this.p, 3));
@@ -47737,7 +47762,7 @@ function buildKael(region) {
   buildKaelRoads(G, region);
   const g = new Group();
   g.name = "kael";
-  g.add(G.mesh(townMaterial(DoubleSide)));
+  g.add(...G.meshChunks(townMaterial(DoubleSide)));
   TOWN.houses = homes;
   return g;
 }
@@ -48441,6 +48466,15 @@ var Grid2D = class {
 };
 var NEAR = IS_MOBILE ? 80 : 115;
 var FADE = 16;
+// Graphics settings never alter interaction reach, collision, or game time.
+var GRAPHICS = Object.freeze({
+  high: Object.freeze({dpr:CFG.dprMax, floor:IS_MOBILE ? .85 : 1, terrainSplit:.85, terrainCache:140, trees:1, grass:1, rocks:1, npcRange:105, npcDetail:1, shadowMs:IS_MOBILE ? 32 : 0}),
+  medium: Object.freeze({dpr:IS_MOBILE ? 1.25 : 1.5, floor:.75, terrainSplit:.76, terrainCache:120, trees:.86, grass:.85, rocks:.88, npcRange:100, npcDetail:.86, shadowMs:50}),
+  low: Object.freeze({dpr:1, floor:.65, terrainSplit:.65, terrainCache:100, trees:.70, grass:.70, rocks:.75, npcRange:85, npcDetail:.70, shadowMs:90})
+});
+function graphicsKey(value) {
+  return Object.hasOwn(GRAPHICS, value) ? value : IS_MOBILE ? "medium" : "high";
+}
 var WIND_HEAD = (
   /* glsl */
   `
@@ -48676,12 +48710,23 @@ var Forest = class {
     scene.add(this.impostors);
     for (const t of trees) addCyl({ x: t.x, z: t.z, r: (t.kind === 1 ? 0.26 : 0.34) * t.s + 0.1, y0: t.y - 1, y1: t.y + 5 });
     this.last = [Infinity, Infinity];
+    this.nearRange = NEAR;
+  }
+  setQuality(q) {
+    this.nearRange = NEAR * q.trees;
+    const fade = [this.nearRange - FADE, this.nearRange];
+    for (const p of this.parts) {
+      p.barkMat.uniforms.uFade.value.set(...fade);
+      p.leafMat.uniforms.uFade.value.set(...fade);
+    }
+    this.impostors.material.uniforms.uFade.value.set(...fade);
+    this.last = [Infinity, Infinity];
   }
   update(cam) {
     if (Math.hypot(cam.x - this.last[0], cam.z - this.last[1]) < 10) return;
     this.last = [cam.x, cam.z];
     for (const n of this.near) n.bark.count = n.leaves.count = 0;
-    this.grid.query(cam.x, cam.z, NEAR + 6, (t) => {
+    this.grid.query(cam.x, cam.z, this.nearRange + 12, (t) => {
       const n = this.near[t.v];
       if (n.bark.count >= n.cap) return;
       const i = n.bark.count++;
@@ -48875,8 +48920,18 @@ var Grass = class {
       m.receiveShadow = true;
       m.renderOrder = 0;
       scene.add(m);
-      return { m, cell };
+      return { m, cell, radius, inner };
     });
+  }
+  setQuality(q) {
+    // Preserve nearby grass; trim only the distant decorative ring.
+    for (const r of this.rings) {
+      const radius = r.inner === 0 ? r.radius : Math.max(r.inner + 1, r.radius * q.grass);
+      const side = Math.ceil(2 * radius / r.cell) + 2, u = r.m.material.uniforms;
+      r.m.geometry.instanceCount = side * side;
+      u.uSide.value = side;
+      u.uRadius.value = radius;
+    }
   }
   update(cam) {
     for (const r of this.rings) r.m.material.uniforms.uOrigin.value.set(Math.floor(cam.x / r.cell), Math.floor(cam.z / r.cell));
@@ -48938,12 +48993,17 @@ var Rocks = class {
     });
     for (const r of rocks) if (r.s > 0.8) addCyl({ x: r.x, z: r.z, r: r.s * 0.8, y0: r.y - 1, y1: r.y + r.s * 0.55 });
     this.last = [Infinity, Infinity];
+    this.range = RANGE;
+  }
+  setQuality(q) {
+    this.range = RANGE * q.rocks;
+    this.last = [Infinity, Infinity];
   }
   update(cam) {
     if (Math.hypot(cam.x - this.last[0], cam.z - this.last[1]) < 12) return;
     this.last = [cam.x, cam.z];
     for (const o of this.meshes) o.m.count = 0;
-    this.grid.query(cam.x, cam.z, RANGE, (r) => {
+    this.grid.query(cam.x, cam.z, this.range, (r) => {
       if (r.s < 0.6 && (r.x - cam.x) ** 2 + (r.z - cam.z) ** 2 > 70 * 70) return;
       const o = this.meshes[r.v];
       if (o.m.count >= o.cap) return;
@@ -49150,6 +49210,7 @@ var Gatherables = class {
     scene.add(this.points);
     this.near = [];
     this.last = [Infinity, Infinity];
+    this.nextRespawn = Infinity;
   }
   setViewport(h, p11) {
     this.points.material.uniforms.uScale.value = h * p11 * 0.5;
@@ -49158,13 +49219,18 @@ var Gatherables = class {
     this.last = [Infinity, Infinity];
   }
   update(cam) {
-    if (Math.hypot(cam.x - this.last[0], cam.z - this.last[1]) < 8) return;
+    const now = Date.now();
+    if (Math.hypot(cam.x - this.last[0], cam.z - this.last[1]) < 8 && now < this.nextRespawn) return;
     this.last = [cam.x, cam.z];
+    this.nextRespawn = Infinity;
     for (const m of Object.values(this.meshes)) m.count = 0;
-    const picked = this.save.data.picked, now = Date.now(), near = this.near = [];
+    const picked = this.save.data.picked, near = this.near = [];
     const pos = this.points.geometry.attributes.position, seed = this.points.geometry.attributes.aSeed;
     this.grid.query(cam.x, cam.z, RANGE2, (n) => {
-      if (!isAvailable(n, picked, now)) return;
+      if (!isAvailable(n, picked, now)) {
+        this.nextRespawn = Math.min(this.nextRespawn, picked[n.id] + GATHER[n.type].respawn * 1000 + 1);
+        return;
+      }
       const m = this.meshes[n.type];
       if (m.count >= 160) return;
       _q4.setFromAxisAngle(UP4, n.rot);
@@ -49642,7 +49708,7 @@ var fresh = () => ({
   requests: [],
   board: null,
   rival: { done: 2, day: 1 },
-  settings: { motion: 1 },
+  settings: { motion: 1, graphics: graphicsKey(null) },
   intro: false
 });
 var Save = {
@@ -49652,7 +49718,7 @@ var Save = {
       const s = localStorage.getItem(KEY);
       if (s) {
         const d = JSON.parse(s);
-        if (d.v === 1) this.data = { ...fresh(), ...d };
+        if (d.v === 1) this.data = { ...fresh(), ...d, settings: {...fresh().settings, ...d.settings} };
       }
     } catch {
     }
@@ -49737,6 +49803,7 @@ var Explore = class {
     return this.ui.itemName(GATHER[n.type].item);
   }
   gather(n) {
+    if (!isAvailable(n, Save.data.picked)) return;
     const def = GATHER[n.type], amount = n.type.startsWith("flower") ? 2 : 1;
     Save.data.picked[n.id] = Date.now();
     const total = Inventory.add(def.item, amount);
@@ -50439,6 +50506,11 @@ var NavGrid = class {
     // Do not delete an otherwise valid cell just because ONE neighbor is on
     // a different terrace. Height differences are checked per traversed edge.
     this.maxRise = 1.65; // 0.825 m/m per 2m cell, beneath PLAYER step limit
+    this.pathCache = new Map();
+    this.search = {gs:new Float32Array(N), from:new Int32Array(N), closed:new Uint8Array(N)};
+  }
+  invalidatePaths() {
+    this.pathCache.clear();
   }
   idx(x, z) {
     const i = Math.floor((x - this.x0) / this.cell), j = Math.floor((z - this.z0) / this.cell);
@@ -50470,7 +50542,16 @@ var NavGrid = class {
   path(x0, z0, x1, z1) {
     const s = this.nearestOpen(this.idx(x0, z0)), t = this.nearestOpen(this.idx(x1, z1));
     if (s < 0 || t < 0) return null;
-    const W = this.w, N = W * this.h, gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+    // Cache only static grid cells, not exact endpoints or mutable NPC arrays.
+    const key = s + ":" + t + ":" + this.maxRise;
+    const cached = this.pathCache.get(key);
+    if (cached) {
+      this.pathCache.delete(key);
+      this.pathCache.set(key, cached);
+      return cached.map(o => this.center(o)).concat([[x1, z1]]);
+    }
+    const W = this.w, {gs, from, closed} = this.search;
+    gs.fill(Infinity); from.fill(-1); closed.fill(0);
     const heap = [], push = (o, f) => {
       heap.push([f, o]);
       let i = heap.length - 1;
@@ -50540,6 +50621,8 @@ var NavGrid = class {
     const out2 = [cells[0]];
     for (let k = 1; k < cells.length; k++) if (!this.los(out2[out2.length - 1], cells[k])) out2.push(cells[k - 1]);
     out2.push(cells[cells.length - 1]);
+    this.pathCache.set(key, out2);
+    if (this.pathCache.size > 128) this.pathCache.delete(this.pathCache.keys().next().value);
     return out2.map((o) => this.center(o)).concat([[x1, z1]]);
   }
 };
@@ -50658,6 +50741,8 @@ var Townsfolk = class {
       };
     });
     this.queue = [];
+    this.quality = GRAPHICS.high;
+    this.facing = new Vector3();
   }
   entry(def, h) {
     let e = def.day[0];
@@ -50671,6 +50756,7 @@ var Townsfolk = class {
   }
   // place everyone where their schedule says, without walking (load / time skip)
   settle(hour) {
+    this.queue.length = 0;
     for (const n of this.list) {
       n.entry = this.entry(n.def, hour);
       const [x, z] = this.spot(n, n.entry);
@@ -50682,11 +50768,15 @@ var Townsfolk = class {
     }
   }
   goTo(n, x, z) {
-    this.queue.push([n, x, z]);
+    const pending = this.queue.findIndex(job => job[0] === n);
+    if (pending >= 0) this.queue[pending] = [n, x, z];
+    else this.queue.push([n, x, z]);
   }
   update(dt, t, hour, player, camPos, camera) {
-    const facing = camera ? new Vector3(0, 0, -1).applyQuaternion(camera.quaternion) : null;
-    for (let k = 0; k < 3 && this.queue.length; k++) {
+    const facing = camera ? this.facing.set(0, 0, -1).applyQuaternion(camera.quaternion) : null;
+    // Budget aggregate path work; preserve FIFO and guarantee one job progresses.
+    const deadline = performance.now() + 2.5;
+    for (let k = 0; k < 3 && this.queue.length && (k === 0 || performance.now() < deadline); k++) {
       const [n, x, z] = this.queue.shift();
       n.path = this.nav.path(n.x, n.z, x, z) ?? [[x, z]];
       n.pi = 0;
@@ -50736,7 +50826,7 @@ var Townsfolk = class {
       // Keep a generous margin for peripheral vision, especially on portrait screens.
       // Off-camera NPC logic still runs, but their skinned meshes stop rendering.
       const inFront = !facing || d < 4 || dxCam * facing.x + (n.y + .9 - camPos.y) * facing.y + dzCam * facing.z > -Math.max(1, d * .12);
-      const vis = !n.hidden && d < SHOW && inFront, g = n.ch.group;
+      const vis = !n.hidden && d < this.quality.npcRange && inFront, g = n.ch.group;
       g.visible = vis;
       if (!vis) {
         n.poseAge = null;
@@ -50744,7 +50834,7 @@ var Townsfolk = class {
       }
       g.position.set(n.x, n.y, n.z);
       g.rotation.y = n.yaw;
-      n.ch.setLOD(d < LOD0 ? 0 : d < LOD1 ? 1 : 2);
+      n.ch.setLOD(d < LOD0 * this.quality.npcDetail ? 0 : d < LOD1 * this.quality.npcDetail ? 1 : 2);
       n.ch.setShadow(d < SHADOW);
       n.ch.speed = n.speed;
       const interval = d < 8 || n.talkT > 0 ? 0 : d < 22 ? 1 / 30 : d < 42 ? 1 / 20 : 1 / 10;
@@ -51935,7 +52025,7 @@ async function boot() {
   const canvas2 = document.getElementById("view");
   const renderer = new WebGLRenderer({ canvas: canvas2, antialias: true, powerPreference: "high-performance" });
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.autoUpdate = !IS_MOBILE;
+  renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.toneMapping = NoToneMapping;
   const scene = new Scene();
@@ -52187,6 +52277,7 @@ async function boot() {
     }
     if(page==="settings"){
       choice("카메라 시점",[["first","1인칭"],["third","3인칭"]],avatars.mode,v=>avatars.setThird(v==="third"));
+      choice("그래픽 품질",[["low","하"],["medium","중"],["high","상"]],graphicsKey(Save.data.settings.graphics),v=>applyGraphics(v));
       choice("화면 흔들림",[[1,"보통"],[.4,"약하게"],[0,"끄기"]],Save.data.settings.motion,v=>{Save.data.settings.motion=rig.motion=v;Save.write();});
       return;
     }
@@ -52239,9 +52330,25 @@ async function boot() {
     if (document.hidden && player.mode === "walk") persist();
   });
   // Adaptive resolution: drop pixel ratio in steps when frames run long, recover when fast.
-  let dprCap = Math.min(devicePixelRatio || 1, CFG.dprMax), dprNow = dprCap, frameAvg = 1 / 60, dprClock = 0;
+  let quality = GRAPHICS[graphicsKey(Save.data.settings.graphics)];
+  let dprCap = Math.min(devicePixelRatio || 1, quality.dpr), dprNow = dprCap, frameAvg = 1 / 60, dprClock = 0;
+  function applyGraphics(key, persist = true) {
+    key = graphicsKey(key);
+    quality = GRAPHICS[key];
+    Save.data.settings.graphics = key;
+    terrain.setQuality(quality);
+    forest.setQuality(quality);
+    grass.setQuality(quality);
+    rocks.setQuality(quality);
+    folk.quality = quality;
+    dprNow = Math.min(devicePixelRatio || 1, quality.dpr);
+    frameAvg = 1 / 60; dprClock = 0;
+    resize();
+    renderer.shadowMap.needsUpdate = true;
+    if (persist) Save.write();
+  }
   const resize = () => {
-    dprCap = Math.min(devicePixelRatio || 1, CFG.dprMax);
+    dprCap = Math.min(devicePixelRatio || 1, quality.dpr);
     dprNow = Math.min(dprNow, dprCap);
     renderer.setPixelRatio(dprNow);
     renderer.setSize(innerWidth, innerHeight, false);
@@ -52253,7 +52360,7 @@ async function boot() {
     gatherables.setViewport(h, p11);
   };
   addEventListener("resize", resize);
-  resize();
+  applyGraphics(Save.data.settings.graphics, false);
   terrain.update(player.pos.x, player.pos.z, player.pos.y);
   hud.ready(region);
   if (firstLaunch) ui.intro([
@@ -52298,24 +52405,25 @@ async function boot() {
   else if(!firstLaunch)screens.find(screen=>screen.name===lastScreen)?.restore();
   addEventListener("pagehide",()=>onScreenMutations(screenObserver.takeRecords()));
   rememberScreen();
-  let last = performance.now(), lastShadow = -Infinity, shadowCut = -1;
+  let last = performance.now(), lastShadow = -Infinity, shadowCut = -1, nextGoal = -Infinity;
+  GameEvents.on("inventory.changed", () => { nextGoal = -Infinity; });
   const tick = (now) => {
     const dt = Math.min(0.1, (now - last) / 1e3);
     last = now;
     const t = now / 1e3;
+    if (avatars.isOpen) {
+      input.keys.clear(); input.stick.x = input.stick.y = 0;
+      input.consumeLook(); input.consumeAttack(); input.consumeToggles(); input.jumpQueued = false;
+      return;
+    }
     frameAvg += (dt - frameAvg) * 0.05;
     if ((dprClock += dt) > 2) {
       dprClock = 0;
-      const next = frameAvg > 1 / 40 ? Math.max(IS_MOBILE ? .75 : 1, dprNow - 0.125) : frameAvg < 1 / 56 ? Math.min(dprCap, dprNow + 0.125) : dprNow;
+      const next = frameAvg > 1 / 40 ? Math.max(Math.min(quality.floor, dprCap), dprNow - 0.125) : frameAvg < 1 / 56 ? Math.min(dprCap, dprNow + 0.125) : dprNow;
       if (next !== dprNow) {
         dprNow = next;
         resize();
       }
-    }
-    if(avatars.isOpen){
-      input.keys.clear();input.stick.x=input.stick.y=0;
-      input.consumeLook();input.consumeAttack();input.consumeToggles();input.jumpQueued=false;
-      return;
     }
     shared.uTime.value = t;
     for (const code of input.consumeToggles()) {
@@ -52371,9 +52479,10 @@ async function boot() {
     avatars.update(dt,t,combat);
     avatars.applyThirdCamera(dt,rig);
     avatars.updateTrail(combat);
+    gatherables.update(player.pos);
     explore.update();
     terrain.update(camera.position.x, camera.position.z, camera.position.y);
-    if (!IS_MOBILE || now - lastShadow >= 32 || shadowCut !== player.teleportId) {
+    if (now - lastShadow >= quality.shadowMs || shadowCut !== player.teleportId) {
       sun.update(camera.position.x, camera.position.z, player.yaw);
       renderer.shadowMap.needsUpdate = true;
       lastShadow = now;
@@ -52382,7 +52491,6 @@ async function boot() {
     forest.update(camera.position);
     rocks.update(camera.position);
     grass.update(camera.position);
-    gatherables.update(player.pos);
     ocean.position.set(Math.round(camera.position.x / 64) * 64, CFG.seaLevel, Math.round(camera.position.z / 64) * 64);
     rivers.userData.update(t);
     blockout.userData.update(t);
@@ -52390,11 +52498,14 @@ async function boot() {
     renderer.render(scene, camera);
     hud.tick(dt, renderer.info.render, player.pos);
     ui.setClock(clock.label);
-    ui.setGoal(society.goal());
+    if (now >= nextGoal) {
+      ui.setGoal(society.goal());
+      nextGoal = now + 150;
+    }
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
