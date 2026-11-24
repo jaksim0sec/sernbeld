@@ -7,3 +7,5 @@
 | 시스템 UI | [캐릭터 생성](../../src/entities/character/studio.html), [원본 스타일](../../src/entities/character/studio-ui.css), [디자인 지침](../UI_UX_DESIGN_GUIDELINES.md) | 실제 화면과 공통 SEED의 기준 |
 | 카엘의 석재 및 충돌 | [카엘 GLB](../../assets/kael-cutstone-v7.glb.gz), [월드 이동 테스트](../../tests/world-playability.mjs), [충돌 수정](https://github.com/jaksim0sec/sernbeld/commit/ac49a42a) | 시각 구조물과 물리 등록을 비교하는 선례 |
 | 자유 시작·커스텀 기술 | [설계 이력](../superpowers/plans/2026-11-21-sernbeld-beta1-topdown.md), [현재 시스템](../core/CURRENT_STATE.md) | 설계 예시는 구현 상태와 구분 |
+
+[생태 GLB 시제품 10종](ECOLOGY_PROTOTYPES.md): 제작 기반을 위한 미승인 시편, 실제 월드 통합 아님.

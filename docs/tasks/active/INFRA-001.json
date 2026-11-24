@@ -14,7 +14,11 @@
     "tests/garment-alignment.mjs",
     "docs/catalog",
     "docs/tasks/active/INFRA-001.md",
-    "docs/core/INFRASTRUCTURE_SPEC.md"
+    "docs/core/INFRASTRUCTURE_SPEC.md",
+    "assets/models/ecology-prototypes",
+    "tools/ecology-prototype-source.mjs",
+    "tools/build-ecology-prototypes.mjs",
+    "tools/dev/assets.js"
   ],
   "contracts": [
     "docs/contracts/DELIVERABLES.md",
@@ -22,5 +26,5 @@
     "docs/validation/VALIDATION_POLICY.md"
   ],
   "dependencies": [],
-  "next": "실전 의상 및 생태 에셋 배치, 새 세션 UI와 병렬 개발 실증; Pages 게시 소스 확인"
+  "next": "신규 전체 의상, 생태 시제품의 아트 검토·실제 카엘 배치·LOD, 독립 세션 UI와 병렬 작업 실증; Pages 게시 소스 확인"
 }

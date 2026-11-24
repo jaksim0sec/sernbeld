@@ -2,7 +2,9 @@ import {createViewport, loadGraphics} from './viewport.js';
 
 const field = id => document.getElementById(id);
 const status = field('status');
-const reference = new URL('../../assets/kael-cutstone-v7.glb.gz', import.meta.url);
+const requested=new URLSearchParams(location.search).get('model');
+const prototype=requested&&/^[a-z][a-z0-9-]+$/.test(requested)?requested:null;
+const reference=prototype?new URL('../../assets/models/ecology-prototypes/'+prototype+'.glb',import.meta.url):new URL('../../assets/kael-cutstone-v7.glb.gz',import.meta.url);
 
 function dispose(root) {
   const geometries = new Set(), materials = new Set(), textures = new Set();
@@ -109,7 +111,7 @@ async function start() {
     outline.visible = event.target.checked;
     viewport.render();
   });
-  await load('model', 'kael-cutstone-v7.glb.gz', fetch(reference));
+  await load('model', prototype?prototype+'.glb':'kael-cutstone-v7.glb.gz', fetch(reference));
 }
 
 start().catch(error => { status.textContent = '스튜디오를 열 수 없어. ' + error.message; });

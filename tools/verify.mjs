@@ -7,7 +7,7 @@ const cwd = fileURLToPath(new URL('../', import.meta.url));
 const groups = {
   build: [['tools/build-game.mjs','--check'], ['--check','game.js'],
     ['tools/optimize-characters.mjs','--check'], ['tools/bake-garments.mjs','--check'],
-    ['tests/infra-contract.mjs'], ['tools/check-infra.mjs']],
+    ['tests/infra-contract.mjs'], ['tools/check-infra.mjs'], ['tools/build-ecology-prototypes.mjs','--check']],
   core: ['foundation', 'durable-items', 'region-lifecycle', 'wildlife-removal',
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
     'startup-runtime', 'pwa-startup'].map(name => ['tests/' + name + '.mjs']),

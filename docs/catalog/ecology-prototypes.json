@@ -1,0 +1,282 @@
+[
+  {
+    "id": "ecology.beach-morning-glory",
+    "kind": "asset",
+    "title": "갯나팔꽃",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/beach-morning-glory.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "해안 모래땅",
+    "triangles": 1638
+  },
+  {
+    "id": "ecology.purple-bell",
+    "kind": "asset",
+    "title": "자주방울초",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/purple-bell.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "길가와 초지",
+    "triangles": 3360
+  },
+  {
+    "id": "ecology.roadside-mugwort",
+    "kind": "asset",
+    "title": "길뚝쑥",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/roadside-mugwort.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "길뚝",
+    "triangles": 1521
+  },
+  {
+    "id": "ecology.round-clover",
+    "kind": "asset",
+    "title": "둥근토끼풀",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/round-clover.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "풀밭",
+    "triangles": 2444
+  },
+  {
+    "id": "ecology.water-reed",
+    "kind": "asset",
+    "title": "물깃갈대",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/water-reed.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "습지",
+    "triangles": 2957
+  },
+  {
+    "id": "ecology.spring-cattail",
+    "kind": "asset",
+    "title": "샘부들",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/spring-cattail.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "샘과 물가",
+    "triangles": 1918
+  },
+  {
+    "id": "ecology.green-thread-moss",
+    "kind": "asset",
+    "title": "녹실이끼",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/green-thread-moss.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "그늘진 돌",
+    "triangles": 1628
+  },
+  {
+    "id": "ecology.shade-fern",
+    "kind": "asset",
+    "title": "그늘고사리",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/shade-fern.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "그늘",
+    "triangles": 3780
+  },
+  {
+    "id": "ecology.wave-cap-mushroom",
+    "kind": "asset",
+    "title": "물결갓버섯",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/wave-cap-mushroom.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "축축한 그늘",
+    "triangles": 1778
+  },
+  {
+    "id": "ecology.stone-sawgrass",
+    "kind": "asset",
+    "title": "돌톱풀",
+    "stage": "PROTOTYPED",
+    "source": [
+      "assets/models/ecology-prototypes/stone-sawgrass.glb",
+      "tools/ecology-prototype-source.mjs"
+    ],
+    "approval": "미승인 시제품. 이름과 일반 형태 방향만 활용; 원본 디자인 시트·CSV의 세부 조건 대조 전",
+    "checks": [
+      {
+        "criterion": "GLB 구조 및 유한 정점",
+        "result": "PASS",
+        "evidence": "생성기와 독립 GLB 검사; tools/build-ecology-prototypes.mjs --check"
+      },
+      {
+        "criterion": "아트·실제 월드 배치 및 모바일 LOD",
+        "result": "NOT RUN",
+        "evidence": "독립 시연 및 카엘 실배치 필요"
+      }
+    ],
+    "collision": "decorative",
+    "units": "m",
+    "pivot": "ground origin",
+    "habitat": "돌 틈",
+    "triangles": 360
+  }
+]
