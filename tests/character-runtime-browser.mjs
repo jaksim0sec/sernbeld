@@ -35,7 +35,7 @@ try{
     return {error,featureError,features:actual.features.length};
    });
    assert(comparison.error<1e-7&&comparison.featureError<1e-7,'Game geometry differs from original editor: '+JSON.stringify(comparison));
-   await iframe.getByRole('button',{name:'이 캐릭터로 시작',exact:true}).click();
+   await iframe.getByRole('button',{name:'적용하기',exact:true}).click();
    await page.waitForFunction(()=>!__dev.avatars.isOpen);
    for(let i=0;i<5&&await page.locator('#intro').isVisible();i++)await page.locator('#intro').click();
    const stats=await page.evaluate(()=>{
