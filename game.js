@@ -52226,39 +52226,39 @@ async function boot() {
     Save.data.intro = true;
     Save.write();
   });
-  // Current-tab UI restoration; never persist transient prompts or conversations.
+  // Remember the most recently opened visible window, not a generic menu flag.
   const screenKey="sernbeld.last-screen.v1";
-  const screens={
-    character:()=>avatars.isOpen,
-    magic:()=>skillWorkbench.isOpen(),
-    map:()=>fullMap.isOpen(),
-    bag:()=>!ui.bag.hidden,
-    travel:()=>!ui.travel.hidden,
-    board:()=>!ui.boardP.hidden
-  };
+  const screens=[
+    {name:"character",target:document.getElementById("character-chooser"),attribute:"open",isOpen:()=>avatars.isOpen,restore:()=>avatars.openChooser()},
+    {name:"magic",target:document.getElementById("skillWorkbench"),attribute:"hidden",isOpen:()=>skillWorkbench.isOpen(),restore:()=>skillWorkbench.open()},
+    {name:"map",target:document.getElementById("worldMap"),attribute:"hidden",isOpen:()=>fullMap.isOpen(),restore:()=>fullMap.open()},
+    {name:"bag",target:ui.bag,attribute:"hidden",isOpen:()=>!ui.bag.hidden,restore:()=>{if(ui.bag.hidden)ui.toggleBag();}},
+    {name:"travel",target:ui.travel,attribute:"hidden",isOpen:()=>!ui.travel.hidden,restore:()=>{if(ui.travel.hidden)ui.toggleTravel();}},
+    {name:"board",target:ui.boardP,attribute:"hidden",isOpen:()=>!ui.boardP.hidden,restore:()=>society.openBoard()}
+  ];
+  let lastScreen=null,openOrder=[];
+  try{lastScreen=sessionStorage.getItem(screenKey);}catch{}
   const rememberScreen=()=>{
-    const active=Object.keys(screens).find(name=>screens[name]());
+    const visible=screens.filter(screen=>screen.isOpen()).map(screen=>screen.name);
+    openOrder=openOrder.filter(name=>visible.includes(name));
+    for(const name of visible)if(!openOrder.includes(name))openOrder.push(name);
+    const active=openOrder.at(-1);
     try{if(active)sessionStorage.setItem(screenKey,active);else sessionStorage.removeItem(screenKey);}catch{}
   };
-  let lastScreen=null;
-  try{lastScreen=sessionStorage.getItem(screenKey);}catch{}
+  const onScreenMutations=records=>{
+    for(const record of records){
+      const screen=screens.find(s=>s.target===record.target&&s.attribute===record.attributeName);
+      if(!screen||!screen.isOpen())continue;
+      const wasOpen=screen.attribute==="open"?record.oldValue!==null:record.oldValue===null;
+      if(!wasOpen){openOrder=openOrder.filter(name=>name!==screen.name);openOrder.push(screen.name);}
+    }
+    rememberScreen();
+  };
+  const screenObserver=new MutationObserver(onScreenMutations);
+  for(const screen of screens)if(screen.target)screenObserver.observe(screen.target,{attributes:true,attributeOldValue:true,attributeFilter:[screen.attribute]});
   if(!Save.data.characterCreated)avatars.openChooser(true);
-  else if(!firstLaunch){
-    const restore={
-      character:()=>avatars.openChooser(),
-      magic:()=>skillWorkbench.open(),
-      map:()=>fullMap.open(),
-      bag:()=>{if(ui.bag.hidden)ui.toggleBag();},
-      travel:()=>{if(ui.travel.hidden)ui.toggleTravel();},
-      board:()=>society.openBoard()
-    };
-    if(Object.hasOwn(restore,lastScreen))restore[lastScreen]();
-  }
-  const screenObserver=new MutationObserver(rememberScreen);
-  for(const target of [ui.bag,ui.travel,ui.boardP,document.getElementById("worldMap"),document.getElementById("skillWorkbench"),document.getElementById("character-chooser")]){
-    if(target)screenObserver.observe(target,{attributes:true,attributeFilter:["hidden","open"]});
-  }
-  addEventListener("pagehide",rememberScreen);
+  else if(!firstLaunch)screens.find(screen=>screen.name===lastScreen)?.restore();
+  addEventListener("pagehide",()=>onScreenMutations(screenObserver.takeRecords()));
   rememberScreen();
   let last = performance.now(), lastShadow = -Infinity, shadowCut = -1;
   const tick = (now) => {
