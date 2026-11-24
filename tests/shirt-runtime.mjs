@@ -13,7 +13,7 @@ const declared=gameSource.match(/const characterTypes=\{([^}]+)\};/);
 assert(declared,'Game character constructor declaration missing');
 const T=Object.fromEntries(declared[1].split(',').map(raw=>{
  const name=raw.trim();
- assert.equal(typeof allThree[name],'function','Missing game constructor: '+name);
+ assert(Object.hasOwn(allThree,name),'Missing game Three export: '+name);
  return [name,allThree[name]];
 }));
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
