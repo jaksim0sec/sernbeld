@@ -11,22 +11,25 @@ function blend(out,matrices,joints,weights,offset){
  return out;
 }
 function referenceSkin(T,actor){
- const rotations=attentionRotations(actor.data.bones),world=new Map(),frame=new T.Matrix4().compose(new T.Vector3(0,-actor.mesh.geometry.boundingBox.min.y*actor.units,0),new T.Quaternion(),new T.Vector3().setScalar(actor.units));
- function rest(bone){
-  if(world.has(bone.name))return world.get(bone.name);
-  const q=new T.Quaternion(),r=rotations[bone.name];
-  if(r)q.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
-  const local=new T.Matrix4().compose(actor.rest[bone.name],q,new T.Vector3(1,1,1));
-  const m=bone.parent?.isBone?rest(bone.parent).clone().multiply(local):local;
-  world.set(bone.name,m);return m;
+ const rotations=attentionRotations(actor.data.bones);
+ const frame=new T.Matrix4().compose(new T.Vector3(0,-actor.mesh.geometry.boundingBox.min.y*actor.units,0),new T.Quaternion(),new T.Vector3().setScalar(actor.units));
+ // Evaluate the reference pose with the same Three Bone/Object3D transform
+ // pipeline as the runtime. Use a detached clone, never mutate live actors.
+ const root=new T.Group(),bones=actor.bones.map(b=>{const copy=new T.Bone();copy.name=b.name;copy.position.copy(actor.rest[b.name]);return copy;});
+ const byName=new Map(bones.map(b=>[b.name,b]));
+ for(let i=0;i<bones.length;i++){
+  const bone=bones[i],source=actor.bones[i],r=rotations[bone.name];
+  if(r)bone.quaternion.setFromRotationMatrix(new T.Matrix4().fromArray([r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]));
+  (source.parent?.isBone?byName.get(source.parent.name):root).add(bone);
  }
- const referenceBones=actor.bones.map(bone=>frame.clone().multiply(rest(bone)));
+ root.updateMatrixWorld(true);
+ const referenceBones=bones.map(bone=>frame.clone().multiply(bone.matrixWorld));
  const matrices=actor.bones.map((bone,i)=>{
   const p=actor.data.bones[i].pivot;
   return referenceBones[i].clone().multiply(new T.Matrix4().makeTranslation(-p[0]/1428,-p[1]/1428,-p[2]/1428));
  });
  const names=['upper_arm_right','forearm_right','upper_arm_left','forearm_left'];
- const pivots=names.map(name=>new T.Vector3().setFromMatrixPosition(frame.clone().multiply(rest(actor.B[name]))).toArray());
+ const pivots=names.map(name=>new T.Vector3().setFromMatrixPosition(frame.clone().multiply(byName.get(name).matrixWorld)).toArray());
  return {matrices,pivots,frame,inverseBones:referenceBones.map(m=>m.clone().invert())};
 }
 // Closest point on a triangle; return barycentric coordinates in a reused array.
