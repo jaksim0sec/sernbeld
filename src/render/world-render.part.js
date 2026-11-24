@@ -882,10 +882,15 @@ function playerContact(o,x,z,radius) {
   }
   return {nx:dx*o.cos+dz*o.sin,nz:-dx*o.sin+dz*o.cos,depth,collider:o};
 }
-function playerFloor(x,z,maxY,radius=PLAYER.radius) {
+// The static broad phase is collected once per physics substep. The
+// candidate search never repeats the 32m spatial-grid query for every probe.
+function playerSweepColliders(x,z,range=PLAYER.radius) {
+  return query(x,z,range).filter(o=>playerContact(o,x,z,range+.004));
+}
+function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
   let h=playerTerrain(x,z);
   if(h>maxY+CONTACT_SKIN)h=-Infinity;
-  for(const o of query(x,z,radius)){
+  for(const o of solids??query(x,z,radius)){
     // A solid top is a support, including low decorative blocks that were
     // previously marked non-walkable. NPCs are never registered as supports.
     if(o.top>maxY+CONTACT_SKIN||o.top<=h)continue;
@@ -893,9 +898,9 @@ function playerFloor(x,z,maxY,radius=PLAYER.radius) {
   }
   return h;
 }
-function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius) {
+function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius,solids=null) {
   const contacts=[];
-  for(const o of query(x,z,radius)){
+  for(const o of solids??query(x,z,radius)){
     if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
     const c=playerContact(o,x,z,radius);if(c)contacts.push(c);
   }
@@ -905,13 +910,35 @@ function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius) {
   }
   return contacts;
 }
-function playerCeiling(x,z,y,targetY) {
+function playerCeiling(x,z,y,targetY,solids=null) {
   let top=targetY;
-  for(const o of query(x,z,PLAYER.radius)){
+  for(const o of solids??query(x,z,PLAYER.radius)){
     if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
     top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
   }
   return Math.max(y,top);
+}
+// Restore saves or teleport onto a real walkable surface, not a nearby
+// collision proxy's roof. Invalid positions are repaired locally once.
+function playerSafeSpawn(x,z,y=null) {
+  function probe(px,pz) {
+    let h=playerTerrain(px,pz);
+    if(y==null){
+      for(const o of query(px,pz,0))if(o.walk&&o.type==="box"&&inside(o,px,pz,0)&&o.top>h)h=o.top;
+    }else h=Math.max(h,y);
+    if(!Number.isFinite(h)||playerContacts(px,pz,h).length)return null;
+    return {x:px,z:pz,y:h};
+  }
+  const direct=probe(x,z);if(direct)return direct;
+  for(let r=.25;r<=24;r+=r<3?.25:1){
+    const n=Math.max(8,Math.ceil(2*Math.PI*r/.6));
+    for(let k=0;k<n;k++){
+      const a=k/n*Math.PI*2,point=probe(x+Math.cos(a)*r,z+Math.sin(a)*r);
+      if(point)return point;
+    }
+  }
+  // Exceptional malformed world geometry: do not start underground.
+  return {x,z,y:Math.max(playerTerrain(x,z),y??-Infinity)};
 }
 function playerFootSurface(x,z,feetY) {
   const h=playerFloor(x,z,feetY+PLAYER.step,0);

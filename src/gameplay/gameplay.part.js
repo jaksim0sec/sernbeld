@@ -2932,13 +2932,13 @@ var Player = class {
     this.stepRise = 0;
   }
   teleport(x, z, yaw, pitch = 0, y = null) {
-    const support=playerFloor(x,z,y==null?Infinity:y+PLAYER.step);
-    this.pos.set(x,y==null?(Number.isFinite(support)?support:playerTerrain(x,z)):Math.max(y,Number.isFinite(support)&&support<=y+CONTACT_SKIN?support:-Infinity),z);
+    const spawn=this.mode==="fly"&&y!=null?{x,y,z}:playerSafeSpawn(x,z,y);
+    this.pos.set(spawn.x,spawn.y,spawn.z);
     this.vel.set(0, 0, 0);
     this.wish.set(0, 0);
     this.yaw = yaw;
     this.pitch = pitch;
-    this.onGround = y == null || (this.mode==="walk"&&Math.abs(this.pos.y-playerFloor(x,z,this.pos.y+CONTACT_SKIN))<=CONTACT_SKIN);
+    this.onGround = y == null || (this.mode==="walk"&&Math.abs(this.pos.y-playerFloor(this.pos.x,this.pos.z,this.pos.y+CONTACT_SKIN))<=CONTACT_SKIN);
     this.swimming = false;
     this.running = false;
     this.landImpact = 0;
@@ -2972,6 +2972,13 @@ var Player = class {
       this.visualY=clamp2(target+(old-target)*Math.exp(-Math.max(0,dt)*23),target-.13,target+.13);
       this.renderPos.y=this.visualY;
     }else this.visualY=this.renderPos.y;
+    // Interpolation cannot put the rendered actor under the newly reached
+    // tread or terrain. Camera smoothing remains presentation-only.
+    if(this.mode==="walk"){
+      const ground=playerFloor(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,0);
+      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z),ground);
+      this.visualY=this.renderPos.y;
+    }
   }
   // look is applied once per frame; physics may run in several sub-steps
   look(input) {
@@ -2986,6 +2993,15 @@ var Player = class {
   walk(dt, input) {
     dt=clamp2(dt,0,.08);if(!dt)return;
     this.simTime+=dt;
+    // A restored position or a changed terrain cell may start below the
+    // surface. Terrain is solid; the downward-crossing test alone cannot
+    // recover from an already invalid starting state.
+    const terrainHere=playerTerrain(this.pos.x,this.pos.z);
+    if(this.pos.y<terrainHere-CONTACT_SKIN){
+      const safe=playerSafeSpawn(this.pos.x,this.pos.z,terrainHere);
+      this.pos.set(safe.x,safe.y,safe.z);this.vel.y=0;this.onGround=true;this.swimming=false;
+      this.previousPos.copy(this.pos);
+    }
     const mv=input.move(),sy=Math.sin(this.yaw),cy=Math.cos(this.yaw);
     this.running=input.run()&&mv.mag>.1;
     const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
@@ -3001,10 +3017,11 @@ var Player = class {
     // No axis-wise movement or depenetration-derived velocity.
     const distance=Math.hypot(this.vel.x,this.vel.z)*dt;
     const count=Math.max(1,Math.ceil(distance/.09));
+    this.solids=playerSweepColliders(this.pos.x,this.pos.z,PLAYER.radius+distance+.02);
     for(let i=0;i<count;i++)this.tryMove(this.vel.x*dt/count,this.vel.z*dt/count);
     const x=this.pos.x,z=this.pos.z,feet=this.pos.y;
     const terrain=playerTerrain(x,z),water=waterLevel(x,z,terrain);
-    const bottom=playerFloor(x,z,Math.max(feet+CONTACT_SKIN,water-.01));
+    const bottom=playerFloor(x,z,Math.max(feet+CONTACT_SKIN,water-.01),PLAYER.radius,this.solids);
     const depth=water-(Number.isFinite(bottom)?bottom:terrain);
     if(!this.swimming&&depth>SWIM_IN&&feet<=water-FLOAT+.05&&!this.onGround)this.swimming=true;
     // Enter deep water while walking down the shore as well.
@@ -3015,9 +3032,9 @@ var Player = class {
       this.vel.y+=((target-feet)*6-this.vel.y)*(1-Math.exp(-dt*8));
       if(jump)this.vel.y=2.2;
       const next=feet+this.vel.y*dt;
-      if(next>feet)this.pos.y=playerCeiling(x,z,feet,next);
+      if(next>feet)this.pos.y=playerCeiling(x,z,feet,next,this.solids);
       else{
-        const support=playerFloor(x,z,feet+CONTACT_SKIN);
+        const support=playerFloor(x,z,feet+CONTACT_SKIN,PLAYER.radius,this.solids);
         this.pos.y=Math.max(next,support);
         if(this.pos.y>next)this.vel.y=0;
       }
@@ -3030,11 +3047,11 @@ var Player = class {
       if(!wasGround)this.vel.y=Math.max(-45,this.vel.y-PLAYER.gravity*dt);
       if(this.vel.y>0){
         const next=feet+this.vel.y*dt;
-        this.pos.y=playerCeiling(x,z,feet,next);
+        this.pos.y=playerCeiling(x,z,feet,next,this.solids);
         if(this.pos.y<next-CONTACT_SKIN)this.vel.y=0;
         this.onGround=false;
       }else{
-        const floor=playerFloor(x,z,feet+CONTACT_SKIN);
+        const floor=playerFloor(x,z,feet+CONTACT_SKIN,PLAYER.radius,this.solids);
         const gap=feet-floor;
         const snap=wasGround&&gap>=-CONTACT_SKIN&&gap<=PLAYER.step;
         if(snap){
@@ -3049,6 +3066,7 @@ var Player = class {
         }
       }
     }
+    this.solids=null;
     if(this.onGround)this.stepRise=Math.max(0,this.pos.y-oldY);
     // Facing follows the actual continuous motion, not competing key axes.
     const speed=Math.hypot(this.vel.x,this.vel.z);
@@ -3059,7 +3077,7 @@ var Player = class {
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
     const terrain=playerTerrain(x,z),maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
     const limit=p.y+maxRise+CONTACT_SKIN;
-    let floor=playerFloor(x,z,limit);
+    let floor=playerFloor(x,z,limit,PLAYER.radius,this.solids);
     if(terrain>limit){
       const len=Math.hypot(dx,dz),ex=.07;
       let nx=playerTerrain(x-ex,z)-playerTerrain(x+ex,z),nz=playerTerrain(x,z-ex)-playerTerrain(x,z+ex),n=Math.hypot(nx,nz);
@@ -3080,14 +3098,14 @@ var Player = class {
         const len=Math.hypot(dx,dz)||1,nx=n>1e-6?gx/n:-dx/len,nz=n>1e-6?gz/n:-dz/len;
         return {contacts:[{nx,nz,depth:rise}]};
       }
-      if(playerCeiling(p.x,p.z,y,floor)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
+      if(playerCeiling(p.x,p.z,y,floor,this.solids)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
       y=floor;
     }
-    const contacts=playerContacts(x,z,y,this.nearby);
+    const contacts=playerContacts(x,z,y,this.nearby,PLAYER.radius,this.solids);
     // Existing overlap may only decrease. This permits walking away from a
     // moving NPC or a bad save position without adding energy to the player.
     if(contacts.length){
-      const prior=playerContacts(p.x,p.z,y,this.nearby);
+      const prior=playerContacts(p.x,p.z,y,this.nearby,PLAYER.radius,this.solids);
       const unresolved=contacts.filter(c=>!prior.some(q=>c.collider===q.collider&&c.depth<q.depth-1e-5));
       if(unresolved.length)return {contacts:unresolved};
     }
@@ -3146,8 +3164,9 @@ var Player = class {
     this.landImpact = 0;
     this.running = false;
     if (m === "walk") {
-      const floor=playerFloor(this.pos.x,this.pos.z,this.pos.y+PLAYER.step);
-      this.pos.y=Number.isFinite(floor)?floor:playerTerrain(this.pos.x,this.pos.z);
+      const floor=playerFloor(this.pos.x,this.pos.z,this.pos.y+PLAYER.step,0);
+      const safe=playerSafeSpawn(this.pos.x,this.pos.z,Number.isFinite(floor)?floor:null);
+      this.pos.set(safe.x,safe.y,safe.z);
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
@@ -4741,21 +4760,48 @@ function maktwoAttackPose(a) {
   };
 }
 function maktwoWorldRay(origin, dir, limit) {
-  const hit=d=>{
-    const x=origin.x+dir.x*d,y=origin.y+dir.y*d,z=origin.z+dir.z*d;
-    if(y<playerTerrain(x,z)+.055)return true;
-    for(const o of query(x,z,.04))if(y>o.bot+.03&&y<o.top-.03&&inside(o,x,z,.015))return true;
-    return false;
-  };
-  const steps=Math.max(1,Math.ceil(limit/.10));
+  if(!(limit>0))return 0;
+  // Exact finite segment vs. rotated boxes/cylinders. Sampling the static
+  // colliders at 10cm intervals missed thin walls and decks completely.
+  let best=limit;
+  const mx=origin.x+dir.x*limit*.5,mz=origin.z+dir.z*limit*.5;
+  const range=Math.hypot(dir.x,dir.z)*limit*.5+.02;
+  for(const o of query(mx,mz,range)){
+    let lo=0,hi=best;
+    function slab(p,d,min,max){
+      if(Math.abs(d)<1e-9)return p>=min&&p<=max;
+      let a=(min-p)/d,b=(max-p)/d;if(a>b)[a,b]=[b,a];
+      lo=Math.max(lo,a);hi=Math.min(hi,b);return lo<=hi;
+    }
+    if(!slab(origin.y,dir.y,o.bot-.005,o.top+.005))continue;
+    if(o.type==="cyl"){
+      const x=origin.x-o.x,z=origin.z-o.z,r=o.r+.015;
+      const a=dir.x*dir.x+dir.z*dir.z,b=2*(x*dir.x+z*dir.z),c=x*x+z*z-r*r;
+      if(a<1e-12){if(c>0)continue;}
+      else{
+        const d=b*b-4*a*c;if(d<0)continue;
+        const s=Math.sqrt(d);
+        lo=Math.max(lo,(-b-s)/(2*a));hi=Math.min(hi,(-b+s)/(2*a));
+      }
+    }else{
+      const [x,z]=local(o,origin.x,origin.z);
+      const dx=dir.x*o.cos-dir.z*o.sin,dz=dir.x*o.sin+dir.z*o.cos;
+      if(!slab(x,dx,-o.hx-.015,o.hx+.015)||!slab(z,dz,-o.hz-.015,o.hz+.015))continue;
+    }
+    if(lo<=hi&&hi>=0&&lo<=best)best=Math.max(0,lo);
+  }
+  // Heightfield/treads are still sampled at the original resolution. The
+  // expensive static broad phase no longer executes for every sample.
+  const terrainHit=d=>origin.y+dir.y*d<playerTerrain(origin.x+dir.x*d,origin.z+dir.z*d)+.055;
+  if(terrainHit(0))return 0;
+  const steps=Math.max(1,Math.ceil(best/.10));
   for(let j=1;j<=steps;j++){
-    const d=limit*j/steps;
-    if(!hit(d))continue;
-    let a=limit*(j-1)/steps,b=d;
-    for(let k=0;k<5;k++){const m=(a+b)*.5;if(hit(m))b=m;else a=m;}
+    const d=best*j/steps;if(!terrainHit(d))continue;
+    let a=best*(j-1)/steps,b=d;
+    for(let k=0;k<5;k++){const m=(a+b)*.5;if(terrainHit(m))b=m;else a=m;}
     return b;
   }
-  return limit;
+  return best;
 }
 function shiftCameraWithinWorld(camera, x, y, z) {
   const distance = Math.hypot(x, y, z);

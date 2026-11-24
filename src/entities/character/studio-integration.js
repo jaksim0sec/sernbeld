@@ -260,16 +260,22 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const reset=cut!==player.teleportId||lastMode!==player.mode;
   const desiredTarget=new T.Vector3(p.x,p.y+1.23,p.z);
   if(reset||!thirdAim)thirdAim=desiredTarget.clone();
-  else thirdAim.lerp(desiredTarget,1-Math.exp(-dt*30));
+  else {
+   // Horizontal position is already interpolated by the physics clock.
+   // A second delayed anchor can sit behind a wall after turning a corner.
+   thirdAim.x=desiredTarget.x;thirdAim.z=desiredTarget.z;
+   thirdAim.y=Math.max(desiredTarget.y-.10,Math.min(desiredTarget.y+.10,thirdAim.y+(desiredTarget.y-thirdAim.y)*(1-Math.exp(-dt*30))));
+  }
   const target=thirdAim;
   const direction=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
   const desired=3.1,margin=.22;
   let room=desired;
   const right=new T.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
   const up=new T.Vector3().crossVectors(direction,right).normalize();
-  // Protect the near plane corners, not just the center ray.
+  const nearHeight=Math.tan((camera.fov??65)*Math.PI/360)*(camera.near??.2)+.025,nearWidth=nearHeight*Math.max(.5,camera.aspect||1);
+  // Protect the actual near-plane corners, including landscape aspect.
   for(const [x,y] of [[0,0],[-1,-1],[-1,1],[1,-1],[1,1]]){
-   const origin=target.clone().addScaledVector(right,x*.18).addScaledVector(up,y*.14);
+   const origin=target.clone().addScaledVector(right,x*nearWidth).addScaledVector(up,y*nearHeight);
    room=Math.min(room,Math.max(.05,worldRay(origin,direction,desired+margin)-margin));
   }
   boom=reset||room<boom?room:room+(boom-room)*Math.exp(-dt*8);

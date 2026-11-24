@@ -6,7 +6,7 @@ const part=(s,a,b)=>{const i=s.indexOf(a),j=s.indexOf(b,i);assert(i>=0&&j>i);ret
 const T=new Function(read('src/vendor/three-gltf.part.js')+';return three_module_exports;')();
 let terrain=()=>0,stairs=()=>null,water=()=>-100;
 const env=new Function('Vector3','Vector2','sample','stairSurface','waterLevel','normalAt','World','HALF','GRID_N','CFG','clamp2',
- part(region,'var PLAYER =','var ring =')+part(render,'var CELL =','function occupiedAt')+part(game,'var _n =','var CameraRig =')+'return {Player,PLAYER,addBox,addCyl,playerFloor,playerContacts,playerTerrain,grid,all};'
+ part(region,'var PLAYER =','var ring =')+part(render,'var CELL =','function occupiedAt')+part(game,'var _n =','var CameraRig =')+part(game,'function maktwoWorldRay','function shiftCameraWithinWorld')+'return {Player,PLAYER,addBox,addCyl,playerFloor,playerContacts,playerTerrain,maktwoWorldRay,grid,all};'
 )(T.Vector3,T.Vector2,(x,z)=>terrain(x,z),(x,z,m,e)=>stairs(x,z,m,e),(x,z)=>water(x,z),(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const {Player,PLAYER,addBox,playerContacts,grid,all}=env;
 const clear=()=>{grid.clear();all.length=0;terrain=()=>0;stairs=()=>null;water=()=>-100;};
@@ -37,3 +37,12 @@ clear();terrain=()=>-3;water=()=>0;p=player(0,0,-3);tick(p,input(1,0),180);asser
 clear();p=player();const npc={type:'cyl',x:.8,z:0,r:.27,bot:0,top:1.72};tick(p,input(1,0),80,1/60,[npc]);assert(p.pos.x<.2&&Math.hypot(p.vel.x,p.vel.z)<=PLAYER.walk);
 clear();p=player();tick(p,input(1,1),10);p.teleport(50,60,0);assert(p.renderPos.distanceTo(p.pos)===0,'teleport interpolation ghost');
 console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head clearance, jumps, landings, exact treads, slopes, swimming, NPC contact and teleport interpolation');
+
+clear();p=player(0,0,-.1);tick(p,input(),120);assert(p.onGround&&Math.abs(p.pos.y)<1e-6,'feet below terrain must recover instead of falling forever');
+clear();box(0,0,2,2,2,0,false);p=player();assert(Math.abs(p.pos.y)<.01&&!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'spawn inside a nonwalkable building must find a nearby valid position, not its roof');
+clear();box(.05,0,2,.016,2,0,false);assert(env.maktwoWorldRay({x:0,y:1,z:0},{x:1,y:0,z:0},1)<.06,'camera ray missed thin wall');
+clear();box(2,0,1.07,2,2,1.03,false);assert(env.maktwoWorldRay({x:2,y:2,z:0},{x:0,y:-1,z:0},1.5)<.95,'camera ray missed thin deck');
+clear();box(1,0,2,.3,10);const grazing=env.maktwoWorldRay({x:0,y:1,z:0},{x:0,y:0,z:-1},3);assert(grazing===3,'parallel clear ray falsely blocked');
+clear();stairs=(x,z,m,e)=>x>=.01&&x<1?.3:null;p=player();for(let j=0;j<12;j++){tick(p,input(1,0));assert(p.renderPos.y>=env.playerTerrain(p.renderPos.x,p.renderPos.z)-.002,'presentation interpolates through a tread');}
+clear();terrain=x=>x<0?0:.2;p=player(-.01);for(let j=0;j<12;j++){tick(p,input(1,0));assert(p.pos.y>=terrain(p.pos.x)-.002,'physics went beneath terrain');}
+console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentation floor');
