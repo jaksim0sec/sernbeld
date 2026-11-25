@@ -8,6 +8,8 @@
 
 [현재 구현과 기준 자료](docs/core/CURRENT_STATE.md)에서 현재·과거·제안을 구분한다. 요청이 걸치는 행을 함께 읽고, 각 문서가 연결한 코드·도구로 바로 들어간다.
 
+[전역 TODO](docs/core/TODO.md)는 프로젝트 전체의 남은 일 목록이다. 사용자의 요청을 우선하며, 요청을 완료한 후 작업 여유가 있거나 다음 과제가 없을 때 전역 TODO를 확인한다. 최신 작업 기록과 점유 범위·의존성을 확인하고 처리 가능한 항목만 진행한다. 새 미완료 과제·검증·문제는 작업 종료 전 TODO에 연결하고 완료 근거를 갱신한다. 여유가 없으면 기록만 남기며, 요청 범위 밖의 중대한 변경을 임의로 진행하지 않는다.
+
 | 작업 | 먼저 읽을 문서 | 실제 시작점 |
 | --- | --- | --- |
 | 의상·장착·리그 | [의상 제작](docs/workflows/CLOTHING.md), [기준 리그](docs/contracts/CHARACTER_RIG.md) | [공용 의상 스튜디오](tools/dev/index.html), [장착 계약](src/entities/character/clothing/README.md) |
