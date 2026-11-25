@@ -5,7 +5,10 @@
   "detail": "docs/tasks/active/NPC-11252342.md",
   "scope": [
     "docs/content/kael-dialogue",
-    "src/core/living-world-content.js"
+    "src/core/living-world-content.js",
+    "src/core/npc-conversation.js",
+    "tests/npc-conversation.mjs",
+    "tests/kael-living-content.mjs"
   ],
   "contracts": [
     "docs/contracts/NPC_DIALOGUE.md",

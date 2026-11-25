@@ -11,7 +11,6 @@
     "tests/npc-dialogue.mjs",
     "tests/npc-dialogue-browser.mjs",
     "tests/living-world-runtime.mjs",
-    "tests/kael-living-content.mjs",
     "tests/living-world-browser.mjs",
     "docs/contracts/LIVING_WORLD.md",
     "docs/core/CURRENT_STATE.md",
