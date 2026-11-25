@@ -298,7 +298,7 @@ function assembleBinding(T,asset,policy,record){
   }
   partLods.set(part.id,levels);
  }
- return {...record,geometry:g,parts,partLods,joints,boneIds,revision:policy.bakeRevision,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
+ return {...record,geometry:g,parts,partLods,joints,boneIds,revision:policy.bakeRevision,poseLinearBlend:policy.poseLinearBlend??0,diagnostics:{...record.diagnostics,boneCount:boneIds.length}};
 }
 function unpackBake(text,Type,length){
  const raw=atob(text),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));

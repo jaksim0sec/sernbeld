@@ -105,10 +105,8 @@ for(const sex of ['male','female']){
   const stress=sample===poses.length-1;
   assert(armpit.maxExtension<.045,'shoulder absolute extension '+JSON.stringify(armpit));
   if(stress){
-   // Retain the target in the diagnostic output. This artificial combined
-   // pose currently exceeds the target for the female rig; a generic
-   // pose-corrective/cloth solver would be needed to guarantee it.
-   if(armpit.p95>=2.5||armpit.p99>=3.5||whole.p99>=3.5)console.warn('STRESS TARGET NOT MET '+sex+' '+JSON.stringify({armpit,whole}));
+   // This bounded extreme pose is a strict regression gate for both rigs.
+   assert(armpit.p95<2.5&&armpit.p99<3.5&&whole.p99<3.5,'Extreme shoulder strain '+sex+' '+JSON.stringify({armpit,whole}));
   }else{
    assert(armpit.p95<2.2&&armpit.p99<3.5,'ordinary shoulder strain '+JSON.stringify(armpit));
    assert(whole.p99<3.5,'ordinary garment strain '+JSON.stringify(whole));

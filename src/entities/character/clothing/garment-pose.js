@@ -1,6 +1,7 @@
 // Reference-space dual-quaternion skinning driven by the final game bones.
-export function garmentSkinningGLSL(count,slots=4){
+export function garmentSkinningGLSL(count,slots=4,linearBlend=0){
  if(!Number.isInteger(count)||count<1||count>64||![4,8].includes(slots))throw Error('Invalid garment bone palette');
+ if(!Number.isFinite(linearBlend)||linearBlend<0||linearBlend>1)throw Error('Invalid garment pose blend');
  return `
 attribute vec4 aJoint,aWeight;
 ${slots===8?'attribute vec4 aJointExtra,aWeightExtra;':''}
@@ -9,12 +10,18 @@ vec4 garmentMul(vec4 a,vec4 b){return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz
 vec3 garmentRotate(vec4 q,vec3 p){return p+2.*cross(q.xyz,cross(q.xyz,p)+q.w*p);}
 vec4 blendReal(vec4 j,vec4 w){return uGarmentReal[int(j.x)]*w.x+uGarmentReal[int(j.y)]*w.y+uGarmentReal[int(j.z)]*w.z+uGarmentReal[int(j.w)]*w.w;}
 vec4 blendDual(vec4 j,vec4 w){return uGarmentDual[int(j.x)]*w.x+uGarmentDual[int(j.y)]*w.y+uGarmentDual[int(j.z)]*w.z+uGarmentDual[int(j.w)]*w.w;}
+${linearBlend>0?`uniform mat4 uGarmentLinear[${count}];
+mat4 garmentLinear(vec4 j,vec4 w){return uGarmentLinear[int(j.x)]*w.x+uGarmentLinear[int(j.y)]*w.y+uGarmentLinear[int(j.z)]*w.z+uGarmentLinear[int(j.w)]*w.w;}`:''}
 void garmentPose(out vec3 p,out vec3 n){
  vec4 q=blendReal(aJoint,aWeight),dual=blendDual(aJoint,aWeight);
  ${slots===8?'if(aWeightExtra.x>0.){q+=blendReal(aJointExtra,aWeightExtra);dual+=blendDual(aJointExtra,aWeightExtra);}':''}
  float len=max(length(q),1.e-6);q/=len;dual/=len;dual-=q*dot(q,dual);
  p=garmentRotate(q,position)+2.*garmentMul(dual,vec4(-q.xyz,q.w)).xyz;
  n=garmentRotate(q,normal);
+ ${linearBlend>0?`mat4 linear=garmentLinear(aJoint,aWeight);
+ ${slots===8?'if(aWeightExtra.x>0.)linear+=garmentLinear(aJointExtra,aWeightExtra);':''}
+ p=mix(p,(linear*vec4(position,1.)).xyz,${linearBlend.toFixed(4)});
+ n=normalize(mix(n,mat3(linear)*normal,${linearBlend.toFixed(4)}));`:''}
 }
 `;
 }
@@ -29,7 +36,9 @@ export function acquireGarmentPose(T,actor,binding){
   const depth=i=>parents[i]<0?0:1+depth(parents[i]);
   const signOrder=boneIds.map((_,i)=>i).sort((a,b)=>depth(a)-depth(b));
   const m=new T.Matrix4(),inverse=new T.Matrix4(),p=new T.Vector3(),q=new T.Quaternion(),scale=new T.Vector3(),r=new T.Quaternion(),d=new T.Quaternion(),conj=new T.Quaternion(),tmp=new T.Vector3();
+  const linearBlend=binding.poseLinearBlend??0,linear=linearBlend?boneIds.map(()=>new T.Matrix4()):null,unitScale=new T.Vector3(1,1,1),linearPoint=new T.Vector3(),sample=new T.Vector3();
   const uniforms={uGarmentReal:{value:real},uGarmentDual:{value:dual}};
+  if(linear)uniforms.uGarmentLinear={value:linear};
   function update(){
    // The world matrices are final (including IK). Cancel the actor's world
    // translation/rotation/scale so all deltas remain in garment metres.
@@ -37,6 +46,7 @@ export function acquireGarmentPose(T,actor,binding){
    for(let i=0;i<boneIds.length;i++){
     const b=boneIds[i];m.multiplyMatrices(inverse,actor.bones[b].matrixWorld).multiply(ref.inverseBones[b]);
     m.decompose(p,q,scale);q.normalize();
+    if(linear)linear[i].compose(p,q,unitScale);
     real[i].set(q.x,q.y,q.z,q.w);
     dual[i].set(.5*(p.x*q.w+p.y*q.z-p.z*q.y),.5*(-p.x*q.z+p.y*q.w+p.z*q.x),.5*(p.x*q.y-p.y*q.x+p.z*q.w),-.5*(p.x*q.x+p.y*q.y+p.z*q.z));
    }
@@ -62,7 +72,9 @@ export function acquireGarmentPose(T,actor,binding){
    const dot=rx*dx+ry*dy+rz*dz+rw*dw;
    r.set(rx,ry,rz,rw);d.set(dx-rx*dot,dy-ry*dot,dz-rz*dot,dw-rw*dot);
    conj.copy(r).conjugate();d.multiply(conj);
-   return out.fromArray(binding.rest,i*3).applyQuaternion(r).add(tmp.set(d.x*2,d.y*2,d.z*2));
+   out.fromArray(binding.rest,i*3).applyQuaternion(r).add(tmp.set(d.x*2,d.y*2,d.z*2));
+   if(linear){linearPoint.set(0,0,0);for(let k=0;k<slots;k++){const weight=w[j+k];if(weight>0)linearPoint.addScaledVector(sample.fromArray(binding.rest,i*3).applyMatrix4(linear[ids[j+k]]),weight);}out.lerp(linearPoint,linearBlend);}
+   return out;
   }
   state={users:0,uniforms,update,deformVertex};map.set(binding,state);
  }
@@ -75,7 +87,7 @@ export function createGarmentPart(T,actor,lease,id,materialFactory){
  const pose=acquireGarmentPose(T,actor,shared);
  let material,object;
  try{
-  material=materialFactory(pose.uniforms,garmentSkinningGLSL(shared.boneIds.length,shared.slots));
+  material=materialFactory(pose.uniforms,garmentSkinningGLSL(shared.boneIds.length,shared.slots,shared.poseLinearBlend??0));
   object=new T.Mesh(geometry,material);
   // Transform from the shared garment reference frame into the actor's
   // actual model-local coordinates; face morphs do not require a new binding.

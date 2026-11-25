@@ -10,7 +10,7 @@ const armGroups=sides.map(side=>[...chain(side),'hand_'+side,...['thumb','index'
 function channels(asset,i){const k=i*4;return {side:asset.influence[k+2],shoulder:asset.influence[k]/255,kind:asset.influence[k+3]};}
 export const SHIRT_BINDING_POLICY=Object.freeze({
  bakeId:'shirt-v1',
- bakeRevision:1,
+ bakeRevision:2,
  regions:armGroups,
  limbs:sides.map(side=>({parent:'upper_arm_'+side,joint:'forearm_'+side,tip:'hand_'+side})),
  limbRegion(i,asset){const c=channels(asset,i);return c.kind===1?c.side:-1;},
@@ -29,7 +29,8 @@ export const SHIRT_BINDING_POLICY=Object.freeze({
  },
  fit(i,asset){return channels(asset,i).kind<2;},
  smoothing:10,
- gradientLimit:16,
+ gradientLimit:12,
+ poseLinearBlend:0.25,
  maxInfluences:8,
  attributes:asset=>[['aRest',asset.position,3,false],['aColor',asset.color,3,true],['aDetail',asset.detail,4,false],['aInfluence',asset.influence,4,false]],
  parts:[

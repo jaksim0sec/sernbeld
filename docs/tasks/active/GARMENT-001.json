@@ -18,5 +18,5 @@
     "src/entities/character/clothing/README.md"
   ],
   "dependencies": [],
-  "next": "1차 weight-only 8개 실패. 선택적 linear/DQ 혼합과 gradient 후보 검증 후 조건부 main 반영 확인. 전체 피부 간섭/실기기 별도."
+  "next": "극단 자세 가중치 수정과 기존 자동 검증 PASS. 전체 의상 간섭과 실제 화면/실기기 품질은 별도 검증 필요."
 }
