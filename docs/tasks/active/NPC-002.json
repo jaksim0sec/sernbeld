@@ -1,0 +1,25 @@
+{
+  "id": "NPC-002",
+  "status": "in_progress",
+  "baseline": "be309a3605889160f0954c85b8bc7f2f45242b7a",
+  "detail": "docs/tasks/active/NPC-002.md",
+  "scope": [
+    "src/core/npc-dialogue.js",
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "sw.js",
+    "tests/npc-dialogue.mjs",
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/core/CURRENT_STATE.md",
+    "docs/tasks/INDEX.md",
+    "docs/tasks/active/NPC-002.md",
+    "docs/tasks/active/NPC-002.json",
+    "docs/superpowers/plans/2026-11-25-npc-dialogue-state.md"
+  ],
+  "contracts": [
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/contracts/DELIVERABLES.md"
+  ],
+  "dependencies": [],
+  "next": "기존 UI 유지; 안정 ID 상태, 조건 재검증 행동, 저장 호환, 회귀 확인"
+}

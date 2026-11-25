@@ -10,6 +10,8 @@
 
 [상호작용 UI v2](archive/NPC-001.md)
 
+[NPC 데이터 계약 후속](active/NPC-002.md)
+
 ## 병렬 작업의 기계 검사
 
 장기/병렬 작업은 상세 Markdown과 같은 ID의 JSON 파일을 `active/`에 함께 둔다. [INFRA-001 예시](active/INFRA-001.json)처럼 id/status/baseline/detail/scope/contracts/dependencies/next를 기록한다. scope는 저장소 상대 파일·디렉터리 경로이며 in_progress/blocked 상태에서만 경로를 점유한다. 같은 파일 또는 상하위 경로의 중복 점유는 `node tools/check-infra.mjs`에서 실패한다. 완료 시 상태를 done으로 바꾸고 두 파일을 archive로 이동한 뒤 detail 링크를 갱신한다. 이 검사는 기록된 범위의 충돌만 찾으며 실제 Git 동시 편집은 최신 HEAD/병합 검증이 필요하다.
