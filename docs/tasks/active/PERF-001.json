@@ -1,0 +1,25 @@
+{
+  "id": "PERF-001",
+  "status": "planned",
+  "baseline": "f188d8514972029c829e43a4669aebf7b81d556a",
+  "detail": "docs/tasks/active/PERF-001.md",
+  "scope": [
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "src/entities/character",
+    "assets/models/characters",
+    "assets/models/clothing",
+    "sw.js",
+    "tests/character-runtime-browser.mjs",
+    "tests/pwa-offline.mjs"
+  ],
+  "contracts": [
+    "docs/workflows/DEBUGGING.md",
+    "docs/validation/VALIDATION_POLICY.md",
+    "docs/PWA.md",
+    "docs/contracts/CHARACTER_RIG.md",
+    "src/entities/character/clothing/README.md"
+  ],
+  "dependencies": [],
+  "next": "PERF-001/T1: 실제 최초 로딩 병목 계측 및 재현. TODO 대기; 착수 전 WORLD-001/GARMENT-001 점유 범위 조정."
+}
