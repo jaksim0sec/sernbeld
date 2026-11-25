@@ -90,7 +90,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0,slideWeight=0,lastSlide=null;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
  dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
@@ -277,6 +277,11 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
    if(player.onGround&&!player.swimming&&!actor._combatStance&&groundSurface)fitFeet(actor,renderPos,ankleRest,dt);
   }
+  // Sliding down a steep face: crouched, feet planted on the slope, arms
+  // out for balance. Eased in and out over the regular airborne pose.
+  if(player.slide)lastSlide=player.slide;
+  slideWeight+=((player.slide&&!player.swimming&&!firstPerson?1:0)-slideWeight)*(1-Math.exp(-dt*10));
+  if(slideWeight>.01&&!firstPerson&&lastSlide)poseSlide(renderPos,ankleRest,slideWeight);
   actor.group.updateWorldMatrix(true,false);
   const moving=clamp01(speed/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
   for(const side of ['right','left']){
@@ -343,6 +348,38 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   foot.parent.getWorldQuaternion(qParent);foot.quaternion.copy(qParent.invert().multiply(rotation));
  }
 
+ const SLIDE_POSE={
+  waist:[-12,0],ribcage:[-6,10],neck:[-4,0],head:[0,0],
+  thigh_left:[50,12],shin_left:[74],thigh_right:[42,10],shin_right:[64],
+  upper_arm_left:[22,52],forearm_left:[32,0],upper_arm_right:[30,44],forearm_right:[40,0]
+ };
+ const slideSaved=[];
+ function poseSlide(root,ankleRest,weight){
+  const bones=actor.bones;
+  for(let i=0;i<bones.length;i++)(slideSaved[i]??=new T.Quaternion()).copy(bones[i].quaternion);
+  actor.pose(SLIDE_POSE);
+  for(let i=0;i<bones.length;i++)bones[i].quaternion.copy(slideSaved[i].slerp(bones[i].quaternion,weight));
+  for(const side of ['left','right'])actor.grip(side,.25);
+  const scale=actor.units*actor.group.scale.y;
+  actor.B.pelvis.position.y-=.24*weight/scale;
+  actor.group.updateWorldMatrix(true,false);
+  // Feet along the slope's contour so both soles meet the face.
+  const left=new T.Vector3(1,0,0).applyQuaternion(actor.group.quaternion);
+  const down=new T.Vector3(-lastSlide.ux,0,-lastSlide.uz);
+  const k=lastSlide.k,normal=new T.Vector3(-lastSlide.ux*k,1,-lastSlide.uz*k).normalize();
+  const toes=down.clone().setY(-k).normalize();
+  const rotation=new T.Quaternion().setFromRotationMatrix(surfaceBasis.makeBasis(new T.Vector3().crossVectors(normal,toes),normal,toes));
+  const sole=ankleRest*actor.group.scale.y;
+  for(const [side,sign,lead] of [['left',1,.07],['right',-1,-.05]]){
+   const target=root.clone().addScaledVector(left,sign*.15).addScaledVector(down,lead);
+   const ground=groundSurface?.(target.x,target.z,root.y+.6)??root.y;
+   target.y=ground+sole;
+   const foot=actor.B['foot_'+side];
+   const pole=down.clone().multiplyScalar(.7).addScaledVector(left,sign*.25).addScaledVector(upAxis,.2);
+   solveFoot(actor,side,foot.getWorldPosition(new T.Vector3()).lerp(target,weight),
+    foot.getWorldQuaternion(new T.Quaternion()).slerp(rotation,weight),pole);
+  }
+ }
  const traversalYaw=new T.Quaternion(),traversalLean=new T.Quaternion(),xAxis=new T.Vector3(1,0,0);
  const surfaceBasis=new T.Matrix4();
  function poseTraversal(action,t,root){
@@ -407,7 +444,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     if(previous)hand=swing(previous.hands[i],hand,reach,.07);
     else handWeight=phase(i*.04,.21+i*.04,t);
     handWeight*=1-phase(.59+i*.038,.79+i*.052,t);
-    footWeight=1-phase(.15+i*.12,.58+i*.12,t);
+    footWeight=action.pull?1-phase(.02+i*.03,.14+i*.03,t):1-phase(.15+i*.12,.58+i*.12,t);
    }else if(crest){
     handWeight=1-phase(.15+i*.11,.58+i*.11,t);
     footWeight=1-phase(.10+i*.12,.49+i*.12,t);

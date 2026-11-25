@@ -922,12 +922,124 @@ function groundAt(x, z, feetY) {
   }
   return g;
 }
+// Roofs, cone caps and awnings are thin visual surfaces, not colliders.
+// Each record gives its top surface in local coordinates. Over the solid
+// footprint below it the surface is player ground sampled at the feet, like
+// terrain. The overhang outside the footprint is a one-way support from
+// above and a slab that climbing bodies cannot pass through.
+//   shape "gable": ridge along local x (or z when acrossX), linear fall
+//   shape "cone": radial fall from the centre
+//   shape "shed": single slope along local z, from z0 (hi) to z1 (lo)
+var roofGrid=new Map();
+function addRoof(r) {
+  r.cos=Math.cos(r.yaw||0);r.sin=Math.sin(r.yaw||0);
+  r.foot??="rect";r.thick??=.3;
+  const reach=r.outerR??Math.hypot(r.ox,r.oz);
+  for(let i=Math.floor((r.cx-reach)/CELL);i<=Math.floor((r.cx+reach)/CELL);i++)
+    for(let j=Math.floor((r.cz-reach)/CELL);j<=Math.floor((r.cz+reach)/CELL);j++){
+      const k=key(i,j);let b=roofGrid.get(k);
+      if(!b)roofGrid.set(k,b=[]);
+      b.push(r);
+    }
+  return r;
+}
+// Radius in a faceted cone's own polygon (G.cone: seg corners from rot).
+function roofRadial(r,lx,lz) {
+  if(!r.seg)return Math.hypot(lx,lz);
+  let d=-Infinity;
+  for(let i=0;i<r.seg;i++){
+    const a=(i+.5)/r.seg*Math.PI*2+(r.rot||0);
+    d=Math.max(d,lx*Math.cos(a)+lz*Math.sin(a));
+  }
+  return d/Math.cos(Math.PI/r.seg);
+}
+function roofSurfaceLocal(r,lx,lz) {
+  if(r.shape==="cone")return r.base+r.rise*(1-roofRadial(r,lx,lz)/r.half);
+  if(r.shape==="shed")return r.base+r.rise*(lz-r.z0)/(r.z1-r.z0);
+  return r.base+r.rise*(1-Math.abs(r.acrossX?lx:lz)/r.half);
+}
+function roofInFoot(r,lx,lz) {
+  if(!r.hx&&!r.hz&&!r.footR)return false;
+  return r.foot==="circle"?Math.hypot(lx,lz)<=r.footR:Math.abs(lx)<=r.hx&&Math.abs(lz)<=r.hz;
+}
+function roofInOuter(r,lx,lz) {
+  return r.outerR?roofRadial(r,lx,lz)<=r.outerR:Math.abs(lx)<=r.ox&&Math.abs(lz)<=r.oz;
+}
+function roofRecords(x,z) {
+  return roofGrid.get(key(Math.floor(x/CELL),Math.floor(z/CELL)));
+}
+// Ground over a solid footprint.
+function roofHeight(x,z) {
+  const b=roofRecords(x,z);
+  let h=-Infinity;
+  if(!b)return h;
+  for(const r of b){
+    const [lx,lz]=local(r,x,z);
+    if(roofInFoot(r,lx,lz))h=Math.max(h,roofSurfaceLocal(r,lx,lz));
+  }
+  return h;
+}
+// Top edge of a G.roof gable triangle, the wall face continuing above the
+// wall box at a gable end (gable records only; -Infinity elsewhere).
+function roofGableTop(x,z) {
+  const b=roofRecords(x,z);
+  let h=-Infinity;
+  if(!b)return h;
+  for(const r of b){
+    if(!r.gable)continue;
+    const [lx,lz]=local(r,x,z),along=r.acrossX?lz:lx,across=r.acrossX?lx:lz,end=r.acrossX?r.hz:r.hx,side=r.acrossX?r.hx:r.hz;
+    if(!roofInFoot(r,lx,lz)||Math.abs(along)<end-.06)continue;
+    h=Math.max(h,r.base+.25+(r.rise-.25)*(side-Math.abs(across))/r.half);
+  }
+  return h;
+}
+// Highest overhang surface at the point not above maxY (one-way support).
+function roofOverhangTop(x,z,maxY=Infinity) {
+  const b=roofRecords(x,z);
+  let h=-Infinity;
+  if(!b)return h;
+  for(const r of b){
+    const [lx,lz]=local(r,x,z);
+    if(roofInFoot(r,lx,lz)||!roofInOuter(r,lx,lz))continue;
+    const y=roofSurfaceLocal(r,lx,lz);
+    if(y<=maxY+CONTACT_SKIN&&y>h)h=y;
+  }
+  return h;
+}
+// Overhang slab {top,bottom} spans at a point.
+function roofSlabsAt(x,z,out=[]) {
+  out.length=0;
+  const b=roofRecords(x,z);
+  if(!b)return out;
+  for(const r of b){
+    const [lx,lz]=local(r,x,z);
+    if(roofInFoot(r,lx,lz)||!roofInOuter(r,lx,lz))continue;
+    const top=roofSurfaceLocal(r,lx,lz);
+    out.push({top,bottom:r.solid?Math.min(r.base,top):top-r.thick,record:r});
+  }
+  return out;
+}
+var ROOF_RING=Array.from({length:8},(_,i)=>[Math.cos(i*Math.PI/4),Math.sin(i*Math.PI/4)]);
+var _slabs=[];
+// A standing body overlaps an overhang slab. Feet on top of a sloped slab
+// (within the slope across the body radius) are standing, not overlapping.
+function roofSlabHit(x,z,y,radius=PLAYER.radius,height=PLAYER.body) {
+  for(let i=-1;i<8;i++){
+    const px=i<0?x:x+ROOF_RING[i][0]*radius,pz=i<0?z:z+ROOF_RING[i][1]*radius;
+    for(const s of roofSlabsAt(px,pz,_slabs))if(y+.45<s.top&&y+height>s.bottom+CONTACT_SKIN)return true;
+  }
+  return false;
+}
+// The visible roof surface: footprint ground or overhang, else terrain.
+function roofOrTerrain(x,z) {
+  return Math.max(playerTerrain(x,z),roofOverhangTop(x,z));
+}
 // Player contacts use the rendered stair treads, not the NPC navigation ramp.
 // The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
 function playerTerrain(x,z) {
   const tread=stairSurface(x,z,0,true);
   if(tread!==null)return tread;
-  return heightfieldTriangle(x,z);
+  return Math.max(heightfieldTriangle(x,z),roofHeight(x,z));
 }
 function heightfieldTriangle(x,z){
   const gx=(x+HALF)/CFG.cell,gz=(z+HALF)/CFG.cell;
@@ -935,6 +1047,21 @@ function heightfieldTriangle(x,z){
   const i=Math.floor(gx),j=Math.floor(gz),u=gx-i,v=gz-j,k=j*GRID_N+i,H=World.H;
   const a=H[k],b=H[k+1],c=H[k+GRID_N],d=H[k+GRID_N+1];
   return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
+}
+// Ground steeper than 50 degrees is not standing ground. It returns the
+// uphill direction; solid tops and stair treads are always level supports.
+var WALK_GRADE=Math.tan(50*Math.PI/180);
+function playerSteepGround(x,z,floor) {
+  const e=.04;
+  if(!Number.isFinite(floor))return null;
+  const roof=Math.max(roofHeight(x,z),roofOverhangTop(x,z,floor));
+  const onRoof=Math.abs(floor-roof)<=CONTACT_SKIN;
+  if(!onRoof&&Math.abs(floor-playerTerrain(x,z))>CONTACT_SKIN)return null;
+  for(const [ox,oz] of [[0,0],[e,0],[-e,0],[0,e],[0,-e]])if(stairSurface(x+ox,z+oz,0,true)!==null)return null;
+  // On a roof sample the continuous roof surface across the wall line.
+  const H=onRoof?roofOrTerrain:playerTerrain;
+  const gx=(H(x+e,z)-H(x-e,z))/(2*e),gz=(H(x,z+e)-H(x,z-e))/(2*e),k=Math.hypot(gx,gz);
+  return k>WALK_GRADE?{ux:gx/k,uz:gz/k,k}:null;
 }
 var CONTACT_SKIN=.002;
 // Circular horizontal cross-section of a standing capsule/cylinder. Positive
@@ -962,6 +1089,8 @@ function playerSweepColliders(x,z,range=PLAYER.radius) {
 function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
   let h=playerTerrain(x,z);
   if(h>maxY+CONTACT_SKIN)h=-Infinity;
+  // Roof eaves and awnings carry feet from above, never block from below.
+  h=Math.max(h,roofOverhangTop(x,z,maxY));
   for(const o of solids??query(x,z,radius)){
     // A solid top is a support, including low decorative blocks that were
     // previously marked non-walkable. NPCs are never registered as supports.
@@ -987,6 +1116,14 @@ function playerCeiling(x,z,y,targetY,solids=null) {
   for(const o of solids??query(x,z,PLAYER.radius)){
     if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
     top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
+  }
+  // A head rising into an eave or awning stops at its underside.
+  for(let i=-1;i<8;i++){
+    const px=i<0?x:x+ROOF_RING[i][0]*PLAYER.radius,pz=i<0?z:z+ROOF_RING[i][1]*PLAYER.radius;
+    for(const s of roofSlabsAt(px,pz,_slabs)){
+      if(s.bottom<y+PLAYER.body-CONTACT_SKIN||s.bottom>top+PLAYER.body)continue;
+      top=Math.min(top,s.bottom-PLAYER.body-CONTACT_SKIN);
+    }
   }
   return Math.max(y,top);
 }

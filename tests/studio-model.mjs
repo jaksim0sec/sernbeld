@@ -168,6 +168,62 @@ for(const body of ['male','female']){
   }
  }finally{delete globalThis.document;delete globalThis.addEventListener;}
 }
+// Steep-face slide and overhang pull-over on both real rigs.
+{
+ const phase=(a,b,t)=>{const u=Math.max(0,Math.min(1,(t-a)/(b-a)));return u*u*(3-2*u);};
+ globalThis.document={createElement:()=>({style:{},addEventListener(){},querySelector:()=>({})}),body:{append(){}}};
+ globalThis.addEventListener=()=>{};
+ try{
+  for(const body of ['male','female']){
+   const k=1.6,ground=(x,z)=>x*k;
+   const player={mode:'walk',pos:new T.Vector3(1,k,0),renderPos:new T.Vector3(1,k,0),vel:new T.Vector3(-3,-3*k,0),yaw:0,pitch:0,onGround:false,teleportId:1,
+    slide:{ux:1,uz:0,k},moveHeading:Math.atan2(-3,0)};
+   const runtime=createCharacterRuntime({T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
+    Save:{data:{character:{body},settings:{view:'third'}},write(){}},
+    makeCharacter:profile=>createStudioModel(T,factory,profile,{clothing:false}),attackPose:()=>null,height:1.76,
+    groundSurface:(x,z)=>ground(x,z)});
+   for(let i=0;i<60;i++)runtime.update(1/60,i/60,{});
+   const actor=runtime.actor;
+   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
+   const ankleRest=Math.min(pivot('foot_left').y,pivot('foot_right').y)*actor.group.scale.y;
+   let worst=0;
+   for(const side of ['left','right']){
+    const foot=actor.B['foot_'+side].getWorldPosition(new T.Vector3());
+    worst=Math.max(worst,Math.abs(foot.y-ankleRest-ground(foot.x,foot.z)));
+   }
+   assert(worst<.05,body+' sliding sole off the slope by '+worst);
+   const forward=new T.Vector3(0,0,1).applyQuaternion(actor.group.quaternion);
+   assert(forward.x<-.9,body+' slide must face downhill');
+   assert(actor.B.pelvis.position.y<actor.rest.pelvis.y,body+' slide is not crouched');
+   console.log('PASS slide pose',body,worst.toFixed(4));
+   // Pull-over: hang under a 0.7 m eave, palms on its edge, body swung out.
+   player.slide=null;player.vel.set(0,0,0);
+   const edgeY=2.05,outward=new T.Vector3(0,0,1),across=new T.Vector3(1,0,0);
+   const wallHands=[-1,1].map(sign=>({point:new T.Vector3(sign*.195,1.45,0),normal:outward.clone()}));
+   const previous={kind:'climb',hands:wallHands,feet:[-1,1].map(sign=>({point:new T.Vector3(sign*.155,.36,0),normal:outward.clone()})),tilt:0};
+   const hands=[-1,1].map(sign=>({point:new T.Vector3(sign*.195,edgeY,.68),normal:new T.Vector3(0,1,0),lip:true}));
+   const from=new T.Vector3(0,0,.368),approach=new T.Vector3(0,0,.7+.38),to=new T.Vector3(0,edgeY+.35,.315);
+   const action={kind:'mantle',pull:true,surface:{nx:0,nz:1},from,approach,to,over:to.y+.05,hands,previous,tilt:0};
+   let maxError=0;
+   for(let frame=20;frame<=55;frame++){
+    const t=frame/100;
+    player.renderPos.copy(from).lerp(approach,phase(.06,.25,t));
+    if(t>=.25){player.renderPos.copy(approach);player.renderPos.y=(action.over)*phase(.25,.63,t);}
+    player.renderTraversal={action,t};
+    runtime.update(1/60,t,{});
+    if(t<.25)continue;
+    for(const [i,side] of ['left','right'].entries()){
+     const target=hands[i].point.clone().add(new T.Vector3(0,.029,0)).addScaledVector(outward,-.014);
+     const actual=actor.B['hand_'+side].localToWorld(gripFrame(T,actor,side).grip.clone());
+     maxError=Math.max(maxError,actual.distanceTo(target));
+    }
+   }
+   assert(maxError<.05,body+' eave pull palms off the edge by '+maxError);
+   console.log('PASS eave pull-over hand reach',body,maxError.toFixed(4));
+   actor.dispose();
+  }
+ }finally{delete globalThis.document;delete globalThis.addEventListener;}
+}
 // LOD sidecar: progressive levels must shrink and stay a vertex subset of level 0.
 {
  const lodSource={...source,lod:JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.lod.json.gz')))};

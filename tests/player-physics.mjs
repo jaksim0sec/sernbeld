@@ -6,10 +6,10 @@ const part=(s,a,b)=>{const i=s.indexOf(a),j=s.indexOf(b,i);assert(i>=0&&j>i);ret
 const T=new Function(read('src/vendor/three-gltf.part.js')+';return three_module_exports;')();
 let terrain=()=>0,stairs=()=>null,water=()=>-100;
 const env=new Function('Vector3','Vector2','sample','stairSurface','waterLevel','normalAt','World','HALF','GRID_N','CFG','clamp2',
- part(region,'var PLAYER =','var ring =')+part(render,'var CELL =','function occupiedAt')+part(game,'var _n =','var CameraRig =')+part(game,'function maktwoWorldRay','function shiftCameraWithinWorld')+'return {Player,PLAYER,addBox,addCyl,playerFloor,playerContacts,playerTerrain,maktwoWorldRay,grid,all};'
+ part(region,'var PLAYER =','var ring =')+part(render,'var CELL =','function occupiedAt')+part(game,'var _n =','var CameraRig =')+part(game,'function maktwoWorldRay','function shiftCameraWithinWorld')+'return {Player,PLAYER,addBox,addCyl,addRoof,playerFloor,playerContacts,playerTerrain,maktwoWorldRay,grid,all,roofGrid,roofSlabHit};'
 )(T.Vector3,T.Vector2,(x,z)=>terrain(x,z),(x,z,m,e)=>stairs(x,z,m,e),(x,z)=>water(x,z),(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
-const {Player,PLAYER,addBox,playerContacts,grid,all}=env;
-const clear=()=>{grid.clear();all.length=0;terrain=()=>0;stairs=()=>null;water=()=>-100;};
+const {Player,PLAYER,addBox,addCyl,addRoof,playerContacts,grid,all,roofGrid,roofSlabHit}=env;
+const clear=()=>{grid.clear();roofGrid.clear();all.length=0;terrain=()=>0;stairs=()=>null;water=()=>-100;};
 function player(x=0,z=0,y=null){const p=new Player();p.teleport(x,z,0,0,y);return p;}
 function input(x=0,y=0,run=false){return {jump:false,move(){const n=Math.hypot(x,y);return {x:x/Math.max(1,n),y:y/Math.max(1,n),mag:Math.min(1,n)};},run:()=>run,consumeJump(){const v=this.jump;this.jump=false;return v;}};}
 const tick=(p,i,n=1,dt=1/60,near=[])=>{for(let k=0;k<n;k++)p.advance(dt,i,near);};
@@ -167,6 +167,159 @@ console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head
   console.log('PASS traversal: lip height, rotated wall anchors, planted supports, exhaustion/drop, headroom and steep terrain crest');
 }
 
+{
+  // Steep ground (>50 deg) is never standing ground: no free hop-climbing,
+  // no walking glued down a cliff, and a body on it slides off.
+  for(const grade of [1.3,2.5,4]){
+    clear();terrain=x=>x>0?x*grade:0;
+    for(const tired of [true,false]){
+      const p=player(-.3),hop=input(1,0);let peak=0;
+      for(let k=0;k<600;k++){
+        if(tired){p.stamina=0;p.exhausted=true;}
+        if(p.onGround)hop.jump=true;
+        tick(p,hop);
+        if(!p.traversal)peak=Math.max(peak,p.pos.y);
+        else assert(!tired,'exhausted body grabbed a steep face');
+      }
+      if(tired)assert(peak<1.2,'jump-hopped up a steep slope at grade '+grade);
+    }
+  }
+  for(const grade of [1.3,4]){
+    clear();terrain=x=>x>0?-x*grade:0;const p=player(-.3);let air=0;
+    for(let k=0;k<40;k++){tick(p,input(1,0));if(p.pos.x>.2&&!p.onGround)air++;}
+    assert(air>0&&p.pos.y<-1,'walked glued down a cliff at grade '+grade);
+  }
+  clear();terrain=x=>x>0?-x*.9:0;let p=player(-.3);
+  for(let k=0;k<60;k++){tick(p,input(1,0));assert(p.onGround,'walkable descent left the ground');}
+  clear();terrain=x=>Math.max(0,(x+6)*2);p=player(-2,0,8);
+  const still=input();still.jump=true;tick(p,still,90);
+  assert(p.pos.x<-4.5&&p.pos.y<3&&p.vel.y<=0,'standing on a steep face did not slide');
+  assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length);
+  console.log('PASS steep ground: no hop climbing, cliff edges fall, steep faces slide, gentle descents stay grounded');
+}
+
+{
+  // A house: solid walls without an explicit climbable flag, a pitched roof
+  // that is ground over the walls and a 0.7 m eave overhang around them.
+  const wallTop=5,w=6,d=5,rh=2.75,half=d/2+.7;
+  const roofAt=z=>wallTop-.25+(rh+.25)*(1-Math.abs(z)/half);
+  const house=()=>{
+    clear();
+    addBox({cx:0,cz:0,cy:wallTop/2,hy:wallTop/2,hx:w/2,hz:d/2,walk:false});
+    addRoof({shape:'gable',gable:true,cx:0,cz:0,yaw:0,hx:w/2,hz:d/2,ox:w/2+.7,oz:half,base:wallTop-.25,rise:rh+.25,half,acrossX:false});
+  };
+  const clean=p=>!playerContacts(p.x,p.z,p.y).length&&!roofSlabHit(p.x,p.z,p.y);
+  const climb=(p,move,frames=1500)=>{
+    let pull=null;
+    for(let k=0;k<frames&&p.traversal!==null||k===0;k++){
+      tick(p,move);
+      assert(clean(p.pos),'climb passed through the wall or the eave');
+      assert(clean(p.renderPos),'climb presentation passed through the wall or the eave');
+      if(p.traversal?.pull)pull??=p.traversal;
+    }
+    return pull;
+  };
+  house();
+  let p=player(0,d/2+.41),move=input(0,1);move.jump=true;tick(p,move);
+  assert.equal(p.traversal?.kind,'latch','building wall was not climbable');
+  let pull=climb(p,move);
+  assert(pull,'no pull-over at the eave');
+  for(const h of pull.hands){
+    assert(h.point.z>d/2+.6&&h.point.z<half,'palms are not at the eave edge');
+    assert(Math.abs(h.point.y-roofAt(h.point.z))<1e-6,'palms are not on the eave surface');
+  }
+  assert(p.onGround&&Math.abs(p.pos.y-roofAt(p.pos.z))<1e-6,'did not stand on the roof after the pull-over');
+  assert(p.stamina>0&&p.stamina<100,'house wall drained no stamina or all of it');
+  for(let k=0;k<90;k++){tick(p,input(0,1));assert(p.onGround&&Math.abs(p.pos.y-roofAt(p.pos.z))<1e-6,'roof walk left the surface');}
+  // Walking down onto the eave and off its visible edge.
+  let fell=null;
+  for(let k=0;k<200&&fell===null;k++){tick(p,input(0,-1));if(!p.onGround)fell=p.pos.z;}
+  assert(fell>d/2+.55&&fell<half+.05,'left the roof away from the eave edge: '+fell);
+
+  // Gable end: up the gable triangle and over the rake.
+  house();
+  p=player(w/2+.41,0);p.yaw=Math.PI/2;move=input(0,1);move.jump=true;tick(p,move);
+  assert.equal(p.traversal?.kind,'latch');
+  pull=climb(p,move);
+  assert(pull&&p.onGround&&Math.abs(p.pos.y-roofAt(p.pos.z))<1e-6,'gable end did not finish on the roof');
+
+  // Sideways along a face, stopping at its edge.
+  clear();addBox({cx:0,cz:0,cy:4,hy:4,hx:2,hz:1,walk:false});
+  p=player(0,1.41);move=input(0,1);move.jump=true;tick(p,move,120);tick(p,input(),40);
+  const y0=p.pos.y,side=input(1,0);
+  for(let k=0;k<400;k++){p.stamina=100;tick(p,side);assert(clean(p.pos));}
+  assert(p.traversal&&Math.abs(p.pos.y-y0)<1e-6&&p.pos.x>1.4&&p.pos.x<2,'sideways climb did not hold height or stop at the edge');
+  assert(p.traversal.hands.every(h=>Math.abs(h.point.z-1)<1e-8&&h.point.x<=2+1e-8),'sideways palms left the face');
+
+  // Airborne press against a wall grabs it.
+  clear();
+  addBox({cx:0,cz:0,cy:5,hy:5,hx:3,hz:2.5,walk:false});
+  const air=player(0,2.5+.45,1.2);air.vel.y=-2;air.onGround=false;
+  const grab=input(0,1);grab.jump=true;tick(air,grab);
+  assert.equal(air.traversal?.kind,'latch','airborne press against a wall did not grab');
+
+  // Awning: free to walk under, grabbed from a jump and stood on.
+  clear();
+  addBox({cx:0,cz:-2,cy:4,hy:4,hx:4,hz:2,walk:false});
+  addRoof({shape:'shed',cx:0,cz:1,yaw:0,ox:2.5,oz:1,z0:-1,z1:1,base:3.3,rise:-.7,thick:.08});
+  p=player(0,3.5);tick(p,input(0,1),90);
+  assert(p.onGround&&p.pos.y===0&&p.pos.z<.4,'walking under an awning was blocked');
+  p=player(0,3);move=input(0,1);move.jump=true;tick(p,move);tick(p,input(0,1),12);
+  const reach=input(0,1);reach.jump=true;tick(p,reach);
+  assert(p.traversal?.pull,'awning edge was not grabbed from the air');
+  for(let k=0;k<200&&p.traversal;k++){tick(p,reach);assert(clean(p.pos));}
+  assert(p.onGround&&Math.abs(p.pos.y-(3.3-.7*(p.pos.z-1+1)/2))<1e-6,'did not stand on the awning');
+
+  // A balcony slab blocks the face below it; nothing passes through.
+  clear();
+  addBox({cx:0,cz:0,cy:4,hy:4,hx:3,hz:1,walk:false});
+  addBox({cx:0,cz:1.7,cy:3.525,hy:.125,hx:1.5,hz:.7,walk:true});
+  addBox({cx:0,cz:2.35,cy:4.1,hy:.45,hx:1.5,hz:.06,walk:false});
+  p=player(0,1.41,0);move=input(0,1);move.jump=true;tick(p,move);
+  for(let k=0;k<500;k++){p.stamina=100;tick(p,move);assert(clean(p.pos));}
+  assert(p.traversal&&p.pos.y+PLAYER.body<=3.4+1e-6,'climbed through a balcony');
+  console.log('PASS building climb: walls, eave and rake pull-over, roof/eave walking, sideways climb, airborne grab, awning ledge, balcony stop');
+}
+
+{
+  // Cylinders: opt-in only; a tapering tower in stacked segments with a
+  // gallery ring, and a boulder that is pulled up onto, never climbed.
+  clear();
+  addCyl({x:0,z:0,r:1,y0:0,y1:6});
+  let p=player(0,1.41),move=input(0,1);move.jump=true;tick(p,move);
+  assert.equal(p.traversal,null,'non-opted cylinder proxy was climbed');
+  clear();
+  for(let k=0;k<5;k++)addCyl({x:0,z:0,r:3.3-.16*k,y0:k*4,y1:4+k*4,climbable:true});
+  addCyl({x:0,z:0,r:3.5,y0:20,y1:20.5,climbable:true});
+  addCyl({x:0,z:0,r:1.8,y0:20.5,y1:23});
+  p=player(0,3.3+.41);move=input(0,1);move.jump=true;tick(p,move);
+  assert.equal(p.traversal?.kind,'latch');
+  const faces=new Set();let pull=null;
+  for(let k=0;k<4000&&p.traversal;k++){
+    p.stamina=100;tick(p,move);
+    assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'tower climb penetrated a segment');
+    const a=p.traversal;
+    if(a?.kind==='climb'){
+      faces.add(a.surface.box);
+      for(const h of a.hands){const r=Math.hypot(h.point.x,h.point.z);assert([3.3,3.14,2.98,2.82,2.66].some(q=>Math.abs(q-r)<1e-6),'palm off the segment face');}
+    }
+    if(a?.pull)pull??=a;
+  }
+  assert(faces.size===5&&pull&&p.onGround&&Math.abs(p.pos.y-20.5)<1e-6,'tower did not hand off segments and pull onto the gallery');
+  clear();
+  addCyl({x:0,z:0,r:1.6,y0:-1,y1:1.1,climbable:true,mantleOnly:true,lipInset:.56});
+  p=player(0,1.6+.41);move=input(0,1);move.jump=true;tick(p,move);
+  assert.equal(p.traversal?.kind,'mantle');
+  assert(p.traversal.hands.every(h=>Math.abs(Math.hypot(h.point.x,h.point.z)-1.04)<.01),'boulder palms not on its crown');
+  tick(p,move,120);
+  assert(p.onGround&&Math.abs(p.pos.y-1.1)<1e-6);
+  clear();
+  addCyl({x:0,z:0,r:3.2,y0:-1,y1:2.4,climbable:true,mantleOnly:true});
+  p=player(0,3.2+.41);move=input(0,1);move.jump=true;tick(p,move);
+  assert(p.traversal===null&&p.vel.y>0,'tall boulder was wall-climbed');
+  console.log('PASS cylinders: opt-in, segment hand-off, gallery pull-over, boulder pull-up only');
+}
+
 clear();p=player(0,0,-.1);tick(p,input(),120);assert(p.onGround&&Math.abs(p.pos.y)<1e-6,'feet below terrain must recover instead of falling forever');
 clear();box(0,0,2,2,2,0,false);p=player();assert(Math.abs(p.pos.y)<.01&&!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'spawn inside a nonwalkable building must find a nearby valid position, not its roof');
 clear();box(.05,0,2,.016,2,0,false);assert(env.maktwoWorldRay({x:0,y:1,z:0},{x:1,y:0,z:0},1)<.06,'camera ray missed thin wall');
@@ -185,13 +338,14 @@ console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentat
     return game.slice(a,b);
   };
   const added=[],palette=new Proxy({},{get:()=>0});
-  const build=new Function('addBox','terraceAt','C','PAT','icosa','WALL',
+  const roofs=[];
+  const build=new Function('addBox','terraceAt','C','PAT','icosa','WALL','addRoof',
     section('var box2 =','var off2 =')+
     section('function buildScenicWings(','function buildKaelGardens(')+
     section('function buildKaelGardens(','function buildStairs(')+
     'return {buildScenicWings,buildKaelGardens}');
   const {buildKaelGardens,buildScenicWings}=build(
-    collider=>added.push(collider),()=>({y:24}),palette,palette,()=>{},2.6);
+    collider=>added.push(collider),()=>({y:24}),palette,palette,()=>{},2.6,roof=>roofs.push(roof));
   const drawn=()=>({boxes:[],box(...args){this.boxes.push(args);},arch(){},quad(){},cone(){}});
   const registered=(box,walk=false)=>added.some(c=>
     Math.abs(c.cx-box[0])<1e-6&&Math.abs(c.cy-(box[1]+box[4]/2))<1e-6&&
@@ -208,6 +362,7 @@ console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentat
   assert(decks.every(b=>registered(b,true)),'A balcony deck lacks walkable support');
   assert(rails.every(b=>registered(b)),'A balcony rail can be walked through');
   assert(bases.every(b=>registered(b,true)),'A lookout base lacks solid support');
+  assert.equal(roofs.filter(r=>r.shape==='cone').length,3,'A lookout cone cap is not standing surface');
   console.log('PASS: Kael planter, balcony, railing and lookout geometry has matching colliders');
 }
 

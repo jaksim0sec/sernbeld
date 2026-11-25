@@ -237,7 +237,8 @@ var BUILDERS = {
       _q.setFromAxisAngle(UP, hs.yaw);
       walls.setMatrixAt(i, _m.compose(_p.set(hs.x, hs.y + hs.h / 2, hs.z), _q, _s.set(hs.w, hs.h, hs.d)));
       roofs.setMatrixAt(i, _m.compose(_p.set(hs.x, hs.y + hs.h, hs.z), _q, _s.set(hs.w + 1, hs.w * 0.42, hs.d + 1)));
-      addBox({ cx: hs.x, cy: hs.y + hs.h / 2, cz: hs.z, hx: hs.w / 2, hy: hs.h / 2 + hs.w * 0.2, hz: hs.d / 2, yaw: hs.yaw, walk: false });
+      addBox({ cx: hs.x, cy: hs.y + hs.h / 2, cz: hs.z, hx: hs.w / 2, hy: hs.h / 2, hz: hs.d / 2, yaw: hs.yaw, walk: false });
+      addRoof({ shape: "gable", cx: hs.x, cz: hs.z, yaw: hs.yaw, hx: hs.w / 2, hz: hs.d / 2, ox: (hs.w + 1) / 2, oz: (hs.d + 1) / 2, base: hs.y + hs.h, rise: hs.w * 0.42, half: (hs.w + 1) / 2, acrossX: true, solid: true });
     });
     for (const im of [walls, roofs]) {
       im.castShadow = im.receiveShadow = true;
@@ -572,8 +573,14 @@ function townMaterial(side = FrontSide) {
 }
 var box2 = (G, x, y0, z, sx, sy, sz, yaw, col, pat, walk = false, collide = true, opt) => {
   G.box(x, y0, z, sx, sy, sz, yaw, col, pat, opt);
-  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk, climbable: opt?.top !== false });
+  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk });
 };
+// Player ground matching G.roof's top surface, limited to the solid walls
+// below it (fw x fd, defaults to the roof's own w x d).
+var roofSupport = (x, y, z, w, d, rh, yaw, fw = w, fd = d) => addRoof({ shape: "gable", gable: fw === w && fd === d, cx: x, cz: z, yaw, hx: fw / 2, hz: fd / 2, ox: w / 2 + 0.7, oz: d / 2 + 0.7, base: y - 0.25, rise: rh + 0.25, half: d / 2 + 0.7, acrossX: false });
+// A cone cap (G.cone) over a solid footprint, as walkable roof surface.
+// foot: { hx, hz, yaw } for a box below it or { foot: "circle", footR }.
+var coneSupport = (x, y, z, r, h, seg, rot, foot) => addRoof({ shape: "cone", cx: x, cz: z, ...foot, yaw: foot.yaw ?? 0, outerR: r, seg, rot: rot + (foot.yaw ?? 0), base: y, rise: h, half: r, thick: 0.25 });
 var off2 = (x, z, yaw, lx, lz) => [x + lx * Math.cos(yaw) + lz * Math.sin(yaw), z - lx * Math.sin(yaw) + lz * Math.cos(yaw)];
 var groundNoStair = (x, z) => terraceAt(x, z)?.y ?? sample(x, z);
 function buildWalls(G) {
@@ -656,6 +663,7 @@ function buildTerraceFrontages(G) {
         const plaster = [C.plaster, C.plaster2, C.plaster3][variation % 3];
         box2(G, x, y, z, w, h, depth, 0, plaster, PAT.timber);
         G.roof(x, y + h, z, w, depth, 2.1 + variation * 0.23, 0, roofColors[variation % 4], plaster);
+        roofSupport(x, y + h, z, w, depth, 2.1 + variation * 0.23, 0);
         const face = z + depth * 0.5 + 0.06;
         if ((variation + i) % 3 === 0) {
           G.arch(x, y + 0.2, face, 0, 3.1, 4.9, C.wood, 0.08);
@@ -703,6 +711,7 @@ function buildScenicWings(G, rnd) {
     box2(G, b.x, y - 0.55, b.z, b.w + 2, 1.2, b.w + 2, 0, C.stoneL, PAT.stone, true);
     box2(G, b.x, y, b.z, b.w, b.h, b.w, 0, C.stoneL, PAT.stone);
     G.cone(b.x, y + b.h, b.z, b.w * 0.75, 7.5, 8, b.roof, PAT.roof, Math.PI / 8);
+    coneSupport(b.x, y + b.h, b.z, b.w * 0.75, 7.5, 8, Math.PI / 8, { hx: b.w / 2, hz: b.w / 2 });
     for (const a of [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2]) {
       const fx = b.x + Math.sin(a) * (b.w / 2 + 0.055), fz = b.z + Math.cos(a) * (b.w / 2 + 0.055);
       G.arch(fx, y + b.h - 7, fz, a, 1.65, 3.2, C.frame, 0.025);
@@ -864,10 +873,15 @@ function house(G, B2, rnd, opt = {}) {
   const wall = opt.wall || WALLS[Math.floor(rnd() * 3)], roofC = opt.roof || ROOFS[Math.floor(rnd() * 3)];
   G.box(x, y - 0.6, z, w + 0.4, 1.5, d + 0.4, yaw, C.stone, PAT.stone);
   G.box(x, y + 0.9, z, w, h - 0.9, d, yaw, wall, opt.pat ?? PAT.timber, { top: false });
-  addBox({ cx: x, cy: y + h / 2, cz: z, hx: w / 2, hy: h / 2 + 1, hz: d / 2, yaw, walk: false });
+  addBox({ cx: x, cy: y + h / 2, cz: z, hx: w / 2, hy: h / 2, hz: d / 2, yaw, walk: false });
   const rh = Math.min(w, d) * (opt.pitch ?? 0.55);
-  if (w >= d) G.roof(x, y + h, z, w, d, rh, yaw, roofC, wall);
-  else G.roof(x, y + h, z, d, w, rh, yaw + Math.PI / 2, roofC, wall);
+  if (w >= d) {
+    G.roof(x, y + h, z, w, d, rh, yaw, roofC, wall);
+    roofSupport(x, y + h, z, w, d, rh, yaw);
+  } else {
+    G.roof(x, y + h, z, d, w, rh, yaw + Math.PI / 2, roofC, wall);
+    roofSupport(x, y + h, z, d, w, rh, yaw + Math.PI / 2);
+  }
   if (w >= 11.5 && d >= 8 && h >= 9 && !opt.noDormers) {
     const count = w >= 18 ? 2 : 1;
     for (let k = 0; k < count; k++) {
@@ -876,6 +890,8 @@ function house(G, B2, rnd, opt = {}) {
       const dy = y + h + rh * 0.45;
       G.box(dx, dy, dz, 2.45, 2.25, 2.35, yaw, wall, PAT.timber);
       G.roof(dx, dy + 2.25, dz, 3.15, 2.85, 1.65, yaw, roofC, wall);
+      addBox({ cx: dx, cy: dy + 1.125, cz: dz, hx: 1.225, hy: 1.125, hz: 1.175, yaw, walk: false });
+      roofSupport(dx, dy + 2.25, dz, 3.15, 2.85, 1.65, yaw, 2.45, 2.35);
       const [fx, fz] = off2(dx, dz, yaw, 0, 1.19);
       G.panel(fx, dy + 0.7, fz, yaw, 1.35, 1.45, C.frame, 0.035);
       G.panel(fx, dy + 0.83, fz, yaw, 0.97, 1.12, C.glass, 0.06);
@@ -884,6 +900,7 @@ function house(G, B2, rnd, opt = {}) {
   if (!opt.noChimney && rnd() < 0.7) {
     const [cx, cz] = off2(x, z, yaw, w * 0.28 * (rnd() < 0.5 ? -1 : 1), -d * 0.15);
     G.box(cx, y + h, cz, 1, rh * 0.8 + 1.4, 1, yaw, C.stone, PAT.stone);
+    addBox({ cx, cy: y + h + (rh * 0.8 + 1.4) / 2, cz, hx: 0.5, hy: (rh * 0.8 + 1.4) / 2, hz: 0.5, yaw, walk: false });
   }
   windows(G, x, y, z, yaw, w, d, h, rnd);
   door(G, x, y, z, yaw, d);
@@ -893,12 +910,16 @@ function house(G, B2, rnd, opt = {}) {
     const P2 = (lx, yy, lz) => [ax + lx * c + lz * s, yy, az - lx * s + lz * c];
     G.quad(P2(-hw, y + 3.3, -1), P2(-hw, y + 2.6, 1), P2(hw, y + 2.6, 1), P2(hw, y + 3.3, -1), col, 0);
     G.quad(P2(hw, y + 3.3, -1), P2(hw, y + 2.6, 1), P2(-hw, y + 2.6, 1), P2(-hw, y + 3.3, -1), col, 0);
+    // Cloth awning: carries feet from above, free to walk under.
+    addRoof({ shape: "shed", cx: ax, cz: az, yaw, ox: hw, oz: 1, z0: -1, z1: 1, base: y + 3.3, rise: -0.7, thick: 0.08 });
   }
   if (B2.balcony) {
     const [bx, bz] = off2(x, z, yaw, 0, d / 2 + 0.7);
     G.box(bx, y + 3.4, bz, w * 0.6, 0.25, 1.4, yaw, C.woodL, PAT.plank);
+    addBox({ cx: bx, cy: y + 3.525, cz: bz, hx: w * 0.3, hy: 0.125, hz: 0.7, yaw, walk: true });
     const [rx, rz] = off2(x, z, yaw, 0, d / 2 + 1.35);
     G.box(rx, y + 3.65, rz, w * 0.6, 0.9, 0.12, yaw, C.wood, PAT.plank);
+    addBox({ cx: rx, cy: y + 4.1, cz: rz, hx: w * 0.3, hy: 0.45, hz: 0.06, yaw, walk: false });
   }
   return { x, z, yaw, door: off2(x, z, yaw, 0, d / 2 + 1.6) };
 }
@@ -940,7 +961,9 @@ var SPECIAL = {
     const y = terraceAt(B2.x, B2.z).y;
     const [tx, tz] = off2(B2.x, B2.z, B2.yaw, 0, B2.d / 2 - 2.5);
     G.box(tx, y, tz, 6, B2.h + 6, 5, B2.yaw, C.stoneL, PAT.stone);
+    addBox({ cx: tx, cy: y + (B2.h + 6) / 2, cz: tz, hx: 3, hy: (B2.h + 6) / 2, hz: 2.5, yaw: B2.yaw, walk: false });
     G.cone(tx, y + B2.h + 6, tz, 4.4, 6.5, 4, C.slate, PAT.roof, Math.PI / 4 + B2.yaw);
+    coneSupport(tx, y + B2.h + 6, tz, 4.4, 6.5, 4, Math.PI / 4 + B2.yaw, { hx: 3, hz: 2.5, yaw: B2.yaw });
     for (const sd of [-1, 1]) {
       const [bx, bz] = off2(B2.x, B2.z, B2.yaw, sd * 4.2, B2.d / 2 + 0.25);
       banner(G, bx, y + 8.8, bz, B2.yaw, 5.5);
@@ -980,6 +1003,7 @@ var SPECIAL = {
     const y = terraceAt(B2.x, B2.z).y;
     box2(G, B2.x, y - 0.5, B2.z, B2.w, B2.h + 0.5, B2.d, B2.yaw, C.stone, PAT.stone);
     G.roof(B2.x, y + B2.h, B2.z, B2.w, B2.d, B2.d * 0.4, B2.yaw, ROOFS[Math.floor(rnd() * 3)], C.stone);
+    roofSupport(B2.x, y + B2.h, B2.z, B2.w, B2.d, B2.d * 0.4, B2.yaw);
     const [dx, dz] = off2(B2.x, B2.z, B2.yaw, 0, B2.d / 2);
     G.arch(dx, y, dz, B2.yaw, 5, 5.6, C.wood, 0.05);
     for (let k = 0; k < 3; k++) {
@@ -1016,6 +1040,7 @@ var SPECIAL = {
     const y = terraceAt(B2.x, B2.z).y, { x, z, w, d, h, yaw } = B2;
     box2(G, x, y - 0.6, z, w, h + 0.6, d, yaw, C.stoneL, PAT.stone);
     G.roof(x, y + h, z, w, d, d * 0.75, yaw, C.slate, C.stoneL);
+    roofSupport(x, y + h, z, w, d, d * 0.75, yaw);
     for (let k = -3; k <= 3; k++) {
       if (!k) continue;
       const [wx, wz] = off2(x, z, yaw, k * w / 8, d / 2);
@@ -1028,7 +1053,9 @@ var SPECIAL = {
       const [tx, tz] = off2(x, z, yaw, sd * (w / 2 - 4), d / 2 + 1);
       box2(G, tx, y - 0.6, tz, 8, h + 15, 8, yaw, C.stoneL, PAT.stone);
       G.box(tx, y + h + 14.4, tz, 9, 1, 9, yaw, C.cap, 0);
+      addBox({ cx: tx, cy: y + h + 14.9, cz: tz, hx: 4.5, hy: 0.5, hz: 4.5, yaw, walk: true });
       G.cone(tx, y + h + 15.4, tz, 5.6, 17, 8, C.slate, PAT.roof, Math.PI / 8);
+      coneSupport(tx, y + h + 15.4, tz, 5.6, 17, 8, Math.PI / 8, { hx: 4.5, hz: 4.5, yaw });
       for (let f = 0; f < 4; f++) {
         const fy = yaw + f * Math.PI / 2, [ax2, az2] = off2(tx, tz, fy, 0, 4);
         G.arch(ax2, y + h + 7, az2, fy, 1.8, 4.6, C.dark, 0.05);
@@ -1038,7 +1065,9 @@ var SPECIAL = {
     const [ax, az] = off2(x, z, yaw, 0, -d / 2 - 2);
     G.cyl(ax, y - 0.6, az, 6, 6, h + 4, 12, C.stoneL, PAT.stone);
     G.cone(ax, y + h + 3.4, az, 7, 7, 12, C.slate, PAT.roof);
-    addCyl({ x: ax, z: az, r: 6, y0: y - 0.6, y1: y + h + 4 });
+    // 12-sided shaft: the mean of corner and face radius keeps palms on it.
+    addCyl({ x: ax, z: az, r: 6 * (1 + Math.cos(Math.PI / 12)) / 2, y0: y - 0.6, y1: y + h + 3.4, climbable: true });
+    coneSupport(ax, y + h + 3.4, az, 7, 7, 12, 0, { foot: "circle", footR: 6 });
     return null;
   }
 };
@@ -1111,7 +1140,14 @@ function lighthouse(G, L) {
   G.cone(L.x, y + 24.9, L.z, 2.6, 3.4, 10, C.red, PAT.roof);
   const [dx, dz] = off2(L.x, L.z, 0.6, 0, 3);
   G.arch(dx, y + 1.8, dz, 0.6, 1.4, 2.4, C.wood, 0.05);
-  addCyl({ x: L.x, z: L.z, r: 4.4, y0: y - 0.4, y1: y + 25 });
+  // Colliders follow the rendered 14/10-sided drums: plinth, tapering shaft
+  // in stacked segments, gallery ring, then the glazed lantern and its cap.
+  const facet = (n) => (1 + Math.cos(Math.PI / n)) / 2;
+  addCyl({ x: L.x, z: L.z, r: 4.5 * facet(14), y0: y - 0.4, y1: y + 1.8, climbable: true });
+  for (let k = 0; k < 5; k++) addCyl({ x: L.x, z: L.z, r: (3.4 - 0.8 * (k + 0.5) / 5) * facet(14), y0: y + 1.8 + k * 4, y1: y + 5.8 + k * 4, climbable: true });
+  addCyl({ x: L.x, z: L.z, r: 3.6 * facet(14), y0: y + 21.8, y1: y + 22.3, climbable: true });
+  addCyl({ x: L.x, z: L.z, r: 1.8 * facet(10), y0: y + 22.3, y1: y + 24.9 });
+  coneSupport(L.x, y + 24.9, L.z, 2.6, 3.4, 10, 0, { foot: "circle", footR: 1.8 });
 }
 function fountain(G, F) {
   const y = terraceAt(F.x, F.z).y;
@@ -1261,7 +1297,8 @@ function buildKael(region) {
     G.cyl(VIEWPOINT.x, y, VIEWPOINT.z, 1.6, 1.6, 1.2, 8, C.stoneL, PAT.stone);
     G.cyl(VIEWPOINT.x, y + 1.2, VIEWPOINT.z, 0.5, 0.35, 3.2, 8, C.cap, 0);
     icosa(G, VIEWPOINT.x, y + 4.8, VIEWPOINT.z, 0.9, C.lav);
-    addCyl({ x: VIEWPOINT.x, z: VIEWPOINT.z, r: 1.6, y0: y, y1: y + 5 });
+    addCyl({ x: VIEWPOINT.x, z: VIEWPOINT.z, r: 1.6 * (1 + Math.cos(Math.PI / 8)) / 2, y0: y, y1: y + 1.2, climbable: true });
+    addCyl({ x: VIEWPOINT.x, z: VIEWPOINT.z, r: 0.5, y0: y + 1.2, y1: y + 5 });
     for (const sd of [-1, 1]) box2(G, VIEWPOINT.x + sd * 6, y, VIEWPOINT.z + 4, 2.6, 0.45, 0.6, 0, C.woodL, PAT.plank);
   }
   const plant = [[365, -434], [427, -432], [374, -438], [422, -438], [360, -418], [434, -418], [470, -446], [292, -414], [323, -477], [410, -470], [492, -475], [334, -488], [442, -490], [318, -380], [490, -400], [250, -400], [470, -414]];
@@ -2521,7 +2558,8 @@ var Rocks = class {
       scene.add(m);
       return { m, cap };
     });
-    for (const r of rocks) if (r.s > 0.8) addCyl({ x: r.x, z: r.z, r: r.s * 0.8, y0: r.y - 1, y1: r.y + r.s * 0.55 });
+    // Rounded boulders: a pull-up onto the crown, never a wall climb.
+    for (const r of rocks) if (r.s > 0.8) addCyl({ x: r.x, z: r.z, r: r.s * 0.8, y0: r.y - 1, y1: r.y + r.s * 0.55, climbable: true, mantleOnly: true, lipInset: r.s * 0.28 });
     this.last = [Infinity, Infinity];
     this.range = RANGE;
   }
@@ -2927,8 +2965,22 @@ var FLOAT = 1.32;
 var BOUND = 1500;
 var STAMINA = { max: 100, drain: 12.5, recovery: 25, delay: .8, restart: 30 };
 // Traversal anchors and body paths share the collision world's metres and surfaces.
-var TRAVERSE_GRADE = Math.tan(50 * Math.PI / 180);
+var TRAVERSE_GRADE = WALK_GRADE;
 var TRAVERSE_WALL_GAP = PLAYER.radius + .018;
+// One hand-over-hand cycle. Climbing has its own stamina cost: about 15 s
+// (~10 m) from full, so a two-storey wall is reachable and a cliff is not free.
+var CLIMB = { rise: .30, side: .30, duration: .46, drain: 6.5 };
+// A sliding body on ground steeper than 50 degrees.
+var SLIDE = { accel: .9, max: 8 };
+// Overhang pull-over: how far beyond the climbing face the edge may stick
+// out (hands reach it from a hang) and the highest edge an arm reaches.
+var OVERHANG = { depth: 1.05, reach: 2.32 };
+// Solid colliders that can be climbed. Boxes opt out; cylinders opt in
+// because most of them are coarse proxies, not the rendered surface.
+function traversalSolid(o) {
+  if(o.type==="cyl")return o.climbable===true&&o.r>=.3;
+  return o.type==="box"&&o.climbable!==false;
+}
 function traversalEase(a,b,t) {
   const u=clamp2((t-a)/(b-a),0,1);
   return u*u*(3-2*u);
@@ -2937,19 +2989,34 @@ function traversalAcross(surface,lateral,along) {
   const {x,z,nx,nz}=surface;
   return {x:x+nz*lateral-nx*along,z:z-nx*lateral-nz*along};
 }
+// A point and outward normal on a solid face, lateral metres from the
+// surface point. Cylinder faces follow the circle.
+function traversalSolidPoint(surface,side) {
+  const {box,nx,nz}=surface;
+  if(box.type!=="cyl"){
+    const p=traversalAcross(surface,side,0);
+    return {x:p.x,z:p.z,nx,nz};
+  }
+  const a=side/box.r,c=Math.cos(a),s=Math.sin(a),mx=nx*c+nz*s,mz=nz*c-nx*s;
+  return {x:box.x+mx*box.r,z:box.z+mz*box.r,nx:mx,nz:mz};
+}
+// Height to which the face rises at that point: the collider top, or a
+// gable triangle/roof that continues the same wall plane above it.
+function traversalFaceTop(box,p) {
+  if(box.type==="cyl")return box.top;
+  return Math.max(box.top,roofGableTop(p.x-p.nx*.03,p.z-p.nz*.03));
+}
 function traversalTerrainGrade(surface,along,lateral=0) {
   const near=traversalAcross(surface,lateral,along-.055),far=traversalAcross(surface,lateral,along+.055);
   if(stairSurface(near.x,near.z,0,true)!==null||stairSurface(far.x,far.z,0,true)!==null)return 0;
   return (playerTerrain(far.x,far.z)-playerTerrain(near.x,near.z))/.11;
 }
 function traversalFaceAt(surface,side,y,hint) {
-  const flat=traversalAcross(surface,side,.012);
   if(surface.box) {
-    const {box,nx,nz}=surface;
-    if(y<box.bot||y>box.top||!inside(box,flat.x,flat.z,0)||
-      playerTerrain(flat.x+nx*.045,flat.z+nz*.045)>y+.015)return null;
-    const p=traversalAcross(surface,side,0);
-    return {point:new Vector3(p.x,y,p.z),normal:new Vector3(nx,0,nz),along:0};
+    const {box}=surface,p=traversalSolidPoint(surface,side);
+    if(y<box.bot||y>traversalFaceTop(box,p)||!inside(box,p.x-p.nx*.012,p.z-p.nz*.012,0)||
+      playerTerrain(p.x+p.nx*.045,p.z+p.nz*.045)>y+.015)return null;
+    return {point:new Vector3(p.x,y,p.z),normal:new Vector3(p.nx,0,p.nz),along:0};
   }
   // Intersect a horizontal ray with the same piecewise triangular terrain
   // used by the player. A stair tread or a gentler slope is not a handhold.
@@ -2976,17 +3043,26 @@ function traversalFaceAt(surface,side,y,hint) {
   }
   return null;
 }
+// A limb hold on this face, or on the segment below it after a hand-off.
+function traversalHold(surface,side,y,along) {
+  return traversalFaceAt(surface,side,y,along)??(surface.lower?traversalFaceAt(surface.lower,side,y,along):null);
+}
 function traversalContacts(surface,y,along,scale,lead) {
   const hands=[],feet=[];
   for(const sign of [-1,1]) {
     const reach=(1.46+(sign===lead?.12:-.10))*scale;
     let hand=null;
-    // At a crest, use the last reachable part of the actual face.
-    for(const drop of [0,.14,.28,.42,.56,.70]) {
-      hand=traversalFaceAt(surface,sign*.195,y+reach-drop,along);
+    // At a crest, use the last reachable part of the actual face. A wall
+    // whose top is within reach is held at its top edge.
+    const want=surface.box?Math.min(y+reach,traversalFaceTop(surface.box,traversalSolidPoint(surface,sign*.195))-.03):y+reach;
+    for(const drop of [0,.14,.28,.42,.56,.70,.84,.98]) {
+      hand=traversalHold(surface,sign*.195,want-drop,along);
       if(hand)break;
     }
-    const foot=traversalFaceAt(surface,sign*.155,y+(sign===lead?.15:.36)*scale,along);
+    // A face that starts a little above the ground (a building on its
+    // plinth) is stood on at its bottom edge.
+    const footY=y+(sign===lead?.15:.36)*scale;
+    const foot=traversalHold(surface,sign*.155,surface.box?Math.max(footY,Math.min(surface.box.bot+.03,footY+.3)):footY,along);
     if(!hand||!foot)return null;
     hands.push(hand);feet.push(foot);
   }
@@ -3000,47 +3076,167 @@ function traversalBody(action,t,out) {
     return out;
   }
   if(kind==="mantle") {
-    if(t<.25)return out.copy(from).lerp(approach,traversalEase(0,.25,t));
+    if(t<.25){
+      // Drop clear of an overhang's underside first, then swing out.
+      out.copy(from).lerp(approach,traversalEase(approach.y<from.y?.06:0,.25,t));
+      out.y=from.y+(approach.y-from.y)*traversalEase(0,.10,t);
+      return out;
+    }
     const lift=traversalEase(.25,.63,t),cross=traversalEase(.63,.92,t),settle=traversalEase(.92,1,t);
+    const over=action.over??to.y+.045;
     out.copy(approach).lerp(to,cross);
-    out.y=approach.y+(to.y+.045-approach.y)*lift-.045*settle;
+    out.y=approach.y+(over-approach.y)*lift+(to.y-over)*settle;
     return out;
   }
   return out.copy(from).lerp(to,kind==="climb"?traversalEase(.26,1,t):traversalEase(0,1,t));
 }
 function traversalClear(pos,nearby) {
   return Math.abs(pos.x)<BOUND && Math.abs(pos.z)<BOUND &&
-    pos.y>=playerTerrain(pos.x,pos.z)-CONTACT_SKIN && !playerContacts(pos.x,pos.z,pos.y,nearby).length;
+    pos.y>=playerTerrain(pos.x,pos.z)-CONTACT_SKIN && !playerContacts(pos.x,pos.z,pos.y,nearby).length &&
+    !roofSlabHit(pos.x,pos.z,pos.y);
 }
 function traversalPathClear(action) {
   const probe=new Vector3(),count=Math.max(16,Math.ceil(action.from.distanceTo(action.to)/.045));
   for(let i=1;i<=count;i++)if(!traversalClear(traversalBody(action,i/count,probe),[]))return false;
   return true;
 }
+// The real stance beyond a solid lip: its top, or a roof/terrain rising
+// above it, sampled where the feet land after the pull-up.
+function traversalStance(surface) {
+  const {box}=surface,target=traversalAcross(surface,0,PLAYER.radius+.035);
+  return {x:target.x,z:target.z,y:Math.max(box.top,playerTerrain(target.x,target.z))};
+}
 function traversalMantle(surface,from,previous=null) {
   const {box,nx,nz,x,z}=surface;
-  const top=box.top,rise=top-from.y;
+  if(box.stance===false)return null;
+  const top=traversalFaceTop(box,traversalSolidPoint(surface,0));
+  const {x:tx,z:tz,y:stand}=traversalStance(surface),rise=stand-from.y;
   if(rise>PLAYER.body+.002||rise<.20)return null;
-  const target=traversalAcross(surface,0,PLAYER.radius+.035);
-  const {x:tx,z:tz}=target;
-  // The entire stance fits on a real top, with headroom beyond the lip.
-  if(!inside(box,tx,tz,-PLAYER.radius+.004)||playerTerrain(tx,tz)>top+.002)return null;
+  // The entire stance fits on a real top, with headroom beyond the lip. A
+  // roof above the wall top is accepted when it is standing ground there.
+  if(!inside(box,tx,tz,-PLAYER.radius+.004)||stand-top>1.2||playerSteepGround(tx,tz,stand))return null;
   const hands=[];
   for(const sign of [-1,1]){
-    const face=traversalFaceAt(surface,sign*.195,top,0);
+    const face=traversalFaceAt(surface,sign*.195,traversalFaceTop(box,traversalSolidPoint(surface,sign*.195)),0);
     if(!face)return null;
-    hands.push({point:face.point,normal:new Vector3(0,1,0),lip:true});
+    // Palms rest on the visible surface just inside the lip (roof tiles or
+    // the wall top), never on the hidden wall top below a roof. A rounded
+    // top (rock) is held where its crown actually is.
+    const point=face.point.clone(),n=face.normal;
+    if(box.lipInset)point.addScaledVector(n,-box.lipInset);
+    point.y=Math.max(box.top,playerTerrain(point.x-n.x*.03,point.z-n.z*.03));
+    hands.push({point,normal:new Vector3(0,1,0),lip:true});
   }
-  const action={kind:"mantle",surface,from:from.clone(),to:new Vector3(tx,top,tz),
+  const action={kind:"mantle",surface,from:from.clone(),to:new Vector3(tx,stand,tz),
     approach:new Vector3(x+nx*TRAVERSE_WALL_GAP,from.y,z+nz*TRAVERSE_WALL_GAP),
     hands,previous,duration:1.02+rise*.17,tilt:0,elapsed:0};
   return traversalPathClear(action)?action:null;
+}
+// Structure directly above a head: solid colliders and roof/awning slabs
+// whose underside lies in [lo, hi]. Returns the lowest underside and its top.
+var _overSlabs=[];
+function traversalOverhead(x,z,lo,hi,radius=0) {
+  let best=null;
+  for(const o of query(x,z,radius)){
+    if(o.bot<lo||o.bot>hi)continue;
+    if(radius===0?!inside(o,x,z,0):!playerContact(o,x,z,radius))continue;
+    if(!best||o.bot<best.bottom)best={bottom:o.bot,top:o.top};
+  }
+  const ring=radius===0?[[0,0]]:[[0,0],...ROOF_RING.map(([a,b])=>[a*radius,b*radius])];
+  for(const [ox,oz] of ring)for(const s of roofSlabsAt(x+ox,z+oz,_overSlabs)){
+    if(s.bottom<lo||s.bottom>hi)continue;
+    if(!best||s.bottom<best.bottom)best={bottom:s.bottom,top:s.top};
+  }
+  return best;
+}
+// Highest standing support at a point within [lo, hi]: ground, a roof or
+// eave surface, or a solid top.
+function traversalStandAt(x,z,lo,hi) {
+  let h=-Infinity;
+  for(const y of [playerTerrain(x,z),roofOverhangTop(x,z,hi)])if(y>=lo&&y<=hi&&y>h)h=y;
+  for(const o of query(x,z,0))if(o.top>=lo&&o.top<=hi&&o.top>h&&inside(o,x,z,0))h=o.top;
+  return h;
+}
+// Pull over an edge above: from the wall (or from open air for a ledge in
+// front), hands on the edge, body out past it, up and over onto the first
+// real stance behind the edge.
+function traversalPull(from,wall,n,edge,top,previous,swingY=from.y) {
+  const lat={x:n.z,z:-n.x},hands=[];
+  for(const sign of [-1,1]){
+    const hx=wall.x+n.x*(edge-.02)+lat.x*sign*.195,hz=wall.z+n.z*(edge-.02)+lat.z*sign*.195;
+    const hold=traversalOverhead(hx,hz,top-1.2,top+.05);
+    if(!hold||Math.abs(hold.top-top)>.35)return null;
+    hands.push({point:new Vector3(hx,hold.top,hz),normal:new Vector3(0,1,0),lip:true});
+  }
+  if(Math.max(hands[0].point.y,hands[1].point.y)-swingY>OVERHANG.reach)return null;
+  // Swing out under the edge, low enough to clear its lowest underside.
+  const approach=new Vector3(wall.x+n.x*(edge+PLAYER.radius+.03),swingY,wall.z+n.z*(edge+PLAYER.radius+.03));
+  for(let k=0;k<10;k++){
+    const d=edge-(PLAYER.radius+.035)-k*.1,sx=wall.x+n.x*d,sz=wall.z+n.z*d;
+    const stand=traversalStandAt(sx,sz,top-.5,top+1);
+    if(!Number.isFinite(stand)||playerSteepGround(sx,sz,stand)||!traversalClear(new Vector3(sx,stand,sz),[]))continue;
+    for(const lift of [.05,.4,.75]){
+      const over=Math.max(stand,top)+lift,rise=over-from.y;
+      const action={kind:"mantle",pull:true,surface:previous?.surface??{x:wall.x,z:wall.z,nx:n.x,nz:n.z},
+        from:from.clone(),to:new Vector3(sx,stand,sz),approach,over,
+        hands,previous,duration:1.08+rise*.19,tilt:0,elapsed:0};
+      if(traversalPathClear(action))return action;
+    }
+    return null;
+  }
+  return null;
+}
+// Climbing face blocked by an overhang above the head. Either finish the
+// approach to just under it, or pull over its edge when that is in reach.
+function traversalOverhang(surface,p,old) {
+  if(!surface.box)return null;
+  const head=p.y+PLAYER.body,under=traversalOverhead(p.x,p.z,head-.01,head+CLIMB.rise+.15,PLAYER.radius);
+  if(!under)return null;
+  if(under.bottom-head>.06)return {approach:under.bottom-head-.02};
+  const wall=surface.box?traversalSolidPoint(surface,0):surface,n={x:wall.nx,z:wall.nz};
+  // March outward along the face normal to the edge of that overhang,
+  // tracking its lowest underside across the body's width.
+  let edge=-1,top=under.top,low=under.bottom;
+  for(let d=.05;d<=OVERHANG.depth+.051;d+=.05){
+    const hit=traversalOverhead(wall.x+n.x*d,wall.z+n.z*d,under.bottom-.5,under.bottom+1.2);
+    if(!hit)break;
+    edge=d;top=hit.top;
+    for(const side of [-PLAYER.radius,PLAYER.radius]){
+      const q=traversalOverhead(wall.x+n.x*d+n.z*side,wall.z+n.z*d-n.x*side,under.bottom-.5,under.bottom+1.2);
+      if(q)low=Math.min(low,q.bottom);
+    }
+    low=Math.min(low,hit.bottom);
+  }
+  if(edge<0||edge>OVERHANG.depth)return {blocked:true};
+  // Refine the edge between the last covered and the first open sample.
+  for(let lo=edge,hi=edge+.05,i=0;i<8;i++){
+    const mid=(lo+hi)/2;
+    if(traversalOverhead(wall.x+n.x*mid,wall.z+n.z*mid,under.bottom-.5,under.bottom+1.2)){lo=mid;edge=mid;}else hi=mid;
+  }
+  return {action:traversalPull(p,wall,n,edge,top,old,Math.min(p.y,low-PLAYER.body-.03))};
+}
+// A ledge in front with free space below it (an awning or eave edge):
+// grabbed from the ground or the air while moving toward it.
+function traversalLedgeAhead(player,dx,dz) {
+  const p=player.pos;
+  for(let d=PLAYER.radius+.04;d<=PLAYER.radius+.55;d+=.05){
+    const hit=traversalOverhead(p.x+dx*d,p.z+dz*d,p.y+PLAYER.body*.5,p.y+OVERHANG.reach);
+    if(!hit)continue;
+    if(hit.top-p.y>OVERHANG.reach)return null;
+    // The near edge faces the player: its outward normal points back.
+    const edge={x:p.x+dx*(d-.025),z:p.z+dz*(d-.025)};
+    const action=traversalPull(p,edge,{x:-dx,z:-dz},0,hit.top,null);
+    if(!action)return null;
+    action.approach.copy(p);
+    return traversalPathClear(action)?action:null;
+  }
+  return null;
 }
 function traversalStart(player,dx,dz) {
   const p=player.pos,r=PLAYER.radius+.19;
   let surface=null,nearest=Infinity;
   for(const box of query(p.x,p.z,r)) {
-    if(!box.climbable||box.type!=="box"||box.bot>p.y+.22||box.top-p.y<=PLAYER.step+.006)continue;
+    if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=PLAYER.step+.006)continue;
     const contact=playerContact(box,p.x,p.z,r);
     if(!contact||-(dx*contact.nx+dz*contact.nz)<.72)continue;
     const distance=r-contact.depth;
@@ -3048,7 +3244,8 @@ function traversalStart(player,dx,dz) {
     surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
     nearest=distance;
   }
-  if(surface&&surface.box.top-p.y<=PLAYER.body)return traversalMantle(surface,p);
+  if(surface&&traversalStance(surface).y-p.y<=PLAYER.body)return traversalMantle(surface,p);
+  if(surface?.box.mantleOnly)return null;
   let to,tilt=0,along=0;
   if(surface) {
     to=new Vector3(surface.x+surface.nx*TRAVERSE_WALL_GAP,p.y,surface.z+surface.nz*TRAVERSE_WALL_GAP);
@@ -3058,10 +3255,10 @@ function traversalStart(player,dx,dz) {
     // keep ordinary jump and step-up behavior.
     along=.16;
     const grade=traversalTerrainGrade(terrain,along);
-    if(grade<TRAVERSE_GRADE||stairSurface(p.x,p.z,0,true)!==null)return null;
+    if(grade<TRAVERSE_GRADE||stairSurface(p.x,p.z,0,true)!==null)return traversalLedgeAhead(player,dx,dz);
     const foot=traversalAcross(terrain,0,along);
     const y=playerTerrain(foot.x,foot.z);
-    if(y-p.y<.09||y-p.y>.65)return null;
+    if(y-p.y<.09||y-p.y>.65)return traversalLedgeAhead(player,dx,dz);
     surface=terrain;tilt=Math.atan(1/grade);
     to=new Vector3(foot.x+surface.nx*TRAVERSE_WALL_GAP,y,foot.z+surface.nz*TRAVERSE_WALL_GAP);
   }
@@ -3070,10 +3267,41 @@ function traversalStart(player,dx,dz) {
   const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
   return traversalPathClear(action)?action:null;
 }
+// Continue up a stacked collider (tapered tower segments, a wall standing
+// on a plinth) when the current face ends below the hands.
+function traversalHandoff(surface,p) {
+  const {box}=surface;
+  let best=null;
+  for(const o of query(p.x,p.z,PLAYER.radius+.6)){
+    if(o===box||!traversalSolid(o)||o.bot<box.top-.06||o.bot>box.top+.12||o.top<=box.top+.3)continue;
+    const c=playerContact(o,p.x,p.z,PLAYER.radius+.6);
+    if(!c||c.nx*surface.nx+c.nz*surface.nz<.8)continue;
+    const distance=PLAYER.radius+.6-c.depth;
+    if(distance<PLAYER.radius-.02)continue;
+    if(!best||distance<best.distance)best={distance,surface:{box:o,nx:c.nx,nz:c.nz,x:p.x-c.nx*distance,z:p.z-c.nz*distance,lower:surface}};
+  }
+  return best?.surface??null;
+}
+function traversalStep(player,old,surface,to,along,tilt,moving,lead) {
+  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),lead);
+  if(!contacts)return null;
+  const hands=old.hands.slice(),feet=old.feet.slice();
+  hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
+  const action={kind:"climb",surface,from:player.pos.clone(),to,along,tilt,hands,feet,
+    oldHand:old.hands[moving],oldFoot:old.feet[1-moving],oldTilt:old.tilt,moving,duration:CLIMB.duration,elapsed:0};
+  return traversalPathClear(action)?action:null;
+}
 function traversalNext(player,old) {
-  const {surface}=old,p=player.pos;
-  if(surface.box && surface.box.top-p.y<=1.53)return traversalMantle(surface,p,old);
-  const y=p.y+.24;
+  let {surface}=old;
+  const p=player.pos;
+  if(surface.box && traversalStance(surface).y-p.y<=1.53){
+    const mantle=traversalMantle(surface,p,old);
+    if(mantle)return mantle;
+  }
+  const overhang=traversalOverhang(surface,p,old);
+  if(overhang?.action)return overhang.action;
+  if(overhang?.blocked)return null;
+  let y=p.y+Math.min(CLIMB.rise,overhang?.approach??CLIMB.rise);
   let along=old.along,tilt=old.tilt;
   let to=new Vector3(p.x,y,p.z);
   if(!surface.box){
@@ -3092,13 +3320,36 @@ function traversalNext(player,old) {
     to=face.point.clone().add(new Vector3(surface.nx*TRAVERSE_WALL_GAP,0,surface.nz*TRAVERSE_WALL_GAP));
   }
   const moving=old.moving===0?1:0,sign=moving===0?-1:1;
-  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),sign);
-  if(!contacts)return null;
-  const hands=old.hands.slice(),feet=old.feet.slice();
-  hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
-  const action={kind:"climb",surface,from:p.clone(),to,along,tilt,hands,feet,
-    oldHand:old.hands[moving],oldFoot:old.feet[1-moving],oldTilt:old.tilt,moving,duration:.50,elapsed:0};
-  return traversalPathClear(action)?action:null;
+  if(!surface.box)return traversalStep(player,old,surface,to,along,tilt,moving,sign);
+  // On a solid, close in to the face (a narrower segment above) whenever
+  // the body clears whatever is below; otherwise keep the current distance.
+  const next=traversalStep(player,old,surface,to,along,tilt,moving,sign)?null:traversalHandoff(surface,p);
+  const face=next??surface,q=traversalSolidPoint(face,0);
+  for(const target of [new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,y,q.z+q.nz*TRAVERSE_WALL_GAP),to]){
+    const step=traversalStep(player,old,face,target,0,0,moving,sign);
+    if(step)return step;
+  }
+  return null;
+}
+// Sideways along the face at the same height; stops at a face edge.
+function traversalSide(player,old,dir) {
+  const {surface}=old,p=player.pos,step=CLIMB.side*dir;
+  let next,to,along=old.along,tilt=old.tilt;
+  if(surface.box){
+    if(surface.box.type==="cyl"){
+      const q=traversalSolidPoint(surface,step*surface.box.r/(surface.box.r+TRAVERSE_WALL_GAP));
+      next={...surface,x:q.x,z:q.z,nx:q.nx,nz:q.nz};
+    }else next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
+    const q=traversalSolidPoint(next,0);
+    to=new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,p.y,q.z+q.nz*TRAVERSE_WALL_GAP);
+  }else{
+    next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
+    const face=traversalFaceAt(next,0,p.y,along);
+    if(!face)return null;
+    along=face.along;tilt=Math.atan(1/face.grade);
+    to=face.point.clone().add(new Vector3(next.nx*TRAVERSE_WALL_GAP,0,next.nz*TRAVERSE_WALL_GAP));
+  }
+  return traversalStep(player,old,next,to,along,tilt,old.moving===0?1:0,dir>0?1:-1);
 }
 var Player = class {
   constructor() {
@@ -3118,6 +3369,7 @@ var Player = class {
     this.traversal = null;
     this.renderTraversal = null;
     this.traverseProbe = new Vector3();
+    this.slide = null;
     this.wish = new Vector2();
     this.previousPos = new Vector3();
     this.renderPos = new Vector3();
@@ -3140,7 +3392,7 @@ var Player = class {
     this.running = false;
     this.landImpact = 0;
     this.moveHeading=null;this.stepRise=0;
-    this.traversal=this.renderTraversal=null;
+    this.traversal=this.renderTraversal=this.slide=null;
     this.resetInterpolation();
     this.teleportId++;
   }
@@ -3215,12 +3467,15 @@ var Player = class {
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
     if(this.traversal){this.advanceTraversal(dt,dx,dz,jump);return;}
-    if(jump&&this.onGround&&!this.swimming&&mv.mag>.24){
+    // Grab from the ground, while sliding down a steep face, or in the air
+    // against a wall. A failed grab is an ordinary jump only from real ground.
+    if(jump&&!this.swimming&&mv.mag>.24){
       const action=traversalStart(this,dx/mv.mag,dz/mv.mag);
       if(action&&(action.kind==="mantle"||!this.exhausted)){
         this.traversal=action;
         this.vel.set(0,0,0);
         this.running=this.onGround=false;
+        this.slide=null;
         this.stepRise=0;
         return;
       }
@@ -3230,7 +3485,17 @@ var Player = class {
     const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
     const tx=dx*sp,tz=dz*sp;
     const blend=1-Math.exp(-dt*(this.swimming?4:this.onGround?12:2.5));
-    this.vel.x+=(tx-this.vel.x)*blend;this.vel.z+=(tz-this.vel.z)*blend;
+    if(this.slide&&!this.swimming){
+      // Steep ground: input steers only across the fall line; the downhill
+      // speed comes from gravity along the face, never from input.
+      const {ux,uz,k}=this.slide,cx=-uz,cz=ux;
+      let across=this.vel.x*cx+this.vel.z*cz,down=-(this.vel.x*ux+this.vel.z*uz);
+      across+=(tx*cx+tz*cz-across)*blend;
+      down=clamp2(down+PLAYER.gravity*SLIDE.accel*k/(1+k*k)*dt,0,SLIDE.max);
+      this.vel.x=cx*across-ux*down;this.vel.z=cz*across-uz*down;
+    }else{
+      this.vel.x+=(tx-this.vel.x)*blend;this.vel.z+=(tz-this.vel.z)*blend;
+    }
     if(mv.mag<.02&&Math.hypot(this.vel.x,this.vel.z)<.025){this.vel.x=0;this.vel.z=0;}
     if(jump&&this.onGround&&!this.swimming){this.vel.y=PLAYER.jump;this.onGround=false;}
     const groundedSprint = this.running && this.onGround && !this.swimming;
@@ -3262,11 +3527,12 @@ var Player = class {
         if(this.pos.y>next)this.vel.y=0;
       }
       if(this.pos.y<next-CONTACT_SKIN)this.vel.y=0;
-      this.onGround=false;
+      this.onGround=false;this.slide=null;
     }else{
       // Ground snapping is permitted only for a previously grounded actor.
       // In the air only actual downward crossing of a solid surface lands.
-      const wasGround=this.onGround;
+      const wasGround=this.onGround,wasSliding=this.slide;
+      this.slide=null;
       if(!wasGround)this.vel.y=Math.max(-45,this.vel.y-PLAYER.gravity*dt);
       if(this.vel.y>0){
         const next=feet+this.vel.y*dt;
@@ -3275,16 +3541,26 @@ var Player = class {
         this.onGround=false;
       }else{
         const floor=playerFloor(x,z,feet+CONTACT_SKIN,PLAYER.radius,this.solids);
+        // Ground steeper than 50 degrees neither holds the feet down a
+        // cliff nor counts as a landing that can jump again.
+        const steep=playerSteepGround(x,z,floor);
         const gap=feet-floor;
-        const snap=wasGround&&gap>=-CONTACT_SKIN&&gap<=PLAYER.step;
+        const snap=wasGround&&!steep&&gap>=-CONTACT_SKIN&&gap<=PLAYER.step;
         if(snap){
           this.pos.y=floor;this.vel.y=0;this.onGround=true;
         }else{
           if(wasGround)this.vel.y=-PLAYER.gravity*dt;
           const next=feet+this.vel.y*dt;
           if(Number.isFinite(floor)&&next<=floor&&floor<=feet+CONTACT_SKIN){
-            if(!wasGround&&this.vel.y<-4)this.landImpact=Math.min(1,-this.vel.y/16);
-            this.pos.y=floor;this.vel.y=0;this.onGround=true;
+            if(!wasGround&&!wasSliding&&this.vel.y<-4)this.landImpact=Math.min(1,-this.vel.y/16);
+            this.pos.y=floor;
+            if(steep){
+              // Follow the face downhill; uphill velocity is removed.
+              const up=this.vel.x*steep.ux+this.vel.z*steep.uz;
+              if(up>0){this.vel.x-=up*steep.ux;this.vel.z-=up*steep.uz;}
+              this.vel.y=Math.max(-45,(this.vel.x*steep.ux+this.vel.z*steep.uz)*steep.k);
+              this.slide=steep;this.onGround=false;
+            }else{this.vel.y=0;this.onGround=true;}
           }else{this.pos.y=next;this.onGround=false;}
         }
       }
@@ -3302,7 +3578,7 @@ var Player = class {
   advanceTraversal(dt,dx,dz,drop) {
     const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
     const {surface}=action;
-    if(climbing)this.updateStamina(dt,true);
+    if(climbing)this.updateStamina(dt,true,CLIMB.drain);
     if(drop||(climbing&&this.exhausted)){
       this.traversal=null;
       this.vel.set(surface.nx*.9,-.25,surface.nz*.9);
@@ -3319,9 +3595,10 @@ var Player = class {
     this.pos.copy(probe);
     if(progress<1)return;
     if(climbing){
-      if(-(dx*surface.nx+dz*surface.nz)>.20){
-        this.traversal=traversalNext(this,action)??action;
-      }
+      // Into the face climbs up; along it moves sideways.
+      const up=-(dx*surface.nx+dz*surface.nz),side=dx*surface.nz-dz*surface.nx;
+      if(Math.abs(side)>.35&&Math.abs(side)>up)this.traversal=traversalSide(this,action,Math.sign(side))??action;
+      else if(up>.20)this.traversal=traversalNext(this,action)??action;
       return;
     }
     this.traversal=null;
@@ -3330,9 +3607,9 @@ var Player = class {
     this.visualY=this.pos.y;
     this.moveHeading=Math.atan2(-surface.nx,-surface.nz);
   }
-  updateStamina(dt, sprinted) {
+  updateStamina(dt, sprinted, drain = STAMINA.drain) {
     if (sprinted) {
-      this.stamina = Math.max(0, this.stamina - STAMINA.drain * dt);
+      this.stamina = Math.max(0, this.stamina - drain * dt);
       this.staminaDelay = STAMINA.delay;
       if (this.stamina <= 1e-7) {
         this.stamina = 0;
@@ -3448,7 +3725,7 @@ var Player = class {
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
-    this.traversal=this.renderTraversal=null;
+    this.traversal=this.renderTraversal=this.slide=null;
     this.moveHeading=null;this.resetInterpolation();this.teleportId++;
   }
 };
