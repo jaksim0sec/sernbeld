@@ -62,8 +62,10 @@ try{
     const projectedBody=[0,1.76].map(y=>d.player.pos.clone().add(new T.Vector3(0,y,0)).project(d.camera).toArray());
     const root=a.bodyRoot,before=d.camera.position.toArray(),q=d.camera.quaternion.toArray();
     const npc=d.folk.list.map(n=>{const ch=d.folk.ensureActor(n);return {id:n.def.id,gender:n.def.gender,body:ch.profile.body,vertices:ch.mesh.geometry.attributes.position.count,features:ch.mesh.userData.studioFeatures.length,values:ch.profile.values};});
+    const equipped=d.inventory.equipped('right');
+    if(equipped?.definitionId!=='apprentice_sword')throw Error('Default item not equipped in canonical ledger');
     const grip=a.handWeapons.right;
-    if(!grip)throw Error('Default equipped sword missing');
+    if(!grip)throw Error('Canonical equipped sword not mounted on character');
     const palm=grip.userData.grip;
     const handle=new T.Vector3(0,-.08,0).applyMatrix4(grip.matrix);
     const gripError=handle.distanceTo(palm)*a.actor.units;

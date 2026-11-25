@@ -6688,7 +6688,7 @@ async function boot() {
     ui.say({ name: "\uC5D0\uB2E4 \uC218\uB140", title: "\uC218\uB3C4\uC6D0 \uC57D\uCD08\uD559\uC790" }, lost ? `\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uCE58\uB8CC\uBE44\uB85C \uC740\uD654 ${lost}\uB2E2 \uBC1B\uC558\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.` : "\uB4E4\uD310\uC5D0\uC11C \uC2E4\uB824 \uC654\uC5B4\uC694. \uBB34\uB9AC\uD558\uC9C0 \uB9C8\uC138\uC694.");
     Save.write();
   } });
-  const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save,makeCharacter,view,height:PLAYER.height,
+  const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save,getEquipped:side=>Inventory.equipped(side),makeCharacter,view,height:PLAYER.height,
     makeWeapon:id=>{
       const model=ITEMS[id]?.model;
       if(!model||!MODELS[model])return null;

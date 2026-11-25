@@ -85,7 +85,7 @@ export function solveTraversalCamera({surface,previousView,...base}){
  return {...(eased.fallback?best:eased),yaw:best.yaw,pitch:best.pitch};
 }
 
-export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,groundSurface,view,height,runSpeed=5}){
+export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,makeCharacter,makeWeapon,attackPose,worldRay,groundSurface,view,height,runSpeed=5}){
  let profile=normalizeStudioCharacter(Save.data.character??{body:'male'}),actor=makeCharacter(profile);
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
@@ -115,7 +115,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  });
  function attachWeapons(){
   for(const side of ['right','left']){
-   const id=Save.data.equip?.[side]??null;if(equipped[side]===id)continue;
+   const record=getEquipped(side),id=record&&record.wear<100?record.definitionId:null;if(equipped[side]===id)continue;
    weapons[side]?.removeFromParent();weapons[side]?.geometry.dispose();weapons[side]=null;equipped[side]=id;
    if(!id)continue;
    const item=makeWeapon(id);if(!item)continue;
@@ -192,7 +192,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.group.position.copy(renderPos);
    actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
   }
-  animatePlayer(actor,dt,t,player,pose,Save.data.equip,{
+  animatePlayer(actor,dt,t,player,pose,equipped,{
    first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,gaitSpeed,
    gazeYaw:firstPerson?0:wrap(aimYaw-bodyYaw)
   });

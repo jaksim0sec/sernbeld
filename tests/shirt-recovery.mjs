@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {loadShirtRuntime} from '../src/entities/character/clothing/shirt-source.js';
 
 // Literal-only compressed fixture: change a same-length base64 part, not its length.
-const n=3,tri=1,sizes=[9,9,9,12,12,3,9,9,9,9],widths=[4,4,1,4,1,2,2,2,2];let length=0;
+const n=3,tri=1,sizes=[9,9,9,12,12,3,9,9,9,9],widths=[4,4,1,4,1,2,2,2,2,2];let length=0;
 const sections=sizes.map((size,i)=>{length=(length+3)&~3;const offset=length;length+=size*widths[i];return {offset,length:size};});
 const raw=Buffer.alloc(length);new Uint16Array(raw.buffer,raw.byteOffset+sections[5].offset,3).set([0,1,2]);
 const extra=[];let rest=raw.length-15;while(rest>=255){extra.push(255);rest-=255;}extra.push(rest);

@@ -35,3 +35,5 @@ T8 초기: 의뢰 평가를 slice 종료에서 결정적 게임 분 예약으로
 T8 후속: bc85cae Actions Node에서 통합 72 checks 및 생활 코어/공용 경제 통과. 기존 대화 테스트의 새 DOM 반영, INFRA-001 소유 verify 파일 점유 반환(순차 등록), 실제 게임/PWA 생활 모듈 확인 및 콘텐츠 작성 규약 추가. 새 CI, 실기기 및 30분 실제 월드 검증 미확정. 기존 ecology GLB, shirt-recovery, 기본 sword 오류 별도.
 
 T8 통합 fixture: 91 cumulative checks V8 PASS. 실제 공급·사건·지식·담화·관계·자율 해결·경쟁·재로드. 부하 fixture: 100/300/1000 논리 NPC, slice 32, 100 NPC 7일 sparse queue, 30분 비관측 및 밀집 담화 상한 V8 PASS. Node CI 등록. 이 검사는 실제 모바일 frame/저장 latency, 30분 실제 게임이나 고빈도 7일 경제 부하를 대신하지 않는다. 최종 CI 및 실기기 검증 전 PARTIAL.
+
+T8 CI a6a262e: 38/42 contracts PASS, 2 PARTIAL, 2 FAIL; browser 10/12 PASS, 1 PARTIAL, 1 FAIL. 생활 코어 91 checks, NPC DOM 4 해상도, PWA 오프라인 및 startup bridge PASS. Node 논리 NPC 100/300/1000 p95 2/4/13ms, max 2/4/18ms. 실제 기기 미검증. 공용 아이템 이전 이후 캐릭터가 삭제된 Save.data.equip을 읽어 장착 메시가 사라지는 실제 회귀 확인: canonical Inventory.equipped를 주입하고 같은 결과로 grip을 구동. 기존 browser failure RED, 실제 attachWeapons 격리 테스트 RED/GREEN(이전 저장 변환, 해제, 반대손 장착). 셔츠 복구 fixture의 10번째 byte width 누락 수정; 실제 로더 및 전체 browser 재검증 CI 필요. 생태 GLB 10종 V8 byte 동일, Node 22 CI 차이는 진단 필요.
