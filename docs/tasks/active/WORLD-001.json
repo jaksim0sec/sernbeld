@@ -28,7 +28,8 @@
     "tests/npc-participation.mjs",
     "src/core/npc-dialogue.js",
     "tools/verify.mjs",
-    "src/core/npc-participation.js"
+    "src/core/npc-participation.js",
+    "tests/living-world-integration.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -37,5 +38,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T7 게임 어댑터 연결; 그룹/요청 실브라우저 검증 및 T8 통합·성능·콘텐츠 등록 계약 후속."
+  "next": "T8 부분: 논리 tick 기반 의뢰 평가/통합 회귀 및 CI 등록; 전체 사건·그룹·공급 통합, 성능, 브라우저, 콘텐츠 규약 후속."
 }

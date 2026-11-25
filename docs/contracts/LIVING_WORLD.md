@@ -55,3 +55,7 @@
 - T7 participationActions: reply(읽기/잡담), question(알려진 사실), share(실제 NPC→NPC 정보 전달), request(대상 슬롯의 기존 의뢰). 참여는 등록된 conversationTemplates.participationIds, 유효한 슬롯/사건 revision으로 제한. share 성공에 한해 대상 NPC 관계 정책 적용; 반복 정보 전달은 선택 불가. accepted 의뢰는 포기 가능하며 같은 필요 episode 재발행을 차단. 그룹 join은 모든 기존 hold를 유지하고 종료 시 재개한다. 실제 화면 어댑터 및 Chromium 검증 후속.
 
 - T7 게임 어댑터: 실제 플레이어 접근 및 그룹 구성원 정지/거리/가시 경로를 검증해 join하고, 기존 Society 선택지에 등록된 참여 분기 및 의뢰 포기를 노출. 실행 시 원본 quote와 사건/거리/hold 재검증, 닫거나 무효화하면 그룹 해제. 실제 콘텐츠 없음; Chromium/PWA/전체 Node 검증은 후속.
+
+## T8 통합 (부분)
+- nextRequestTick: 요청 정책이 있는 경우 1게임분 단위 논리 평가, 기존 사건/행동과 같은 tick이면 그 이후 실행. budget에 포함, slice 크기 및 프레임 간격과 무관하게 요청 생성/만료/해결 시점이 유지된다. 기존 저장은 현재 worldTick부터 평가 시작. 정책 없음은 추가 예약 없음. 활성 episode key 인덱스로 중복 검사. 전체 인구/장시간 비용은 측정 후 조정 필요.
+- 기존 생활 세계 코어 테스트 및 request/scheduler/ledger/reload 통합 테스트를 verify core에 등록. 전체 브라우저/실기기/성능 게이트는 미충족.

@@ -146,12 +146,16 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    const w=d.livingWorld;seedActors(d);let processed=0;
    while(processed<budget){
     w.scheduler.sort(order);const j=w.scheduler[0];
-    const jobDue=j&&j.status!=='paused'?j.dueTick:Infinity, socialDue=society?.nextDue(w)??Infinity;
-    if(Math.min(jobDue,socialDue)>target)break;
-    if(socialDue<=jobDue){
+    const jobDue=j&&j.status!=='paused'?j.dueTick:Infinity, socialDue=society?.nextDue(w)??Infinity, requestDue=requests?.nextDue(w)??Infinity;
+    if(Math.min(jobDue,socialDue,requestDue)>target)break;
+    if(socialDue<=jobDue&&socialDue<=requestDue){
      w.worldTick=socialDue;
      const r=society.periodicDraft(d,items,socialDue);if(!r.ok)return r;
      for(const detail of r.changes)notifications.push({type:'world.event.changed',detail});
+     processed++;continue;
+    }
+    if(requestDue<jobDue){
+     w.worldTick=requestDue;const r=requests.periodicDraft(d,items,requestDue);if(!r.ok)return r;
      processed++;continue;
     }
     w.scheduler.shift();w.worldTick=j.dueTick;
@@ -166,11 +170,10 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
     processed++;
    }
    w.scheduler.sort(order);
-   const socialDue=society?.nextDue(w)??Infinity;
-   const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length+Number(socialDue<=target);
+   const socialDue=society?.nextDue(w)??Infinity, requestDue=requests?.nextDue(w)??Infinity;
+   const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length+Number(socialDue<=target)+Number(requestDue<=target);
    if(!pending)w.worldTick=target;
-   if(requests?.enabled()){const r=requests.sync(d,items,w.worldTick);if(!r.ok)return r;}
-   const first=w.scheduler[0],nextDue=Math.min(first&&first.status!=='paused'?first.dueTick:Infinity,socialDue);
+   const first=w.scheduler[0],nextDue=Math.min(first&&first.status!=='paused'?first.dueTick:Infinity,socialDue,requestDue);
    const settledThrough=pending?Math.max(0,Math.min(w.worldTick,nextDue-1)):target;
    return {ok:true,processed,pending,settledThrough,worldTick:w.worldTick};
   });

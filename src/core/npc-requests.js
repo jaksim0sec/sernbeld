@@ -5,7 +5,11 @@ const active=r=>r.state==='open'||r.state==='accepted';
 const safe=n=>Number.isSafeInteger(n)&&n>=0;
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
 export function createNpcRequests(registry){
- const policies=()=>registry.list('requestPolicies').sort((a,b)=>cmp(a.id,b.id));
+ const ordered=registry.list('requestPolicies').sort((a,b)=>cmp(a.id,b.id));
+ const profiles=registry.list('profiles').sort((a,b)=>cmp(a.id,b.id));
+ const policies=()=>ordered;
+ const enabled=()=>ordered.length>0;
+ const nextDue=w=>enabled()?(w.nextRequestTick??w.worldTick):Infinity;
  const policy=r=>registry.get('requestPolicies',r.policyId);
  function needed(data,npcId,p,at){
   const npc=data.npcStates?.[npcId],profile=registry.get('profiles',npcId),rule=registry.get('needs',p.needKey);
@@ -13,7 +17,7 @@ export function createNpcRequests(registry){
  }
  function valid(data){
   const w=data.livingWorld;
-  if(!Array.isArray(w?.requests))return false;
+  if(!Array.isArray(w?.requests)||w.nextRequestTick!==undefined&&(!safe(w.nextRequestTick)||w.nextRequestTick<w.worldTick))return false;
   const ids=new Set(),keys=new Set();
   for(const r of w.requests){
    const p=r&&policy(r),key=r?.npcId+':'+p?.needKey;
@@ -32,10 +36,12 @@ export function createNpcRequests(registry){
     r.episodeClosed=true;
    }else if(active(r)&&at>=r.expiresAt){r.state='expired';r.revision++}
   }
-  for(const profile of registry.list('profiles').sort((a,b)=>cmp(a.id,b.id)))for(const p of policies()){
-   if(!needed(data,profile.id,p,at)||items.balance('npc:'+profile.id)<p.reward||w.requests.some(r=>r.npcId===profile.id&&!r.episodeClosed&&policy(r).needKey===p.needKey))continue;
+  const episodes=new Set(w.requests.filter(r=>!r.episodeClosed).map(r=>r.npcId+':'+policy(r).needKey));
+  for(const profile of profiles)for(const p of policies()){
+   const key=profile.id+':'+p.needKey;
+   if(episodes.has(key)||!needed(data,profile.id,p,at)||items.balance('npc:'+profile.id)<p.reward)continue;
    if(!safe(w.nextSerial+1)||!safe(at+p.ttlTicks))return fail('serial_overflow');
-   w.requests.push({id:'request:'+w.nextSerial++,npcId:profile.id,policyId:p.id,createdAt:at,expiresAt:at+p.ttlTicks,revision:1,state:'open',episodeClosed:false});
+   w.requests.push({id:'request:'+w.nextSerial++,npcId:profile.id,policyId:p.id,createdAt:at,expiresAt:at+p.ttlTicks,revision:1,state:'open',episodeClosed:false});episodes.add(key);
   }
   return {ok:true};
  }
@@ -72,5 +78,11 @@ export function createNpcRequests(registry){
   const relation=applyNpcRelation(data,registry,npcId,p.relationPolicyId);
   return relation.ok?{ok:true,result}:relation;
  }
- return {enabled:()=>policies().length>0,valid,sync,choices,execute};
+ function periodicDraft(data,items,at){
+  if(!enabled()||nextDue(data.livingWorld)!==at||!safe(at+1))return fail('invalid_request_tick');
+  const result=sync(data,items,at);
+  if(result.ok)data.livingWorld.nextRequestTick=at+1;
+  return result;
+ }
+ return {enabled,nextDue,periodicDraft,valid,sync,choices,execute};
 }
