@@ -17,8 +17,8 @@ const box=(x,z,h,w=1,d=1,bot=0,walk=true)=>addBox({cx:x,cz:z,cy:(h+bot)/2,hy:(h-
 clear();let p=player();tick(p,input(1,1),120);assert(Math.abs(p.pos.x+p.pos.z)<1e-7);assert(Math.hypot(p.vel.x,p.vel.z)<=PLAYER.walk+1e-7);
 const slow=player(),fast=player();tick(slow,input(1,1),60,1/30);tick(fast,input(1,1),240,1/120);assert(slow.pos.distanceTo(fast.pos)<1e-6,'frame-rate-dependent movement');
 clear();box(1,0,2,.3,10);p=player();const diagonal=input(1,1,true);
-let lastZ=0;for(let k=0;k<120;k++){tick(p,diagonal);assert(p.pos.z<=lastZ+1e-7,'zigzag at wall');lastZ=p.pos.z;assert(Math.hypot(p.vel.x,p.vel.z)<=PLAYER.run+1e-6,'collision injected speed');}
-assert(p.pos.x<.51&&p.pos.z<-4,'wall sliding failed');assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length);
+let lastZ=0;for(let k=0;k<120;k++){tick(p,diagonal);assert(p.pos.z<=lastZ+1e-7,'zigzag at wall');lastZ=p.pos.z;if(p.pos.z>=-5)assert(p.pos.x<.51,'wall side penetration');assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'wall penetration');assert(Math.hypot(p.vel.x,p.vel.z)<=PLAYER.run+1e-6,'collision injected speed');}
+assert(p.pos.x>1&&p.pos.z<-5.35,'wall slide failed to clear the end');assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length);
 clear();box(1.2,0,.35,1.2,3,0,false);p=player();let high=0;for(let k=0;k<70;k++){tick(p,input(1,0));high=Math.max(high,p.pos.y);}
 assert(high>=.35-1e-6,'generic low obstacle not climbable');assert(p.pos.x>2.2,'stuck on low obstacle');
 clear();box(1.2,0,.65,1.2,3);p=player();tick(p,input(1,0),70);assert(p.pos.x<.26&&p.pos.y===0,'high obstacle climbed without jump');
@@ -126,4 +126,23 @@ console.log('PASS terrain recovery, safe spawn, thin-wall/deck ray and presentat
   }
   assert(STAIRS.length>=13&&faces>500&&rails>100);
   console.log('PASS: '+STAIRS.length+' Kael flights/landings, '+faces+' fascia faces, '+rails+' parapets; side approach and camera ray');
+}
+
+
+// Grazing a rotated crate: using the far endpoint normal instead of
+// the first blocked probe formerly stalled the player at its rounded corner.
+for(const a of [3.04,4.64,6.24,1.44]){
+  clear();
+  addBox({cx:0,cz:0,cy:1,hy:1,hx:.5,hz:.5,yaw:.3,walk:false});
+  const dx=Math.cos(a),dz=Math.sin(a),offset=-.7;
+  const sx=-dx*2-dz*offset,sz=-dz*2+dx*offset;
+  const walker=player(sx,sz),move=input(dx,-dz,true);
+  for(let k=0;k<80;k++){
+    tick(walker,move);
+    assert(!playerContacts(walker.pos.x,walker.pos.z,walker.pos.y).length,'grazing penetrated crate');
+    assert(Math.hypot(walker.vel.x,walker.vel.z)<=PLAYER.run+1e-6,'grazing injected speed');
+  }
+  const progress=(walker.pos.x-sx)*dx+(walker.pos.z-sz)*dz;
+  assert(progress>5,'grazing snagged a rounded corner: '+a+' progress '+progress);
+  console.log('PASS corner grazing angle '+a+' progress '+progress.toFixed(3)+'m');
 }

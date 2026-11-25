@@ -49796,13 +49796,17 @@ var Player = class {
         const mid=(lo+hi)*.5;
         if(this.candidate(mx*mid,mz*mid).contacts.length)hi=mid;else lo=mid;
       }
+      // Resolve the earliest blocked probe, not the attempted endpoint.
+      // On a rounded corner the endpoint normal can already point into a
+      // different face and repeatedly remove the usable tangential velocity.
+      const hit=this.candidate(mx*hi,mz*hi);
       if(lo>1e-4){
         const ok=this.candidate(mx*lo,mz*lo);
         if(!ok.contacts.length)this.pos.set(ok.x,ok.y,ok.z);
       }
       mx*=1-lo;mz*=1-lo;
       const before=Math.hypot(mx,mz);
-      for(let k=0;k<2;k++)for(const q of c.contacts){
+      for(let k=0;k<2;k++)for(const q of hit.contacts){
         const d=mx*q.nx+mz*q.nz;if(d<0){mx-=d*q.nx;mz-=d*q.nz;}
         const v=this.vel.x*q.nx+this.vel.z*q.nz;
         if(v<0){this.vel.x-=v*q.nx;this.vel.z-=v*q.nz;}
