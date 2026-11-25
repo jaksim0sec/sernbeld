@@ -59,3 +59,6 @@
 ## T8 통합 (부분)
 - nextRequestTick: 요청 정책이 있는 경우 1게임분 단위 논리 평가, 기존 사건/행동과 같은 tick이면 그 이후 실행. budget에 포함, slice 크기 및 프레임 간격과 무관하게 요청 생성/만료/해결 시점이 유지된다. 기존 저장은 현재 worldTick부터 평가 시작. 정책 없음은 추가 예약 없음. 활성 episode key 인덱스로 중복 검사. 전체 인구/장시간 비용은 측정 후 조정 필요.
 - 기존 생활 세계 코어 테스트 및 request/scheduler/ledger/reload 통합 테스트를 verify core에 등록. 전체 브라우저/실기기/성능 게이트는 미충족.
+
+### T8 콘텐츠 작성
+- [콘텐츠 작성 흐름](../workflows/LIVING_WORLD_CONTENT.md)을 등록 기준으로 사용. production 기본 데이터는 비워 둔다. 실제 게임 PWA 회귀에 생활 모듈과 기존 NPC runtime startup/reload 확인을 추가.

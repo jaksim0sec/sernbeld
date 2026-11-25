@@ -9,12 +9,12 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
     click(){this.listeners.click?.({stopPropagation(){}});this.onclick?.();}
     focus(){}
   }
-  const ids=new Map(['speech','speechName','speechTitle','speechLine','speechOpts','speechDismiss','speechNext'].map(k=>[k,new Node()]));
+  const ids=new Map(['speech','speechName','speechTitle','speechLine','speechOpts','speechDismiss','speechNext','speechText','speechRest','speechAnnouncement'].map(k=>[k,new Node()]));
   const get=k=>ids.get(k);
   const fakeDoc={createElement:tag=>new Node(tag),createElementNS:(_,tag)=>new Node(tag)};
   let scheduled=0;
   const uiSrc=source.slice(source.indexOf('var GameUI = class {'),source.indexOf('var CLOCK_RATE ='));
-  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout','createDialogueSession',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>'image:'+id,()=>{scheduled++;},()=>{},createDialogueSession);
+  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout','createDialogueSession','window',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>'image:'+id,()=>{scheduled++;},()=>{},createDialogueSession,{matchMedia:()=>({matches:true})});
   const ui=Object.create(UI.prototype);
   ui.prompt=new Node('button');
   ui.setPrompt({kind:'npc',verb:'대화',label:'브란'});
@@ -27,19 +27,19 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   ui.say({id:'bran',name:'브란',title:'관리인'},'안녕하세요',[{label:'등록',act:()=>{actions++;ui.say({id:'bran',name:'브란'},'완료');}}]);
   check(!get('speech').hidden&&ui.activeSpeaker==='bran','participating session starts');
   check(scheduled===0,'participating conversation must not auto-expire');
-  check(get('speechOpts').children.length===1,'choice rendered');
+  check(get('speechOpts').children.length===2,'choice rendered');
   const old=get('speechOpts').children[0];
   old.click();old.click();
-  check(actions===1&&get('speechLine').textContent==='완료'&&!get('speech').hidden,'choice acts once and follow-up stays open');
+  check(actions===1&&get('speechText').textContent==='완료'&&!get('speech').hidden,'choice acts once and follow-up stays open');
   ui.closeSpeech();
   check(get('speech').hidden&&ui.activeSpeaker===null,'explicit close releases session');
 
   ui.say({id:'bran',name:'브란'},['첫 줄','둘째 줄'],[{id:'confirm',label:'확인',act:()=>{actions++;}}]);
-  check(get('speechLine').textContent==='첫 줄','first page displayed');
-  check(!get('speechNext').hidden&&get('speechOpts').children.length===0,'no premature response');
+  check(get('speechText').textContent==='첫 줄','first page displayed');
+  check(!get('speechNext').hidden&&get('speechOpts').children.length===1,'no premature response');
   get('speechNext').click();
-  check(get('speechLine').textContent==='둘째 줄'&&get('speechNext').hidden,'explicit progression');
-  check(get('speechOpts').children.length===1,'choices only at final page');
+  check(get('speechText').textContent==='둘째 줄'&&get('speechNext').hidden,'explicit progression');
+  check(get('speechOpts').children.length===2,'choices only at final page');
   const last=get('speechOpts').children[0];last.click();last.click();
   check(actions===2&&get('speech').hidden,'final choice executes once');
   ui.say({id:'bran',name:'브란'},['다음 줄','종료'],[]);

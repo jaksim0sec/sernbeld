@@ -34,10 +34,13 @@ try {
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
   // Service worker must control the current page after installing ALL game assets.
   await page.waitForFunction(()=>navigator.serviceWorker.controller!==null,{timeout:90000});
+  const livingBefore=await page.evaluate(()=>({snapshot:__dev.livingWorld.snapshot?.(),residents:__dev.folk.list.length}));
+  assert(livingBefore.snapshot?.state?.version===1&&livingBefore.residents>0,'living world startup bridge');
   const controller=await page.evaluate(async()=>{
     const reg=await navigator.serviceWorker.ready;
     const expected=['index.html','game.js','pwa.js','manifest.webmanifest','assets/ui-icons.svg',
       'src/core/game-events.js','src/core/entity-registry.js','src/core/inventory.js',
+      'src/core/shared-items.js','src/core/living-world-registry.js','src/core/living-world-state.js','src/core/living-world-runtime.js','src/core/living-world-content.js','src/core/npc-behavior.js','src/core/npc-scheduler.js','src/core/npc-movement.js','src/core/world-society.js','src/core/npc-conversation.js','src/core/npc-requests.js','src/core/npc-participation.js',
       'src/core/region-lifecycle.js','src/core/skill-engine.js','src/core/skill-library.js',
       'src/entities/character/studio-source.js','src/entities/character/studio-geometry.js',
       'src/entities/character/studio-model.js','src/entities/character/studio-integration.js',
@@ -83,6 +86,8 @@ try {
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>!!window.__dev,{timeout:120000});
   await page.evaluate(()=>{window.__dev.renderer.setAnimationLoop(null);window.__dev.frame();});
+  const livingAfter=await page.evaluate(()=>({snapshot:__dev.livingWorld.snapshot?.(),residents:__dev.folk.list.length}));
+  assert(livingAfter.snapshot?.state?.version===1&&livingAfter.residents===livingBefore.residents,'living world offline restart');
   const offline=await page.evaluate(async()=>{
     const urls=['./game.js','./src/core/game-events.js','./src/core/entity-registry.js','./src/core/inventory.js','./src/core/region-lifecycle.js','./src/core/skill-engine.js','./src/core/skill-library.js','./styles/hud.css','./assets/ui-icons.svg',
       './assets/kael-cutstone-v7.glb.gz','./assets/models/characters/studio-v1.lod.json.gz',

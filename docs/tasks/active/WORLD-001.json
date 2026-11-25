@@ -27,9 +27,11 @@
     "src/core/npc-requests.js",
     "tests/npc-participation.mjs",
     "src/core/npc-dialogue.js",
-    "tools/verify.mjs",
     "src/core/npc-participation.js",
-    "tests/living-world-integration.mjs"
+    "tests/living-world-integration.mjs",
+    "tests/npc-dialogue.mjs",
+    "tests/pwa-offline.mjs",
+    "docs/workflows/LIVING_WORLD_CONTENT.md"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -38,5 +40,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 부분: 논리 tick 기반 의뢰 평가/통합 회귀 및 CI 등록; 전체 사건·그룹·공급 통합, 성능, 브라우저, 콘텐츠 규약 후속."
+  "next": "T8 통합/부하/콘텐츠 작성 계약 및 CI 결과 확인; 기기 frame/저장 비용과 장시간 실제 월드 검증 후 종료."
 }

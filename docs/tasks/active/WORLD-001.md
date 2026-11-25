@@ -31,3 +31,5 @@ T7 실제 어댑터: 그룹 전체 hold를 기존 직접 대화로 인계, 그�
 T7 연결 후 V8 실행: 요청/참여 41 checks, 그룹 18+8+6 checks, 기존 runtime 12 checks, 신규 runtime 그룹 진입/응답/유지/stale/해제 5 checks PASS. 공용 아이템 12 scenarios + 74 checks PASS. 브라우저 DOM·카엘·PWA 실행 및 전체 Node는 미실행.
 
 T8 초기: 의뢰 평가를 slice 종료에서 결정적 게임 분 예약으로 변경, 같은 tick 기존 사건→행동→의뢰 순, budget에 포함. 요청/스케줄러/공용 아이템/재로드 통합 테스트와 기존 생활 코어 테스트 CI 등록. V8 검증; 브라우저/실기기/전체 Node 미실행. 전체 T8 게이트 미충족.
+
+T8 후속: bc85cae Actions Node에서 통합 72 checks 및 생활 코어/공용 경제 통과. 기존 대화 테스트의 새 DOM 반영, INFRA-001 소유 verify 파일 점유 반환(순차 등록), 실제 게임/PWA 생활 모듈 확인 및 콘텐츠 작성 규약 추가. 새 CI, 실기기 및 30분 실제 월드 검증 미확정. 기존 ecology GLB, shirt-recovery, 기본 sword 오류 별도.
