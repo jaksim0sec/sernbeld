@@ -15,5 +15,5 @@
     "src/entities/character/clothing/README.md"
   ],
   "dependencies": [],
-  "next": "PERF-001/T1: 계측 CI 결과 확인 및 반복 측정 분석, 실제 병목 확정; 실기기/배포 환경 별도 측정. T2 전 점유 재조정."
+  "next": "PERF-001/T1: 계측 CI 결과 확인 및 반복 측정 분석, 실제 병목 확정; 실기기/배포 환경 별도 측정. T2(통합 개선) 전 점유 재조정. 이후 T3 검증 및 통합."
 }
