@@ -1,0 +1,62 @@
+name: Garment quality regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/garment-quality-search.mjs'
+      - '.github/workflows/garment-quality.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: garment-quality-main
+  cancel-in-progress: false
+jobs:
+  validate-and-integrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify scope and search bounded weight candidates
+        run: |
+          node tools/check-infra.mjs
+          node tools/garment-quality-search.mjs
+      - run: npm install --no-save --no-package-lock playwright pngjs three
+      - run: npx playwright install --with-deps chromium
+      - name: Verify candidate against full existing suite
+        run: node tools/verify.mjs all
+      - name: Integrate only the tested candidate if main is unchanged
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const p='docs/tasks/active/GARMENT-001';
+          const result=JSON.parse(readFileSync('garment-quality-result.json','utf8'));
+          const task=JSON.parse(readFileSync(p+'.json','utf8'));
+          task.next='극단 자세 가중치 수정과 기존 자동 검증 PASS. 전체 의상 간섭과 실제 화면/실기기 품질은 별도 검증 필요.';
+          writeFileSync(p+'.json',JSON.stringify(task,null,2)+'\n');
+          const note='\n\n검증된 후보: '+JSON.stringify(result)+'\n동일 원본·기준 형상·가림·바지 보존, 기존 소매 단면 검사, 엄격해진 극단 포즈 검사, 생성물 검사 및 전체 기존 CI PASS(기존 유예 제외). 실기기 시각 품질과 전체 부위의 간섭은 미검증. Actions '+process.env.GITHUB_RUN_ID+'에서 검증 후 반영.\n';
+          writeFileSync(p+'.md',readFileSync(p+'.md','utf8').trimEnd()+note);
+          JS
+          node tools/check-infra.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/entities/character/clothing/shirt-binding.js assets/models/clothing/runtime-bindings-v1.json.gz tests/shirt-runtime.mjs src/entities/character/clothing/README.md docs/tasks/active/GARMENT-001.md docs/tasks/active/GARMENT-001.json
+          git diff --cached --check
+          git commit -m "Fix verified shirt shoulder stress with preserved garment geometry"
+          git push origin HEAD:main
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: garment-quality-evidence
+          path: |
+            garment-quality-result.json
+            test-results/
+          if-no-files-found: ignore

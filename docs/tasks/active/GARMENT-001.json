@@ -1,0 +1,20 @@
+{
+  "id": "GARMENT-001",
+  "status": "in_progress",
+  "baseline": "523187365c81bd69a5e34b97da497e9e4970865b",
+  "detail": "docs/tasks/active/GARMENT-001.md",
+  "scope": [
+    "src/entities/character/clothing/shirt-binding.js",
+    "assets/models/clothing/runtime-bindings-v1.json.gz",
+    "tests/shirt-runtime.mjs",
+    "src/entities/character/clothing/README.md",
+    "tools/garment-quality-search.mjs",
+    ".github/workflows/garment-quality.yml"
+  ],
+  "contracts": [
+    "docs/contracts/CHARACTER_RIG.md",
+    "src/entities/character/clothing/README.md"
+  ],
+  "dependencies": [],
+  "next": "실제 후보 테스트 및 main 반영 결과 확인. 여성 극단 자세 및 전체 의상 시각 품질 검증."
+}

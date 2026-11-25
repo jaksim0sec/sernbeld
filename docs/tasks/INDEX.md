@@ -21,3 +21,5 @@
 [공용 아이템/NPC 경제 1차](active/ITEM-001.md)
 
 [생활 세계 베타 인프라](active/WORLD-001.md)
+
+[기본 셔츠 품질 회귀](active/GARMENT-001.md)
