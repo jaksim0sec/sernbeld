@@ -32,7 +32,8 @@
     "tests/npc-dialogue.mjs",
     "tests/pwa-offline.mjs",
     "docs/workflows/LIVING_WORLD_CONTENT.md",
-    "tests/living-world-performance.mjs"
+    "tests/living-world-performance.mjs",
+    "tests/living-world-browser.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -41,5 +42,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 Node/Chromium CI 후속 및 실기기 성능 목표, 실제 장시간 월드 검증. 구현과 자동 회귀 등록 완료, 실기기 미검증 PARTIAL."
+  "next": "T8 최신 Node/Chromium/PWA CI PASS(기존 유예 3건). 새 격리 실브라우저 fixture smoke/30분 실행 및 전체 사건·그룹·UI 실제 연결 보강, 고빈도 7일 및 S22급 p95 2ms/frame·max 4ms/slice 검증. PARTIAL 유지."
 }
