@@ -136,16 +136,18 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   return out;
  }
  function leaveNpc(id){const g=groups.get(owner.get(id));if(g)end(g,lastTime)}
- return {update,clear,leaveNpc,groupFor:id=>owner.get(id)??null,snapshot:()=>({groups:copy([...groups.values()]),stats:{...stats}})};
+ function participationFor(id){const g=groups.get(owner.get(id));return g&&g.lod===3&&g.materialized?.participationIds.length&&lastTime<g.endAt&&stillValid(g)?copy({...g,anchorId:id}):null}
+ return {update,clear,leaveNpc,participationFor,groupFor:id=>owner.get(id)??null,snapshot:()=>({groups:copy([...groups.values()]),stats:{...stats}})};
 }
 
 // Ephemeral group ownership uses the authoritative action scheduler for managed residents.
 export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,settled,playerHeld=()=>false}){
  const locks=new Map(),enabled=registry.list('conversationTemplates').length>0;
+ let joined=null;
  const action=id=>readState().npcStates?.[id]?.currentAction;
  const isTraveling=id=>readState().livingWorld?.scheduler?.some(j=>j.npcId===id&&j.status==='running'&&j.plan?.route);
  function available(id){
-  if(playerHeld(id)||!settled())return false;
+  if(playerHeld(id)||joined?.group.npcIds.includes(id)||!settled())return false;
   if(!managed(id))return true;
   const a=action(id),l=locks.get(id);
   return !!a&&a.interruptPolicy==='pauseable'&&!isTraveling(id)&&(!a.paused||l?.job===a.id&&!l.released);
@@ -172,11 +174,36 @@ export function createConversationBridge({registry,scheduler,readState,managed,k
   }
   core.leaveNpc(id);return null;
  }
+ function join(id){
+  if(joined||!settled())return null;
+  const group=core.participationFor(id);if(!group)return null;
+  const acquired=new Map();
+  for(const npcId of group.npcIds)if(managed(npcId)){
+   const l=locks.get(npcId),a=action(npcId);
+   if(!l||l.released||l.groupId!==group.id||a?.id!==l.job||a.paused!==true)return null;
+   acquired.set(npcId,l);
+  }
+  for(const npcId of acquired.keys())locks.delete(npcId);
+  joined={group,locks:acquired};core.leaveNpc(id);return copy(group);
+ }
+ function leaveJoined(){
+  if(!joined)return;
+  const old=joined;joined=null;
+  for(const [id,l] of old.locks){locks.set(id,l);release(id,l.groupId)}
+ }
+ function joinedFor(id){
+  if(!joined||joined.group.anchorId!==id||!settled())return null;
+  for(const [npcId,l] of joined.locks)if(action(npcId)?.id!==l.job||action(npcId)?.paused!==true)return null;
+  return copy(joined.group);
+ }
+ function clear(now){leaveJoined();core.clear(now)}
  return {
-  enabled,groupFor:core.groupFor,leaveNpc:core.leaveNpc,clear:core.clear,claim,retry,
-  groupHeld:id=>{const l=locks.get(id);return l&&!l.released?l.job:null},
+  enabled,groupFor:id=>joined?.group.npcIds.includes(id)?joined.group.id:core.groupFor(id),leaveNpc:id=>{if(joined?.group.npcIds.includes(id))leaveJoined();else core.leaveNpc(id)},clear,claim,retry,join,leaveJoined,joinedFor,participationFor:core.participationFor,
+  joinedAnchor:()=>joined?.group.anchorId??null,
+  groupHeld:id=>{const l=joined?.locks.get(id)??locks.get(id);return l&&!l.released?l.job:null},
   update(args){
    if(!enabled)return [];
+   if(!args.active)leaveJoined();
    if(!args.active||args.suppressed||!settled())return core.update({...args,npcs:[],suppressed:true});
    return core.update({...args,npcs:args.npcs.map(n=>({...n,tags:registry.get('profiles',n.id)?.tags??[],available:n.available!==false&&available(n.id)}))});
   },

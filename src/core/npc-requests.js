@@ -1,4 +1,5 @@
 import {projectNeeds} from './npc-behavior.js';
+import {applyNpcRelation} from './npc-participation.js';
 const fail=reason=>({ok:false,reason});
 const active=r=>r.state==='open'||r.state==='accepted';
 const safe=n=>Number.isSafeInteger(n)&&n>=0;
@@ -16,7 +17,7 @@ export function createNpcRequests(registry){
   const ids=new Set(),keys=new Set();
   for(const r of w.requests){
    const p=r&&policy(r),key=r?.npcId+':'+p?.needKey;
-   if(!p||!registry.get('profiles',r.npcId)||typeof r.id!=='string'||ids.has(r.id)||!safe(r.createdAt)||!safe(r.expiresAt)||r.expiresAt<=r.createdAt||!safe(r.revision)||r.revision<1||!['open','accepted','fulfilled','resolved','expired'].includes(r.state)||typeof r.episodeClosed!=='boolean'||(!r.episodeClosed&&keys.has(key)))return false;
+   if(!p||!registry.get('profiles',r.npcId)||typeof r.id!=='string'||ids.has(r.id)||!safe(r.createdAt)||!safe(r.expiresAt)||r.expiresAt<=r.createdAt||!safe(r.revision)||r.revision<1||!['open','accepted','fulfilled','resolved','expired','abandoned'].includes(r.state)||typeof r.episodeClosed!=='boolean'||(!r.episodeClosed&&keys.has(key)))return false;
    ids.add(r.id);if(!r.episodeClosed)keys.add(key);
   }
   return true;
@@ -43,10 +44,11 @@ export function createNpcRequests(registry){
   if(!valid(data))return [];
   return data.livingWorld.requests.filter(r=>r.npcId===npcId&&active(r)&&r.expiresAt>at&&needed(data,npcId,policy(r),at)).flatMap(r=>{
    const p=policy(r);
-   if(items.balance('npc:'+npcId)<p.reward)return [];
-   if(r.state==='open')return [{id:'living.request.accept',itemId:r.id,revision:r.revision,label:p.label,quote:JSON.stringify([p.selector.definitionId,p.quantity,p.minimumQuality,p.reward]),definitionId:p.selector.definitionId,quantity:p.quantity,minimumQuality:p.minimumQuality,reward:p.reward}];
+   const base={itemId:r.id,policyId:p.id,revision:r.revision,label:p.label,quote:JSON.stringify([p.selector.definitionId,p.quantity,p.minimumQuality,p.reward]),definitionId:p.selector.definitionId,quantity:p.quantity,minimumQuality:p.minimumQuality,reward:p.reward};
+   const funded=items.balance('npc:'+npcId)>=p.reward;
+   if(r.state==='open')return funded?[{...base,id:'living.request.accept'}]:[];
    const plan=items.planSupply({actorId:items.player,selector:{definitionId:p.selector.definitionId,minimumQuality:p.minimumQuality},quantity:p.quantity});
-   return plan.ok?[{id:'living.request.submit',itemId:r.id,revision:r.revision,label:p.label,quote:JSON.stringify([p.selector.definitionId,p.quantity,p.minimumQuality,p.reward]),definitionId:p.selector.definitionId,quantity:p.quantity,minimumQuality:p.minimumQuality,reward:p.reward,allocations:plan.allocations}]:[];
+   return [...(funded&&plan.ok?[{...base,id:'living.request.submit',allocations:plan.allocations}]:[]),{...base,id:'living.request.abandon'}];
   });
  }
  function execute(data,items,npcId,choice){
@@ -56,6 +58,7 @@ export function createNpcRequests(registry){
   const c=choices(data,items,npcId).find(c=>c.id===choice.id&&c.itemId===choice.itemId&&c.revision===choice.revision&&c.quote===choice.quote);
   if(!c||!r)return fail('stale');
   if(c.id==='living.request.accept'){r.state='accepted';r.revision++;return {ok:true}}
+  if(c.id==='living.request.abandon'){r.state='abandoned';r.revision++;return {ok:true}}
   if(JSON.stringify(c.allocations)!==JSON.stringify(choice.allocations))return fail('stale');
   const p=policy(r),n=data.npcStates[npcId],rule=registry.get('needs',p.needKey);
   const policyId='living:request';
@@ -66,16 +69,8 @@ export function createNpcRequests(registry){
   n.needs=projectNeeds(n,registry,at);n.needUpdatedAt=at;
   n.needs[p.needKey]=Math.max(rule.min,Math.min(rule.max,n.needs[p.needKey]+p.needDelta));
   r.state='fulfilled';r.revision++;r.episodeClosed=n.needs[p.needKey]<rule.threshold;
-  const relation=registry.get('relationPolicies',p.relationPolicyId);
-  if(relation){
-   const player=n.relationships.player,old=player.affinity??0,last=player.affinityTicks?.[relation.id];
-   if(!Number.isFinite(old))return fail('invalid_relation');
-   if(last===undefined||at-last>=relation.cooldownTicks){
-    player.affinity=Math.max(relation.min,Math.min(relation.max,old+relation.delta));
-    (player.affinityTicks??={})[relation.id]=at;
-   }
-  }
-  return {ok:true,result};
+  const relation=applyNpcRelation(data,registry,npcId,p.relationPolicyId);
+  return relation.ok?{ok:true,result}:relation;
  }
  return {enabled:()=>policies().length>0,valid,sync,choices,execute};
 }

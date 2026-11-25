@@ -51,3 +51,5 @@
 - requestPolicies: id, needKey, tags, selector.definitionId, quantity, minimumQuality, reward, ttlTicks, needDelta(음수), label, optional relationPolicyId. relationPolicies: id,min,max,delta,cooldownTicks. 실제 데이터 없음. 필요 episode당 하나 생성, 명시적 수락/제출, 해결/만료, 동일 episode 중복 차단. 최신 revision/물품 allocation/재원 확인과 ledger/need/affinity 원자적 저장. 기존 talk 횟수와 affinity 별개. UI/그룹 참여·실제 런타임 검증 후속. 요청 평가 주기와 대규모 비용은 T8에서 검증.
 
 - T7 요청 UI: 기존 Society.choices/executeChoice의 직접 대화 분기, 실제 물품명·수량·품질·은화 표시, 기존 거리 검사 및 quote/revision/allocation 검증. 일반 상점도 이전 재고/가격 quote를 비교. requestComplete 전용 policy를 별도 등록. 기존 UI는 유지하고, 그룹 분기 및 실제 화면 검증은 후속.
+
+- T7 participationActions: reply(읽기/잡담), question(알려진 사실), share(실제 NPC→NPC 정보 전달), request(대상 슬롯의 기존 의뢰). 참여는 등록된 conversationTemplates.participationIds, 유효한 슬롯/사건 revision으로 제한. share 성공에 한해 대상 NPC 관계 정책 적용; 반복 정보 전달은 선택 불가. accepted 의뢰는 포기 가능하며 같은 필요 episode 재발행을 차단. 그룹 join은 모든 기존 hold를 유지하고 종료 시 재개한다. 실제 화면 어댑터 및 Chromium 검증 후속.

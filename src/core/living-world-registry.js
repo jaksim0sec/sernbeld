@@ -6,7 +6,7 @@ const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const ids=v=>Array.isArray(v)&&v.every(id)&&new Set(v).size===v.length;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v};
-const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates','requestPolicies','relationPolicies'];
+const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates','requestPolicies','relationPolicies','participationActions'];
 export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[]}={}){
  const knownSocietyHandlers=new Set(societyHandlers);
  const knownHandlers=new Set(handlers),knownRegions=new Set(regions),knownPlaces=new Set(places);
@@ -61,6 +61,20 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
    if(p.relationPolicyId!==undefined)ref('requestPolicies',p.id,'relationPolicies',p.relationPolicyId);
    if(!ids(p.tags)||!object(p.selector)||!id(p.selector.definitionId)||!tick(p.quantity)||p.quantity<1||!tick(p.minimumQuality)||p.minimumQuality>100||!tick(p.reward)||!tick(p.ttlTicks)||p.ttlTicks<1||!number(p.needDelta)||p.needDelta>=0||typeof p.label!=='string'||!p.label.trim())fail('requestPolicies',p.id,'invalid request policy');
   }
+  for(const p of next.participationActions.values()){
+   const bad=m=>fail('participationActions',p.id,m);
+   if(!['reply','question','share','request'].includes(p.kind)||typeof p.label!=='string'||!p.label.trim()||p.label.length>200){bad('invalid action');continue}
+   if(p.kind!=='request'&&(typeof p.reply!=='string'||!p.reply.trim()||p.reply.length>500)){bad('invalid reply');continue}
+   if(['question','share'].includes(p.kind)&&(!id(p.sourceSlot)||!ids(p.factKeys)||!p.factKeys.length))bad('invalid fact source');
+   if(['share','request'].includes(p.kind)&&!id(p.targetSlot))bad('invalid target slot');
+   if(p.kind==='share'&&p.sourceSlot===p.targetSlot)bad('same source and target');
+   if(p.relationPolicyId!==undefined){if(p.kind!=='share')bad('relation requires meaningful information transfer');ref('participationActions',p.id,'relationPolicies',p.relationPolicyId)}
+   if(p.requestPolicyId!==undefined){if(p.kind!=='request')bad('invalid request reference');ref('participationActions',p.id,'requestPolicies',p.requestPolicyId)}
+   if(p.kind!=='request'){
+    const keys=[...p.reply.matchAll(/\{([a-z][a-z0-9_.:-]*)\}/g)].map(m=>m[1]);
+    if(keys.some(k=>!['question','share'].includes(p.kind)||!p.factKeys?.includes(k))||/[{}]/.test(p.reply.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,'')))bad('invalid reply placeholder');
+   }
+  }
   for(const t of next.conversationTemplates.values()){
    const bad=m=>fail('conversationTemplates',t.id,m);
    if(!id(t.topic)||!ids(t.regionIds)||!t.regionIds.length||t.regionIds.some(r=>!knownRegions.has(r))||!Array.isArray(t.slots)||t.slots.length<2||t.slots.length>4||!Array.isArray(t.turns)||!t.turns.length||t.turns.length>32){bad('invalid template scope or size');continue}
@@ -78,7 +92,18 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
     const keys=[...line.text.matchAll(/\{([a-z][a-z0-9_.:-]*)\}/g)].map(m=>m[1]);
     if(keys.some(k=>!refs.some(r=>r.key===k&&r.slotId===line.slotId))||/[{}]/.test(line.text.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,'')))bad('invalid placeholder');
    }
-   if(t.participationIds!==undefined&&!ids(t.participationIds))bad('invalid participation ids');
+   if(t.participationIds!==undefined){
+    if(!ids(t.participationIds))bad('invalid participation ids');
+    else for(const key of t.participationIds){
+     const p=next.participationActions.get(key);
+     if(!p){bad('unknown participation action');continue}
+     if(p.sourceSlot!==undefined&&!slotIds.includes(p.sourceSlot)||p.targetSlot!==undefined&&!slotIds.includes(p.targetSlot))bad('unbound participation slot');
+     if(['question','share'].includes(p.kind)){
+      const e=next.eventTypes.get(t.eventTypeId);
+      if(!e||!Array.isArray(p.factKeys)||p.factKeys.some(k=>!e.factKeys.includes(k)))bad('unregistered participation fact');
+     }
+    }
+   }
   }
   return errors.length?{ok:false,errors}:{ok:true,tables:next};
  }

@@ -12,7 +12,7 @@ const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
 const kinds=['consume','produce','purchase','transfer','gather','offerUpdate'];
 // All economic mutations run against an isolated copy through the existing shared-item runtime.
 // A slice persists exactly once; a failed outer write discards jobs, needs, locks and receipts together.
-export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,society=null,requests=null,retryTicks=5}){
+export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,society=null,requests=null,participation=null,retryTicks=5}){
  if(!tick(retryTicks)||retryTicks<1)throw Error('invalid retryTicks');
  const map=new Map(Object.entries(handlers));
  const behavior=createNpcBehavior(registry,map);
@@ -250,5 +250,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
  }
  function requestChoices(npcId){if(!requests?.enabled()||!valid(save.data))return [];const draft=copy(save.data),items=createItemRuntime({data:draft},getDefinitions);return requests.choices(draft,items,npcId)}
  function executeRequest(npcId,choice){return requests?.enabled()?transact((d,items)=>requests.execute(d,items,npcId,choice)):fail('unsupported')}
- return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,shareKnowledge,requestChoices,executeRequest,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
+ function participationChoices(group){if(!participation||!valid(save.data))return [];const draft=copy(save.data),items=createItemRuntime({data:draft},getDefinitions);return participation.choices(draft,items,group)}
+ function executeParticipation(group,choice){return participation?transact((d,items)=>participation.execute(d,items,group,choice)):fail('unsupported')}
+ return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,shareKnowledge,requestChoices,executeRequest,participationChoices,executeParticipation,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
 }

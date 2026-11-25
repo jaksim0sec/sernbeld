@@ -54,3 +54,14 @@ a(actual.npcStates.a.currentAction.paused&&blockedBridge.groupHeld('a')===null,'
 failResume=false;blockedBridge.retry();
 a(!actual.npcStates.a.currentAction.paused&&!actual.npcStates.b.currentAction.paused,'retry release');
 console.log('PASS NPC conversation runtime adapter: 8 checks');
+
+const joinRegistry=createLivingWorldRegistry({regions:['kael']});
+a(joinRegistry.registerDefinitions({profiles:['a','b'].map(id=>({id,regionId:'kael',roleId:null,tags:['worker']})),participationActions:[{id:'chat',kind:'reply',label:'Chat',reply:'Hi'}],conversationTemplates:[{id:'joined',topic:'talk',regionIds:['kael'],slots:[{id:'s',tags:['worker']},{id:'t',tags:['worker']}],turns:[{slotId:'s',text:'hi',duration:10}],participationIds:['chat']}]}).ok,'join definitions');
+const jb=createConversationBridge({registry:joinRegistry,scheduler,readState:()=>actual,managed:()=>true,knownEvents:()=>[],canPair:()=>true,settled:()=>true});
+a(jb.update(args).length===1,'join ambient');
+const joined=jb.join('a');
+a(joined?.npcIds.length===2&&jb.joinedAnchor()==='a'&&actual.npcStates.a.currentAction.paused&&actual.npcStates.b.currentAction.paused,'join preserves all holds');
+a(jb.groupFor('b')===joined.id&&jb.groupHeld('b')==='job:2','joined group ownership');
+jb.update({...args,now:1,suppressed:true});a(jb.joinedFor('a')!==null,'dialogue suppression keeps joined group');
+jb.leaveJoined();a(!actual.npcStates.a.currentAction.paused&&!actual.npcStates.b.currentAction.paused&&jb.joinedAnchor()===null,'join releases all');
+console.log('PASS group join: 6 checks');
