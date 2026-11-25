@@ -9,6 +9,11 @@
 5. conversationTemplates는 지역, 2~4명 slot/tag, turn/초, eventTypeId 및 화자가 실제 아는 factRefs 지정. participationActions는 reply/question/share/request. requestPolicies는 실제 필요, 공급 정의, 품질, 수량, 보상, TTL, needDelta 등록. 재원 및 공급 가능성 검증. 관계 정책은 의미 있는 행동에만 연결.
 6. 전체 참조 검사 및 기존/새 저장 초기화, 재로드, 오류 롤백, 빈 콘텐츠 검증. 실제 콘텐츠의 ID/승인/검증 근거를 카탈로그와 작업 기록에 남긴다.
 
+## NPC-003 그래프 대화 작성
+
+- 기존 선형 group turns 및 NPC 인사/서비스를 보존한다. 새 고유/범용/사건 화제는 [NPC 대화 계약](../contracts/NPC_DIALOGUE.md)의 version=1 graph를 등록한다. 고유 NPC와 범용 템플릿은 같은 topicId에 대해 우선순위로 선정되며, 사건은 해당 NPC가 아는 active event의 별도 화제로 노출한다. 새로운 엔진이나 독립 재화·관계 저장을 만들지 않는다.
+- 개인 1NPC+player, 사건 최대 4NPC+player; ambientPath는 그룹 관찰·참여가 필요한 경우에만 명시한다. 명시 선택으로만 허용 효과를 실행하고, 실패/stale/종료 및 화제 복귀를 작성한다. 기존 지식·quote·접근·scheduler 검증을 사용한다. 신규 production 작성 전 승인 범위를 확인하고 fixture는 tests/에 둔다.
+
 ## 검증
 
 - `node tests/living-world-integration.mjs`, `node tests/living-world-runtime.mjs`: 목적→공급→변화→담화→참여/미참여→해결, 중복 보상 방지. 미등록 정책은 fallback으로 남으며 완성 콘텐츠로 간주하지 않는다.

@@ -8,6 +8,10 @@ const uiSource=source.slice(source.indexOf('var GameUI = class {'),source.indexO
 const html=read('index.html');
 const markup=html.slice(html.indexOf('<section class="speech"'),html.indexOf('</section>',html.indexOf('<section class="speech"'))+10);
 const styles=['seed','tokens','hud','menus-and-overlays','responsive'].map(n=>read('styles/'+n+'.css').replace(/^@import[^;]+;/gm,'')).join('\n');
+// Import the actual graph runner and its dependency into the isolated DOM.
+const moduleUrl=source=>'data:text/javascript;base64,'+Buffer.from(source).toString('base64');
+const graphModule=moduleUrl(read('src/core/npc-dialogue.js').replace("'./npc-topic.js'",JSON.stringify(moduleUrl(read('src/core/npc-topic.js')))));
+const graphTemplate=JSON.parse(read('tests/fixtures/npc-003-topics.json')).templates[0];
 const browser=await chromium.launch({headless:true});
 try {
   for (const [width,height,touch] of [[390,736,true],[780,360,true],[320,568,true],[1180,700,false]]) {
@@ -15,7 +19,7 @@ try {
     try {
       const page=await context.newPage();
       await page.setContent('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+styles+'</style><button id="prompt" class="prompt" type="button"></button>'+markup);
-      await page.evaluate(({uiSource,touch,sessionSource})=>{
+      await page.evaluate(async ({uiSource,touch,sessionSource,graphModule,graphTemplate})=>{
         const get=id=>document.getElementById(id);
         const el=(tag,cls)=>Object.assign(document.createElement(tag),{className:cls||''});
         const session=Function('return ('+sessionSource+')')();
@@ -25,7 +29,25 @@ try {
         window.showDialogue=(count=3,long=false)=>ui.say({id:'bran',name:'브란',title:'항구 관리인'},long?'긴 대화 내용입니다. '.repeat(100):'처음 보는 얼굴이군. 어디서 왔나?',Array.from({length:count},(_,i)=>({label:['이곳에 대해 물어보기','물건 거래하기','의뢰판 보기'][i%3],act:()=>ui.say({id:'bran',name:'브란'},'그렇군. 알겠네.')})));
         window.showPages=()=>ui.say({id:'bran',name:'브란'},['첫 줄','둘째 줄'],[{label:'선택',act:()=>ui.closeSpeech()}]);
         ui.prompt.onclick=()=>window.showDialogue();
-      },{uiSource,touch,sessionSource:createDialogueSession.toString()});
+        const {createTopicSession}=await import(graphModule);
+        const anchor={id:'bran',name:'브란',title:'관리인'};
+        const other={id:'other',name:'동료',title:'부두 일꾼'};
+        ui.dialogueSpeaker=id=>id===other.id?other:anchor;
+        window.showGraph=()=>{
+          const named={template:graphTemplate,topicId:graphTemplate.topicId,source:'named',eventRef:null,facts:{},slotBinding:{npc:'bran',player:'player'}};
+          const eventTemplate={...graphTemplate,id:'fixture.browser.group',topicId:'fixture.browser.event',source:'event',label:'사건 화제',nodes:graphTemplate.nodes.map(n=>n.id==='answer'?{...n,speakerSlot:'companion',pages:['동료의 사건 답변']}:n)};
+          let eventRevision=1,serviceCalls=0;
+          const service={id:'buy',label:'거래',quote:'q1'};
+          const session=createTopicSession(anchor,'함께 이야기 중',{
+            initialSpeakerId:other.id,readContext:()=>({now:1}),
+            resolve:()=>({topics:[named,{template:eventTemplate,topicId:eventTemplate.topicId,source:'event',eventRef:{id:'event1',revision:eventRevision},facts:{},slotBinding:{npc:'bran',companion:'other',player:'player'}}],services:[service]}),
+            executeService:()=>{serviceCalls++;return {ok:true,text:'거래 완료'};}
+          });
+          window.changeEventRevision=()=>eventRevision++;
+          window.graphState=()=>({same:ui.speechSession===session,anchor:ui.activeSpeaker,status:session.status,serviceCalls});
+          ui.say(anchor,'함께 이야기 중',[],session);
+        };
+      },{uiSource,touch,sessionSource:createDialogueSession.toString(),graphModule,graphTemplate});
       assert.ok((await page.locator('#prompt').boundingBox()).height>=44);
       await page.locator('#prompt').click();
       const panel=await page.locator('.speech-body').boundingBox(),opts=await page.locator('#speechOpts').boundingBox();
@@ -69,7 +91,44 @@ try {
       assert.equal(await page.locator('#speechAnnouncement').textContent(),'둘째 줄');
       await page.locator('#speechDismiss').click();
       assert.equal(await page.locator('#speech').isVisible(),false);
-      console.log('PASS NPC dialogue DOM '+width+'x'+height);
+      await page.emulateMedia({reducedMotion:'reduce'});
+      await page.evaluate(()=>window.showGraph());
+      const choices=page.locator('#speechOpts button');
+      const line=page.locator('#speechLine');
+      const speaker=page.locator('#speechName');
+      assert.equal(await speaker.textContent(),'동료','joined current speaker displayed');
+      assert.equal(await page.locator('#speechTitle').textContent(),'부두 일꾼');
+      await page.evaluate(()=>window.staleGraphButton=document.querySelector('#speechOpts button'));
+      await choices.first().click();
+      assert.equal(await line.textContent(),'첫 인사');
+      assert.equal(await speaker.textContent(),'브란');
+      await page.evaluate(()=>window.staleGraphButton.click());
+      assert.equal(await line.textContent(),'첫 인사','old detached choice cannot advance');
+      await page.locator('#speechNext').click();
+      assert.equal(await line.textContent(),'항구에 온 걸 환영하네.');
+      await choices.first().click();
+      assert.equal(await line.textContent(),'이곳은 카엘 항구라네.');
+      await choices.nth(1).click();
+      assert.equal(await choices.count(),4,'hub retains separate event and service choices');
+      await choices.nth(1).click();
+      await page.locator('#speechNext').click();
+      await choices.first().click();
+      assert.equal(await line.textContent(),'동료의 사건 답변');
+      assert.equal(await speaker.textContent(),'동료','graph updates speaker without replacing session');
+      assert.deepEqual(await page.evaluate(()=>window.graphState()),{same:true,anchor:'bran',status:'active',serviceCalls:0});
+      await page.evaluate(()=>window.changeEventRevision());
+      await choices.first().click();
+      assert.equal(await line.textContent(),'지금은 그 이야기를 계속하기 어려워요.');
+      assert.equal(await speaker.textContent(),'브란','stale topic returns to anchor');
+      await page.evaluate(()=>window.staleGraphButton=document.querySelectorAll('#speechOpts button')[2]);
+      await choices.nth(2).click();
+      assert.equal(await line.textContent(),'거래 완료');
+      await page.evaluate(()=>window.staleGraphButton.click());
+      assert.deepEqual(await page.evaluate(()=>window.graphState()),{same:true,anchor:'bran',status:'active',serviceCalls:1});
+      await page.locator('#speechDismiss').click();
+      assert.equal(await page.locator('#speech').isVisible(),false);
+      assert.deepEqual(await page.evaluate(()=>window.graphState()),{same:false,anchor:null,status:'closed',serviceCalls:1});
+      console.log('PASS NPC dialogue DOM and graph '+width+'x'+height);
     } finally {await context.close();}
   }
 } finally {await browser.close();}
