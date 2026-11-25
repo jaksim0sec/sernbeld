@@ -360,9 +360,9 @@ export function createItemRuntime(save,getDefinitions,events){
   if(prior)return equal(prior.request,q)?{ok:true,replay:clone(prior.result)}:fail('request_id_conflict');
   if(q.kind==='gather')return prepareGather(s,q);
   if(q.kind==='offerUpdate')return prepareOffer(s,q);
-  if(!['transfer','consume','produce','purchase'].includes(q.kind))return fail('unsupported');
+  if(!['transfer','requestComplete','consume','produce','purchase'].includes(q.kind))return fail('unsupported');
   const {recipientId,allocations,reservationId,policyId,tick,recipeId}=q.payload;
-  const transfer=q.kind==='transfer',consume=q.kind==='consume';
+  const transfer=q.kind==='transfer'||q.kind==='requestComplete',consume=q.kind==='consume';
   const purchase=q.kind==='purchase';
   const policy=transfer?transferPolicies.get(policyId):consume?consumptionPolicies.get(policyId):purchase?marketPolicies.get(policyId):recipes.get(recipeId);
   if(!policy)return fail('unsupported');
@@ -378,6 +378,11 @@ export function createItemRuntime(save,getDefinitions,events){
    if(a.quantity>qty(r)-locked(s,r.id,reservationId??null))return fail('reserved');
   }
   try{if((transfer?policy:policy.guard)(clone(q),clone(save.data))!==true)return fail('unavailable')}catch{return fail('invalid_policy')}
+  if(q.kind==='requestComplete'){
+   const reward=q.payload.reward;
+   if(!safe(reward)||wallet(s,recipientId).balance<reward||!safe(wallet(s,q.actorId).balance+reward))return fail('insufficient_funds');
+   return {ok:true,reward};
+  }
   if(transfer)return {ok:true};
   const inputs=consume?[policy.input]:policy.inputs;
   const bindings=consume?allocations.map(a=>({inputIndex:0,recordId:a.recordId,quantity:a.quantity})):q.payload.inputBindings;
@@ -408,7 +413,7 @@ export function createItemRuntime(save,getDefinitions,events){
   const moved=[];
   for(const a of allocations){
    const r=record(s,a.recordId),h=holding(s,r.id);let moving=r;
-   if(q.kind!=='transfer'&&q.kind!=='purchase'){
+   if(q.kind!=='transfer'&&q.kind!=='requestComplete'&&q.kind!=='purchase'){
     if(a.quantity===qty(r))erase(s,r.id);else r.quantity-=a.quantity;
     moved.push({recordId:a.recordId,quantity:a.quantity});continue;
    }
@@ -417,6 +422,9 @@ export function createItemRuntime(save,getDefinitions,events){
    moving=merge(s,moving,recipientId);moved.push({recordId:moving.id,quantity:a.quantity});
   }
   const result={ok:true,operationId:q.operationId,kind:q.kind,allocations:moved};
+  if(q.kind==='requestComplete'){
+   wallet(s,recipientId).balance-=validation.reward;wallet(s,q.actorId).balance+=validation.reward;result.reward=validation.reward;
+  }
   if(q.kind==='purchase'){
    wallet(s,q.actorId).balance-=validation.total;
    for(const [seller,cost] of validation.sellers)wallet(s,seller).balance+=cost;

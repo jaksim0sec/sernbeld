@@ -19,3 +19,5 @@ T5 부분: 사건의 조건 평가·해결·지식 전달·지표 및 scheduler/
 T6 초기: 그룹/템플릿/LOD core. PASS NPC conversation groups: 18 checks. 실제 연결 후속.
 
 T6 초기 실제 연결: Townsfolk 및 말풍선 adapter, 관리 NPC hold 인계/재개/실패 재시도, PWA. PASS NPC conversation groups: 18 checks; PASS NPC conversation runtime adapter: 8 checks. 실제 콘텐츠 없음; 그룹 참여 및 실브라우저 미검증.
+
+T7 부분: 필요 episode 기반 요청/수락/제출/만료/자체 해결, 공용 경제 requestComplete 및 관계 변화, scheduler transaction 및 runtime API. V8 신규 테스트 20 checks PASS. UI/그룹 참여/Node/Chromium/PWA 미검증. 실제 콘텐츠 없음.

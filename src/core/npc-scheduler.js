@@ -12,7 +12,7 @@ const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
 const kinds=['consume','produce','purchase','transfer','gather','offerUpdate'];
 // All economic mutations run against an isolated copy through the existing shared-item runtime.
 // A slice persists exactly once; a failed outer write discards jobs, needs, locks and receipts together.
-export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,society=null,retryTicks=5}){
+export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,society=null,requests=null,retryTicks=5}){
  if(!tick(retryTicks)||retryTicks<1)throw Error('invalid retryTicks');
  const map=new Map(Object.entries(handlers));
  const behavior=createNpcBehavior(registry,map);
@@ -21,6 +21,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   const w=data?.livingWorld;
   if(!object(w)||w.version!==1||!tick(w.worldTick)||!tick(w.nextSerial)||w.nextSerial<1||!tick(w.seed)||!Array.isArray(w.scheduler))return false;
   if(society?.enabled()&&!society.valid(data))return false;
+  if(requests?.enabled()&&!requests.valid(data))return false;
   const actors=new Set(),jobIds=new Set();
   for(const j of w.scheduler){
    if(!object(j)||typeof j.id!=='string'||!registry.get('profiles',j.npcId)||!Object.hasOwn(data.npcStates??{},j.npcId)||(j.status!=='paused'&&(!tick(j.dueTick)||j.dueTick<w.worldTick))||actors.has(j.npcId)||jobIds.has(j.id)||!['decision','running','paused'].includes(j.status))return false;
@@ -168,6 +169,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    const socialDue=society?.nextDue(w)??Infinity;
    const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length+Number(socialDue<=target);
    if(!pending)w.worldTick=target;
+   if(requests?.enabled()){const r=requests.sync(d,items,w.worldTick);if(!r.ok)return r;}
    const first=w.scheduler[0],nextDue=Math.min(first&&first.status!=='paused'?first.dueTick:Infinity,socialDue);
    const settledThrough=pending?Math.max(0,Math.min(w.worldTick,nextDue-1)):target;
    return {ok:true,processed,pending,settledThrough,worldTick:w.worldTick};
@@ -246,5 +248,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    const r=society.shareDraft(d,command);return r;
   });
  }
- return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,shareKnowledge,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
+ function requestChoices(npcId){if(!requests?.enabled()||!valid(save.data))return [];const draft=copy(save.data),items=createItemRuntime({data:draft},getDefinitions);return requests.choices(draft,items,npcId)}
+ function executeRequest(npcId,choice){return requests?.enabled()?transact((d,items)=>requests.execute(d,items,npcId,choice)):fail('unsupported')}
+ return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,shareKnowledge,requestChoices,executeRequest,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
 }

@@ -6,7 +6,7 @@ const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const ids=v=>Array.isArray(v)&&v.every(id)&&new Set(v).size===v.length;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v};
-const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates'];
+const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates','requestPolicies','relationPolicies'];
 export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[]}={}){
  const knownSocietyHandlers=new Set(societyHandlers);
  const knownHandlers=new Set(handlers),knownRegions=new Set(regions),knownPlaces=new Set(places);
@@ -52,6 +52,14 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
   }
   for(const s of next.regionSignalTypes.values()){
    if(!knownSocietyHandlers.has(s.handlerId)||!ids(s.regionIds)||!s.regionIds.length||s.regionIds.some(r=>!knownRegions.has(r))||!number(s.min)||!number(s.max)||s.min>=s.max)fail('regionSignalTypes',s.id,'invalid signal policy');
+  }
+  for(const p of next.relationPolicies.values()){
+   if(!number(p.min)||!number(p.max)||p.min>0||p.max<0||p.min>=p.max||!number(p.delta)||!tick(p.cooldownTicks))fail('relationPolicies',p.id,'invalid bounds/delta/cooldown');
+  }
+  for(const p of next.requestPolicies.values()){
+   ref('requestPolicies',p.id,'needs',p.needKey);
+   if(p.relationPolicyId!==undefined)ref('requestPolicies',p.id,'relationPolicies',p.relationPolicyId);
+   if(!ids(p.tags)||!object(p.selector)||!id(p.selector.definitionId)||!tick(p.quantity)||p.quantity<1||!tick(p.minimumQuality)||p.minimumQuality>100||!tick(p.reward)||!tick(p.ttlTicks)||p.ttlTicks<1||!number(p.needDelta)||p.needDelta>=0||typeof p.label!=='string'||!p.label.trim())fail('requestPolicies',p.id,'invalid request policy');
   }
   for(const t of next.conversationTemplates.values()){
    const bad=m=>fail('conversationTemplates',t.id,m);

@@ -46,3 +46,6 @@
 - 런타임 bridge는 registry profile 분류 태그, 논리 이동·pauseable 여부, 현재 참여/스케줄 backlog를 검증. 관리 NPC는 scheduler.pause/resume, 기존 일과 NPC는 그룹 소유 동안 wander만 보류. 일정 변경·지역 해제·메뉴 진입은 그룹 종료. 플레이어의 기존 직접 대화는 해당 NPC hold를 인계하고 다른 참가자를 해제한다. 실패한 resume은 다음 update에서 재시도. 기존 참여 UI는 유지, 실제 그룹 참여 분기/효과는 T7 후속.
 - Townsfolk/기존 GameUI 말풍선 연결. 그룹 발화 우선, 그룹 없으면 기존 주변 발화. 실제 템플릿이 없으면 그룹 업데이트 자체를 하지 않는다. 지면과 기존 월드 ray를 pair guard로 사용. 동일 role slot의 여러 binding 중 실제 지식 충족 binding 탐색(최대 24). PWA precache 59.
 - V8 PASS NPC conversation groups: 18 checks; PASS NPC conversation runtime adapter: 8 checks (scheduler bridge는 mock 의존성), 게임 번들 원본 suffix 일치 및 교체 후 정규화 문법 PASS. 실제 브라우저/카엘/PWA/모바일 성능·전체 Node NOT RUN. 실제 템플릿 미등록.
+
+## T7 요청 코어 (부분)
+- requestPolicies: id, needKey, tags, selector.definitionId, quantity, minimumQuality, reward, ttlTicks, needDelta(음수), label, optional relationPolicyId. relationPolicies: id,min,max,delta,cooldownTicks. 실제 데이터 없음. 필요 episode당 하나 생성, 명시적 수락/제출, 해결/만료, 동일 episode 중복 차단. 최신 revision/물품 allocation/재원 확인과 ledger/need/affinity 원자적 저장. 기존 talk 횟수와 affinity 별개. UI/그룹 참여·실제 런타임 검증 후속. 요청 평가 주기와 대규모 비용은 T8에서 검증.

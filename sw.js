@@ -13,6 +13,7 @@ const OFFLINE_FILES = [
   './src/core/region-lifecycle.js', './src/core/npc-dialogue.js', './src/core/skill-engine.js',
   './src/core/living-world-registry.js', './src/core/living-world-state.js', './src/core/npc-behavior.js',
   './src/core/npc-scheduler.js', './src/core/npc-movement.js', './src/core/living-world-runtime.js', './src/core/living-world-content.js', './src/core/world-society.js', './src/core/npc-conversation.js',
+  './src/core/npc-requests.js',
   './src/core/skill-library.js', './src/core/skill-runner.js', './src/ui/skill-workbench.js',
   './src/ui/skill-orbit-model.js',
   './src/entities/character/appearance.js',
