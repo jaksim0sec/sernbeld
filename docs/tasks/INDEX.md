@@ -51,3 +51,5 @@ TRACE의 작업 주소는 `AREA-NNN` 또는 `AREA-NNN/Tn`이다. 작업 ID는 �
 [NPC 초기 행동·아이콘 오류 및 이동 품질 (NPC-11252115)](active/NPC-11252115.md)
 
 [카엘 NPC 대화 콘텐츠 배치 통합 (NPC-11252342)](active/NPC-11252342.md)
+
+[NPC 대화 UI 외형 개편 (UI-11260149)](active/UI-11260149.md)
