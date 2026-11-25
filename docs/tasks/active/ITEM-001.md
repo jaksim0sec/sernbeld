@@ -15,3 +15,5 @@ T1 추가: 소비/생산 정책 등록 및 단일 저장, 명시 입력 슬롯 �
 T1 추가: 정책 기반 복수 시장 구매 및 판매자 재고 예약·논리 만료 API, 기존 trade 경쟁 방지. 추가 14 checks V8 PASS. 실제 게임의 접근/영업·등록 연결, gather/offer/request 공통 핸들러, 스케줄러 및 전체 검증 미완료. blocked 유지.
 
 T1 추가: 공용 gather/offerUpdate, 실제 채집 노드 어댑터 및 picked 경쟁·offer expected/예약 검증. 추가 16 checks V8 PASS. 실제 지도/상인 등록 연결과 requestComplete 및 전체 검증은 남음. blocked 유지.
+
+T8 후속: 검증 함수 내부 owner/record/holding lookup 인덱스 사용, 저장/검증 계약 유지. V8 shared-items 12 scenarios 및 74 checks 통과. 실제 게임 장착은 canonical getter로 통합. 최종 CI/실기기 검증 별도.

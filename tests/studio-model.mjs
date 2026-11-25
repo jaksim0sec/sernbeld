@@ -8,6 +8,7 @@ import {normalizeStudioCharacter,resolveNpcAppearance} from '../src/entities/cha
 import {calculateFemalePose} from '../src/entities/character/female-base.js';
 import {animatePlayer,armTargets,solveArm,gripFrame,fitSurfaceReachOffset} from '../src/entities/character/avatar-motion.js';
 import {createCharacterRuntime} from '../src/entities/character/studio-integration.js';
+import {createItemRuntime,extendItemDefinitions} from '../src/core/shared-items.js';
 import {createSchoolyardMotion} from '../src/entities/character/schoolyard-motion.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const source=JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz')));
@@ -102,9 +103,13 @@ for(const body of ['male','female']){
  const player={mode:'walk',pos:new T.Vector3(),vel:new T.Vector3(),yaw:0,pitch:0,onGround:true,teleportId:1};
  globalThis.document={createElement:()=>({style:{},addEventListener(){},querySelector:()=>({})}),body:{append(){}}};
  globalThis.addEventListener=()=>{};
+ const save={data:{settings:{view:'third'}},write(){return true;}};
+ const definitions=extendItemDefinitions({sword:{kind:'weapon',name:'fixture',value:2,dmg:14,rate:1.6,reach:2.1}}),items=createItemRuntime(save,()=>definitions);
+ items.initialize();
+ const material=new T.MeshBasicMaterial();
  const runtime=createCharacterRuntime({
   T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
-  Save:{data:{settings:{view:'third'}},write(){}},
+  Save:save,getEquipped:side=>items.equipped(side),makeWeapon:()=>new T.Mesh(new T.BoxGeometry(.04,.6,.04),material),
   makeCharacter:profile=>createStudioModel(T,factory,profile),attackPose:()=>null
  });
  const forward=()=>new T.Vector3(0,0,1).applyQuaternion(runtime.bodyRoot.quaternion);
@@ -117,6 +122,14 @@ for(const body of ['male','female']){
  player.vel.set(0,0,0);
  for(let i=46;i<=90;i++)runtime.update(1/60,i/60,{});
  assert(forward().x>.97,'Stopping must preserve facing');
+ items.add('sword',1);assert(items.equipDefinition('sword','right').ok);
+ runtime.update(0,2,{});const mounted=runtime.handWeapons.right;
+ assert(mounted?.parent===runtime.actor.B.hand_right,'Canonical equipment must mount to the actual hand');
+ assert(items.unequipDefinition('sword').ok);runtime.update(0,2,{});
+ assert(!runtime.handWeapons.right&&!mounted.parent,'Unequip must remove the actual mesh');
+ assert(items.equipDefinition('sword','left').ok);runtime.update(0,2,{});
+ assert(runtime.handWeapons.left?.parent===runtime.actor.B.hand_left,'Re-equip must use the other hand');
+ items.unequipDefinition('sword');runtime.update(0,2,{});material.dispose();
  runtime.actor.dispose();
  delete globalThis.document;
  delete globalThis.addEventListener;
@@ -139,7 +152,7 @@ for(const body of ['male','female']){
   for(const body of ['male','female']){
    const player={mode:'walk',pos:new T.Vector3(),renderPos:new T.Vector3(),vel:new T.Vector3(),yaw:0,pitch:0,onGround:false,teleportId:1};
    const runtime=createCharacterRuntime({T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
-    Save:{data:{character:{body},settings:{view:'third'}},write(){}},
+    Save:{data:{character:{body},settings:{view:'third'}},write(){}},getEquipped:()=>null,
     makeCharacter:profile=>createStudioModel(T,factory,profile,{clothing:false}),attackPose:()=>null,height:1.76});
    let maxError=0;
    for(const yaw of [0,.61])for(const height of [.50,1.08,1.70]){
@@ -179,7 +192,7 @@ for(const body of ['male','female']){
    const player={mode:'walk',pos:new T.Vector3(1,k,0),renderPos:new T.Vector3(1,k,0),vel:new T.Vector3(-3,-3*k,0),yaw:0,pitch:0,onGround:false,teleportId:1,
     slide:{ux:1,uz:0,k},moveHeading:Math.atan2(-3,0)};
    const runtime=createCharacterRuntime({T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
-    Save:{data:{character:{body},settings:{view:'third'}},write(){}},
+    Save:{data:{character:{body},settings:{view:'third'}},write(){}},getEquipped:()=>null,
     makeCharacter:profile=>createStudioModel(T,factory,profile,{clothing:false}),attackPose:()=>null,height:1.76,
     groundSurface:(x,z)=>ground(x,z)});
    for(let i=0;i<60;i++)runtime.update(1/60,i/60,{});

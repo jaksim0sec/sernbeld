@@ -64,11 +64,12 @@ export function createItemRuntime(save,getDefinitions,events){
  }
  function validate(s){
   check(s?.version===1&&safe(s.nextSerial,1),'invalid economy version');
-  const unique=(a,key)=>new Set(a.map(key)).size===a.length,owner=id=>s.owners.some(a=>a.id===id),occupied=new Set();
+  const unique=(a,key)=>new Set(a.map(key)).size===a.length,ownerIds=new Set(s.owners.map(a=>a.id)),owner=id=>ownerIds.has(id),occupied=new Set();
   check(unique(s.owners,a=>a.id)&&s.owners.every(a=>validId(a.id)),'duplicate owner');
   check(unique(s.records,a=>a.id)&&unique(s.holdings,a=>a.itemRecordId)&&s.records.length===s.holdings.length,'duplicate record or holding');
+  const recordsById=new Map(s.records.map(r=>[r.id,r])),holdingsById=new Map(s.holdings.map(h=>[h.itemRecordId,h]));
   for(const r of s.records){
-   const d=def(r.definitionId),h=holding(s,r.id);check(validId(r.id)&&d&&h&&owner(h.ownerId)&&h.location.holderId===h.ownerId&&safe(r.quality,0,100),'invalid record reference or quality');
+   const d=def(r.definitionId),h=holdingsById.get(r.id);check(validId(r.id)&&d&&h&&owner(h.ownerId)&&h.location.holderId===h.ownerId&&safe(r.quality,0,100),'invalid record reference or quality');
    check(['inventory','storage','equipped'].includes(h.location.kind),'invalid holding location');
    const keepsake=r.usageType==='permanent'&&r.legacyState!==undefined;
    check(r.recordType===d.ownershipMode||(keepsake&&r.recordType==='unique'),'wrong record type');
@@ -79,15 +80,15 @@ export function createItemRuntime(save,getDefinitions,events){
   check(unique(s.wallets,w=>w.ownerId)&&s.wallets.length===s.owners.length&&s.wallets.every(w=>owner(w.ownerId)&&w.currencyId==='silver'&&safe(w.balance)),'invalid wallet');
   check(unique(s.offers,o=>o.merchantId+':'+o.definitionId),'duplicate offer');
   const stocked=new Set();
-  for(const o of s.offers){check(owner(o.merchantId)&&def(o.definitionId)&&[o.customerBuyPrice,o.customerSellPrice].every(n=>n===null||safe(n))&&safe(o.minimumQuality??0,0,100),'invalid offer');for(const rid of o.stockRecordIds){const r=record(s,rid);check(r&&r.definitionId===o.definitionId&&available(holding(s,rid),o.merchantId)&&!stocked.has(rid),'invalid stock');stocked.add(rid)}}
+  for(const o of s.offers){check(owner(o.merchantId)&&def(o.definitionId)&&[o.customerBuyPrice,o.customerSellPrice].every(n=>n===null||safe(n))&&safe(o.minimumQuality??0,0,100),'invalid offer');for(const rid of o.stockRecordIds){const r=recordsById.get(rid);check(r&&r.definitionId===o.definitionId&&available(holdingsById.get(rid),o.merchantId)&&!stocked.has(rid),'invalid stock');stocked.add(rid)}}
   check(unique(s.transactions,t=>t.request.requestId),'duplicate transaction');
   check(s.reservations===undefined||Array.isArray(s.reservations),'invalid reservations');
   check(unique(locks(s),l=>l.id),'duplicate reservation');
   for(const l of locks(s)){
    check(validId(l.id)&&owner(l.actorId)&&safe(l.expiresAt)&&Array.isArray(l.allocations)&&l.allocations.length>0&&unique(l.allocations,a=>a.recordId),'invalid reservation');
    for(const a of l.allocations){
-    const r=record(s,a.recordId),market=a.source==='market';
-    check(['owned','market'].includes(a.source)&&r&&r.usageType!=='permanent'&&available(holding(s,r.id),market?a.merchantId:l.actorId)&&safe(a.quantity,1)&&locked(s,r.id)<=qty(r),'invalid reserved holding');
+    const r=recordsById.get(a.recordId),market=a.source==='market';
+    check(['owned','market'].includes(a.source)&&r&&r.usageType!=='permanent'&&available(holdingsById.get(r.id),market?a.merchantId:l.actorId)&&safe(a.quantity,1)&&locked(s,r.id)<=qty(r),'invalid reserved holding');
     if(market)check(validId(l.policyId)&&a.merchantId!==l.actorId&&safe(a.unitPrice)&&s.offers.some(o=>o.merchantId===a.merchantId&&o.stockRecordIds.includes(r.id)),'invalid market reservation');
    }
   }

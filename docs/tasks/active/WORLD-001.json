@@ -41,5 +41,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 구현 및 테스트 등록 완료; 최종 CI/실기기 frame·저장 비용, 실제 장시간 월드 검증 후 종료."
+  "next": "T8 Node/Chromium CI 후속 및 실기기 성능 목표, 실제 장시간 월드 검증. 구현과 자동 회귀 등록 완료, 실기기 미검증 PARTIAL."
 }

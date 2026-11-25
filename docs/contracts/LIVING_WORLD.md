@@ -62,3 +62,5 @@
 
 ### T8 콘텐츠 작성
 - [콘텐츠 작성 흐름](../workflows/LIVING_WORLD_CONTENT.md)을 등록 기준으로 사용. production 기본 데이터는 비워 둔다. 실제 게임 PWA 회귀에 생활 모듈과 기존 NPC runtime startup/reload 확인을 추가.
+
+- T8 검증 성능 보강: slice 처음에만 큐 정렬, 처리된 작업의 다음 예약은 같은 비교 규칙에 따라 삽입. 저장 draft는 원본 JSON 1회 직렬화에서 생성, 저장 실패 시 동일 JSON으로 원복. 경제 검증은 일시적 참조 인덱스 사용(저장 포맷/검증 규칙 불변). 모바일 실제 frame 측정은 별도.

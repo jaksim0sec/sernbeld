@@ -39,17 +39,18 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   if(busy)return fail('busy');
   if(!valid(save.data))return fail('invalid_scheduler');
   busy=true;
-  const root=save.data,before=copy(root),draft=copy(root),notifications=[];
+  const root=save.data,notifications=[];
   const install=value=>{for(const k of Object.keys(root))delete root[k];Object.assign(root,value);save.data=root};
   try{
+   const before=JSON.stringify(root),draft=JSON.parse(before);
    const items=createItemRuntime({data:draft,write:()=>true},getDefinitions,{emit:(type,detail)=>notifications.push({type,detail})});
    configureItems(items);items.initialize();
    const result=work(draft,items,notifications);
    if(!result.ok)return result;
    if(!valid(draft))return fail('invalid_scheduler');
-   if(JSON.stringify(draft)===JSON.stringify(before))return result;
+   if(JSON.stringify(draft)===before)return result;
    try{install(draft);if(typeof save.write!=='function'||save.write()===false)throw Error('save failed')}
-   catch{install(before);return fail('save_failed')}
+   catch{install(JSON.parse(before));return fail('save_failed')}
    try{onCommit(copy(notifications))}catch(error){console.error('[NPC scheduler notification]',error)}
    return result;
   }catch{return fail('invalid_scheduler')}finally{busy=false}
@@ -144,8 +145,9 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   if(!tick(target)||!tick(budget)||budget<1||target<(save.data?.livingWorld?.worldTick??0))return fail('invalid_tick');
   return transact((d,items,notifications)=>{
    const w=d.livingWorld;seedActors(d);let processed=0;
+   w.scheduler.sort(order);
    while(processed<budget){
-    w.scheduler.sort(order);const j=w.scheduler[0];
+    const j=w.scheduler[0];
     const jobDue=j&&j.status!=='paused'?j.dueTick:Infinity, socialDue=society?.nextDue(w)??Infinity, requestDue=requests?.nextDue(w)??Infinity;
     if(Math.min(jobDue,socialDue,requestDue)>target)break;
     if(socialDue<=jobDue&&socialDue<=requestDue){
@@ -167,9 +169,12 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
       for(const detail of r.changes)notifications.push({type:'world.event.changed',detail});
      }
     }
+    // start/complete append exactly one next job. Reinsert it into the sorted queue.
+    const next=w.scheduler.pop();let lo=0,hi=w.scheduler.length;
+    while(lo<hi){const mid=(lo+hi)>>>1;if(order(w.scheduler[mid],next)<=0)lo=mid+1;else hi=mid}
+    w.scheduler.splice(lo,0,next);
     processed++;
    }
-   w.scheduler.sort(order);
    const socialDue=society?.nextDue(w)??Infinity, requestDue=requests?.nextDue(w)??Infinity;
    const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length+Number(socialDue<=target)+Number(requestDue<=target);
    if(!pending)w.worldTick=target;
