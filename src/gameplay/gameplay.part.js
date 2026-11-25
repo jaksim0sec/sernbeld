@@ -5391,12 +5391,17 @@ var Society = class {
       for(const offer of Inventory.merchantOffers(merchant)){
         const id=offer.definitionId,it=ITEMS[id];
         if(offer.customerBuyPrice!==null&&offer.stockRecordIds.length)
-          o.push({id:"shop.buy",kind:"item",itemId:id,label:`${it.name} 구매 · 은화 ${offer.customerBuyPrice}`});
+          o.push({id:"shop.buy",kind:"item",itemId:id,label:`${it.name} 구매 · 은화 ${offer.customerBuyPrice}`,quote:JSON.stringify([offer,Inventory.holdingsFor(merchant).filter(h=>offer.stockRecordIds.includes(h.record.id))])});
         if(Inventory.canSell(merchant,id))
-          o.push({id:"shop.sell",kind:"item",itemId:id,label:`${it.name} 1개 판매 · 은화 ${offer.customerSellPrice}`});
+          o.push({id:"shop.sell",kind:"item",itemId:id,label:`${it.name} 1개 판매 · 은화 ${offer.customerSellPrice}`,quote:JSON.stringify([offer,Inventory.holdingsFor(Inventory.player).filter(h=>h.record.definitionId===id)])});
       }
     }
     if(def.role==="inn")o.push({id:"inn.sleep",label:`하룻밤 묵기 · 은화 ${INN_PRICE}`});
+    for(const request of this.folk?.living?.requestChoices(def.id)??[]){
+      const name=ITEMS[request.definitionId]?.name??request.definitionId;
+      const verb=request.id==="living.request.accept"?"수락":"제출";
+      o.push({...request,label:`${verb}: ${request.label} · ${name} ${request.quantity}개 / 품질 ${request.minimumQuality} 이상 / 은화 ${request.reward}`});
+    }
     return o;
   }
   options(def) {
@@ -5414,10 +5419,15 @@ var Society = class {
           case "shop.buy":return this.buy(def,action.itemId);
           case "shop.sell":return this.sell(def,action.itemId);
           case "inn.sleep":return this.sleep(def);
+          case "living.request.accept":case "living.request.submit":return this.folk?.living?.executeRequest(def.id,action)?.ok===true;
           default:return false;
         }
       }
     });
+    if(choice.id==="living.request.accept"||choice.id==="living.request.submit"){
+      if(result.reason!=="unreachable")this.ui.say(def,result.ok?(choice.id==="living.request.accept"?"의뢰를 수락했습니다.":"의뢰를 완료했습니다."):"지금은 의뢰를 처리할 수 없어요.",this.options(def));
+      return result;
+    }
     if(result.reason==="unavailable")this.ui.say(def,"지금은 그 행동을 할 수 없어요.",this.options(def));
     if(result.reason==="executed"||result.reason==="rejected"){
       this.state?.recordAction(def.id,{id:choice.id,ok:result.ok,day:this.clock.day,hour:this.clock.hour});

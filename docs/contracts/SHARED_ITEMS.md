@@ -41,4 +41,4 @@
 - `registerOfferPolicy(id,guard)` 및 `kind:'offerUpdate'`: expected 기존 offer/null과 비교, 소유한 실물 ID만 노출, 가격·품질 범위 검증. 시장 예약 실물의 노출 제거/판매 가격·최소 품질 변경 금지. 재고 복제 없음.
 - 후속 알림의 예외가 확정된 결과를 실패로 바꾸지 않도록 처리. 실제 콘텐츠 없음. V8 원본 12 시나리오 + 추가 74 checks PASS. 전체 실행 NOT RUN.
 
-- T7 requestComplete: transfer policy 검증을 사용하는 실물 이전과 recipient의 은화 지급을 한 ledger operation에 포함한다. reward는 비음수 안전 정수, 지급 재원 및 수취 지갑 overflow 검증. request ID 멱등 영수증. NPC 요청/need/관계 저장은 scheduler의 외부 draft transaction에서 확정한다.
+- T7 requestComplete: 독립 registerRequestPolicy 검증을 사용하는 실물 이전과 recipient의 은화 지급을 한 ledger operation에 포함한다. reward는 비음수 안전 정수, 지급 재원 및 수취 지갑 overflow 검증. request ID 멱등 영수증. NPC 요청/need/관계 저장은 scheduler의 외부 draft transaction에서 확정한다.

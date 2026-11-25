@@ -35,3 +35,14 @@ save.data.npcStates.a.needs.hunger=0;a(sc.advanceTo(2).ok&&save.data.livingWorld
 save.data.npcStates.a.needs.hunger=8;a(sc.advanceTo(3).ok,'new episode again');a(sc.advanceTo(8).ok&&save.data.livingWorld.requests.at(-1).state==='expired','expiry');
 a(sc.advanceTo(9).ok&&sc.requestChoices('a').length===0,'no repeat expired same need');
 console.log('PASS NPC request infrastructure: '+checks+' checks');
+
+import {runNpcAction} from '../src/core/npc-dialogue.js';
+let executions=0;
+const oldChoice={id:'living.request.submit',itemId:'request:1',revision:1,quote:'a',allocations:[{recordId:'item:1'}]};
+const run=(choice,current,reach=true)=>runNpcAction(choice,{reachable:()=>reach,choices:()=>[current],execute:()=>{executions++;return true}});
+a(!run(oldChoice,{...oldChoice,revision:2}).ok,'stale revision');
+a(!run(oldChoice,{...oldChoice,quote:'b'}).ok,'stale quote');
+a(!run(oldChoice,{...oldChoice,allocations:[{recordId:'item:2'}]}).ok,'stale allocation');
+a(!run(oldChoice,oldChoice,false).ok&&executions===0,'stale distance');
+a(run(oldChoice,oldChoice).ok&&executions===1,'explicit current action');
+console.log('PASS NPC request and choice infrastructure: '+checks+' checks');

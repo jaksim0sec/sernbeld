@@ -230,7 +230,7 @@ export function createItemRuntime(save,getDefinitions,events){
   return change(s=>{if(s.reservations)s.reservations=s.reservations.filter(l=>l.id!==reservationId);return {ok:true}},{persist:true});
  }
  // Trusted code registers policy validators; production data cannot execute arbitrary handlers.
- const transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map(),marketPolicies=new Map(),gatherSources=new Map(),offerPolicies=new Map();
+ const requestPolicies=new Map(),transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map(),marketPolicies=new Map(),gatherSources=new Map(),offerPolicies=new Map();
  function registerGatherSource(id,resolve){
   if(!validId(id)||typeof resolve!=='function'||gatherSources.has(id))return fail('invalid');
   gatherSources.set(id,resolve);return {ok:true};
@@ -351,6 +351,10 @@ export function createItemRuntime(save,getDefinitions,events){
   if(!validId(id)||typeof validatePolicy!=='function'||transferPolicies.has(id))return fail('invalid');
   transferPolicies.set(id,validatePolicy);return {ok:true};
  }
+ function registerRequestPolicy(id,guard){
+  if(!validId(id)||typeof guard!=='function'||requestPolicies.has(id))return fail('invalid');
+  requestPolicies.set(id,guard);return {ok:true};
+ }
  function operationRequest(command){
   if(!command||!validId(command.operationId)||!validId(command.actorId)||typeof command.kind!=='string'||!command.payload||typeof command.payload!=='object'||Array.isArray(command.payload))return null;
   try{return clone({...command,requestId:command.operationId})}catch{return null}
@@ -364,7 +368,7 @@ export function createItemRuntime(save,getDefinitions,events){
   const {recipientId,allocations,reservationId,policyId,tick,recipeId}=q.payload;
   const transfer=q.kind==='transfer'||q.kind==='requestComplete',consume=q.kind==='consume';
   const purchase=q.kind==='purchase';
-  const policy=transfer?transferPolicies.get(policyId):consume?consumptionPolicies.get(policyId):purchase?marketPolicies.get(policyId):recipes.get(recipeId);
+  const policy=q.kind==='requestComplete'?requestPolicies.get(policyId):transfer?transferPolicies.get(policyId):consume?consumptionPolicies.get(policyId):purchase?marketPolicies.get(policyId):recipes.get(recipeId);
   if(!policy)return fail('unsupported');
   if(!wallet(s,q.actorId)||(transfer&&(!wallet(s,recipientId)||recipientId===q.actorId))||!Array.isArray(allocations)||!allocations.length||new Set(allocations.map(a=>a?.recordId)).size!==allocations.length)return fail('invalid');
   const reservation=reservationId===undefined?null:locks(s).find(l=>l.id===reservationId);
@@ -457,7 +461,7 @@ export function createItemRuntime(save,getDefinitions,events){
   }catch{return fail('invalid_operation')}
  }
  return {
-  planSupply,reserve,release,releaseExpiredReservations,registerTransferPolicy,registerConsumptionPolicy,registerRecipe,registerMarketPolicy,registerGatherSource,registerOfferPolicy,canExecute,commitOperation,
+  planSupply,reserve,release,releaseExpiredReservations,registerTransferPolicy,registerRequestPolicy,registerConsumptionPolicy,registerRecipe,registerMarketPolicy,registerGatherSource,registerOfferPolicy,canExecute,commitOperation,
   initialize(){validate(state());for(const k of ['inv','uniqueItems','nextItemSerial','money','equip'])delete save.data[k];return true},snapshot:()=>clone(state()),player,count,entries(){return Object.keys(defs()).map(id=>[id,count(id)]).filter(([,n])=>n>0)},
   add(id,n=1,quality=50){change(s=>{addTo(s,player,id,n,quality);return true},{event:{action:'added',itemId:id,quantity:n}});return count(id)},
   take(id,n){if(!safe(n,1))throw Error('invalid quantity');return change(s=>{const a=s.records.filter(r=>r.definitionId===id&&r.usageType!=='permanent'&&available(holding(s,r.id),player));if(a.reduce((v,r)=>v+free(s,r),0)<n)return false;let left=n;for(const r of a){const k=Math.min(left,free(s,r));if(!k)continue;if(k===qty(r))erase(s,r.id);else r.quantity-=k;left-=k;if(!left)break}return true},{event:{action:'removed',itemId:id,quantity:n}})},

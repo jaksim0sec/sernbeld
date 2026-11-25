@@ -64,7 +64,7 @@ export function selectNpcLine(def,{met,cursor=0,hour=12,custom}={}) {
 // Recompute available descriptors at execution; never execute an action supplied by a view.
 export function runNpcAction(choice,{reachable,choices,execute}) {
   if(!reachable())return {ok:false,reason:"unreachable"};
-  const current=choice&&choices().find(action=>action.id===choice.id&&action.itemId===choice.itemId);
+  const current=choice&&choices().find(action=>action.id===choice.id&&action.itemId===choice.itemId&&action.revision===choice.revision&&action.quote===choice.quote&&JSON.stringify(action.allocations)===JSON.stringify(choice.allocations));
   if(!current)return {ok:false,reason:"unavailable"};
   return execute(current)===false?{ok:false,reason:"rejected"}:{ok:true,reason:"executed"};
 }

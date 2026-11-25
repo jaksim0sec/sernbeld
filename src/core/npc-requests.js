@@ -44,22 +44,22 @@ export function createNpcRequests(registry){
   return data.livingWorld.requests.filter(r=>r.npcId===npcId&&active(r)&&r.expiresAt>at&&needed(data,npcId,policy(r),at)).flatMap(r=>{
    const p=policy(r);
    if(items.balance('npc:'+npcId)<p.reward)return [];
-   if(r.state==='open')return [{id:'living.request.accept',itemId:r.id,revision:r.revision,label:p.label}];
+   if(r.state==='open')return [{id:'living.request.accept',itemId:r.id,revision:r.revision,label:p.label,quote:JSON.stringify([p.selector.definitionId,p.quantity,p.minimumQuality,p.reward]),definitionId:p.selector.definitionId,quantity:p.quantity,minimumQuality:p.minimumQuality,reward:p.reward}];
    const plan=items.planSupply({actorId:items.player,selector:{definitionId:p.selector.definitionId,minimumQuality:p.minimumQuality},quantity:p.quantity});
-   return plan.ok?[{id:'living.request.submit',itemId:r.id,revision:r.revision,label:p.label+' · '+p.quantity+' / '+p.reward,allocations:plan.allocations}]:[];
+   return plan.ok?[{id:'living.request.submit',itemId:r.id,revision:r.revision,label:p.label,quote:JSON.stringify([p.selector.definitionId,p.quantity,p.minimumQuality,p.reward]),definitionId:p.selector.definitionId,quantity:p.quantity,minimumQuality:p.minimumQuality,reward:p.reward,allocations:plan.allocations}]:[];
   });
  }
  function execute(data,items,npcId,choice){
   if(!choice||!valid(data))return fail('invalid_requests');
   const w=data.livingWorld,at=w.worldTick,r=w.requests.find(r=>r.id===choice.itemId&&r.npcId===npcId);
   if(r?.state==='fulfilled'&&choice.id==='living.request.submit'&&choice.revision===r.revision-1)return {ok:true,replayed:true};
-  const c=choices(data,items,npcId).find(c=>c.id===choice.id&&c.itemId===choice.itemId&&c.revision===choice.revision);
+  const c=choices(data,items,npcId).find(c=>c.id===choice.id&&c.itemId===choice.itemId&&c.revision===choice.revision&&c.quote===choice.quote);
   if(!c||!r)return fail('stale');
   if(c.id==='living.request.accept'){r.state='accepted';r.revision++;return {ok:true}}
   if(JSON.stringify(c.allocations)!==JSON.stringify(choice.allocations))return fail('stale');
   const p=policy(r),n=data.npcStates[npcId],rule=registry.get('needs',p.needKey);
   const policyId='living:request';
-  const registered=items.registerTransferPolicy(policyId,q=>q.kind==='requestComplete'&&q.actorId===items.player&&q.operationId===r.id&&q.payload.recipientId==='npc:'+npcId&&q.payload.reward===p.reward&&JSON.stringify(q.payload.allocations)===JSON.stringify(c.allocations));
+  const registered=items.registerRequestPolicy(policyId,q=>q.kind==='requestComplete'&&q.actorId===items.player&&q.operationId===r.id&&q.payload.recipientId==='npc:'+npcId&&q.payload.reward===p.reward&&JSON.stringify(q.payload.allocations)===JSON.stringify(c.allocations));
   if(!registered.ok)return registered;
   const result=items.commitOperation({operationId:r.id,actorId:items.player,kind:'requestComplete',payload:{recipientId:'npc:'+npcId,allocations:c.allocations,policyId,reward:p.reward,tick:at}});
   if(!result.ok)return result;

@@ -12,9 +12,9 @@
 | 등반·턱 오르기 | [물리](../../src/gameplay/gameplay.part.js), [표면 IK·카메라](../../src/entities/character/studio-integration.js), [작업 기록](../tasks/active/MOVEMENT-002.md) | 지형·벽·건물·원기둥(opt-in) 등반, 측면 이동, 턱 오르기와 처마·차양·전망대 돌출부 넘기(지붕·원뿔·차양은 `addRoof` 지면/일방향 발판); 50° 초과 지형은 미끄러짐(전용 포즈)·재점프 불가; 리그 좌우 대응 및 도달 보정, 충돌 없는 대체 등반 카메라. 실제 리그/카엘 시각 품질 재검증 필요 |
 | 카엘 항구 | [월드 소스](../../src/world/), [실월드 시나리오](../../tests/world-playability.mjs) | 경로·계단·충돌과 지역 상태의 구현 범위. 다른 지역의 자동 스트리밍이나 생태 기획 전체의 통합 여부는 항목별 확인 |
 | 생태·생활 경제 기획 | [70종 인덱스 및 오늘 범위](../content/kael-economy-20261125.md) | 기획 등록; 한국풍 가중치 폐기; 런타임 미통합 |
-| NPC 대화·상호작용 | [계약](../contracts/NPC_DIALOGUE.md), [회귀](../../tests/npc-dialogue.mjs), [DOM 검증](../../tests/npc-dialogue-browser.mjs) | 기존 액션과 일과 재사용; 참여 패널/비참여 발화 분리, 안정 ID NPC 상태·참여 대화 기억 및 조건 재검증, 코어 참여 대화 세션·명시적 페이지 진행 연결. NPC 실제 경제 소유권 및 생활 엔진 기초는 별도 공용 계약 참조; 관계 시뮬레이션 미구현; 실월드 검증은 작업 기록 참조 |
+| NPC 대화·상호작용 | [계약](../contracts/NPC_DIALOGUE.md), [회귀](../../tests/npc-dialogue.mjs), [DOM 검증](../../tests/npc-dialogue-browser.mjs) | 기존 액션과 일과 재사용; 참여 패널/비참여 발화 분리, 안정 ID NPC 상태·참여 대화 기억 및 조건 재검증, 코어 참여 대화 세션·명시적 페이지 진행 연결. NPC 실제 경제 소유권 및 생활 엔진 기초는 별도 공용 계약 참조; 의뢰 완료 기반 친화도 코어 부분 구현; 그룹 참여 미완료; 실월드 검증은 작업 기록 참조 |
 | 아이템·NPC 공용 경제 | [공용 아이템 계약](../contracts/SHARED_ITEMS.md), [회귀](../../tests/shared-items.mjs) | 공용 실물/소유/지갑·거래·기존 저장 변환 1차, 실제 카엘/브라우저 검증 필요 |
 | 아이템·스킬·저장 | [코어](../../src/core/), [게임 진입](../../src/gameplay/gameplay.part.js), [산출물 계약](../contracts/DELIVERABLES.md) | 등록·저장 API와 런타임 호출 경로를 각각 확인 |
 | 빌드·배포 | [검증·통합](../validation/VALIDATION_POLICY.md), [PWA](../PWA.md) | 배포된 SHA, 검증한 SHA, 작업 HEAD를 구분 |
 
-| 생활 세계 인프라 | [계약](../contracts/LIVING_WORLD.md), [작업 기록](../tasks/active/WORLD-001.md) | 공용 경제·등록·스케줄러·논리 이동·실게임 초기 연결; 실제 생활 정책 미등록, 기존 일과 fallback. Chromium/카엘/PWA 검증 미완료 |
+| 생활 세계 인프라 | [계약](../contracts/LIVING_WORLD.md), [작업 기록](../tasks/active/WORLD-001.md) | 공용 경제·등록·스케줄러·논리 이동·사건·담화 LOD·필요 기반 요청/친화도 및 직접 대화 연결; 실제 생활 정책 미등록, 기존 일과 fallback. Chromium/카엘/PWA 검증 미완료 |
