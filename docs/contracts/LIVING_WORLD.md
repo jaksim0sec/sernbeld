@@ -28,3 +28,5 @@
 - 정책 등록 NPC만 Townsfolk 기존 일과 및 저장 관찰에서 제외, 논리 위치 투영. GameClock 정수 분, 대화 시작/종료 pause/resume, 기존 NavGrid 경유점 및 지면/수면/충돌 검증, 실제 채집 노드 adapter 및 picked 공유. 지역 비활성 중에도 clock 처리.
 - 현재 tick 직접 위치 투영; 보간/동적 장애물 지연 및 실제 카엘/Chromium/PWA 미검증. 미등록 시장/레시피/소비 정책 unsupported. 실제 콘텐츠 없음.
 - 검증: V8 PASS living-world runtime bridge: 11 checks, 이전 번들의 gameplay 원본 suffix 일치 후 해당 조각 교체, 정규화 V8 문법 컴파일 및 sw 문법 PASS. 전체 Node/infra NOT RUN.
+
+- 후속: 현재 참여 중인 pauseable NPC는 pause 상태에서도 기존 Society 접근 검증을 통과하도록 연결하되 중복 pause 금지. 스케줄러 decision 대기 상태의 관리 NPC와의 대화 hold는 미구현이므로 현재는 선택지를 표시하지 않는다. T6/T7에서 보강. 런타임 브리지 12 checks PASS.

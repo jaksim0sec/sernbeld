@@ -17,6 +17,7 @@ const rt=createLivingWorldRuntime({...opts,content:policy,routeFor({from,metersP
 a(rt.ok&&rt.managed('a')&&!rt.managed('smith'),'selective ownership');
 a(rt.update().ok&&save.data.npcStates.a.currentAction.actionId==='walk','clock starts job');
 a(rt.beginTalk('a')&&save.data.npcStates.a.currentAction.paused,'talk pauses');
+a(rt.canTalk('a')&&!rt.beginTalk('a'),'active dialogue remains reachable without duplicate pause');
 clock.hour=8+3.1/60;a(rt.update('a').ok&&rt.position('a').x===0,'pause remains while talking');
 a(rt.update(null).ok&&!save.data.npcStates.a.currentAction.paused,'closing talk resumes');
 clock.hour=8+7.1/60;a(rt.update().ok&&rt.position('a').x===3,'arrival via game clock');

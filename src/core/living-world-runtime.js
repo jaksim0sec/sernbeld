@@ -59,13 +59,13 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  function canTalk(id){
   if(!managed.has(id))return true;
   const a=save.data.npcStates?.[id]?.currentAction;
-  return lastResult.ok&&!pending&&(!a||a.interruptPolicy==='pauseable'&&!a.paused);
+  return lastResult.ok&&!pending&&!!a&&a.interruptPolicy==='pauseable'&&(!a.paused||held?.id===id&&held.job===a.id);
  }
  function beginTalk(id){
   if(!canTalk(id))return false;
   if(!managed.has(id))return true;
   const a=save.data.npcStates?.[id]?.currentAction;
-  if(!a)return false;
+  if(!a||held)return false;
   const r=scheduler.pause(id,a.id);if(!r.ok)return false;
   held={id,job:a.id};return true;
  }

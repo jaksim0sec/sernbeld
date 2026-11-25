@@ -11,3 +11,5 @@ T3 추가: pause/resume, 재료 예약 해제 및 재취득, 재로드/경쟁/�
 T4 부분: 논리 경로/게임 분 변환/기존 NavGrid 인터페이스 어댑터, scheduler 이동 예약·pause·reload·경로 무효화. PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS logical NPC movement: 18 checks. 실제 게임 연결 및 점유 조정 후속.
 
 T4 실제 초기 연결: 기존 resident/상인 등록, clock, 논리 이동, 대화 pause, 채집 adapter, 번들/PWA cache 등록. PASS living-world runtime bridge: 11 checks. 기존 등반 범위 중 gameplay/game.js/sw.js 점유를 순차 통합 목적 WORLD-001로 이동; 등반 미검증 상태 유지. 실제 Chromium/동적 장애물/성능 미검증.
+
+T4 후속: 참여 중 pause된 NPC 접근 검증 및 중복 pause 방지. V8 runtime bridge 12 checks PASS. decision 대기 상태 hold는 T6 후속.
