@@ -46796,7 +46796,7 @@ import {resolveNpcAppearance} from './src/entities/character/appearance.js';
 import {createCharacterRuntime} from './src/entities/character/studio-integration.js';
 import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
-import {createInventory} from './src/core/inventory.js';
+import {createItemRuntime, extendItemDefinitions} from './src/core/shared-items.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
 import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession} from './src/core/npc-dialogue.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
@@ -48364,7 +48364,12 @@ var GATHER = {
   mushroom: { item: "pine_cap", mesh: "mushroom", tint: [0.85, 0.52, 0.33], respawn: 900 },
   pebble: { item: "river_pebble", mesh: "pebble", tint: [0.8, 0.78, 0.71], respawn: 600 },
   crystal: { item: "clear_crystal", mesh: "crystal", tint: [0.62, 0.9, 1], respawn: 1800 },
-  petal: { item: "aether_petal", mesh: "petal", tint: [1, 0.78, 0.88], respawn: 1200 }
+  petal: { item: "aether_petal", mesh: "petal", tint: [1, 0.78, 0.88], respawn: 1200 },
+  roadside_mugwort:{item:"roadside_mugwort",mesh:"herb",tint:[0.45,0.62,0.38],respawn:600},
+  round_clover:{item:"round_clover",mesh:"herb",tint:[0.5,0.75,0.42],respawn:600},
+  salt_star_herb:{item:"salt_star_herb",mesh:"flower",tint:[0.9,0.87,0.67],respawn:900},
+  seashell:{item:"seashell",mesh:"pebble",tint:[0.87,0.81,0.73],respawn:600},
+  wave_cap_mushroom:{item:"wave_cap_mushroom",mesh:"mushroom",tint:[0.69,0.53,0.4],respawn:900}
 };
 function noiseAt(tex, u, v, ch) {
   const S2 = tex.image.width, d = tex.image.data;
@@ -48425,6 +48430,23 @@ function scatterGatherables(R, trees, noiseTex) {
     const a = k / 7 * Math.PI * 2 + r() * 0.5, d = 9 + r() * 18, x = gt.x + Math.cos(a) * d, z = gt.z + Math.sin(a) * d;
     if (okGround(x, z)) push("petal", x, z);
   }
+  const original=nodes.slice(), added=[];
+  const types=[["roadside_mugwort","herb"],["round_clover","flower"],["salt_star_herb","pebble"],["seashell","pebble"],["wave_cap_mushroom","mushroom"]];
+  for(let i=0;i<types.length;i++){
+    const [type,source]=types[i];let accepted=0;
+    const candidates=original.filter(v=>v.type.startsWith(source)&&(!["salt_star_herb","seashell"].includes(type)||v.y<4.5));
+    const center=R.places?.[i===2||i===3?"quay":"plaza"];
+    if(center)candidates.sort((a,b)=>Math.hypot(a.x-center.x,a.z-center.z)-Math.hypot(b.x-center.x,b.z-center.z));
+    for(const v of candidates){
+      if(accepted>=30)break;
+      const a=(i+1)*1.7+v.rot,x=v.x+Math.cos(a)*2,z=v.z+Math.sin(a)*2;
+      if(!okGround(x,z))continue;
+      normalAt(x,z,n);const y=sample(x,z);
+      if(n.y<0.8||Math.abs(y-v.y)>0.8||added.some(a=>Math.hypot(a.x-x,a.z-z)<1.5))continue;
+      added.push({id:type+":"+v.id,type,x,y,z,rot:v.rot,s:v.s});accepted++;
+    }
+  }
+  nodes.push(...added);
   return nodes;
 }
 function isAvailable(node, picked, now = Date.now()) {
@@ -50705,7 +50727,9 @@ var Save = {
     try {
       this.beforeWrite?.();
       localStorage.setItem(KEY, JSON.stringify(this.data));
+      return true;
     } catch {
+      return false;
     }
   },
   reset() {
@@ -50717,22 +50741,13 @@ var Save = {
   }
 };
 var Wallet = {
-  get() {
-    return Save.data.money;
-  },
-  add(n) {
-    Save.data.money += n;
-    return Save.data.money;
-  },
-  spend(n) {
-    if (Save.data.money < n) return false;
-    Save.data.money -= n;
-    return true;
-  }
+  get() { return Inventory.balance(); },
+  add(n) { return Inventory.credit(n); },
+  spend(n) { return Inventory.spend(n); }
 };
 var GameEvents = createGameEvents();
 var WorldEntities = createEntityRegistry();
-var Inventory = createInventory(Save, GameEvents);
+var Inventory = createItemRuntime(Save, () => ITEMS, GameEvents);
 var SkillLibrary = createSkillLibrary(Save, GameEvents);
 var WorldRegions = createRegionLifecycle({registry: WorldEntities, save: Save, events: GameEvents});
 var NpcState = createNpcStateStore(Save);
@@ -50782,12 +50797,14 @@ var Explore = class {
   }
   gather(n) {
     if (!isAvailable(n, Save.data.picked)) return;
-    const def = GATHER[n.type], amount = n.type.startsWith("flower") ? 2 : 1;
-    Save.data.picked[n.id] = Date.now();
-    const total = Inventory.add(def.item, amount);
+    const def = GATHER[n.type], item=ITEMS[def.item];
+    const min=item.yieldMin??(n.type.startsWith("flower")?2:1),max=item.yieldMax??min;
+    const amount=min+Math.floor(Math.random()*(max-min+1)),quality=Math.floor(Math.random()*101);
+    const result=Inventory.gather(n.id,def.item,amount,quality,Date.now(),def.respawn*1000);
+    if(!result.ok)return;
+    const total=result.total;
     this.gatherables.refresh();
     this.ui.pickup(def.item, amount, total);
-    Save.write();
     GameEvents.emit('world.gathered', {nodeId: n.id, itemId: def.item, quantity: amount});
   }
   travelTo(name) {
@@ -50865,6 +50882,7 @@ var ITEMS = {
   apprentice_sword: { name: "\uACAC\uC2B5 \uAC80", value: 15, price: 15, kind: "weapon", model: "sword", rarity: "common", dmg: 14, rate: 1.6, reach: 2.1, icon: { shape: "sword", color: "#d8dee4" }, desc: "\uC870\uD569 \uACAC\uC2B5\uB4E4\uC774 \uCC98\uC74C \uB4DC\uB294 \uAC80. \uACE0\uB78C\uC758 \uB9DD\uCE58 \uC790\uAD6D\uC774 \uB0A8\uC544 \uC788\uB2E4." },
   woodcutter_axe: { name: "\uB098\uBB34\uAFBC \uC190\uB3C4\uB07C", value: 12, price: 12, kind: "weapon", model: "axe", rarity: "common", dmg: 18, rate: 1.1, reach: 1.9, icon: { shape: "axe", color: "#c9b08a" }, desc: "\uBB34\uAC81\uACE0 \uB290\uB9AC\uC9C0\uB9CC \uD55C \uBC88 \uB4E4\uC5B4\uAC00\uBA74 \uAE4A\uB2E4." }
 };
+extendItemDefinitions(ITEMS);
 var FISTS = { name: "\uB9E8\uC190", dmg: 4, rate: 2.2, reach: 1.4, model: null };
 var cache = /* @__PURE__ */ new Map();
 var shade = (hex, k) => {
@@ -51291,7 +51309,7 @@ var GameUI = class {
       }
     }
     if (it?.kind === "weapon" && Inventory.count(this.selected) && this.onEquip) {
-      const E = Save.data.equip ?? {}, row = el("div", "equip"), id = this.selected;
+      const E = {right:Inventory.equipped("right")?.definitionId,left:Inventory.equipped("left")?.definitionId}, row = el("div", "equip"), id = this.selected;
       for (const [hand, label] of [["right", "\uC624\uB978\uC190"], ["left", "\uC67C\uC190"]]) {
         const b = el("button", "", label);
         b.type = "button";
@@ -52146,10 +52164,18 @@ var Society = class {
         o.push({id:"guild.board",label:"\uC758\uB8B0\uD310 \uBCF4\uAE30"});
       }
     }
-    if(def.role==="smith")for(const [id,it] of Object.entries(ITEMS))if(it.kind==="weapon"&&!Inventory.count(id))
-      o.push({id:"shop.buy",kind:"item",itemId:id,label:`${it.name} · 은화 ${it.price}`});
+    if(def.role==="smith"||def.role==="vendor"){
+      const merchant="npc:"+def.id;
+      Inventory.seedMerchant(merchant,def.role);
+      for(const offer of Inventory.merchantOffers(merchant)){
+        const id=offer.definitionId,it=ITEMS[id];
+        if(offer.customerBuyPrice!==null&&offer.stockRecordIds.length)
+          o.push({id:"shop.buy",kind:"item",itemId:id,label:`${it.name} 구매 · 은화 ${offer.customerBuyPrice}`});
+        if(Inventory.canSell(merchant,id))
+          o.push({id:"shop.sell",kind:"item",itemId:id,label:`${it.name} 1개 판매 · 은화 ${offer.customerSellPrice}`});
+      }
+    }
     if(def.role==="inn")o.push({id:"inn.sleep",label:`하룻밤 묵기 · 은화 ${INN_PRICE}`});
-    if(def.role==="vendor"&&Inventory.entries().some(([id])=>ITEMS[id].kind==="material"&&ITEMS[id].rarity==="common"))o.push({id:"shop.sell",label:"\uD754\uD55C \uC7AC\uB8CC \uD314\uAE30"});
     return o;
   }
   options(def) {
@@ -52165,7 +52191,7 @@ var Society = class {
           case "guild.report":return this.report(def);
           case "guild.board":return this.openBoard();
           case "shop.buy":return this.buy(def,action.itemId);
-          case "shop.sell":return this.sell(def);
+          case "shop.sell":return this.sell(def,action.itemId);
           case "inn.sleep":return this.sleep(def);
           default:return false;
         }
@@ -52190,28 +52216,16 @@ var Society = class {
     return r.count>0;
   }
   buy(def, id) {
-    const it = ITEMS[id];
-    if (!Wallet.spend(it.price)) {
-      this.ui.say(def, `${it.price}\uB2E2. \uBAA8\uC790\uB77C\uBA74 \uB3C8\uBD80\uD130 \uBC8C\uC5B4 \uC640.`);
-      return false;
-    }
-    Inventory.add(id, 1);
-    Save.write();
-    const E = Save.data.equip;
-    this.onBought?.(id, !E.right ? "right" : !E.left ? "left" : null);
-    this.ui.say(def, `${it.name}. \uD718\uB450\uB974\uB2E4 \uB0A0 \uB098\uAC00\uBA74 \uB2E4\uC2DC \uAC00\uC838\uC640.`);
+    const result=Inventory.buyDefinition("npc:"+def.id,id);
+    if(!result.ok){this.ui.say(def,"재고나 은화가 부족해요.",this.options(def));return false;}
+    this.ui.say(def,`${ITEMS[id].name} 구매 · 은화 ${result.total}`,this.options(def));
     return true;
   }
-  sell(def) {
-    let pay = 0;
-    for (const [id, n] of Inventory.entries()) if (ITEMS[id].kind === "material" && ITEMS[id].rarity === "common") {
-      pay += ITEMS[id].value * n;
-      Inventory.take(id, n);
-    }
-    Wallet.add(pay);
-    Save.write();
-    this.ui.say(def, `\uC740\uD654 ${pay}\uB2E2. \uB2E4\uC74C\uC5D0 \uB610 \uC640\uC694.`);
-    return pay>0;
+  sell(def,id) {
+    const result=Inventory.sellDefinition("npc:"+def.id,id);
+    if(!result.ok){this.ui.say(def,"지금은 거래할 수 없어요.",this.options(def));return false;}
+    this.ui.say(def,`${ITEMS[id].name} 1개 판매 · 은화 ${result.total}`,this.options(def));
+    return true;
   }
   sleep(def) {
     if (!Wallet.spend(INN_PRICE)) {
@@ -52250,7 +52264,7 @@ var Society = class {
     if (ready.length) return `의뢰 보고하기 (${ready.length}건)`;
     const q = Save.data.requests[0];
     if (q) return `${q.title} · ${ITEMS[q.item].name} ${Math.max(0, Math.min(Guild.progress(q), q.qty))}/${q.qty}`;
-    if (G.registered && !Save.data.equip?.right && !Save.data.equip?.left && G.done >= 1) return "선택: 고람의 대장간에서 무기 마련하기";
+    if (G.registered && !Inventory.equipped("right") && !Inventory.equipped("left") && G.done >= 1) return "선택: 고람의 대장간에서 무기 마련하기";
     return "자유 탐험 · 채집·거래·대화·모험 중 원하는 활동을 해보자";
   }
 };
@@ -52540,29 +52554,21 @@ var Combat = class {
     this.queued = false;
     this.calm = 0;
     this.downed = false;
-    (_a = Save.data).equip ?? (_a.equip = { right: null, left: null });
     this.refresh();
   }
   weapon(hand) {
-    const id = Save.data.equip[hand];
-    return id ? ITEMS[id] : FISTS;
+    const item = Inventory.equipped(hand);
+    return item && item.wear < 100 ? {...ITEMS[item.definitionId], ...item.stats} : FISTS;
   }
   refresh() {
     this.view.setWeapon("right", this.weapon("right"));
     this.view.setWeapon("left", this.weapon("left"));
   }
   equip(id, hand) {
-    const E = Save.data.equip;
-    for (const h of ["right", "left"]) if (E[h] === id) E[h] = null;
-    E[hand] = id;
-    Save.write();
-    this.refresh();
+    if(Inventory.equipDefinition(id, hand).ok)this.refresh();
   }
   unequip(id) {
-    const E = Save.data.equip;
-    for (const h of ["right", "left"]) if (E[h] === id) E[h] = null;
-    Save.write();
-    this.refresh();
+    if(Inventory.unequipDefinition(id).ok)this.refresh();
   }
   canAct() {
     return !this.downed && this.player.mode === "walk" && !this.player.swimming && !this.player.traversal;
@@ -53256,6 +53262,7 @@ async function boot() {
   shared.uStroke.value.anisotropy = anisotropy;
   const region = SERNBELD;
   Save.load();
+  Inventory.initialize();
   if (discardLegacyAnimalTasks(Save.data)) Save.write();
   if (!Save.data.combatDemoSwordGranted) {
     if (Inventory.count("apprentice_sword") === 0) Inventory.add("apprentice_sword", 1);
@@ -53263,8 +53270,7 @@ async function boot() {
     Save.write();
   }
   if (!Save.data.combatVisualDemoEquipped) {
-    const eq = Save.data.equip ?? (Save.data.equip = { right: null, left: null });
-    if (!eq.right && !eq.left && Inventory.count("apprentice_sword") > 0) eq.right = "apprentice_sword";
+    if (!Inventory.equipped("right") && !Inventory.equipped("left") && Inventory.count("apprentice_sword") > 0) Inventory.equipDefinition("apprentice_sword", "right");
     Save.data.combatVisualDemoEquipped = true;
     Save.write();
   }

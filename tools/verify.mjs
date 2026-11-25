@@ -8,7 +8,7 @@ const groups = {
   build: [['tools/build-game.mjs','--check'], ['--check','game.js'],
     ['tools/optimize-characters.mjs','--check'], ['tools/bake-garments.mjs','--check'],
     ['tests/infra-contract.mjs'], ['tools/check-infra.mjs'], ['tools/build-ecology-prototypes.mjs','--check']],
-  core: ['foundation', 'durable-items', 'region-lifecycle', 'wildlife-removal',
+  core: ['foundation', 'durable-items', 'shared-items', 'region-lifecycle', 'wildlife-removal',
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
     'startup-runtime', 'pwa-startup', 'npc-dialogue'].map(name => ['tests/' + name + '.mjs']),
   clothing: ['studio-model', 'character-assembly', 'schoolyard-ik', 'schoolyard-motion',
