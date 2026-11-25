@@ -3592,5 +3592,60 @@
       "group diversity in production: T4 matcher coordination",
       "catalog: INFRA-001 scope"
     ]
+  },
+  "integration": {
+    "status": "REGISTERED",
+    "base": "fa1773c5508bac8a3e61abed4b45e27afa944de9",
+    "checks": {
+      "checks": 251,
+      "logs": [
+        "PASS NPC conversation groups: 18 checks",
+        "PASS NPC conversation runtime adapter: 8 checks",
+        "PASS group join: 6 checks",
+        "PASS ordinary group template rotation: 18 checks"
+      ],
+      "rotation": {
+        "vendor2": [
+          "kael_market_chat_2",
+          "kael.group.vendor.quality.2",
+          "kael.group.vendor.stall.2",
+          "kael.group.vendor.trade.2"
+        ],
+        "vendor3": [
+          "kael_market_chat_3",
+          "kael.group.vendor.quality.3",
+          "kael.group.vendor.stall.3",
+          "kael.group.vendor.trade.3"
+        ],
+        "docker2": [
+          "kael_dock_chat_2",
+          "kael.group.docker.aisle.2",
+          "kael.group.docker.break.2",
+          "kael.group.docker.rhythm.2"
+        ],
+        "docker3": [
+          "kael_dock_chat_3",
+          "kael.group.docker.aisle.3",
+          "kael.group.docker.break.3",
+          "kael.group.docker.rhythm.3"
+        ],
+        "docker4": [
+          "kael_dock_chat_4",
+          "kael.group.docker.aisle.4",
+          "kael.group.docker.break.4",
+          "kael.group.docker.rhythm.4"
+        ]
+      },
+      "totalTemplates": 116,
+      "named": 24,
+      "generic": 72,
+      "groups": 20,
+      "replyActions": 14
+    },
+    "groupSelection": "PASS all 20 via rotation across successive groups, first legacy retained, event-specific templates prioritized",
+    "namedTopicCounts": "4 each; actual iva role unspecified",
+    "browser": "NOT RUN",
+    "ci": "NOT RUN",
+    "checkInfra": "NOT RUN"
   }
 }

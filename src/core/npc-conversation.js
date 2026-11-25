@@ -23,10 +23,10 @@ function matchSlots(slots,members){
 export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>false,hold=()=>true,release=()=>{},config={}}){
  const c={midIn:18,midOut:22,nearIn:7,nearOut:9,pairIn:3,pairOut:4,scanEvery:.5,duration:30,cooldown:20,maxGroups:3,maxCandidates:64,maxPairs:256,cell:6,...config};
  if(!Object.values(c).every(v=>Number.isFinite(v)&&v>0)||!(c.nearIn<c.nearOut&&c.nearOut<c.midIn&&c.midIn<c.midOut&&c.pairIn<c.pairOut)||!['maxGroups','maxCandidates','maxPairs'].every(k=>Number.isSafeInteger(c[k])))throw Error('invalid conversation config');
- const groups=new Map(),owner=new Map(),cooldown=new Map();
+ const groups=new Map(),owner=new Map(),cooldown=new Map(),ordinaryCursor=new Map();
  let next=1,lastTime=-Infinity,nextScan=0,region=null,stats={scans:0,pairs:0,materializations:0};
  const eligible=n=>n&&typeof n.id==='string'&&point(n)&&n.stationary===true&&n.available!==false&&!n.hidden&&Array.isArray(n.tags)&&n.tags.length>0;
- const templates=()=>registry.list('conversationTemplates').map(t=>ambientTemplate(t,registry)).filter(Boolean).sort((a,b)=>Number(!!b.graph)-Number(!!a.graph)||cmp(a.id,b.id));
+ const templates=()=>registry.list('conversationTemplates').map(t=>ambientTemplate(t,registry)).filter(Boolean).sort((a,b)=>Number(!!b.graph)-Number(!!a.graph)||Number(!!b.eventTypeId)-Number(!!a.eventTypeId)||(a.graph||b.graph||a.eventTypeId||b.eventTypeId?cmp(a.id,b.id):0));
  const closest=(g,byId,player)=>Math.min(...g.npcIds.map(id=>dist(byId.get(id),player)));
  function end(g,now){
   groups.delete(g.id);
@@ -42,7 +42,8 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
  function materialize(g,byId,now){
   stats.materializations++;
   const members=g.npcIds.map(id=>byId.get(id));
-  for(const t of templates()){
+  const ordinary=[];
+  templateLoop: for(const t of templates()){
    if(!t.regionIds.includes(g.regionId))continue;
    const bindings=matchSlots(t.slots,members);if(!bindings.length)continue;
    const refs=t.factRefs??[],events=new Map();
@@ -67,11 +68,20 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
      // Ambient eligibility uses only available member context. Unknown conditions fail closed.
      if(!members.some(n=>(!e.npcIds||e.npcIds.includes(n.id))&&(!e.roles||e.roles.includes(n.role))&&(!e.tags||all(n.tags,e.tags))&&topicConditionsPass(e.conditions,{...n,role:n.role,event:{id:eventId,revision,state:'active'},facts})))continue;
     }
+    if(!t.graph&&!t.eventTypeId){ordinary.push({t,binding});continue templateLoop;}
     g.materialized={templateId:t.id,binding,eventId,revision:eventId===null?null:[...selected.values()][0].revision,turns:t.turns.map(l=>({npcId:binding[l.slotId],duration:l.duration,text:l.text.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,(_,k)=>facts[k])})),participationIds:t.participationIds??[],...(t.graph?{facts,graph:true}:{})};
     return;
    }
   }
-  g.materialized=null;
+  if(!ordinary.length){g.materialized=null;return;}
+  // Rotate eligible ordinary templates once per materialized group, never per frame or binding.
+  // Keep registration order for the first selection, event precedence and existing LOD/hold.
+  const key=JSON.stringify([g.regionId,ordinary.map(({t})=>t.id)]);
+  const index=(ordinaryCursor.get(key)??0)%ordinary.length;
+  ordinaryCursor.delete(key);ordinaryCursor.set(key,(index+1)%ordinary.length);
+  if(ordinaryCursor.size>128)ordinaryCursor.delete(ordinaryCursor.keys().next().value);
+  const {t,binding}=ordinary[index];
+  g.materialized={templateId:t.id,binding,eventId:null,revision:null,turns:t.turns.map(l=>({npcId:binding[l.slotId],duration:l.duration,text:l.text})),participationIds:t.participationIds??[]};
  }
  function stillValid(g){
   const m=g.materialized;if(!m?.eventId)return true;

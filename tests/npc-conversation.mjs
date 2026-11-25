@@ -67,3 +67,20 @@ a(jb.groupFor('b')===joined.id&&jb.groupHeld('b')==='job:2','joined group owners
 jb.update({...args,now:1,suppressed:true});a(jb.joinedFor('a')!==null,'dialogue suppression keeps joined group');
 jb.leaveJoined();a(!actual.npcStates.a.currentAction.paused&&!actual.npcStates.b.currentAction.paused&&jb.joinedAnchor()===null,'join releases all');
 console.log('PASS group join: 6 checks');
+
+// NPC-11252342: ordinary variants rotate after groups end, not while talking.
+const rotationRegistry=createLivingWorldRegistry({regions:['kael']});
+a(rotationRegistry.registerDefinitions({conversationTemplates:['old','new_a','new_b','new_c'].map(id=>({id,topic:id,regionIds:['kael'],slots:[{id:'s',tags:['worker']},{id:'t',tags:['worker']}],turns:[{slotId:'s',text:id,duration:12}]}))}).ok,'rotation fixture');
+const rotation=createNpcConversations({registry:rotationRegistry,canPair:()=>true});
+const people=[person('a',0),person('b',1)];
+const observeRotation=(x,now)=>rotation.update({active:true,regionId:'kael',player:{x,y:0,z:0},npcs:people,now});
+const observed=[];
+for(let i=0;i<8;i++){
+ const at=i*60;
+ a(observeRotation(-12,at)[0]?.text==='···','rotation L2 lazy');
+ const id=observeRotation(0,at+1)[0]?.templateId;
+ a(!!id&&observeRotation(0,at+2)[0]?.templateId===id,'rotation no reroll');
+ observed.push(id);rotation.clear(at+3);
+}
+a(observed.slice(0,4).join(',')==='old,new_a,new_b,new_c'&&observed.slice(4).join(',')===observed.slice(0,4).join(','),'all variants and repeat cycle');
+console.log('PASS ordinary group template rotation: 18 checks');

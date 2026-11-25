@@ -7,7 +7,8 @@ const copy=v=>JSON.parse(JSON.stringify(v));
 const defs=extendItemDefinitions({});
 const residents=[
  ...Array.from({length:3},(_,i)=>({id:'vendor'+i,role:'vendor',position:{x:i,y:0,z:0}})),
- ...Array.from({length:4},(_,i)=>({id:'docker'+i,position:{x:20+i,y:0,z:0}}))
+ ...Array.from({length:4},(_,i)=>({id:'docker'+i,position:{x:20+i,y:0,z:0}})),
+ ...Object.entries({bran:null,sera:'guild',goram:'smith',miel:'inn',tino:'rival',iva:null}).map(([id,role],i)=>({id,role,position:{x:100+i*2,y:0,z:0}}))
 ];
 function start(data={v:1,money:0},content=livingWorldContent){
  const save={data:copy(data),write:()=>true};
