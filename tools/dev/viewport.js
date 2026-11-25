@@ -39,12 +39,15 @@ export function createViewport(T, canvas) {
   key.position.set(-3, 6, 4);
   scene.add(key);
 
+  let pending=false,lastWidth=0,lastHeight=0;
   function render() {
+    if(pending)return;
+    pending=true;requestAnimationFrame(()=>{pending=false;draw();});
+  }
+  function draw() {
     const width = canvas.clientWidth, height = canvas.clientHeight;
     if (!width || !height) return;
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
+    if(width!==lastWidth||height!==lastHeight){renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();lastWidth=width;lastHeight=height;}
     const adjusted = distance / Math.min(1, camera.aspect);
     camera.position.copy(target).add(new T.Vector3(
       Math.sin(azimuth)*Math.cos(elevation), Math.sin(elevation), Math.cos(azimuth)*Math.cos(elevation)

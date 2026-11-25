@@ -7,7 +7,8 @@
     "src/entities/character/hair",
     "tools/dev/hair.html",
     "tools/dev/hair.js",
-    "tests/hair-geometry.mjs"
+    "tests/hair-geometry.mjs",
+    "tools/dev/viewport.js"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",

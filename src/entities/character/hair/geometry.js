@@ -41,7 +41,21 @@ function createHairKit(){
   const triangles=[];
   for(let k=0;k<indices.length;k+=3){const [i,j,l]=Array.from(indices.slice(k,k+3)),a=Array.from(positions.slice(i*3,i*3+3)),b=Array.from(positions.slice(j*3,j*3+3)),c=Array.from(positions.slice(l*3,l*3+3)),e=sub(b,a),f=sub(c,a);if(length(cross(e,f))>1e-12)triangles.push([sub(a,center),e,f]);}
   if(!triangles.length)throw Error('empty scalp surface');
-  function radius(dir){const d=norm(dir);let max=0;for(const [a,e,f] of triangles){const h=cross(d,f),det=dot(e,h);if(Math.abs(det)<1e-12)continue;const s=mul(a,-1),u=dot(s,h)/det;if(u< -1e-7||u>1+1e-7)continue;const q=cross(s,e),v=dot(d,q)/det;if(v< -1e-7||u+v>1+1e-7)continue;const t=dot(f,q)/det;if(t>max)max=t;}return max||null;}
+  // Exact ray/triangle tests accelerated by a median-split AABB hierarchy.
+  // Bounds are relative to the same ray origin as the original brute-force code.
+  const entries=triangles.map(([a,e,f])=>{const b=add(a,e),c=add(a,f);return {a,e,f,lo:a.map((x,i)=>Math.min(x,b[i],c[i])-1e-8),hi:a.map((x,i)=>Math.max(x,b[i],c[i])+1e-8)};});
+  function build(items){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(const item of items)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],item.lo[k]);hi[k]=Math.max(hi[k],item.hi[k]);}
+   if(items.length<=8)return {lo,hi,items};const axis=hi.map((x,i)=>x-lo[i]).reduce((best,x,i,a)=>x>a[best]?i:best,0);
+   items.sort((a,b)=>a.lo[axis]+a.hi[axis]-b.lo[axis]-b.hi[axis]);const mid=items.length>>1;return {lo,hi,left:build(items.slice(0,mid)),right:build(items.slice(mid))};
+  }
+  const tree=build(entries),cache=new Map();
+  function radius(dir){const d=norm(dir),key=d.join(',');if(cache.has(key))return cache.get(key);let max=0;
+   function visit(node){let near=0,far=Infinity;for(let k=0;k<3;k++){if(Math.abs(d[k])<1e-15){if(node.lo[k]>0||node.hi[k]<0)return;continue;}let a=node.lo[k]/d[k],b=node.hi[k]/d[k];if(a>b)[a,b]=[b,a];near=Math.max(near,a);far=Math.min(far,b);if(far<near||far<max)return;}
+    if(!node.items){visit(node.left);visit(node.right);return;}
+    for(const {a,e,f} of node.items){const h=cross(d,f),det=dot(e,h);if(Math.abs(det)<1e-12)continue;const s=mul(a,-1),u=dot(s,h)/det;if(u< -1e-7||u>1+1e-7)continue;const q=cross(s,e),v=dot(d,q)/det;if(v< -1e-7||u+v>1+1e-7)continue;const t=dot(f,q)/det;if(t>max)max=t;}
+   }
+   visit(tree);const result=max||null;if(cache.size<20000)cache.set(key,result);return result;
+  }
   function anchor(theta,phi,clearance=0){const d=direction(theta,phi),r=radius(d);if(r===null)throw Error('scalp ray missed: '+theta+','+phi);return {position:add(center,mul(d,r+clearance)),normal:d,theta,phi,clearance};}
   return {positions,indices,center,radius,anchor};
  }
