@@ -46805,7 +46805,7 @@ import {createSkillWorkbench} from './src/ui/skill-workbench.js';
 import {createLivingWorldRuntime} from './src/core/living-world-runtime.js';
 import {livingWorldContent} from './src/core/living-world-content.js';
 import {createNavGridRouteAdapter,residentWalkSpeed} from './src/core/npc-movement.js';
-import {createResidentActivityCache,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity} from './src/core/resident-activity.js';
+import {createResidentActivityCache,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity,distributedResidentDay,residentDestinationClear,pickResidentWanderPoint} from './src/core/resident-activity.js';
 const residentActivityCache=createResidentActivityCache();
 var TINT = {
   stone: [0.82, 0.8, 0.75],
@@ -51843,7 +51843,7 @@ function townsfolk() {
       scale: J.scale ?? 0.94 + r() * 0.1,
       role: job === "vendor" ? "vendor" : void 0,
       dialogueRole:job,
-      day: J.day(stall2),
+      day: distributedResidentDay(job,i,J.day(stall2)),
       lines: { day: J.lines, night: ["\uC774\uC81C \uB4E4\uC5B4\uAC00 \uBD10\uC57C\uC9C0."] },
       minor: true
     });
@@ -51926,16 +51926,31 @@ var Townsfolk = class {
   settle(hour) {
     this.living?.clearGroups();
     this.queue.length = 0;
+    const placed=[];
     for (const n of this.list) {
-      if(this.living?.managed(n.def.id))continue;
+      if(this.living?.managed(n.def.id)){placed.push(n);continue;}
       n.entry = this.entry(n.def, hour);
       const [x, z] = this.spot(n, n.entry);
-      n.x = x;
-      n.z = z;
-      n.y = groundAt(x, z, 400);
+      const center=this.places[n.entry[1]]??this.places.plaza;
+      const p=n.entry[2]==='wander'?this.pickWanderPoint(n,center,placed):null;
+      n.x = p?.x??x;
+      n.z = p?.z??z;
+      n.y = p?.y??groundAt(x, z, 400);
       n.path = null;n.pi=0;n.speed=0;n.wait=2+n.rnd()*18;
       n.hidden = n.entry[1] === "home";
+      placed.push(n);
     }
+  }
+  pickWanderPoint(n,center,others=this.list) {
+    return pickResidentWanderPoint(center,{random:n.rnd,pointAt:(x,z)=>this.activityPoint(x,z),available:(x,z)=>residentDestinationClear(n,x,z,others,this.queue)});
+  }
+  queueWander(n) {
+    const center=this.places[n.entry[1]]??this.places.plaza;
+    const p=this.pickWanderPoint(n,center);
+    if(!p){n.wait=3+n.rnd()*5;return false;}
+    this.goTo(n,p.x,p.z,true);
+    n.wait=1e9;
+    return true;
   }
   activityPoint(x,z,y=400) {
     if(!Number.isFinite(x)||!Number.isFinite(z)||this.nav.idx(x,z)<0)return null;
@@ -51965,8 +51980,12 @@ var Townsfolk = class {
     for(const n of this.list){
       if(this.living?.managed(n.def.id))continue;
       const spot=this.spot(n,n.entry),stamp=residentActivityStamp(n.entry,spot);
-      if(records&&Object.hasOwn(records,n.def.id)&&restoreResidentActivity(n,records[n.def.id],{stamp,spot,pointAt,queue:(...args)=>this.goTo(...args,true)}))continue;
-      seedResidentActivity(n,{pointAt,segment:(a,b)=>this.activitySegment(a,b)});
+      const r=records&&Object.hasOwn(records,n.def.id)?records[n.def.id]:null;
+      const clear=(x,z)=>residentDestinationClear(n,x,z,this.list,this.queue);
+      const targetClear=r?.target===null||(Array.isArray(r?.target)&&r.target.length===2&&clear(...r.target));
+      if(r&&(n.entry[2]!=='wander'||clear(r.x,r.z)&&targetClear)&&restoreResidentActivity(n,r,{stamp,spot,pointAt,queue:(...args)=>this.goTo(...args,true)}))continue;
+      const center=this.places[n.entry[1]]??this.places.plaza;
+      seedResidentActivity(n,{pointAt,segment:(a,b)=>this.activitySegment(a,b),available:(x,z)=>Math.hypot(x-center[0],z-center[1])<=11&&clear(x,z)});
     }
   }
   checkpointActivity(regionId,clock,force=false) {
@@ -51991,9 +52010,12 @@ var Townsfolk = class {
     for (let k = 0; k < 3 && this.queue.length && (k === 0 || performance.now() < deadline); k++) {
       const [n, x, z, strict] = this.queue.shift();
       if(this.living?.managed(n.def.id))continue;
+      const wander=strict&&n.entry?.[2]==='wander';
+      if(wander&&!residentDestinationClear(n,x,z,this.list,this.queue)){n.path=null;n.pi=0;n.wait=3+n.rnd()*5;continue;}
       const direct=strict&&this.validActivityPath(n,[[x,z]]);
       const path=direct?[[x,z]]:this.nav.path(n.x,n.z,x,z);
       if(strict&&!direct&&!this.validActivityPath(n,path)){
+        if(wander){n.path=null;n.pi=0;n.wait=3+n.rnd()*5;continue;}
         const [sx,sz]=this.spot(n,n.entry);
         n.x=sx;n.z=sz;n.y=groundAt(sx,sz,400);n.hidden=n.entry[1]==='home';
         n.path=null;n.pi=0;n.wait=2+n.rnd()*18;n.speed=0;continue;
@@ -52012,7 +52034,11 @@ var Townsfolk = class {
           [n.x, n.z] = n.home;
           n.y = groundAt(n.x, n.z, 400);
         }
-        this.goTo(n, x, z);
+        if(e[2]==='wander'){
+          n.path=null;n.pi=0;
+          this.queue=this.queue.filter(job=>job[0]!==n);
+          this.queueWander(n);
+        }else this.goTo(n, x, z);
       }
       let moving = false, movingSpeed = 0;
       if (n.talkT > 0 || this.activeSpeaker?.() === n.def.id) {
@@ -52041,9 +52067,7 @@ var Townsfolk = class {
           n.wait = 6 + n.rnd() * 14;
         }
       } else if (n.entry[2] === "wander" && !this.living?.groupFor(n.def.id) && (n.wait -= dt) <= 0) {
-        const p = this.places[n.entry[1]] ?? this.places.plaza, a = n.rnd() * 6.28, r = 2 + n.rnd() * 9;
-        this.goTo(n, p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r);
-        n.wait = 1e9;
+        this.queueWander(n);
       }
       n.speed += ((moving ? movingSpeed : 0) - n.speed) * Math.min(1, dt * 8);
       const dxCam = n.x - camPos.x, dzCam = n.z - camPos.z;

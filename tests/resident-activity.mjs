@@ -1,4 +1,4 @@
-import {createResidentActivityCache,RESIDENT_ACTIVITY_KEY,RESIDENT_ACTIVITY_TTL,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity} from '../src/core/resident-activity.js';
+import {createResidentActivityCache,RESIDENT_ACTIVITY_KEY,RESIDENT_ACTIVITY_TTL,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity,distributedResidentDay,residentDestinationClear,pickResidentWanderPoint} from '../src/core/resident-activity.js';
 import {readFileSync} from 'node:fs';
 import {residentWalkSpeed,RESIDENT_WALK_SPEED} from '../src/core/npc-movement.js';
 let checks=0;
@@ -68,4 +68,30 @@ check(!small.n.path&&small.elapsed<adult.elapsed,'small resident arrives sooner'
 check(adult.n.ch.speed>1.8&&adult.n.ch.speed<=RESIDENT_WALK_SPEED,'animation follows new displacement pace');
 check(blockedWalk.n.x===0&&blockedWalk.n.speed===0&&blockedWalk.n.path,'player blocking preserved');
 check(heldWalk.n.x===0&&heldWalk.n.speed===0&&heldWalk.n.path,'talk hold preserved');
-console.log('PASS resident activity cache and walk pace: '+checks+' checks');
+// Test actual production definitions and actual registered place IDs.
+const regionSource=readFileSync(new URL('../src/world/region.part.js',import.meta.url),'utf8');
+const placeStart=regionSource.indexOf('  places: {'),placeEnd=regionSource.indexOf('\n  },',placeStart);
+const places=Function('return ('+regionSource.slice(placeStart+'  places: '.length,placeEnd+4)+')')();
+const jobStart=source.indexOf('var JOBS ='),jobEnd=source.indexOf('// Do not submit distant residents',jobStart);
+const rng=seed=>()=>((seed=Math.imul(seed,1664525)+1013904223|0)>>>0)/4294967296;
+const residents=Function('mulberry32','distributedResidentDay',source.slice(jobStart,jobEnd)+';return townsfolk();')(rng,distributedResidentDay);
+check(residents.length===44&&new Set(residents.map(n=>n.id)).size===44,'all minor IDs preserved');
+for(const n of residents){
+ check(n.day.every(e=>e[1]==='home'||Object.hasOwn(places,e[1]))&&n.day.every((e,i)=>!i||e[0]>n.day[i-1][0]),'valid ordered schedule '+n.id);
+}
+const at=(n,h)=>n.day.filter(e=>e[0]<=h).at(-1);
+const counts=(job,h)=>residents.filter(n=>n.id.startsWith(job)).reduce((m,n)=>{const k=at(n,h)[1];m[k]=(m[k]??0)+1;return m},{});
+const folk=counts('folk',11.5),dock=counts('docker',11.5);
+check(Object.values(folk).reduce((a,b)=>a+b,0)===19&&Object.keys(folk).length===6&&Math.max(...Object.values(folk))<=4,'11:30 resident distribution');
+check(dock.pier_a===6&&dock.pier_b===6,'dock workers split');
+check(new Set(residents.filter(n=>n.id.startsWith('folk')).map(n=>n.day[2][0])).size>1,'staggered departure');
+check(residents.filter(n=>n.id.startsWith('vendor')).every(n=>n.day[1][0]===7&&n.day[1][1]===['stall_a','stall_b','stall_c'][Number(n.id.slice(6))%3]),'vendor hours and work locations unchanged');
+check(stamp!==JSON.stringify([actor().entry,spot]),'old presentation stamp invalidated');
+const occupied={...actor(),x:2,z:0},far={...actor(),x:19,z:19};
+check(!residentDestinationClear(n,2,0,[n,occupied]),'occupied point rejected');
+check(!residentDestinationClear(n,8,0,[n,far],[[far,8,0,true]]),'queued destination reserved');
+check(!residentDestinationClear(n,0,0,[n,...[[-2,0],[2,0],[0,2]].map(([x,z])=>({...actor(),x,z}))]),'crowd limit');
+check(residentDestinationClear(n,0,0,[n,far]),'clear point accepted');
+check(pickResidentWanderPoint([0,0],{random:()=>0,pointAt,available:()=>false})===null,'bounded retry when saturated');
+check(pickResidentWanderPoint([0,0],{random:()=>0,pointAt,available:()=>true})?.x===2,'valid candidate accepted');
+console.log('PASS resident activity, walk pace and distributed destinations: '+checks+' checks');
