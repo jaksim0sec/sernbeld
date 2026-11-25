@@ -9,12 +9,14 @@
     "tests/shirt-runtime.mjs",
     "src/entities/character/clothing/README.md",
     "tools/garment-quality-search.mjs",
-    ".github/workflows/garment-quality.yml"
+    ".github/workflows/garment-quality.yml",
+    "src/entities/character/clothing/garment-pose.js",
+    "src/entities/character/clothing/garment-binding.js"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
     "src/entities/character/clothing/README.md"
   ],
   "dependencies": [],
-  "next": "실제 후보 테스트 및 main 반영 결과 확인. 여성 극단 자세 및 전체 의상 시각 품질 검증."
+  "next": "1차 weight-only 8개 실패. 선택적 linear/DQ 혼합과 gradient 후보 검증 후 조건부 main 반영 확인. 전체 피부 간섭/실기기 별도."
 }
