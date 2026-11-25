@@ -4,7 +4,7 @@ const copy=v=>JSON.parse(JSON.stringify(v));
 const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
-const order=(a,b)=>a.dueTick-b.dueTick||cmp(a.id,b.id);
+const order=(a,b)=>(a.status==='paused'?1:0)-(b.status==='paused'?1:0)||(a.dueTick??0)-(b.dueTick??0)||cmp(a.id,b.id);
 const fail=reason=>({ok:false,reason});
 const sum=(a,b)=>{const n=a+b;if(!tick(n))throw Error('tick overflow');return n};
 const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
@@ -21,10 +21,12 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   if(!object(w)||w.version!==1||!tick(w.worldTick)||!tick(w.nextSerial)||w.nextSerial<1||!tick(w.seed)||!Array.isArray(w.scheduler))return false;
   const actors=new Set(),jobIds=new Set();
   for(const j of w.scheduler){
-   if(!object(j)||typeof j.id!=='string'||!registry.get('profiles',j.npcId)||!Object.hasOwn(data.npcStates??{},j.npcId)||!tick(j.dueTick)||j.dueTick<w.worldTick||actors.has(j.npcId)||jobIds.has(j.id)||!['decision','running'].includes(j.status))return false;
-   if(j.status==='running'){
+   if(!object(j)||typeof j.id!=='string'||!registry.get('profiles',j.npcId)||!Object.hasOwn(data.npcStates??{},j.npcId)||(j.status!=='paused'&&(!tick(j.dueTick)||j.dueTick<w.worldTick))||actors.has(j.npcId)||jobIds.has(j.id)||!['decision','running','paused'].includes(j.status))return false;
+   if(j.status==='running'||j.status==='paused'){
     const a=data.npcStates[j.npcId].currentAction;
-    if(!a||a.id!==j.id||a.actionId!==j.actionId||!tick(j.startTick)||j.startTick>j.dueTick||!object(j.plan))return false;
+    if(!a||a.id!==j.id||a.actionId!==j.actionId||!tick(j.startTick)||!object(j.plan))return false;
+    if(j.status==='running'&&(j.startTick>j.dueTick||a.paused===true))return false;
+    if(j.status==='paused'&&(!tick(j.remainingTicks)||j.remainingTicks<1||!tick(j.pausedAt)||j.pausedAt>w.worldTick||a.paused!==true||j.dueTick!==null))return false;
    }
    actors.add(j.npcId);jobIds.add(j.id);
   }
@@ -125,14 +127,14 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    const w=d.livingWorld;seedActors(d);let processed=0;
    while(processed<budget){
     w.scheduler.sort(order);const j=w.scheduler[0];
-    if(!j||j.dueTick>target)break;
+    if(!j||j.status==='paused'||j.dueTick>target)break;
     w.scheduler.shift();w.worldTick=j.dueTick;
     const n=d.npcStates[j.npcId];updateNeeds(n,j.dueTick);
     if(j.status==='decision')start(d,items,j,n);else complete(d,items,j,n);
     processed++;
    }
    w.scheduler.sort(order);
-   const pending=w.scheduler.filter(j=>j.dueTick<=target).length;
+   const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length;
    if(!pending)w.worldTick=target;
    const settledThrough=pending?Math.max(0,Math.min(w.worldTick,w.scheduler[0].dueTick-1)):target;
    return {ok:true,processed,pending,settledThrough,worldTick:w.worldTick};
@@ -140,10 +142,10 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
  }
  function cancel(npcId,actionInstanceId){
   return transact((d,items)=>{
-   const w=d.livingWorld,n=d.npcStates?.[npcId],j=w.scheduler.find(j=>j.npcId===npcId&&j.id===actionInstanceId&&j.status==='running');
+   const w=d.livingWorld,n=d.npcStates?.[npcId],j=w.scheduler.find(j=>j.npcId===npcId&&j.id===actionInstanceId&&['running','paused'].includes(j.status));
    if(!n||!j)return fail('stale');
    if(n.currentAction?.interruptPolicy==='atomic')return fail('not_interruptible');
-   if(j.plan.reserve&&!items.release(j.id).ok)return fail('release_failed');
+   if(j.plan.reserve&&j.status!=='paused'&&!items.release(j.id).ok)return fail('release_failed');
    w.scheduler=w.scheduler.filter(x=>x.id!==j.id);
    updateNeeds(n,w.worldTick);delete n.currentAction;
    n.lastActionResult={id:j.id,actionId:j.actionId,tick:w.worldTick,ok:false,reason:'cancelled'};
@@ -151,5 +153,48 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    return {ok:true};
   });
  }
- return {advanceTo,cancel,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
+ // Pause releases reservations instead of holding scarce stock indefinitely.
+ // Resume replans the exact action and reacquires resources; failure schedules a fresh decision.
+ function pause(npcId,actionInstanceId){
+  return transact((d,items)=>{
+   const w=d.livingWorld,n=d.npcStates?.[npcId],j=w.scheduler.find(x=>x.npcId===npcId&&x.id===actionInstanceId&&x.status==='running');
+   if(!n||!j)return fail('stale');
+   if(n.currentAction?.interruptPolicy!=='pauseable')return fail('not_interruptible');
+   if(j.dueTick<=w.worldTick)return fail('due');
+   if(j.plan.reserve&&!items.release(j.id).ok)return fail('release_failed');
+   updateNeeds(n,w.worldTick);
+   j.remainingTicks=j.dueTick-w.worldTick;j.pausedAt=w.worldTick;j.dueTick=null;j.status='paused';
+   n.currentAction={...n.currentAction,dueTick:null,paused:true};
+   return {ok:true,remainingTicks:j.remainingTicks};
+  });
+ }
+ function resume(npcId,actionInstanceId){
+  return transact((d,items)=>{
+   const w=d.livingWorld,n=d.npcStates?.[npcId],j=w.scheduler.find(x=>x.npcId===npcId&&x.id===actionInstanceId&&x.status==='paused');
+   if(!n||!j)return fail('stale');
+   const at=w.worldTick;updateNeeds(n,at);
+   const candidate=behavior.evaluate({npcId,npc:n,at,items:readItems(items),context:{worldTick:at,resuming:true}}).find(c=>c.actionId===j.actionId&&c.eligible);
+   const plan=candidate&&cleanPlan(candidate.plan),due=sum(at,j.remainingTicks);
+   let reason=plan?null:'unavailable';
+   if(plan?.command){
+    const cmd={operationId:j.id,actorId:'npc:'+npcId,kind:plan.command.kind,payload:{...plan.command.payload,tick:at}};
+    const validation=items.canExecute(cmd);
+    if(!validation.ok)reason=validation.reason;
+    else if(plan.reserve){
+     const r=items.reserve({operationId:j.id,actorId:cmd.actorId,allocations:cmd.payload.allocations,expiresAt:due,policyId:cmd.payload.policyId,tick:at});
+     if(!r.ok)reason=r.reason;
+    }
+   }
+   if(reason){
+    w.scheduler=w.scheduler.filter(x=>x.id!==j.id);delete n.currentAction;
+    n.lastActionResult={id:j.id,actionId:j.actionId,tick:at,ok:false,reason};
+    backoff(n,j.actionId,at);decision(w,npcId,sum(at,1));
+    return {ok:true,resumed:false,reason};
+   }
+   j.plan=plan;j.dueTick=due;j.status='running';delete j.remainingTicks;delete j.pausedAt;
+   n.currentAction={...n.currentAction,dueTick:due,paused:false};
+   return {ok:true,resumed:true,dueTick:due};
+  });
+ }
+ return {advanceTo,cancel,pause,resume,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
 }

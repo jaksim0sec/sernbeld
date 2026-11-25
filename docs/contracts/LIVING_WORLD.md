@@ -13,3 +13,7 @@
 - 한 slice의 shared-items는 별도 draft Save에서 실행, 모든 재산/예약/영수증/NPC 상태를 실제 Save.write 한 번으로 확정. 실패 시 전체 복구, 외부 알림은 성공 이후. 각 slice 단위 원자성, 프레임 단위 결과 독립성 검증. 저장 root의 논리 관찰 충돌은 T4에서 실게임 검증 필요.
 - 현재 정렬 배열 큐로 동작, budget은 처리 건수 제한이며 ms/대규모 인구 성능 검증 아님. pause/resume·이동·능동 중단·상황별 선행 행동 연결, 일정/장소/도구 예약과 실제 clock 연동은 후속. 기존 scheduler 하위 배열 포맷 유지.
 - V8 격리 테스트 PASS NPC scheduler/behavior: 56 checks. 실제 Node/브라우저/실기기/전체 인프라 NOT RUN. PROTOTYPED/PARTIAL.
+
+### T3 일시정지/재개
+- `pause(npcId,instanceId)`는 pauseable 행동만 정지하고 남은 tick을 저장한다. 재고를 무기한 점유하지 않도록 예약을 즉시 해제한다. `resume`은 동일 행동의 계획을 다시 검증하고 예약을 재취득, 남은 tick 이후에만 완료한다. 재취득 실패 시 행동 취소 및 backoff/다음 결정. pause 상태의 job은 실행 큐 처리 대상에서 제외하되 저장된다. 대화 UI 연결 및 재로드 시 자동 재개 정책은 후속.
+- V8 기존 scheduler 56 checks + pause/resume 9 checks PASS. 실제 게임 및 전체 검증 NOT RUN.

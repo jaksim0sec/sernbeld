@@ -50,3 +50,21 @@ for(let t=0;t<=20;t++)if(!frame.scheduler.advanceTo(t,100).ok)throw Error('frame
 a(JSON.stringify(one.save.data)===JSON.stringify(frame.save.data),'frame-independent world');
 a(one.scheduler.advanceTo(19).reason==='invalid_tick','time cannot go backwards');
 console.log('PASS NPC scheduler/behavior: '+checks+' checks');
+
+const paused=make(JSON.parse(running)),pausedId=paused.save.data.npcStates.a.currentAction.id;
+a(paused.scheduler.pause('a',pausedId).ok&&paused.items.snapshot().reservations.length===0,'pause releases reservation');
+a(paused.scheduler.advanceTo(10).ok&&paused.items.count('food','npc:a')===2&&paused.save.data.npcStates.a.currentAction.paused,'paused NPC does not complete while others advance');
+const restoredPause=make(JSON.parse(JSON.stringify(paused.save.data)));
+const resumed=restoredPause.scheduler.resume('a',pausedId);
+a(resumed.ok&&resumed.resumed&&resumed.dueTick===12&&restoredPause.items.snapshot().reservations.length===1,'resume after reload reacquires reservation');
+a(restoredPause.scheduler.advanceTo(11).ok&&restoredPause.items.count('food','npc:a')===2,'no early completion');
+a(restoredPause.scheduler.advanceTo(12).ok&&restoredPause.items.count('food','npc:a')===1,'resume completes once');
+const lost=make(JSON.parse(running));a(lost.scheduler.pause('a',pausedId).ok,'pause for competing consumer');
+lost.items.registerTransferPolicy('test:give',()=>true);
+const supply=lost.items.planSupply({actorId:'npc:a',selector:{definitionId:'food'},quantity:2});
+a(lost.items.commitOperation({operationId:'test:take',actorId:'npc:a',kind:'transfer',payload:{recipientId:'npc:b',allocations:supply.allocations,policyId:'test:give'}}).ok,'another actor uses released stock');
+const unavailable=lost.scheduler.resume('a',pausedId);
+a(unavailable.ok&&!unavailable.resumed&&!lost.save.data.npcStates.a.currentAction,'resume unavailable goes to decision');
+const failedPause=make(JSON.parse(running));failedPause.save.write=()=>false;
+a(failedPause.scheduler.pause('a',pausedId).reason==='save_failed'&&JSON.stringify(failedPause.save.data)===running,'pause rollback');
+console.log('PASS NPC pause/resume: 9 checks');

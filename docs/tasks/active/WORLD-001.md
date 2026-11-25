@@ -5,3 +5,5 @@
 T2 초기 구현: [생활 세계 계약](../../contracts/LIVING_WORLD.md), registry/state 및 단위 테스트. 빈 데이터 startup, 배치 참조 검증, 기존 저장 보존 및 오류/저장 실패 롤백, 독립 상태 축 V8 PASS 15 checks. PROTOTYPED/PARTIAL; 실제 게임과 통합하지 않았다. 신규 콘텐츠 없음. 전체 Node/브라우저/PWA/인프라 검사 NOT RUN. 다음: 등록 타입 보강 및 scheduler, 실제 연결 전 점유 조정.
 
 T3 초기: 유틸리티 AI, deterministic due queue, 경제 draft slice, 예약/취소/재로드, fallback 및 프레임 독립 테스트. PASS NPC scheduler/behavior: 56 checks. 실제 clock, 이동, pause, 성능, 콘텐츠 등록 및 통합 후속. 기존 점유 경로 미변경.
+
+T3 추가: pause/resume, 재료 예약 해제 및 재취득, 재로드/경쟁/저장 실패 9 checks PASS. 실제 UI 연결 후속.
