@@ -170,3 +170,39 @@ function runMarketTests(){
  return 14;
 }
 console.log('PASS shared item market purchases: '+runMarketTests()+' checks');
+
+function runGatherOfferTests(){
+ const a=(v,m)=>{if(!v)throw Error(m)};
+ const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2}});
+ const save={data:{v:1,money:50},write(){return true}};
+ const s=createItemRuntime(save,()=>defs),actorId='npc:picker';
+ s.initialize();s.registerActor(actorId);s.registerActor('npc:buyer','npc',20);
+ const gather={operationId:'gather:1',kind:'gather',actorId,payload:{sourceId:'test:source',nodeId:'node:1',now:1000,seed:1}};
+ a(s.commitOperation(gather).reason==='unsupported','no unregistered gather');
+ a(s.registerGatherSource('test:source',q=>q.payload.nodeId==='node:1'?{definitionId:'flower',quantity:2,quality:75,respawnMs:100}:null).ok,'register source');
+ a(s.commitOperation({...gather,payload:{...gather.payload,nodeId:'node:missing'}}).reason==='unreachable','no phantom node');
+ const before=JSON.stringify(save.data);save.write=()=>false;
+ a(s.commitOperation(gather).reason==='save_failed'&&JSON.stringify(save.data)===before,'gather rollback');
+ save.write=()=>true;
+ const receipt=s.commitOperation(gather);
+ a(receipt.ok&&s.count('flower',actorId)===2&&save.data.picked['node:1']===1000,'NPC harvest actual stock');
+ a(!s.gather('node:1','flower',1,50,1050,100).ok,'player cannot harvest same node');
+ a(JSON.stringify(s.commitOperation(gather))===JSON.stringify(receipt),'gather replay');
+ const next={...gather,operationId:'gather:2',payload:{...gather.payload,now:1200}};
+ a(s.gather('node:1','flower',1,50,1200,100).ok&&s.commitOperation(next).reason==='unavailable','player harvest blocks NPC');
+ const rid=receipt.recordIds[0];
+ const offer={operationId:'offer:1',kind:'offerUpdate',actorId,payload:{policyId:'test:offer',definitionId:'flower',customerBuyPrice:4,customerSellPrice:2,minimumQuality:50,stockRecordIds:[rid],expected:null}};
+ a(s.commitOperation(offer).reason==='unsupported','offer policy needed');
+ a(s.registerOfferPolicy('test:offer',()=>true).ok,'register offer policy');
+ a(s.commitOperation({...offer,payload:{...offer.payload,stockRecordIds:['missing:1']}}).reason==='unavailable','no virtual stock');
+ a(s.commitOperation(offer).ok&&s.merchantOffers(actorId).length===1,'actual stock offer');
+ a(s.commitOperation({...offer,operationId:'offer:2'}).reason==='stale','offer expected state');
+ s.registerMarketPolicy('test:market',()=>true);
+ const allocations=s.planSupply({actorId:'npc:buyer',selector:{definitionId:'flower'},sourceKinds:['market'],constraints:{accessibleMerchantIds:[actorId]},quantity:1}).allocations;
+ a(s.reserve({operationId:'lock:offer',actorId:'npc:buyer',allocations,expiresAt:5,tick:1,policyId:'test:market'}).ok,'lock offer');
+ const current=s.merchantOffers(actorId)[0],update={...offer,operationId:'offer:3',payload:{...offer.payload,expected:current,stockRecordIds:[]}};
+ a(s.commitOperation(update).reason==='reserved','cannot remove reserved offer');
+ a(s.release('lock:offer').ok&&s.commitOperation(update).ok,'offer change after release');
+ return 16;
+}
+console.log('PASS shared item gather and offer operations: '+runGatherOfferTests()+' checks');

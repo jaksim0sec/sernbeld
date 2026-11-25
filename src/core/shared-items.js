@@ -131,7 +131,7 @@ export function createItemRuntime(save,getDefinitions,events){
    Object.assign(root,before);save.data=root;
    return {ok:false,reason:'save_failed'};
   }finally{writing=false}
-  if(event)events?.emit('inventory.changed',event);return clone(res);
+  if(event){try{events?.emit('inventory.changed',event)}catch(error){console.error('[item notification]',error)}}return clone(res);
  }
  const fail=reason=>({ok:false,reason});
  function ensureActor(s,actor,kind='npc',balance=0){
@@ -230,7 +230,45 @@ export function createItemRuntime(save,getDefinitions,events){
   return change(s=>{if(s.reservations)s.reservations=s.reservations.filter(l=>l.id!==reservationId);return {ok:true}},{persist:true});
  }
  // Trusted code registers policy validators; production data cannot execute arbitrary handlers.
- const transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map(),marketPolicies=new Map();
+ const transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map(),marketPolicies=new Map(),gatherSources=new Map(),offerPolicies=new Map();
+ function registerGatherSource(id,resolve){
+  if(!validId(id)||typeof resolve!=='function'||gatherSources.has(id))return fail('invalid');
+  gatherSources.set(id,resolve);return {ok:true};
+ }
+ function registerOfferPolicy(id,guard){
+  if(!validId(id)||typeof guard!=='function'||offerPolicies.has(id))return fail('invalid');
+  offerPolicies.set(id,guard);return {ok:true};
+ }
+ function prepareGather(s,q){
+  const {sourceId,nodeId,now,seed}=q.payload,resolve=gatherSources.get(sourceId);
+  if(!resolve)return fail('unsupported');
+  if(!wallet(s,q.actorId)||!validId(nodeId)||!safe(now,1)||!safe(seed))return fail('invalid');
+  let node;
+  try{node=resolve(clone(q),clone(save.data))}catch{return fail('invalid_policy')}
+  if(!node)return fail('unreachable');
+  const {definitionId,quantity,quality,respawnMs}=node;
+  if(!def(definitionId)||!safe(quantity,1)||!safe(quality,0,100)||!safe(respawnMs,1)||(def(definitionId).ownershipMode==='unique'&&quantity>10000))return fail('invalid_policy');
+  const picked=save.data.picked??{},last=Object.hasOwn(picked,nodeId)?picked[nodeId]:undefined;
+  if(last!==undefined&&(!safe(last,1)||now-last<=respawnMs))return fail('unavailable');
+  return {ok:true,definitionId,quantity,quality,now,nodeId};
+ }
+ function prepareOffer(s,q){
+  const {policyId,definitionId,customerBuyPrice,customerSellPrice,minimumQuality=0,stockRecordIds,expected}=q.payload;
+  const guard=offerPolicies.get(policyId);
+  if(!guard)return fail('unsupported');
+  if(!wallet(s,q.actorId)||!def(definitionId)||![customerBuyPrice,customerSellPrice].every(n=>n===null||safe(n))||!safe(minimumQuality,0,100)||!Array.isArray(stockRecordIds)||new Set(stockRecordIds).size!==stockRecordIds.length)return fail('invalid');
+  const prior=s.offers.find(o=>o.merchantId===q.actorId&&o.definitionId===definitionId)??null;
+  if(!equal(prior,expected))return fail('stale');
+  for(const rid of stockRecordIds){
+   const r=record(s,rid);
+   if(!r||r.definitionId!==definitionId||r.usageType==='permanent'||!available(holding(s,rid),q.actorId))return fail('unavailable');
+  }
+  for(const rid of prior?.stockRecordIds??[]){
+   if(locks(s).some(l=>l.allocations.some(a=>a.source==='market'&&a.recordId===rid))&&(!stockRecordIds.includes(rid)||customerBuyPrice!==prior.customerBuyPrice||minimumQuality!==(prior.minimumQuality??0)))return fail('reserved');
+  }
+  try{if(guard(clone(q),clone(save.data))!==true)return fail('unavailable')}catch{return fail('invalid_policy')}
+  return {ok:true,offer:{merchantId:q.actorId,definitionId,customerBuyPrice,customerSellPrice,minimumQuality,stockRecordIds:clone(stockRecordIds)}};
+ }
  function registerMarketPolicy(id,guard){
   if(!validId(id)||typeof guard!=='function'||marketPolicies.has(id))return fail('invalid');
   marketPolicies.set(id,guard);return {ok:true};
@@ -320,6 +358,8 @@ export function createItemRuntime(save,getDefinitions,events){
  function prepareOperation(s,q){
   const prior=s.transactions.find(t=>t.request.requestId===q.requestId);
   if(prior)return equal(prior.request,q)?{ok:true,replay:clone(prior.result)}:fail('request_id_conflict');
+  if(q.kind==='gather')return prepareGather(s,q);
+  if(q.kind==='offerUpdate')return prepareOffer(s,q);
   if(!['transfer','consume','produce','purchase'].includes(q.kind))return fail('unsupported');
   const {recipientId,allocations,reservationId,policyId,tick,recipeId}=q.payload;
   const transfer=q.kind==='transfer',consume=q.kind==='consume';
@@ -350,6 +390,19 @@ export function createItemRuntime(save,getDefinitions,events){
  }
  function applyOperation(s,q,validation){
   if(!validation.ok||validation.replay)return validation.replay??validation;
+  if(q.kind==='gather'||q.kind==='offerUpdate'){
+   let result={ok:true,operationId:q.operationId,kind:q.kind};
+   if(q.kind==='gather'){
+    const {nodeId,definitionId,quantity,quality}=validation;
+    const items=addTo(s,q.actorId,definitionId,quantity,quality);
+    result={...result,nodeId,definitionId,quantity,quality,recordIds:items.map(r=>r.id)};
+   }else{
+    const o=validation.offer;
+    s.offers=s.offers.filter(a=>a.merchantId!==o.merchantId||a.definitionId!==o.definitionId);
+    s.offers.push(clone(o));result.offer=clone(o);
+   }
+   s.transactions.push({request:clone(q),result:clone(result)});return result;
+  }
   const {allocations,reservationId}=q.payload,recipientId=q.kind==='purchase'?q.actorId:q.payload.recipientId;
   if(reservationId!==undefined)s.reservations=s.reservations.filter(l=>l.id!==reservationId);
   const moved=[];
@@ -392,11 +445,11 @@ export function createItemRuntime(save,getDefinitions,events){
   if(!validation.ok||validation.replay)return validation.replay??validation;
   try{
    return change(s=>applyOperation(s,q,validation),{persist:true,event:{action:q.kind,operationId:q.operationId},
-    updateRoot:q.kind==='consume'?root=>{root.npcStates[validation.npcId].needs[validation.needId]=validation.value}:null});
+    updateRoot:q.kind==='consume'?root=>{root.npcStates[validation.npcId].needs[validation.needId]=validation.value}:q.kind==='gather'?root=>{root.picked={...root.picked,[validation.nodeId]:validation.now}}:null});
   }catch{return fail('invalid_operation')}
  }
  return {
-  planSupply,reserve,release,releaseExpiredReservations,registerTransferPolicy,registerConsumptionPolicy,registerRecipe,registerMarketPolicy,canExecute,commitOperation,
+  planSupply,reserve,release,releaseExpiredReservations,registerTransferPolicy,registerConsumptionPolicy,registerRecipe,registerMarketPolicy,registerGatherSource,registerOfferPolicy,canExecute,commitOperation,
   initialize(){validate(state());for(const k of ['inv','uniqueItems','nextItemSerial','money','equip'])delete save.data[k];return true},snapshot:()=>clone(state()),player,count,entries(){return Object.keys(defs()).map(id=>[id,count(id)]).filter(([,n])=>n>0)},
   add(id,n=1,quality=50){change(s=>{addTo(s,player,id,n,quality);return true},{event:{action:'added',itemId:id,quantity:n}});return count(id)},
   take(id,n){if(!safe(n,1))throw Error('invalid quantity');return change(s=>{const a=s.records.filter(r=>r.definitionId===id&&r.usageType!=='permanent'&&available(holding(s,r.id),player));if(a.reduce((v,r)=>v+free(s,r),0)<n)return false;let left=n;for(const r of a){const k=Math.min(left,free(s,r));if(!k)continue;if(k===qty(r))erase(s,r.id);else r.quantity-=k;left-=k;if(!left)break}return true},{event:{action:'removed',itemId:id,quantity:n}})},
@@ -409,8 +462,8 @@ export function createItemRuntime(save,getDefinitions,events){
   merchantOffers(actor){return clone(state().offers.filter(o=>o.merchantId===actor))},
   canSell(merchant,id){const s=state(),o=s.offers.find(o=>o.merchantId===merchant&&o.definitionId===id);return !!(o&&o.customerSellPrice!==null&&wallet(s,merchant).balance>=o.customerSellPrice&&s.records.some(r=>free(s,r)>0&&r.definitionId===id&&r.usageType!=='permanent'&&r.quality>=(o.minimumQuality??0)&&available(holding(s,r.id),player)))},
   gather(nodeId,id,n,quality,now,respawnMs){
-   const old=save.data.picked??{},last=old[nodeId];
-   if(!safe(now,1)||!safe(respawnMs,1)||!safe(n,1)||!safe(quality,0,100)||!validId(nodeId)||(last&&now-last<=respawnMs))return fail('unavailable');
+   const old=save.data.picked??{},last=Object.hasOwn(old,nodeId)?old[nodeId]:undefined;
+   if(!safe(now,1)||!safe(respawnMs,1)||!safe(n,1)||!safe(quality,0,100)||!validId(nodeId)||(last!==undefined&&(!safe(last,1)||now-last<=respawnMs)))return fail('unavailable');
    return change(s=>{addTo(s,player,id,n,quality);return {ok:true,total:s.records.filter(r=>r.definitionId===id&&owns(holding(s,r.id),player)&&r.usageType!=='permanent').reduce((n,r)=>n+qty(r),0)}},{persist:true,updateRoot:root=>{root.picked={...old,[nodeId]:now}},event:{action:'added',itemId:id,quantity:n}});
   },
   equipDefinition(id,slot){const s=state(),current=equipped(slot);if(current?.definitionId===id)return {ok:true,recordId:current.id};const r=s.records.find(r=>r.definitionId===id&&r.usageType==='long_use'&&available(holding(s,r.id),player)&&free(s,r)>0&&r.wear!==100)??s.records.find(r=>r.definitionId===id&&r.usageType==='long_use'&&owns(holding(s,r.id),player)&&r.wear!==100);return r?equip(player,r.id,slot):fail('not_owned')},

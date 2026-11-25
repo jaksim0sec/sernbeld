@@ -34,3 +34,9 @@
 - `registerMarketPolicy(id,guard)`로 신뢰된 접근/영업 검증기를 등록한다. `planSupply`의 market 할당을 `reserve({operationId,actorId,allocations,expiresAt,policyId,tick})`로 잠그고 `commitOperation({operationId,actorId,kind:'purchase',payload:{allocations,policyId,reservationId?,tick?}})`로 복수 상인의 실물과 은화를 단일 저장에서 이동한다. 구매 시 현재 offer 가격/품질/소유권/잔액/접근 정책 재확인. 기존 trade도 예약된 수량에 접근 불가. 예약은 재고만 잠그며 은화를 별도 예약하지 않는다; 구매 시 잔액 부족은 실패. mixed owned/market 할당은 각각 분리해서 사용.
 - `releaseExpiredReservations(tick,limit=32)`: 기존 expiresAt보다 큰 논리 tick에서 정렬된 최대 limit 예약을 해제. scheduler 호출 연결 후속. 기존 장착 시 해당 실물의 offer 노출 제거. 실제 상인 접근 정책 등록은 게임 연결 후속.
 - V8 원본 12 시나리오 + 추가 58 checks PASS. 전체 checkout/Node/카엘/브라우저/PWA NOT RUN.
+
+### T1 공용 채집·상점 노출 변경
+
+- `registerGatherSource(id,resolve)`: 신뢰된 지도/접근 어댑터가 실제 nodeId와 현재 접근 조건을 검증하고 definitionId/quantity/quality/respawnMs 반환. `kind:'gather'` payload는 sourceId,nodeId,now,seed. 등록되지 않은 공급원·노드 거부. 기존 플레이어 gather와 동일 picked 재생 키 공유, 실제 owner 재고 및 영수증 원자 저장. 레거시 플레이어 gather의 호출 계약 유지. 실제 월드 어댑터 등록은 T4 연결 시 수행.
+- `registerOfferPolicy(id,guard)` 및 `kind:'offerUpdate'`: expected 기존 offer/null과 비교, 소유한 실물 ID만 노출, 가격·품질 범위 검증. 시장 예약 실물의 노출 제거/판매 가격·최소 품질 변경 금지. 재고 복제 없음.
+- 후속 알림의 예외가 확정된 결과를 실패로 바꾸지 않도록 처리. 실제 콘텐츠 없음. V8 원본 12 시나리오 + 추가 74 checks PASS. 전체 실행 NOT RUN.
