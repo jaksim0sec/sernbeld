@@ -185,7 +185,62 @@
       "kael.generic.guard.people"
     ],
     "originalIdMapping": "identity",
-    "quality": "provisional; separate assessment",
+    "quality": {
+      "type": "post-registration editorial assessment",
+      "scale": 10,
+      "axes": [
+        "structure",
+        "branchDiversity",
+        "worldConsistency",
+        "naturalness",
+        "characterVoice",
+        "livingWorld"
+      ],
+      "scores": {
+        "A": [
+          9,
+          3,
+          6,
+          5,
+          5,
+          5
+        ],
+        "B": [
+          9,
+          8,
+          8,
+          7,
+          7,
+          6
+        ],
+        "C": [
+          9,
+          3,
+          5,
+          4,
+          3,
+          3
+        ]
+      },
+      "averages": {
+        "A": 5.5,
+        "B": 7.5,
+        "C": 4.5,
+        "overall": 5.83
+      },
+      "status": "provisional editorial review; no final quality approval",
+      "evidence": {
+        "A": "24/24 one-choice graphs; common.harbor_life.v04 assumes NPC arrived from elsewhere; folk.pastimes.v02 promises own habit but replies with generic advice.",
+        "B": "86 substantive paths: 13 depth1, 67 depth2, 6 depth3. vendor.trade_life.v02 concrete merchandising; docker.break.v01 distinguishes attitude and follow-up. vendor.materials.v04 repeats cautious explanations; some closing rhetorical questions.",
+        "C": "24/24 one-choice graphs; kid.questions.v01 asks a question then explains the occupation itself; kid.curiosity.v04 asks follow-up but ends; guard.safety.v02 uses position-dependent '이 방향' without actual direction; guard.safety.v03 invites destination then ends."
+      },
+      "priority": [
+        "C: answer alignment, child-specific curiosity, guard work observations, remove dangling questions/direction",
+        "A: add concrete micro anecdotes, remove universal background assumptions; avoid generic agreement",
+        "B: preserve varied depth, cut lecturing/repetition, improve distinct voice"
+      ],
+      "scope": "original text retained; no dialogue edits; exact content quality scores subjective; actual browser/physical device and full in-game paths not tested; individual final pass/fail pending"
+    },
     "checks": {
       "registry": "PASS (actual repository validator, existing and new definitions)",
       "resolver": "PASS (role/region, 4 variants, anti-repeat, services)",
