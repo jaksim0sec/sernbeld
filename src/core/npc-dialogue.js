@@ -55,7 +55,8 @@ export function npcLinePool(def,hour) {
 }
 export function selectNpcLine(def,{met,cursor=0,hour=12,custom}={}) {
   cursor=count(cursor);
-  if(!met&&typeof def.lines?.first==="string"&&def.lines.first)return {text:def.lines.first,first:true,nextCursor:cursor};
+  const first=def.lines?.first;
+  if(!met&&(typeof first==="string"&&first||Array.isArray(first)&&first.some(line=>typeof line==="string"&&line.length)))return {text:first,first:true,nextCursor:cursor};
   if(typeof custom==="string"&&custom)return {text:custom,first:false,nextCursor:cursor};
   const pool=npcLinePool(def,hour);
   return pool.length?{text:pool[cursor%pool.length],first:false,nextCursor:cursor===Number.MAX_SAFE_INTEGER?0:cursor+1}:null;
@@ -66,4 +67,25 @@ export function runNpcAction(choice,{reachable,choices,execute}) {
   const current=choice&&choices().find(action=>action.id===choice.id&&action.itemId===choice.itemId);
   if(!current)return {ok:false,reason:"unavailable"};
   return execute(current)===false?{ok:false,reason:"rejected"}:{ok:true,reason:"executed"};
+}
+
+// Session progression is an ephemeral domain contract, independent of DOM and timers.
+export function createDialogueSession(def,line,options=[]) {
+  const pages=(Array.isArray(line)?line:[line]).filter(value=>typeof value==="string"&&value.length);
+  if(!pages.length)pages.push("");
+  const responses=options.map(o=>({id:o.id??null,label:o.label,kind:o.kind??"reply",itemId:o.itemId??null}));
+  let page=0,status="active";
+  return {
+    speakerId:def.id??null,
+    participantId:"player",
+    get status(){return status;},
+    get text(){return pages[page];},
+    get pageIndex(){return page;},
+    get pageCount(){return pages.length;},
+    get canAdvance(){return status==="active"&&page+1<pages.length;},
+    get choices(){return status==="active"&&page===pages.length-1?responses.map(o=>({...o})):[];},
+    advance(){if(!this.canAdvance)return false;page++;return true;},
+    select(index){if(status!=="active"||page!==pages.length-1||!Number.isInteger(index)||!responses[index])return false;status="selected";return true;},
+    close(){if(status==="active")status="closed";}
+  };
 }

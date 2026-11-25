@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {chromium} from 'playwright';
+import {createDialogueSession} from '../src/core/npc-dialogue.js';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const source=read('src/gameplay/gameplay.part.js');
 const uiSource=source.slice(source.indexOf('var GameUI = class {'),source.indexOf('var CLOCK_RATE ='));
@@ -14,15 +15,17 @@ try {
     try {
       const page=await context.newPage();
       await page.setContent('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+styles+'</style><button id="prompt" class="prompt" type="button"></button>'+markup);
-      await page.evaluate(({uiSource,touch})=>{
+      await page.evaluate(({uiSource,touch,sessionSource})=>{
         const get=id=>document.getElementById(id);
         const el=(tag,cls)=>Object.assign(document.createElement(tag),{className:cls||''});
-        const UI=Function('$2','el','document','IS_MOBILE','iconURL',uiSource+'\nreturn GameUI;')(get,el,document,touch,()=> 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E');
+        const session=Function('return ('+sessionSource+')')();
+        const UI=Function('$2','el','document','IS_MOBILE','iconURL','createDialogueSession',uiSource+'\nreturn GameUI;')(get,el,document,touch,()=> 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E',session);
         const ui=Object.create(UI.prototype);ui.prompt=get('prompt');
         ui.setPrompt({kind:'npc',verb:'대화',label:'브란'});
         window.showDialogue=(count=3,long=false)=>ui.say({id:'bran',name:'브란',title:'항구 관리인'},long?'긴 대화 내용입니다. '.repeat(100):'처음 보는 얼굴이군. 어디서 왔나?',Array.from({length:count},(_,i)=>({label:['이곳에 대해 물어보기','물건 거래하기','의뢰판 보기'][i%3],act:()=>ui.say({id:'bran',name:'브란'},'그렇군. 알겠네.')})));
+        window.showPages=()=>ui.say({id:'bran',name:'브란'},['첫 줄','둘째 줄'],[{label:'선택',act:()=>ui.closeSpeech()}]);
         ui.prompt.onclick=()=>window.showDialogue();
-      },{uiSource,touch});
+      },{uiSource,touch,sessionSource:createDialogueSession.toString()});
       assert.ok((await page.locator('#prompt').boundingBox()).height>=44);
       await page.locator('#prompt').click();
       const panel=await page.locator('.speech-body').boundingBox(),opts=await page.locator('#speechOpts').boundingBox();
@@ -34,6 +37,15 @@ try {
       assert.equal(await page.locator('#speechLine').textContent(),'그렇군. 알겠네.');
       assert.equal(await page.locator('#speechOpts').isVisible(),false);
       await page.locator('#speechDismiss').click();
+      assert.equal(await page.locator('#speech').isVisible(),false);
+      await page.evaluate(()=>window.showPages());
+      assert.equal(await page.locator('#speechLine').textContent(),'첫 줄');
+      assert.equal(await page.locator('#speechOpts').isVisible(),false);
+      assert.ok((await page.locator('#speechNext').boundingBox()).height>=44);
+      await page.locator('#speechNext').click();
+      assert.equal(await page.locator('#speechLine').textContent(),'둘째 줄');
+      assert.equal(await page.locator('#speechNext').isVisible(),false);
+      await page.locator('#speechOpts button').first().click();
       assert.equal(await page.locator('#speech').isVisible(),false);
       await page.evaluate(()=>window.showDialogue(12,true));
       assert.ok(await page.locator('.speech-body').evaluate(e=>e.scrollHeight>e.clientHeight));

@@ -46661,7 +46661,7 @@ import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createInventory} from './src/core/inventory.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
-import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction} from './src/core/npc-dialogue.js';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession} from './src/core/npc-dialogue.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
 import {createSkillWorkbench} from './src/ui/skill-workbench.js';
@@ -50595,43 +50595,51 @@ var GameUI = class {
   // --- people -----------------------------------------------------------------
   dialogueOpen() { return !$2("speech").hidden; }
   closeSpeech() {
+    this.speechSession?.close();
     this.speechSession = null;
     this.activeSpeaker = null;
     $2("speech").hidden = true;
     if (this.prompt && !this.prompt.hidden) this.prompt.focus({preventScroll:true});
   }
   say(def, line, options = []) {
-    const sp = $2("speech"), session = {speakerId:def.id??null,text:line,choices:options.map(o=>({id:o.id??null,label:o.label,itemId:o.itemId??null}))};
-    this.speechSession = session;
-    this.activeSpeaker = def.id ?? null;
-    $2("speechName").textContent = def.name;
-    $2("speechTitle").textContent = def.title ?? "";
-    $2("speechLine").textContent = line;
-    const box3 = $2("speechOpts");
-    box3.replaceChildren(...options.map((o) => {
-      const b = el("button","interaction-token"); b.type = "button";
-      b.append(this.interactionIcon(o.kind || "reply",o.itemId));
-      const label = el("span","what"); label.textContent = o.label; b.append(label);
-      b.addEventListener("click", () => {
-        if (this.speechSession !== session || sp.hidden) return;
-        this.closeSpeech();
-        o.act();
-      });
-      return b;
-    }));
-    const dismiss = $2("speechDismiss");
-    dismiss.onclick = () => { if (this.speechSession === session) this.closeSpeech(); };
-    sp.hidden = false;
-    sp.onkeydown = e => {
-      if (e.key !== "Tab") return;
-      const buttons = [...sp.querySelectorAll("button:not([disabled])")];
-      if (!buttons.length) return;
+    const sp=$2("speech"),box3=$2("speechOpts"),dismiss=$2("speechDismiss"),nextButton=$2("speechNext");
+    this.speechSession?.close();
+    const session=createDialogueSession(def,line,options);
+    this.speechSession=session;
+    this.activeSpeaker=session.speakerId;
+    $2("speechName").textContent=def.name;
+    $2("speechTitle").textContent=def.title??"";
+    const render=()=>{
+      $2("speechLine").textContent=session.text;
+      nextButton.hidden=!session.canAdvance;
+      box3.replaceChildren(...session.choices.map((o,index)=>{
+        const b=el("button","interaction-token");b.type="button";
+        b.append(this.interactionIcon(o.kind,o.itemId));
+        const label=el("span","what");label.textContent=o.label;b.append(label);
+        b.addEventListener("click",()=>{
+          if(this.speechSession!==session||sp.hidden||!session.select(index))return;
+          this.closeSpeech();
+          options[index].act?.();
+        });
+        return b;
+      }));
+      (session.canAdvance?nextButton:box3.firstElementChild??dismiss).focus({preventScroll:true});
+    };
+    nextButton.onclick=()=>{
+      if(this.speechSession===session&&!sp.hidden&&session.advance())render();
+    };
+    dismiss.onclick=()=>{if(this.speechSession===session)this.closeSpeech();};
+    sp.hidden=false;
+    sp.onkeydown=e=>{
+      if(e.key!=="Tab")return;
+      const buttons=[...sp.querySelectorAll("button:not([disabled]):not([hidden])")];
+      if(!buttons.length)return;
       const i=buttons.indexOf(document.activeElement);
-      if (i<0 || (e.shiftKey?i===0:i===buttons.length-1)) {
-        e.preventDefault(); buttons[e.shiftKey?buttons.length-1:0].focus({preventScroll:true});
+      if(i<0||(e.shiftKey?i===0:i===buttons.length-1)){
+        e.preventDefault();buttons[e.shiftKey?buttons.length-1:0].focus({preventScroll:true});
       }
     };
-    (box3.firstElementChild??dismiss).focus({preventScroll:true});
+    render();
   }
   openBoard(list, accept) {
     this.bag.hidden = true;
@@ -50937,7 +50945,7 @@ var NAMED = [
     name: "\uBE0C\uB780",
     title: "\uD56D\uB9CC \uAD00\uB9AC\uC778",
     day: [[0, "home"], [6, "harbor_office", "stand"], [12, "quay", "wander"], [14, "harbor_office", "stand"], [19, "inn", "stand"], [22, "home"]],
-    lines: { first: "\uC0C8\uB85C \uC628 \uC5BC\uAD74\uC774\uAD70. \uC785\uD56D\uC138\uB294 \uC870\uD569\uC5D0\uC11C \uC77C\uAC70\uB9AC \uBC1B\uC544\uC11C \uAC1A\uB3C4\uB85D.", day: ["\uBC30\uAC00 \uB2A6\uB294\uAD70. \uBC14\uB78C\uC774 \uBC14\uB00C\uC5C8\uC5B4.", "\uBD80\uB450\uC5D0\uC11C \uB6F0\uC9C0 \uB9C8."], night: ["\uC774 \uC2DC\uAC04\uC5D4 \uBD80\uB450 \uCABD\uC740 \uC704\uD5D8\uD574."] }
+    lines: { first: ["\uC0C8\uB85C \uC628 \uC5BC\uAD74\uC774\uAD70.", "\uC785\uD56D\uC138\uB294 \uC870\uD569\uC5D0\uC11C \uC77C\uAC70\uB9AC \uBC1B\uC544\uC11C \uAC1A\uB3C4\uB85D."], day: ["\uBC30\uAC00 \uB2A6\uB294\uAD70. \uBC14\uB78C\uC774 \uBC14\uB00C\uC5C8\uC5B4.", "\uBD80\uB450\uC5D0\uC11C \uB6F0\uC9C0 \uB9C8."], night: ["\uC774 \uC2DC\uAC04\uC5D4 \uBD80\uB450 \uCABD\uC740 \uC704\uD5D8\uD574."] }
   },
   {
     id: "sera",

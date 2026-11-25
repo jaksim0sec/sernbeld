@@ -129,3 +129,6 @@
 .loading.done{opacity:0;pointer-events:none}
 .err{position:fixed;z-index:9;inset:auto 16px 16px;padding:var(--ui-space-3);border-radius:var(--ui-radius-card);background:rgba(80,20,20,.88);border:1px solid rgba(255,255,255,.25);color:var(--ui-ink);font-size:var(--ui-type-body);display:none;white-space:pre-wrap}
 
+
+.speech-next{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.4rem 0 0 auto;min-height:var(--seed-touch);padding:var(--seed-button-padding);border:0;border-radius:var(--seed-radius-pill);background:#ffffff12;color:var(--speech-ink);font-size:var(--seed-button-size);font-weight:var(--seed-button-weight);cursor:pointer;transition:background var(--seed-motion-color),transform var(--seed-motion-press)}
+.speech-next[hidden]{display:none}.speech-next svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:round;stroke-linejoin:round}.speech-next:active{transform:scale(var(--seed-press-scale));background:#ffffff24}

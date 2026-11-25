@@ -1,4 +1,4 @@
-function checkDialogue(source,html,css,npcLinePool) {
+function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   const check=(ok,message)=>{if(!ok)throw Error(message);};
   class Node {
     constructor(tag='div'){this.tagName=tag;this.hidden=true;this.children=[];this.attrs={};this.style={};this.dataset={};this.listeners={};this.textContent='';}
@@ -9,12 +9,12 @@ function checkDialogue(source,html,css,npcLinePool) {
     click(){this.listeners.click?.({stopPropagation(){}});this.onclick?.();}
     focus(){}
   }
-  const ids=new Map(['speech','speechName','speechTitle','speechLine','speechOpts','speechDismiss'].map(k=>[k,new Node()]));
+  const ids=new Map(['speech','speechName','speechTitle','speechLine','speechOpts','speechDismiss','speechNext'].map(k=>[k,new Node()]));
   const get=k=>ids.get(k);
   const fakeDoc={createElement:tag=>new Node(tag),createElementNS:(_,tag)=>new Node(tag)};
   let scheduled=0;
   const uiSrc=source.slice(source.indexOf('var GameUI = class {'),source.indexOf('var CLOCK_RATE ='));
-  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>'image:'+id,()=>{scheduled++;},()=>{});
+  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout','createDialogueSession',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>'image:'+id,()=>{scheduled++;},()=>{},createDialogueSession);
   const ui=Object.create(UI.prototype);
   ui.prompt=new Node('button');
   ui.setPrompt({kind:'npc',verb:'대화',label:'브란'});
@@ -33,6 +33,18 @@ function checkDialogue(source,html,css,npcLinePool) {
   check(actions===1&&get('speechLine').textContent==='완료'&&!get('speech').hidden,'choice acts once and follow-up stays open');
   ui.closeSpeech();
   check(get('speech').hidden&&ui.activeSpeaker===null,'explicit close releases session');
+
+  ui.say({id:'bran',name:'브란'},['첫 줄','둘째 줄'],[{id:'confirm',label:'확인',act:()=>{actions++;}}]);
+  check(get('speechLine').textContent==='첫 줄','first page displayed');
+  check(!get('speechNext').hidden&&get('speechOpts').children.length===0,'no premature response');
+  get('speechNext').click();
+  check(get('speechLine').textContent==='둘째 줄'&&get('speechNext').hidden,'explicit progression');
+  check(get('speechOpts').children.length===1,'choices only at final page');
+  const last=get('speechOpts').children[0];last.click();last.click();
+  check(actions===2&&get('speech').hidden,'final choice executes once');
+  ui.say({id:'bran',name:'브란'},['다음 줄','종료'],[]);
+  ui.closeSpeech();get('speechNext').click();
+  check(get('speech').hidden&&ui.activeSpeaker===null,'close invalidates page progression');
   const folkSrc=source.slice(source.indexOf('var Townsfolk = class {'),source.indexOf('var turn ='));
   const Folk=Function('npcLinePool',folkSrc+'\nreturn Townsfolk;')(npcLinePool);
   const folk=Object.create(Folk.prototype);
@@ -51,9 +63,9 @@ function checkDialogue(source,html,css,npcLinePool) {
   return 'PASS: common interaction chip, persistent explicit conversation, one-shot action, ambient lifetime/cursor, separate choice layout';
 }
 import {readFileSync} from 'node:fs';
-import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction} from '../src/core/npc-dialogue.js';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession} from '../src/core/npc-dialogue.js';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-console.log(checkDialogue(read('src/gameplay/gameplay.part.js'),read('index.html'),read('styles/menus-and-overlays.css'),npcLinePool));
+console.log(checkDialogue(read('src/gameplay/gameplay.part.js'),read('index.html'),read('styles/menus-and-overlays.css'),npcLinePool,createDialogueSession));
 
 function checkNpcData(createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction) {
   const equal=(a,b,message)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw Error(message+": "+JSON.stringify(a)+" != "+JSON.stringify(b));};
