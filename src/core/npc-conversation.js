@@ -1,3 +1,4 @@
+import {isTopicGraph} from './npc-topic.js';
 // Presentation-only NPC groups. Nothing in this module changes economy or knowledge.
 const copy=v=>JSON.parse(JSON.stringify(v));
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
@@ -25,7 +26,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
  const groups=new Map(),owner=new Map(),cooldown=new Map();
  let next=1,lastTime=-Infinity,nextScan=0,region=null,stats={scans:0,pairs:0,materializations:0};
  const eligible=n=>n&&typeof n.id==='string'&&point(n)&&n.stationary===true&&n.available!==false&&!n.hidden&&Array.isArray(n.tags)&&n.tags.length>0;
- const templates=()=>registry.list('conversationTemplates').sort((a,b)=>cmp(a.id,b.id));
+ const templates=()=>registry.list('conversationTemplates').filter(t=>!isTopicGraph(t)).sort((a,b)=>cmp(a.id,b.id));
  const closest=(g,byId,player)=>Math.min(...g.npcIds.map(id=>dist(byId.get(id),player)));
  function end(g,now){
   groups.delete(g.id);
@@ -142,7 +143,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
 
 // Ephemeral group ownership uses the authoritative action scheduler for managed residents.
 export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,settled,playerHeld=()=>false}){
- const locks=new Map(),enabled=registry.list('conversationTemplates').length>0;
+ const locks=new Map(),enabled=registry.list('conversationTemplates').some(t=>!isTopicGraph(t));
  let joined=null;
  const action=id=>readState().npcStates?.[id]?.currentAction;
  const isTraveling=id=>readState().livingWorld?.scheduler?.some(j=>j.npcId===id&&j.status==='running'&&j.plan?.route);

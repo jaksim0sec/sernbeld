@@ -22,3 +22,7 @@
 
 ## 임시 개발 관찰 표시
 NPC 행동·담화 개발 기간에만 가까운(8m 이내) 가시 모델의 이동·근무·대화·배회·휴식·대기 등 관찰 상태를 기존 월드 말풍선 위치에 표시한다. 정식 발화가 우선하며 참여 대화·메뉴 중 상태 표시는 억제한다. 저장·대사 커서·행동 결정에는 영향을 주지 않는다. 제거 조건은 [전역 TODO](../core/TODO.md)에 기록했다. 카엘 인구는 기존 25명과 신규 부두 일꾼 8명·주민 12명·경비병 5명(총 50명), 기존 ID/순서 보존. 실제 화면과 모바일 성능은 미검증이다.
+
+## v1 그래프 등록 및 화제 선정 (NPC-003/T2)
+`conversationTemplates`의 legacy group turns 형식은 그대로 유지한다. version=1/source/topicId/eligibility/slots/entryNode/nodes 형식은 [공용 topic 코어](../../src/core/npc-topic.js)에서 검증한다. 등록 시 named NPC ID, 지역, 직업, 사건 타입·factKey, 슬롯 및 노드 ID를 확인한다. 조건은 op와 명시적 인수, all/any/not; 알 수 없는 런타임 문맥은 not에서도 실패 안전. 효과는 허용 handler와 slot/fact 참조, ok/fail/stale 결과, 명시적 choice 진입만 허용한다. 모든 노드의 무조건 종료 가능 경로 및 자동 순환 금지를 검사한다. 사용자 입력 루프는 종료 선택 필요. graph personal 1NPC+player, event 최대 4NPC+player; graph ambientPath는 검증만 하며 기존 그룹 matcher에 섞지 않는다(T4 연결).
+`createTopicResolver(registry)`는 등록 완료 후 생성/갱신하고 상호작용 시 resolve(context)를 호출한다. context: npcId/regionId/role/tags/activity/met/affinity/knownEvents/choiceIds/topicIds/actionIds/questStates/lastTopicTicks/lastTemplateId/now/cursor/services. 일반 화제는 적격 named 우선, 구체적인 personal 조건 우선, priority·안정 ID·cursor 및 최근 템플릿으로 동급 선택. 이벤트는 topic+event ID별 독립 선택, 해당 NPC의 knownEvents에서 active·revision·허용 사실을 바인딩한다. 서비스 descriptor는 전달만 하며 변경하지 않는다. 기존 선택 발화는 legacyLineGraph로 적응 가능. 실제 세션 진행, 효과 실행 및 저장 기록, UI/hold 연결은 T3/T4 미구현.

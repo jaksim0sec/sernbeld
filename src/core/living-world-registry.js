@@ -1,3 +1,4 @@
+import {isTopicGraph,validateTopicGraph} from './npc-topic.js';
 // Data-only registration for the living-world core. No production content is implicit.
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const id=v=>typeof v==='string'&&/^[a-z][a-z0-9_]*(?:[.:/-][a-z0-9_]+)*$/.test(v)&&!['constructor','prototype','__proto__'].includes(v);
@@ -7,7 +8,7 @@ const ids=v=>Array.isArray(v)&&v.every(id)&&new Set(v).size===v.length;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v};
 const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates','requestPolicies','relationPolicies','participationActions'];
-export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[]}={}){
+export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[],dialogueRoles=['vendor','docker','folk','kid','guard','guild','smith','inn','rival'],dialogueHandlers=[],dialogueQuests=[],dialogueActions=[]}={}){
  const knownSocietyHandlers=new Set(societyHandlers);
  const knownHandlers=new Set(handlers),knownRegions=new Set(regions),knownPlaces=new Set(places);
  let tables=Object.fromEntries(types.map(t=>[t,new Map()]));
@@ -75,8 +76,10 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
     if(keys.some(k=>!['question','share'].includes(p.kind)||!p.factKeys?.includes(k))||/[{}]/.test(p.reply.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,'')))bad('invalid reply placeholder');
    }
   }
+  const graphOptions={regions:knownRegions,profiles:next.profiles,roles:new Set([...dialogueRoles,...next.roles.keys()]),events:next.eventTypes,topics:new Set([...next.conversationTemplates.values()].filter(isTopicGraph).map(t=>t.topicId)),handlers:new Set(dialogueHandlers),quests:new Set(dialogueQuests),actions:new Set(dialogueActions)};
   for(const t of next.conversationTemplates.values()){
    const bad=m=>fail('conversationTemplates',t.id,m);
+   if(isTopicGraph(t)){for(const error of validateTopicGraph(t,graphOptions))bad(error);continue;}
    if(!id(t.topic)||!ids(t.regionIds)||!t.regionIds.length||t.regionIds.some(r=>!knownRegions.has(r))||!Array.isArray(t.slots)||t.slots.length<2||t.slots.length>4||!Array.isArray(t.turns)||!t.turns.length||t.turns.length>32){bad('invalid template scope or size');continue}
    const slotIds=t.slots.map(s=>s?.id);
    if(!ids(slotIds)||t.slots.some(s=>!object(s)||!ids(s.tags)))bad('invalid role slots');

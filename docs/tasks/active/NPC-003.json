@@ -42,5 +42,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T2: T1 계약/fixture 및 점유 인계 완료, 공용 등록·검증·topic resolver 구현과 단위 회귀. 전체 Node/브라우저 검증은 미실행."
+  "next": "NPC-003/T3: 등록/화제 resolver 격리 회귀 PASS. 단일 runner 및 기존 UI·서비스 adapter 연결, hold/저장/중복 선택 회귀. T2 전체 CI 미확인."
 }
