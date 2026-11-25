@@ -33,7 +33,8 @@
     "tests/pwa-offline.mjs",
     "docs/workflows/LIVING_WORLD_CONTENT.md",
     "tests/living-world-performance.mjs",
-    "tests/living-world-browser.mjs"
+    "tests/living-world-browser.mjs",
+    ".github/workflows/living-world-soak.yml"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -42,5 +43,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 최신 Node/Chromium/PWA CI PASS(기존 유예 3건). 새 격리 실브라우저 fixture smoke/30분 실행 및 전체 사건·그룹·UI 실제 연결 보강, 고빈도 7일 및 S22급 p95 2ms/frame·max 4ms/slice 검증. PARTIAL 유지."
+  "next": "T8 전용 Actions smoke/30분 soak 결과 확인, 실패 시 원인 수정. 기존 전체 CI 및 별도 실기기 성능/전체 UI·사건·그룹/고빈도 7일 검증 기준 유지. PARTIAL."
 }

@@ -1,0 +1,34 @@
+name: Living world T8 soak
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/living-world-browser.mjs'
+      - '.github/workflows/living-world-soak.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright pngjs three
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/living-world-browser.mjs
+  soak:
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright pngjs three
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/living-world-browser.mjs --minutes=30
