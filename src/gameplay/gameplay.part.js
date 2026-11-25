@@ -14,6 +14,8 @@ import {createSkillWorkbench} from './src/ui/skill-workbench.js';
 import {createLivingWorldRuntime} from './src/core/living-world-runtime.js';
 import {livingWorldContent} from './src/core/living-world-content.js';
 import {createNavGridRouteAdapter} from './src/core/npc-movement.js';
+import {createResidentActivityCache,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity} from './src/core/resident-activity.js';
+const residentActivityCache=createResidentActivityCache();
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -3946,6 +3948,7 @@ var Save = {
   },
   reset() {
     this.data = fresh();
+    residentActivityCache.clear();
     try {
       localStorage.removeItem(KEY);
     } catch {
@@ -5127,14 +5130,55 @@ var Townsfolk = class {
       n.x = x;
       n.z = z;
       n.y = groundAt(x, z, 400);
-      n.path = null;
+      n.path = null;n.pi=0;n.speed=0;n.wait=2+n.rnd()*18;
       n.hidden = n.entry[1] === "home";
     }
   }
-  goTo(n, x, z) {
+  activityPoint(x,z,y=400) {
+    if(!Number.isFinite(x)||!Number.isFinite(z)||this.nav.idx(x,z)<0)return null;
+    const g=groundAt(x,z,y===400?400:y+.65);
+    if(!Number.isFinite(g)||waterLevel(x,z,g)-g>=.3||occupiedAt(x,z,g,.4))return null;
+    return {x,y:g,z};
+  }
+  activitySegment(a,b) {
+    const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.5));
+    if(steps>4096)return false;
+    let y=a.y;
+    for(let i=1;i<=steps;i++){
+      const t=i/steps,p=this.activityPoint(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t,y);
+      if(!p||Math.abs(p.y-y)>.65)return false;y=p.y;
+    }
+    return Math.abs(y-b.y)<=.8;
+  }
+  validActivityPath(n,path) {
+    let a=this.activityPoint(n.x,n.z,n.y);
+    if(!a||!Array.isArray(path)||!path.length||path.length>4096)return false;
+    for(const [x,z] of path){const b=this.activityPoint(x,z,a.y);if(!b||!this.activitySegment(a,b))return false;a=b;}
+    return true;
+  }
+  restoreActivity(cache,regionId,clock) {
+    const records=cache?.regionId===regionId&&cache.day===clock.day?cache.entries:null;
+    const pointAt=(...args)=>this.activityPoint(...args);
+    for(const n of this.list){
+      if(this.living?.managed(n.def.id))continue;
+      const spot=this.spot(n,n.entry),stamp=residentActivityStamp(n.entry,spot);
+      if(records&&Object.hasOwn(records,n.def.id)&&restoreResidentActivity(n,records[n.def.id],{stamp,spot,pointAt,queue:(...args)=>this.goTo(...args,true)}))continue;
+      seedResidentActivity(n,{pointAt,segment:(a,b)=>this.activitySegment(a,b)});
+    }
+  }
+  checkpointActivity(regionId,clock,force=false) {
+    const entries=Object.create(null),pending=new Map(this.queue.map(([n,x,z])=>[n,[x,z]]));
+    for(const n of this.list){
+      if(this.living?.managed(n.def.id)||!n.entry||n.entry!==this.entry(n.def,clock.hour))continue;
+      const record=captureResidentActivity(n,residentActivityStamp(n.entry,this.spot(n,n.entry)),pending.get(n));
+      if(record)entries[n.def.id]=record;
+    }
+    return residentActivityCache.write(regionId,clock.day,entries,Date.now(),force);
+  }
+  goTo(n, x, z, strict=false) {
     const pending = this.queue.findIndex(job => job[0] === n);
-    if (pending >= 0) this.queue[pending] = [n, x, z];
-    else this.queue.push([n, x, z]);
+    if (pending >= 0) this.queue[pending] = [n, x, z, strict];
+    else this.queue.push([n, x, z, strict]);
   }
   update(dt, t, hour, player, camPos, camera) {
     const facing = camera ? this.facing.set(0, 0, -1).applyQuaternion(camera.quaternion) : null;
@@ -5142,10 +5186,16 @@ var Townsfolk = class {
     // Budget aggregate path work; preserve FIFO and guarantee one job progresses.
     const deadline = performance.now() + 2.5;
     for (let k = 0; k < 3 && this.queue.length && (k === 0 || performance.now() < deadline); k++) {
-      const [n, x, z] = this.queue.shift();
+      const [n, x, z, strict] = this.queue.shift();
       if(this.living?.managed(n.def.id))continue;
-      n.path = this.nav.path(n.x, n.z, x, z) ?? [[x, z]];
-      n.pi = 0;
+      const direct=strict&&this.validActivityPath(n,[[x,z]]);
+      const path=direct?[[x,z]]:this.nav.path(n.x,n.z,x,z);
+      if(strict&&!direct&&!this.validActivityPath(n,path)){
+        const [sx,sz]=this.spot(n,n.entry);
+        n.x=sx;n.z=sz;n.y=groundAt(sx,sz,400);n.hidden=n.entry[1]==='home';
+        n.path=null;n.pi=0;n.wait=2+n.rnd()*18;n.speed=0;continue;
+      }
+      n.path=path??[[x,z]];n.pi=0;
     }
     for (const n of this.list) {
       const managed=this.living?.managed(n.def.id)===true;
@@ -6536,6 +6586,7 @@ async function boot() {
   shared.uStroke.value.anisotropy = anisotropy;
   const region = SERNBELD;
   Save.load();
+  const cachedResidentActivity=residentActivityCache.read();
   Inventory.initialize();
   if (discardLegacyAnimalTasks(Save.data)) Save.write();
   if (!Save.data.combatDemoSwordGranted) {
@@ -6722,6 +6773,7 @@ async function boot() {
     console.warn('Living world unavailable',living);
     for(const n of folk.list)if(n.def.role==='smith'||n.def.role==='vendor')Inventory.seedMerchant('npc:'+n.def.id,n.def.role);
   }
+  folk.restoreActivity(cachedResidentActivity,region.id,clock);
   const view = new ViewModel(camera);
   const combat = new Combat({ player, rig, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
@@ -6901,12 +6953,18 @@ async function boot() {
     Save.data.clock = { day: clock.day, hour: clock.hour };
     Save.write();
   };
+  const checkpointResidents=force=>{if(WorldRegions.isActive(region.id))folk.checkpointActivity(region.id,clock,force);};
+  let hiddenCheckpoint=false;
   setInterval(() => {
+    if (document.hidden)return;
     if (player.mode === "walk" && !player.swimming) persist();
+    checkpointResidents(false);
   }, 15e3);
   addEventListener("visibilitychange", () => {
-    if (document.hidden && player.mode === "walk") persist();
+    hiddenCheckpoint=document.hidden;
+    if(document.hidden){if(player.mode === "walk")persist();checkpointResidents(true);}
   });
+  addEventListener('pagehide',()=>{if(!hiddenCheckpoint){if(player.mode==='walk')persist();checkpointResidents(true);}});
   // Adaptive resolution: drop pixel ratio in steps when frames run long, recover when fast.
   let quality = GRAPHICS[graphicsKey(Save.data.settings.graphics)];
   let dprCap = Math.min(devicePixelRatio || 1, quality.dpr), dprNow = dprCap, frameAvg = 1 / 60, dprClock = 0;

@@ -10,7 +10,7 @@ const groups = {
     ['tests/infra-contract.mjs'], ['tools/check-infra.mjs'], ['tools/build-ecology-prototypes.mjs','--check']],
   core: ['foundation', 'durable-items', 'shared-items', 'region-lifecycle', 'wildlife-removal',
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
-    'startup-runtime', 'pwa-startup', 'npc-dialogue', 'npc-participation', 'living-world-state', 'npc-scheduler', 'npc-movement', 'world-society', 'npc-conversation', 'living-world-runtime', 'living-world-integration'].map(name => ['tests/' + name + '.mjs']),
+    'startup-runtime', 'pwa-startup', 'npc-dialogue', 'npc-participation', 'living-world-state', 'npc-scheduler', 'npc-movement', 'resident-activity', 'world-society', 'npc-conversation', 'living-world-runtime', 'living-world-integration'].map(name => ['tests/' + name + '.mjs']),
   clothing: ['studio-model', 'character-assembly', 'schoolyard-ik', 'schoolyard-motion',
     'shirt-reference', 'shirt-recovery', 'shirt-runtime', 'pants-runtime', 'garment-alignment', 'dev-validation']
     .map(name => ['tests/' + name + '.mjs']),
