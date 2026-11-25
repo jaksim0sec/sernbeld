@@ -87,6 +87,17 @@ try {
       assert.ok(await page.locator('.speech-speaker').evaluate(e=>!e.closest('.speech-body')),'nameplate must be separate');
       assert.equal(await page.locator('#speechOpts button').last().getAttribute('id'),'speechDismiss');
       assert.ok(await page.locator('#speechOpts').evaluate(e=>e.scrollHeight>e.clientHeight));
+      // Closing must remain visible and hit-testable even before scrolling long choices.
+      for(const scrollTop of [0,50,99999]){
+        await page.locator('#speechOpts').evaluate((e,n)=>e.scrollTop=n,scrollTop);
+        assert.ok(await page.locator('#speechDismiss').evaluate(e=>{
+          const r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();
+          return r.top>=p.top-.5&&r.bottom<=p.bottom+.5&&r.height>=44&&e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+        }),'dismiss stays visible and clickable during overflow');
+      }
+      await page.locator('#speechOpts').evaluate(e=>e.scrollTop=0);
+      await page.locator('#speechDismiss').click();
+      assert.equal(await page.locator('#speech').isVisible(),false);
       await page.emulateMedia({reducedMotion:'no-preference'});
       await page.evaluate(()=>window.showDialogue(3,true));
       assert.ok((await page.locator('#speechRest').textContent()).length>0,'typing should begin hidden');
