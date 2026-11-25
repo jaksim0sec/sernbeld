@@ -75,7 +75,26 @@ function checkWorld(d=window.__dev) {
   p.teleport(...clear,0);const start=p.pos.clone(),move=input(1,0,true);let peak=p.pos.y;
   for(let i=0;i<85;i++){p.advance(1/60,move);verify('actual jump');peak=Math.max(peak,p.pos.y);}
   const jump={rise:peak-start.y,travel:p.pos.distanceTo(start),grounded:p.onGround};
-  return {places,stairs:stairResults,walls:wallResults,jump};
+  const traversals=[];
+  // Generated Kael stonework, including a rotated low lip and a high wall.
+  for(const [kind,x,z,yaw,top] of [
+   ['mantle',318.507047,-523.715800,-2.980830,108.005930],
+   ['mantle',282.94,-473.357143,-Math.PI/2,82.323480],
+   ['latch',500.528781,-519.345159,3.117788,104.314419]
+  ]){
+   p.teleport(x,z,yaw,0,d.playerTerrain(x,z));
+   const movement=input(0,-1,true);
+   p.advance(1/60,movement);
+   if(p.traversal?.kind!==kind)throw Error('Expected '+kind+' on generated wall at '+[x,z]);
+   const stages=new Set();
+   for(let frame=0;frame<390&&p.traversal;frame++){
+    stages.add(p.traversal.kind);
+    p.advance(1/60,movement);verify(kind+' on generated wall');
+   }
+   if(!p.onGround||p.traversal||Math.abs(p.pos.y-top)>.005)throw Error('Traversal landing missed generated top');
+   traversals.push({kind,top:p.pos.y,stages:[...stages]});
+  }
+  return {places,stairs:stairResults,walls:wallResults,jump,traversals};
 }
 
 async function loadWorld() {
@@ -138,3 +157,5 @@ assert(result.places.length>=5);
 assert(result.stairs.length>=5&&result.stairs.filter(s=>s.move>2&&s.rise>.5).length>=5,'Real stairs are not traversable');
 assert.equal(result.walls.length,3);
 assert(result.jump.rise>.5&&result.jump.grounded&&result.jump.travel>2,'Real jump/landing failed');
+
+assert(result.traversals.some(x=>x.stages.includes("climb")&&x.stages.includes("mantle")));

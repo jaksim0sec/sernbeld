@@ -142,6 +142,21 @@ export function poseGrip(T,actor,side,gripW,bladeW,inwardW,poleW,options){
  return solveArmChain(T,actor,side,wristW,handQW,poleW,options);
 }
 
+// Match the anatomical palm and finger axes to the support frame. The wrist
+// is offset from the contact by the actual rig's knuckle position.
+export function poseSurfaceHand(T,actor,side,contact,normal,fingers,pole,weight){
+ if(weight<=0)return;
+ const rig=armRig(T,actor)[side],hand=actor.B['hand_'+side];
+ const palm=normal.clone().negate();
+ const x=palm.multiplyScalar(side==='right'?1:-1);
+ const y=fingers.clone().negate().addScaledVector(x,fingers.dot(x)).normalize();
+ const z=new T.Vector3().crossVectors(x,y);
+ const orientation=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z)).multiply(rig.frameInv);
+ const wrist=contact.clone().sub(rig.grip.clone().multiplyScalar(actor.units*actor.group.scale.x).applyQuaternion(orientation));
+ const current=hand.getWorldPosition(new T.Vector3()).lerp(wrist,weight);
+ const rotation=hand.getWorldQuaternion(new T.Quaternion()).slerp(orientation,weight);
+ solveArmChain(T,actor,side,current,rotation,pole);
+}
 // Compatibility wrapper: place the wrist at targetWorld with the given hand orientation.
 export function solveArm(T,actor,side,targetWorld,orientationWorld){
  actor.group.updateMatrixWorld(true);

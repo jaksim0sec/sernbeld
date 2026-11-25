@@ -67,7 +67,7 @@ function box(g, tint, x, y0, z, sx, sy, sz, yaw = 0, walk = true, collide = true
   const o = mesh(boxGeo, mat(tint), x, y0 + sy / 2, z, yaw);
   o.scale.set(sx, sy, sz);
   g.add(o);
-  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk });
+  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk, climbable: true });
   return o;
 }
 function cyl(g, tint, x, y0, z, r0, r1, h, collide = true, seg = 16) {
@@ -572,7 +572,7 @@ function townMaterial(side = FrontSide) {
 }
 var box2 = (G, x, y0, z, sx, sy, sz, yaw, col, pat, walk = false, collide = true, opt) => {
   G.box(x, y0, z, sx, sy, sz, yaw, col, pat, opt);
-  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk });
+  if (collide) addBox({ cx: x, cy: y0 + sy / 2, cz: z, hx: sx / 2, hy: sy / 2, hz: sz / 2, yaw, walk, climbable: opt?.top !== false });
 };
 var off2 = (x, z, yaw, lx, lz) => [x + lx * Math.cos(yaw) + lz * Math.sin(yaw), z - lx * Math.sin(yaw) + lz * Math.cos(yaw)];
 var groundNoStair = (x, z) => terraceAt(x, z)?.y ?? sample(x, z);
@@ -2924,6 +2924,180 @@ var SWIM_OUT = 1.05;
 var FLOAT = 1.32;
 var BOUND = 1500;
 var STAMINA = { max: 100, drain: 12.5, recovery: 25, delay: .8, restart: 30 };
+// Traversal anchors and body paths share the collision world's metres and surfaces.
+var TRAVERSE_GRADE = Math.tan(50 * Math.PI / 180);
+var TRAVERSE_WALL_GAP = PLAYER.radius + .018;
+function traversalEase(a,b,t) {
+  const u=clamp2((t-a)/(b-a),0,1);
+  return u*u*(3-2*u);
+}
+function traversalAcross(surface,lateral,along) {
+  const {x,z,nx,nz}=surface;
+  return {x:x+nz*lateral-nx*along,z:z-nx*lateral-nz*along};
+}
+function traversalTerrainGrade(surface,along,lateral=0) {
+  const near=traversalAcross(surface,lateral,along-.055),far=traversalAcross(surface,lateral,along+.055);
+  if(stairSurface(near.x,near.z,0,true)!==null||stairSurface(far.x,far.z,0,true)!==null)return 0;
+  return (playerTerrain(far.x,far.z)-playerTerrain(near.x,near.z))/.11;
+}
+function traversalFaceAt(surface,side,y,hint) {
+  const flat=traversalAcross(surface,side,.012);
+  if(surface.box) {
+    const {box,nx,nz}=surface;
+    if(y<box.bot||y>box.top||!inside(box,flat.x,flat.z,0)||
+      playerTerrain(flat.x+nx*.045,flat.z+nz*.045)>y+.015)return null;
+    const p=traversalAcross(surface,side,0);
+    return {point:new Vector3(p.x,y,p.z),normal:new Vector3(nx,0,nz),along:0};
+  }
+  // Intersect a horizontal ray with the same piecewise triangular terrain
+  // used by the player. A stair tread or a gentler slope is not a handhold.
+  const heightAt=along=>{
+    const {x,z}=traversalAcross(surface,side,along);
+    return playerTerrain(x,z);
+  };
+  let lo=hint-.48,low=heightAt(lo);
+  for(let i=1;i<=24;i++) {
+    let hi=hint-.48+i*.12;
+    const high=heightAt(hi);
+    if(low<=y && high>=y && high-low>.02) {
+      for(let j=0;j<10;j++){
+        const mid=(lo+hi)*.5;
+        if(heightAt(mid)<y)lo=mid;
+        else hi=mid;
+      }
+      const along=(lo+hi)*.5,grade=traversalTerrainGrade(surface,along,side);
+      if(grade<TRAVERSE_GRADE-.04)return null;
+      const p=traversalAcross(surface,side,along);
+      return {point:new Vector3(p.x,heightAt(along),p.z),normal:new Vector3(surface.nx*grade,1,surface.nz*grade).normalize(),along,grade};
+    }
+    lo=hi;low=high;
+  }
+  return null;
+}
+function traversalContacts(surface,y,along,scale,lead) {
+  const hands=[],feet=[];
+  for(const sign of [-1,1]) {
+    const reach=(1.46+(sign===lead?.12:-.10))*scale;
+    let hand=null;
+    // At a crest, use the last reachable part of the actual face.
+    for(const drop of [0,.14,.28,.42,.56,.70]) {
+      hand=traversalFaceAt(surface,sign*.195,y+reach-drop,along);
+      if(hand)break;
+    }
+    const foot=traversalFaceAt(surface,sign*.155,y+(sign===lead?.15:.36)*scale,along);
+    if(!hand||!foot)return null;
+    hands.push(hand);feet.push(foot);
+  }
+  return {hands,feet};
+}
+function traversalBody(action,t,out) {
+  const {from,to,kind,approach}=action;
+  if(kind==="crest"){
+    out.copy(from).lerp(to,traversalEase(.31,1,t));
+    out.y=from.y+(to.y+.06-from.y)*traversalEase(0,.67,t)-.06*traversalEase(.75,1,t);
+    return out;
+  }
+  if(kind==="mantle") {
+    if(t<.25)return out.copy(from).lerp(approach,traversalEase(0,.25,t));
+    const lift=traversalEase(.25,.63,t),cross=traversalEase(.63,.92,t),settle=traversalEase(.92,1,t);
+    out.copy(approach).lerp(to,cross);
+    out.y=approach.y+(to.y+.045-approach.y)*lift-.045*settle;
+    return out;
+  }
+  return out.copy(from).lerp(to,kind==="climb"?traversalEase(.26,1,t):traversalEase(0,1,t));
+}
+function traversalClear(pos,nearby) {
+  return Math.abs(pos.x)<BOUND && Math.abs(pos.z)<BOUND &&
+    pos.y>=playerTerrain(pos.x,pos.z)-CONTACT_SKIN && !playerContacts(pos.x,pos.z,pos.y,nearby).length;
+}
+function traversalPathClear(action) {
+  const probe=new Vector3(),count=Math.max(16,Math.ceil(action.from.distanceTo(action.to)/.045));
+  for(let i=1;i<=count;i++)if(!traversalClear(traversalBody(action,i/count,probe),[]))return false;
+  return true;
+}
+function traversalMantle(surface,from,previous=null) {
+  const {box,nx,nz,x,z}=surface;
+  const top=box.top,rise=top-from.y;
+  if(rise>PLAYER.body+.002||rise<.20)return null;
+  const target=traversalAcross(surface,0,PLAYER.radius+.035);
+  const {x:tx,z:tz}=target;
+  // The entire stance fits on a real top, with headroom beyond the lip.
+  if(!inside(box,tx,tz,-PLAYER.radius+.004)||playerTerrain(tx,tz)>top+.002)return null;
+  const hands=[];
+  for(const sign of [-1,1]){
+    const face=traversalFaceAt(surface,sign*.195,top,0);
+    if(!face)return null;
+    hands.push({point:face.point,normal:new Vector3(0,1,0),lip:true});
+  }
+  const action={kind:"mantle",surface,from:from.clone(),to:new Vector3(tx,top,tz),
+    approach:new Vector3(x+nx*TRAVERSE_WALL_GAP,from.y,z+nz*TRAVERSE_WALL_GAP),
+    hands,previous,duration:1.02+rise*.17,tilt:0,elapsed:0};
+  return traversalPathClear(action)?action:null;
+}
+function traversalStart(player,dx,dz) {
+  const p=player.pos,r=PLAYER.radius+.19;
+  let surface=null,nearest=Infinity;
+  for(const box of query(p.x,p.z,r)) {
+    if(!box.climbable||box.type!=="box"||box.bot>p.y+.22||box.top-p.y<=PLAYER.step+.006)continue;
+    const contact=playerContact(box,p.x,p.z,r);
+    if(!contact||-(dx*contact.nx+dz*contact.nz)<.72)continue;
+    const distance=r-contact.depth;
+    if(distance>=nearest)continue;
+    surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
+    nearest=distance;
+  }
+  if(surface&&surface.box.top-p.y<=PLAYER.body)return traversalMantle(surface,p);
+  let to,tilt=0,along=0;
+  if(surface) {
+    to=new Vector3(surface.x+surface.nx*TRAVERSE_WALL_GAP,p.y,surface.z+surface.nz*TRAVERSE_WALL_GAP);
+  }else{
+    const terrain={x:p.x,z:p.z,nx:-dx,nz:-dz};
+    // Use the actual upward face ahead. Gentle ground and discrete stairs
+    // keep ordinary jump and step-up behavior.
+    along=.16;
+    const grade=traversalTerrainGrade(terrain,along);
+    if(grade<TRAVERSE_GRADE||stairSurface(p.x,p.z,0,true)!==null)return null;
+    const foot=traversalAcross(terrain,0,along);
+    const y=playerTerrain(foot.x,foot.z);
+    if(y-p.y<.09||y-p.y>.65)return null;
+    surface=terrain;tilt=Math.atan(1/grade);
+    to=new Vector3(foot.x+surface.nx*TRAVERSE_WALL_GAP,y,foot.z+surface.nz*TRAVERSE_WALL_GAP);
+  }
+  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),1);
+  if(!contacts)return null;
+  const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
+  return traversalPathClear(action)?action:null;
+}
+function traversalNext(player,old) {
+  const {surface}=old,p=player.pos;
+  if(surface.box && surface.box.top-p.y<=1.53)return traversalMantle(surface,p,old);
+  const y=p.y+.24;
+  let along=old.along,tilt=old.tilt;
+  let to=new Vector3(p.x,y,p.z);
+  if(!surface.box){
+    // Step off onto an actual walkable slope/crest within leg reach.
+    for(const ahead of [.28,.42,.56,.70,.84,.98]){
+      const at=along+ahead,q=traversalAcross(surface,0,at),top=playerTerrain(q.x,q.z);
+      if(top<p.y-.13||top>p.y+.96||
+        [-.10,0,.10].some(offset=>Math.abs(traversalTerrainGrade(surface,at+offset))>TRAVERSE_GRADE-.06))continue;
+      const exit={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,top,q.z),
+        previous:old,tilt:0,duration:.56,elapsed:0};
+      if(traversalPathClear(exit))return exit;
+    }
+    const face=traversalFaceAt(surface,0,y,along);
+    if(!face)return null;
+    along=face.along;tilt=Math.atan(1/face.grade);
+    to=face.point.clone().add(new Vector3(surface.nx*TRAVERSE_WALL_GAP,0,surface.nz*TRAVERSE_WALL_GAP));
+  }
+  const moving=old.moving===0?1:0,sign=moving===0?-1:1;
+  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),sign);
+  if(!contacts)return null;
+  const hands=old.hands.slice(),feet=old.feet.slice();
+  hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
+  const action={kind:"climb",surface,from:p.clone(),to,along,tilt,hands,feet,
+    oldHand:old.hands[moving],oldFoot:old.feet[1-moving],oldTilt:old.tilt,moving,duration:.50,elapsed:0};
+  return traversalPathClear(action)?action:null;
+}
 var Player = class {
   constructor() {
     this.pos = new Vector3();
@@ -2939,6 +3113,9 @@ var Player = class {
     this.stamina = STAMINA.max;
     this.staminaDelay = 0;
     this.exhausted = false;
+    this.traversal = null;
+    this.renderTraversal = null;
+    this.traverseProbe = new Vector3();
     this.wish = new Vector2();
     this.previousPos = new Vector3();
     this.renderPos = new Vector3();
@@ -2961,6 +3138,7 @@ var Player = class {
     this.running = false;
     this.landImpact = 0;
     this.moveHeading=null;this.stepRise=0;
+    this.traversal=this.renderTraversal=null;
     this.resetInterpolation();
     this.teleportId++;
   }
@@ -2982,6 +3160,15 @@ var Player = class {
     }
     this.stepRise=rise;
     const a=Math.min(1,this.accumulator/h);
+    if(this.traversal){
+      const action=this.traversal;
+      const t=clamp2((action.elapsed-h*(1-a))/action.duration,0,1);
+      traversalBody(action,t,this.renderPos);
+      this.renderTraversal={action,t};
+      this.visualY=this.renderPos.y;
+      return;
+    }
+    this.renderTraversal=null;
     this.renderPos.copy(this.previousPos).lerp(this.pos,a);
     if(this.mode==="walk"&&this.onGround&&!this.swimming){
       // Smooth the vertical presentation of ALL low steps, not just stairs.
@@ -3021,14 +3208,26 @@ var Player = class {
       this.previousPos.copy(this.pos);
     }
     const mv=input.move(),sy=Math.sin(this.yaw),cy=Math.cos(this.yaw);
+    const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
+    const jump=input.consumeJump();
+    if(this.traversal){this.advanceTraversal(dt,dx,dz,jump);return;}
+    if(jump&&this.onGround&&!this.swimming&&mv.mag>.24){
+      const action=traversalStart(this,dx/mv.mag,dz/mv.mag);
+      if(action&&(action.kind==="mantle"||!this.exhausted)){
+        this.traversal=action;
+        this.vel.set(0,0,0);
+        this.running=this.onGround=false;
+        this.stepRise=0;
+        return;
+      }
+    }
     const runRequested = input.run() && mv.mag > .1;
     this.running = runRequested && (this.swimming || !this.exhausted);
     const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
-    const tx=(-sy*mv.y+cy*mv.x)*sp,tz=(-cy*mv.y-sy*mv.x)*sp;
+    const tx=dx*sp,tz=dz*sp;
     const blend=1-Math.exp(-dt*(this.swimming?4:this.onGround?12:2.5));
     this.vel.x+=(tx-this.vel.x)*blend;this.vel.z+=(tz-this.vel.z)*blend;
     if(mv.mag<.02&&Math.hypot(this.vel.x,this.vel.z)<.025){this.vel.x=0;this.vel.z=0;}
-    const jump=input.consumeJump();
     if(jump&&this.onGround&&!this.swimming){this.vel.y=PLAYER.jump;this.onGround=false;}
     const groundedSprint = this.running && this.onGround && !this.swimming;
     const oldX = this.pos.x, oldZ = this.pos.z, oldY = this.pos.y;
@@ -3095,6 +3294,37 @@ var Player = class {
     const speed=Math.hypot(this.vel.x,this.vel.z);
     if(speed>.12)this.moveHeading=Math.atan2(this.vel.x,this.vel.z);
     else if(mv.mag<.05)this.moveHeading=null;
+  }
+  advanceTraversal(dt,dx,dz,drop) {
+    const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
+    const {surface}=action;
+    if(climbing)this.updateStamina(dt,true);
+    if(drop||(climbing&&this.exhausted)){
+      this.traversal=null;
+      this.vel.set(surface.nx*.9,-.25,surface.nz*.9);
+      return;
+    }
+    action.elapsed=Math.min(action.duration,action.elapsed+dt);
+    const progress=action.elapsed/action.duration;
+    const probe=traversalBody(action,progress,this.traverseProbe);
+    if(!traversalClear(probe,this.nearby)){
+      this.traversal=null;
+      this.vel.set(0,-.25,0);
+      return;
+    }
+    this.pos.copy(probe);
+    if(progress<1)return;
+    if(climbing){
+      if(-(dx*surface.nx+dz*surface.nz)>.20){
+        this.traversal=traversalNext(this,action)??action;
+      }
+      return;
+    }
+    this.traversal=null;
+    this.onGround=true;
+    this.previousPos.copy(this.pos);
+    this.visualY=this.pos.y;
+    this.moveHeading=Math.atan2(-surface.nx,-surface.nz);
   }
   updateStamina(dt, sprinted) {
     if (sprinted) {
@@ -3214,6 +3444,7 @@ var Player = class {
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
+    this.traversal=this.renderTraversal=null;
     this.moveHeading=null;this.resetInterpolation();this.teleportId++;
   }
 };
@@ -5219,7 +5450,7 @@ var Combat = class {
     this.refresh();
   }
   canAct() {
-    return !this.downed && this.player.mode === "walk" && !this.player.swimming;
+    return !this.downed && this.player.mode === "walk" && !this.player.swimming && !this.player.traversal;
   }
   attack() {
     if (!this.canAct()) return;
@@ -6168,9 +6399,9 @@ async function boot() {
     }
     if(page==="controls"){
       heading("터치");
-      for(const [a,b] of [["이동","왼쪽 드래그"],["시점","오른쪽 드래그"],["점프 · 공격","화면 버튼"],["상호작용","표시된 행동 누르기"]])body.append(row(a,b));
+      for(const [a,b] of [["이동","왼쪽 드래그"],["시점","오른쪽 드래그"],["점프 · 공격","화면 버튼"],["등반 · 턱 오르기","벽 쪽으로 이동하며 점프"],["상호작용","표시된 행동 누르기"]])body.append(row(a,b));
       heading("키보드 · 마우스");
-      for(const [a,b] of [["이동","W A S D"],["달리기","Shift"],["점프","Space"],["시점","마우스 드래그"],["공격","클릭"],["상호작용","E"],["가방 · 지도","I · M"],["닫기","Esc"]])body.append(row(a,b));
+      for(const [a,b] of [["이동","W A S D"],["달리기","Shift"],["점프 · 등반","Space · 벽 쪽으로 이동하며 점프"],["시점","마우스 드래그"],["공격","클릭"],["상호작용","E"],["가방 · 지도","I · M"],["닫기","Esc"]])body.append(row(a,b));
       return;
     }
     if(page==="info"){
@@ -6361,8 +6592,9 @@ async function boot() {
     if (WorldRegions.isActive(region.id)) {
       folk.update(dt, t, clock.hour, player, camera.position, camera);
     }
+    if(player.traversal){combat.swing=null;combat.queued=false;}
     combat.update(dt);
-    if (player.mode === "walk" && avatars.mode === "first") maktwoAttackCamera(camera, combat.swing, rig.motion);
+    if (player.mode === "walk" && avatars.mode === "first" && !player.traversal) maktwoAttackCamera(camera, combat.swing, rig.motion);
     view.root.visible = player.mode === "walk";
     avatars.update(dt,t,combat);
     avatars.applyThirdCamera(dt,rig);
@@ -6391,7 +6623,7 @@ async function boot() {
       nextGoal = now + 150;
     }
     const ambientAllowed=!ui.dialogueOpen()&&ui.bag.hidden&&ui.travel.hidden&&ui.boardP.hidden&&!fullMap.isOpen()&&!skillWorkbench.isOpen()&&$("intro").hidden;
-    ui.setStamina(player, camera, avatars.mode === "third" && avatars.bodyRoot.visible, ambientAllowed);
+    ui.setStamina(player, camera, (avatars.mode === "third" || player.traversal) && avatars.bodyRoot.visible, ambientAllowed);
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
   };
   renderer.setAnimationLoop(tick);

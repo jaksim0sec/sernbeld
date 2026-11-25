@@ -89,6 +89,84 @@ console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head
   console.log('PASS: sprint drain, fixed ticks, exhaustion, recovery, wall contact, airborne movement, swimming and flight');
 }
 
+{
+  function traverseFixture({height=1.1,depth=1.5,yaw=0,climbable=true,ceiling=false}={}){
+    clear();
+    const nx=Math.sin(yaw),nz=Math.cos(yaw);
+    const solid=addBox({cx:0,cz:0,cy:height/2,hy:height/2,hx:2,hz:depth/2,yaw,climbable});
+    if(ceiling)addBox({cx:0,cz:0,cy:height+1.6,hy:.10,hx:2,hz:depth/2,yaw});
+    const p=player(nx*(depth/2+.41),nz*(depth/2+.41));
+    p.yaw=yaw;
+    const move=input(0,1);move.jump=true;
+    tick(p,move);
+    return {p,move,solid,nx,nz};
+  }
+  for(const height of [.50,1.08,1.70]){
+    const {p,move,solid,nx,nz}=traverseFixture({height,yaw:.43});
+    assert.equal(p.traversal?.kind,'mantle');
+    const hold=p.traversal.hands.map(h=>h.point.clone());
+    assert(hold.every(h=>Math.abs(h.x*nx+h.z*nz-solid.hz)<1e-8&&Math.abs(h.y-height)<1e-8));
+    for(let k=0;k<110&&p.traversal;k++){
+      tick(p,move);
+      assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'mantle penetrated a solid');
+      assert(!playerContacts(p.renderPos.x,p.renderPos.z,p.renderPos.y).length,'mantle presentation penetrated a solid');
+    }
+    assert(p.onGround&&!p.traversal&&Math.abs(p.pos.y-height)<1e-8,'did not finish on top');
+  }
+
+  const tall=traverseFixture({height:3.4,yaw:.61});
+  assert.equal(tall.p.traversal?.kind,'latch');
+  let climbs=0,last=null;
+  for(let k=0;k<450&&tall.p.traversal;k++){
+    tick(tall.p,tall.move);
+    assert(!playerContacts(tall.p.pos.x,tall.p.pos.z,tall.p.pos.y).length);
+    const action=tall.p.traversal;
+    if(action?.kind==='climb'&&last!==action){
+      assert.equal(action.hands[1-action.moving],last.hands[1-action.moving],'support hand slides');
+      assert.equal(action.feet[action.moving],last.feet[action.moving],'support foot slides');
+      assert(action.hands.every(h=>Math.abs(h.point.x*tall.nx+h.point.z*tall.nz-tall.solid.hz)<1e-8));
+      climbs++;
+    }
+    last=action;
+  }
+  assert(climbs>=5&&tall.p.onGround&&Math.abs(tall.p.pos.y-3.4)<1e-8);
+  assert(tall.p.stamina<100);
+
+  const dangling=traverseFixture({height:12});
+  tick(dangling.p,input(),32);
+  const hang=dangling.p.pos.clone();
+  tick(dangling.p,input(),45);
+  assert(dangling.p.pos.distanceTo(hang)<1e-8,'neutral input should hang');
+  const release=input();release.jump=true;tick(dangling.p,release);
+  assert.equal(dangling.p.traversal,null);
+  assert(dangling.p.vel.z>0);
+  const exhausted=traverseFixture({height:12});
+  exhausted.p.stamina=.5;
+  tick(exhausted.p,exhausted.move,5);
+  assert(exhausted.p.exhausted&&!exhausted.p.traversal,'exhaustion must release the wall');
+
+  for(const options of [{depth:.26},{height:1.35,ceiling:true},{climbable:false}]){
+    const blocked=traverseFixture(options);
+    assert.equal(blocked.p.traversal,null,'invalid support or ceiling accepted');
+    assert(blocked.p.vel.y>0,'ordinary jump was lost');
+  }
+
+  for(const grade of [1.32,2.2]){
+    clear();terrain=x=>Math.min(3.1,Math.max(0,x*grade));p=player(-.04);
+    const uphill=input(1,0);uphill.jump=true;tick(p,uphill);
+    assert(p.traversal?.kind==='latch'&&p.traversal.tilt>0);
+    let finished=false;
+    for(let k=0;k<480&&p.traversal;k++){
+      tick(p,uphill);
+      assert(p.pos.y>=terrain(p.pos.x)-.002);
+      if(p.traversal?.kind==='climb')assert(p.traversal.hands.every(h=>Math.abs(h.point.y-terrain(h.point.x))<1e-5));
+      finished||=p.traversal?.kind==='crest';
+    }
+    assert(finished&&p.onGround&&Math.abs(p.pos.y-3.1)<1e-5,'steep heightfield did not reach its crest at grade '+grade);
+  }
+  console.log('PASS traversal: lip height, rotated wall anchors, planted supports, exhaustion/drop, headroom and steep terrain crest');
+}
+
 clear();p=player(0,0,-.1);tick(p,input(),120);assert(p.onGround&&Math.abs(p.pos.y)<1e-6,'feet below terrain must recover instead of falling forever');
 clear();box(0,0,2,2,2,0,false);p=player();assert(Math.abs(p.pos.y)<.01&&!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'spawn inside a nonwalkable building must find a nearby valid position, not its roof');
 clear();box(.05,0,2,.016,2,0,false);assert(env.maktwoWorldRay({x:0,y:1,z:0},{x:1,y:0,z:0},1)<.06,'camera ray missed thin wall');

@@ -1,6 +1,10 @@
 import {normalizeStudioCharacter} from './appearance.js';
-import {animatePlayer,armTargets,mountWeapon,poseGrip} from './avatar-motion.js';
+import {animatePlayer,armTargets,mountWeapon,poseGrip,poseSurfaceHand} from './avatar-motion.js';
 const clamp01=x=>Math.max(0,Math.min(1,x));
+const phase=(from,to,t)=>{
+ const fraction=clamp01((t-from)/(to-from));
+ return fraction*fraction*(3-2*fraction);
+};
 
 // Presentation-only camera math. No physics or animated bone writes.
 export function smoothCameraHeight(previous,target,dt,grounded){
@@ -128,7 +132,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  const _grip=new T.Vector3(),_blade=new T.Vector3(),_inward=new T.Vector3(),_pole=new T.Vector3();
  function update(dt,t,combat){
   attachWeapons();
-  const walking=player.mode==='walk',firstPerson=!third&&walking;
+  const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
+  for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
   if(!walking){bodyCut=null;cameraCut=null;return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
@@ -136,6 +141,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
   cameraCut=player.teleportId;
   const aimYaw=player.yaw+Math.PI;
+  if(traversal){
+   bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
+   footOffset=gaitSpeed=0;
+   poseTraversal(traversal.action,traversal.t,renderPos);
+   return;
+  }
   if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
   const speed=Math.hypot(player.vel.x,player.vel.z);
   gaitSpeed+=(speed-gaitSpeed)*(1-Math.exp(-dt*12));
@@ -261,7 +272,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  // a foot only when its sole would intersect the actual support surface.
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
  function fitFeet(a,root,ankleRest,dt){
-  const scale=a.units*a.group.scale.x,sole=ankleRest*a.group.scale.y;
+  const sole=ankleRest*a.group.scale.y;
   for(const side of ['left','right']){
    const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
    if(!hip||!knee||!foot)continue;
@@ -272,32 +283,140 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    // Do not pin the raised swing foot to the floor. Correct only penetration
    // or a near-contact foot; airborne legs keep the authored pose.
    if(delta<-.09||Math.abs(delta)<.004)continue;
-   hip.getWorldPosition(hipV);knee.getWorldPosition(kneeV);foot.getWorldQuaternion(footWorldQ);
    goalV.copy(footV);goalV.y+=Math.max(-.09,Math.min(.27,delta));
-   dirV.copy(goalV).sub(hipV);
-   const l1=knee.position.length()*scale,l2=foot.position.length()*scale;
-   const d=Math.min(l1+l2-.001,Math.max(Math.abs(l1-l2)+.005,dirV.length()));
-   if(dirV.lengthSq()<1e-8)continue;dirV.normalize();
-   poleV.copy(kneeV).sub(hipV);poleV.addScaledVector(dirV,-poleV.dot(dirV));
-   if(poleV.lengthSq()<1e-7){poleV.set(0,0,1).transformDirection(a.group.matrixWorld);poleV.addScaledVector(dirV,-poleV.dot(dirV));}
-   if(poleV.lengthSq()<1e-7)continue;poleV.normalize();
-   const along=(d*d+l1*l1-l2*l2)/(2*d);
-   newKnee.copy(hipV).addScaledVector(dirV,along).addScaledVector(poleV,Math.sqrt(Math.max(0,l1*l1-along*along)));
-   goalV.copy(hipV).addScaledVector(dirV,d);
-   oldDir.copy(kneeV).sub(hipV).normalize();newDir.copy(newKnee).sub(hipV).normalize();
-   hip.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
-   hip.parent.getWorldQuaternion(qParent);hip.quaternion.copy(qParent.invert().multiply(qA));
-   knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
-   oldDir.copy(footV).sub(kneeV).normalize();newDir.copy(goalV).sub(kneeV).normalize();
-   knee.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
-   knee.parent.getWorldQuaternion(qParent);knee.quaternion.copy(qParent.invert().multiply(qA));
-   foot.parent.getWorldQuaternion(qParent);foot.quaternion.copy(qParent.invert().multiply(footWorldQ));
+   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ));
+  }
+ }
+ function solveFoot(a,side,target,rotation,preferredPole=null){
+  const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
+  const scale=a.units*a.group.scale.x;
+  hip.getWorldPosition(hipV);knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
+  dirV.copy(target).sub(hipV);
+  const l1=knee.position.length()*scale,l2=foot.position.length()*scale;
+  const d=Math.min(l1+l2-.001,Math.max(Math.abs(l1-l2)+.005,dirV.length()));
+  if(dirV.lengthSq()<1e-8)return;
+  dirV.normalize();
+  if(preferredPole)poleV.copy(preferredPole);
+  else poleV.copy(kneeV).sub(hipV);
+  poleV.addScaledVector(dirV,-poleV.dot(dirV));
+  if(poleV.lengthSq()<1e-7){poleV.set(0,0,1).transformDirection(a.group.matrixWorld);poleV.addScaledVector(dirV,-poleV.dot(dirV));}
+  if(poleV.lengthSq()<1e-7)return;
+  poleV.normalize();
+  const along=(d*d+l1*l1-l2*l2)/(2*d);
+  newKnee.copy(hipV).addScaledVector(dirV,along).addScaledVector(poleV,Math.sqrt(Math.max(0,l1*l1-along*along)));
+  goalV.copy(hipV).addScaledVector(dirV,d);
+  oldDir.copy(kneeV).sub(hipV).normalize();newDir.copy(newKnee).sub(hipV).normalize();
+  hip.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
+  hip.parent.getWorldQuaternion(qParent);hip.quaternion.copy(qParent.invert().multiply(qA));
+  knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
+  oldDir.copy(footV).sub(kneeV).normalize();newDir.copy(goalV).sub(kneeV).normalize();
+  knee.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
+  knee.parent.getWorldQuaternion(qParent);knee.quaternion.copy(qParent.invert().multiply(qA));
+  foot.parent.getWorldQuaternion(qParent);foot.quaternion.copy(qParent.invert().multiply(rotation));
+ }
+
+ const traversalYaw=new T.Quaternion(),traversalLean=new T.Quaternion(),xAxis=new T.Vector3(1,0,0);
+ const surfaceBasis=new T.Matrix4();
+ function poseTraversal(action,t,root){
+  const {kind,surface,previous}=action;
+  const outward=new T.Vector3(surface.nx,0,surface.nz),uphill=outward.clone().negate();
+  const across=new T.Vector3(surface.nz,0,-surface.nx);
+  const mantle=kind==='mantle',crest=kind==='crest';
+  const settle=phase(.77,1,t),reach=phase(0,.25,t),pull=phase(.24,.66,t);
+  const step=phase(.26,1,t),lift=kind==='latch'?phase(0,1,t):step;
+  let lean=action.tilt*lift+(action.oldTilt??previous?.tilt??(kind==='latch'?0:action.tilt))*(1-lift);
+  let crouch=0;
+  actor.group.position.copy(root);
+  if(mantle){
+   // The standing collision volume goes over the edge first. The rig stays
+   // tucked underneath it until the knees and hips have crossed the lip.
+   const low=clamp01((1.31-(action.to.y-action.from.y))/.85);
+   const down=action.from.y-.57*low*reach;
+   const tuck=Math.max(down,action.to.y-.81);
+   const rise=Math.max(tuck,action.to.y-.56);
+   const folded=down+(tuck-down)*pull+(rise-tuck)*phase(.57,.76,t);
+   actor.group.position.y=folded+(action.to.y-folded)*settle;
+   lean=(previous?.tilt??0)*(1-reach);
+   crouch=Math.max(low*reach,.82*pull)*(1-settle);
+  }else if(crest){
+   lean=(previous?.tilt??0)*(1-phase(.14,.84,t));
+   crouch=.30*Math.sin(t*Math.PI);
+  }
+  actor.group.quaternion.copy(traversalYaw.setFromAxisAngle(upAxis,bodyYaw)).multiply(traversalLean.setFromAxisAngle(xAxis,lean));
+  actor.B.pelvis.position.copy(actor.rest.pelvis);
+  actor._combatStance=null;
+  const curl=mantle?phase(.3,.68,t)*(1-settle):0;
+  const climbing=!(mantle||crest),turn=climbing&&action.moving!==undefined?(action.moving===0?-1:1)*Math.sin(t*Math.PI):0;
+  actor.pose({
+   waist:[-(mantle?9+41*crouch:4),turn*5],ribcage:[-(mantle?10*crouch:3),turn*8],
+   neck:[mantle?crouch*16:6],head:[0,mantle?crouch*10:7],
+   thigh_left:[climbing?28:14+curl*84,6],shin_left:[climbing?43:13+curl*84],
+   thigh_right:[climbing?32:10+curl*66,8],shin_right:[climbing?48:13+curl*78],
+   upper_arm_left:[mantle?22+22*pull:42,8],forearm_left:[36,0],
+   upper_arm_right:[mantle?17+22*pull:42,8],forearm_right:[36,0]
+  });
+  actor.group.updateWorldMatrix(true,false);
+  const swing=(from,to,progress,clearance)=>{
+   const normal=from.normal.clone().lerp(to.normal,progress).normalize();
+   const point=from.point.clone().lerp(to.point,progress).addScaledVector(normal,Math.sin(progress*Math.PI)*clearance);
+   return {point,normal,lip:to.lip&&progress>.5};
+  };
+  const sole=bodyAnchors().ankleRest*actor.group.scale.y;
+  for(const [i,side] of ['right','left'].entries()){
+   const sign=i===0?-1:1;
+   let hand=action.hands?.[i]??previous?.hands[i],handWeight=1;
+   let foot=action.feet?.[i]??previous?.feet[i],footWeight=1;
+   if(kind==='latch'){
+    handWeight=phase(i*.04,.83+i*.13,t);
+    footWeight=phase(.24+i*.08,.86+i*.12,t);
+   }else if(kind==='climb'){
+    if(i===action.moving)hand=swing(action.oldHand,hand,phase(.035,.55,t),.13);
+    else foot=swing(action.oldFoot,foot,phase(.36,.94,t),.14);
+   }else if(mantle){
+    if(previous)hand=swing(previous.hands[i],hand,reach,.07);
+    else handWeight=phase(i*.04,.21+i*.04,t);
+    handWeight*=1-phase(.59+i*.038,.79+i*.052,t);
+    footWeight=1-phase(.15+i*.12,.58+i*.12,t);
+   }else if(crest){
+    handWeight=1-phase(.15+i*.11,.58+i*.11,t);
+    footWeight=1-phase(.10+i*.12,.49+i*.12,t);
+   }
+   if(hand){
+    const fingers=hand.lip?uphill:upAxis.clone().addScaledVector(hand.normal,-hand.normal.y).normalize();
+    const palm=hand.point.clone().addScaledVector(hand.normal,hand.lip?.029:.018);
+    if(hand.lip)palm.addScaledVector(uphill,.014);
+    // The released limb lifts away before merging back to the arm swing.
+    if(mantle&&t>.59)palm.addScaledVector(upAxis,phase(.60,.82,t)*.12);
+    const pole=across.clone().multiplyScalar(sign*.65).addScaledVector(outward,.27).addScaledVector(upAxis,-.71);
+    actor.grip(side,hand.lip?.15:.055);
+    poseSurfaceHand(T,actor,side,palm,hand.normal,fingers,pole,handWeight);
+   }else actor.grip(side,.08);
+   const footBone=actor.B['foot_'+side];
+   if(foot&&footWeight>0){
+    const normal=foot.normal,fingers=upAxis.clone().addScaledVector(normal,-normal.y).normalize();
+    const ankle=foot.point.clone().addScaledVector(normal,.115).addScaledVector(fingers,-.026);
+    const rotation=new T.Quaternion().setFromRotationMatrix(surfaceBasis.makeBasis(
+     new T.Vector3().crossVectors(normal,fingers),normal,fingers));
+    const pole=across.clone().multiplyScalar(sign*.52).addScaledVector(outward,.26).addScaledVector(upAxis,.26);
+    const target=footBone.getWorldPosition(new T.Vector3()).lerp(ankle,footWeight);
+    solveFoot(actor,side,target,footBone.getWorldQuaternion(new T.Quaternion()).slerp(rotation,footWeight),pole);
+   }
+   if(mantle||crest){
+    const plant=phase(.64+i*.10,.86+i*.105,t);
+    if(plant>0){
+     const target=action.to.clone().addScaledVector(across,sign*.125).addScaledVector(uphill,i===0?.125:-.055);
+     target.y=(groundSurface?.(target.x,target.z,action.to.y)??action.to.y)+sole;
+     target.y+=Math.sin(plant*Math.PI)*.13;
+     const blend=footBone.getWorldPosition(new T.Vector3()).lerp(target,plant);
+     solveFoot(actor,side,blend,footBone.getWorldQuaternion(new T.Quaternion()).slerp(traversalYaw,plant));
+    }
+   }
   }
  }
  const trail=[];
  function updateTrail(combat){
   for(const h of Object.values(view.hands))h.g.visible=false;
-  if(third&&!actor.group.visible){trail.length=0;view.trailMesh.visible=false;return;}
+  if(player.traversal||(third&&!actor.group.visible)){trail.length=0;view.trailMesh.visible=false;return;}
   const swing=combat.swing,pose=attackPose(swing),weapon=swing&&weapons[swing.hand];
   const striking=weapon&&pose.travel>0&&pose.travel<1&&pose.weight>.45;
   if(striking){
@@ -317,12 +436,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   p.needsUpdate=a.needsUpdate=true;view.trailMesh.visible=trail.length>1;
  }
  function applyThirdCamera(dt,rig){
-  if(!third||player.mode!=='walk')return;
+  if((!third&&!player.renderTraversal)||player.mode!=='walk')return;
   const yaw=rig.yaw,pitch=rig.pitch,feet=player.renderPos??player.pos;
-  const reset=cut!==player.teleportId||lastMode!==player.mode;
+  const mode=player.renderTraversal?'traversal':player.mode;
+  const reset=cut!==player.teleportId||lastMode!==mode;
   const result=solveThirdBoom({feet,aimY:cameraY??feet.y,yaw,pitch,near:camera.near??.2,
    fov:camera.fov??65,aspect:camera.aspect||1,height,previous:boom,reset,dt,worldRay});
-  boom=result.boom;cut=player.teleportId;lastMode=player.mode;
+  boom=result.boom;cut=player.teleportId;lastMode=mode;
   if(result.fallback){
    // No collision-free third-person view outside the body. Keep the base
    // eye camera from CameraRig for this frame and suppress the world avatar.
