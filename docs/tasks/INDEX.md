@@ -38,4 +38,4 @@ TRACE의 작업 주소는 `AREA-NNN` 또는 `AREA-NNN/Tn`이다. 작업 ID는 �
 
 [최초 캐릭터 로딩 구조 개선 (PERF-001)](active/PERF-001.md)
 
-[통합 NPC 대화 템플릿 및 진행 엔진 (NPC-003)](active/NPC-003.md)
+[통합 NPC 대화 템플릿 및 진행 엔진 (NPC-003)](archive/NPC-003.md)

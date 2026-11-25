@@ -1,8 +1,8 @@
 {
   "id": "NPC-003",
-  "status": "in_progress",
+  "status": "done",
   "baseline": "a2299baa692ec2c70b0d90ad8a702b269b4b2f86",
-  "detail": "docs/tasks/active/NPC-003.md",
+  "detail": "docs/tasks/archive/NPC-003.md",
   "scope": [
     "src/core/npc-dialogue.js",
     "src/core/npc-conversation.js",
@@ -44,5 +44,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T5: graph Chromium 4 viewport PASS; 25명 고정 검증을 승인 인구 50명으로 수정하고 기존 외형 기준 유지. 최종 CI 및 실카엘 기능 검증 확인. 실기기 TODO 이관 금지."
+  "next": "종결: NPC-003/T1~T5 구현·자동 통합 검증 및 배포 완료(8071107, CI 45606026442). 실기기 NOT RUN, TODO 이관 없음. 별도 WORLD-001 검증 범위 유지."
 }
