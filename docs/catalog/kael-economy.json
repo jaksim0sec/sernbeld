@@ -1,0 +1,26 @@
+[
+  {
+    "id": "concept.kael-economy-20261125",
+    "kind": "concept",
+    "title": "카엘 생활 경제와 생태 70종 작업 범위",
+    "stage": "PROPOSED",
+    "source": [
+      "docs/content/ecology-index.csv",
+      "docs/content/ecology-economy-scope.csv",
+      "docs/content/kael-economy-20261125.md"
+    ],
+    "approval": "한국풍 가중치 폐기와 기획 등록은 사용자 요청; 오늘의 개별 품목·용도는 제안, 런타임 미승인",
+    "checks": [
+      {
+        "criterion": "70개 ID 유일성 및 6개 핵심 열, 범위 분류",
+        "result": "PASS",
+        "evidence": "등록 전 행 수·ID·열 수 검사 및 TODAY/NEXT/WORLD_LATER 전수 분류"
+      },
+      {
+        "criterion": "전체 원본 조형 열 등록 및 런타임 검증",
+        "result": "NOT RUN",
+        "evidence": "6열 인덱스만 등록, 나머지 8열 원본 별도; 실제 게임 변경 없음"
+      }
+    ]
+  }
+]
