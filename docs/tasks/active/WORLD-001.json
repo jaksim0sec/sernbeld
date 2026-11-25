@@ -21,7 +21,9 @@
     "sw.js",
     "docs/core/CURRENT_STATE.md",
     "src/core/world-society.js",
-    "tests/world-society.mjs"
+    "tests/world-society.mjs",
+    "src/core/npc-conversation.js",
+    "tests/npc-conversation.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -30,5 +32,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T5 부분: 사건/지식/지역 지표, scheduler 및 런타임 연결. T6 근접 담화·템플릿·LOD, T7 요청/관계 및 지식 실제 상호작용. T8 전체 검증."
+  "next": "T6 부분: 담화 그룹/LOD/템플릿 코어. 실제 Townsfolk/말풍선/hold/지역 및 PWA 연결, T7 참여·요청, T8 검증."
 }

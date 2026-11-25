@@ -36,3 +36,8 @@
 - scheduler의 5게임분 정기 평가(설정 가능)와 행동 완료 직후 평가를 동일 draft에 포함. 정기 검사도 budget을 소비하며 같은 tick은 정기 검사 우선. 저장 실패 시 사건/지표/경제/지식 함께 복구. 사건 알림은 성공 후만. 정책 없는 경우 검사 없음. 플레이어 경제 변경은 다음 정기 평가에 반영(즉시 hook 미연결).
 - `shareKnowledge`는 유효한 현재 사건 revision과 실제 발신자가 아는 fact key, 동일 지역 및 등록 propagation guard를 검증; 명시적 호출만 전달. 영속 operationReceipts 멱등성. 영향자 전원에게 원인 broadcast 금지, 과거 지식과 현재 사실 구분. 관계 효과 및 실제 비관측 상호작용 연결은 T7 후속. `knownEvents`는 아는 사실만 제공. 사건/영수증 압축 및 세부 저장 검증은 후속.
 - V8 PASS world society: 26 checks; PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS living-world runtime bridge: 12 checks; PASS living world registry/state: 15 checks; PASS logical NPC movement: 18 checks. PWA 캐시 목록 갱신 및 문법 검사. 전체 Node/Chromium/카엘/PWA 실행 NOT RUN. 실제 이벤트/신호 콘텐츠 등록 없음.
+
+## T6 담화 코어 (부분)
+- conversationTemplates: id, topic, regionIds, 2~4 slots(id/tags), turns(slotId/text/duration seconds), optional eventTypeId/factRefs(key,slotId,factKey), participationIds(식별자만, T7 실행/참조 검증 후속). 등록된 사실만 해당 화자 placeholder로 허용. 현재 event revision 및 지식을 확인하고 안정 ID 순으로 슬롯을 매칭한다.
+- createNpcConversations: 세션 시간(초), 활성 지역·주변 정지 NPC·공통 태그·전원 pair 거리/장애물 guard, 최대 4명, 공간 셀 및 후보/비교 예산, 독점 hold/release. 중거리 dots, 근거리 최초 materialize, hysteresis 및 경과 cursor, stale 사건 종료, cooldown/지역 해제. 비활성/외곽은 pair scan 및 materialize 없음. 빈 템플릿에서는 그룹 미형성 및 레거시 발화 유지. 실제 UI/hold 어댑터는 다음 통합 작업. 템플릿 발화는 지식/경제 변경 없음.
+- V8 PASS NPC conversation groups: 18 checks. Node/브라우저/실기기 NOT RUN. 실제 콘텐츠 없음.

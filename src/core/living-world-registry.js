@@ -6,7 +6,7 @@ const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const ids=v=>Array.isArray(v)&&v.every(id)&&new Set(v).size===v.length;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v};
-const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes'];
+const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes','conversationTemplates'];
 export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[]}={}){
  const knownSocietyHandlers=new Set(societyHandlers);
  const knownHandlers=new Set(handlers),knownRegions=new Set(regions),knownPlaces=new Set(places);
@@ -52,6 +52,25 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
   }
   for(const s of next.regionSignalTypes.values()){
    if(!knownSocietyHandlers.has(s.handlerId)||!ids(s.regionIds)||!s.regionIds.length||s.regionIds.some(r=>!knownRegions.has(r))||!number(s.min)||!number(s.max)||s.min>=s.max)fail('regionSignalTypes',s.id,'invalid signal policy');
+  }
+  for(const t of next.conversationTemplates.values()){
+   const bad=m=>fail('conversationTemplates',t.id,m);
+   if(!id(t.topic)||!ids(t.regionIds)||!t.regionIds.length||t.regionIds.some(r=>!knownRegions.has(r))||!Array.isArray(t.slots)||t.slots.length<2||t.slots.length>4||!Array.isArray(t.turns)||!t.turns.length||t.turns.length>32){bad('invalid template scope or size');continue}
+   const slotIds=t.slots.map(s=>s?.id);
+   if(!ids(slotIds)||t.slots.some(s=>!object(s)||!ids(s.tags)))bad('invalid role slots');
+   const refs=t.factRefs??[];
+   if(!Array.isArray(refs)||!ids(refs.map(r=>r?.key))){bad('invalid fact references');continue}
+   for(const r of refs){
+    const e=next.eventTypes.get(t.eventTypeId);
+    if(!object(r)||!slotIds.includes(r.slotId)||!e||!e.factKeys.includes(r.factKey))bad('unregistered fact reference');
+   }
+   if(t.eventTypeId!==undefined&&!next.eventTypes.has(t.eventTypeId))bad('unknown event type');
+   for(const line of t.turns){
+    if(!object(line)||!slotIds.includes(line.slotId)||typeof line.text!=='string'||!line.text.trim()||line.text.length>500||!number(line.duration)||line.duration<.5||line.duration>30){bad('invalid turn');continue}
+    const keys=[...line.text.matchAll(/\{([a-z][a-z0-9_.:-]*)\}/g)].map(m=>m[1]);
+    if(keys.some(k=>!refs.some(r=>r.key===k&&r.slotId===line.slotId))||/[{}]/.test(line.text.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,'')))bad('invalid placeholder');
+   }
+   if(t.participationIds!==undefined&&!ids(t.participationIds))bad('invalid participation ids');
   }
   return errors.length?{ok:false,errors}:{ok:true,tables:next};
  }

@@ -15,3 +15,5 @@ T4 실제 초기 연결: 기존 resident/상인 등록, clock, 논리 이동, �
 T4 후속: 참여 중 pause된 NPC 접근 검증 및 중복 pause 방지. V8 runtime bridge 12 checks PASS. decision 대기 상태 hold는 T6 후속.
 
 T5 부분: 사건의 조건 평가·해결·지식 전달·지표 및 scheduler/runtime 통합. PASS world society: 26 checks. 플레이어 변경 즉시 hook/관계/비관측 상호작용, 실제 브라우저 및 전체 검증 후속. 실제 콘텐츠 없음.
+
+T6 초기: 그룹/템플릿/LOD core. PASS NPC conversation groups: 18 checks. 실제 연결 후속.
