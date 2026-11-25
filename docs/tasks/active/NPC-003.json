@@ -43,5 +43,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T5: 기준 a179ff16 contracts 41/42 PASS, 기존 의상 PARTIAL 1, 0 blocking. 그래프 DOM 회귀 보강 후 최종 SHA CI/실카엘 및 기기 검증 확인 필요."
+  "next": "NPC-003/T5: 기준 a179ff16 contracts 41/42 PASS, 기존 의상 PARTIAL 1, 0 blocking. 최종 SHA CI/실카엘 기능 검증 확인 필요. 실기기 미검증은 작업 기록에만 명시하며 TODO 이관 및 종결 차단 금지."
 }
