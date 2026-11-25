@@ -1,0 +1,1356 @@
+{
+  "task": "NPC-11252342/T1",
+  "baseline": "3321c23a14b002cac21af8f8a72996bb32e61755",
+  "regionId": "sernbeld",
+  "eventTypes": [],
+  "eventFactKeys": [],
+  "deferred": [
+    "event graph",
+    "event group graph"
+  ],
+  "batches": {
+    "A": {
+      "graphs": [
+        {
+          "id": "kael.named.bran.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "bran"
+            ],
+            "conditions": []
+          },
+          "keyword": "입항 관리·부두 통로",
+          "voice": "브란(항만 관리인): 짧고 건조한 연장자 반말. 항만 사무소 06~12/14~19, 정오 부두 주변, 저녁 여관. 기존 인사는 입항세·일거리 안내. 입항세 징수 기능을 약속하지 않는다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.bran.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "bran"
+            ],
+            "conditions": []
+          },
+          "keyword": "항만 사무소와 부두의 차이",
+          "voice": "브란(항만 관리인): 짧고 건조한 연장자 반말. 항만 사무소 06~12/14~19, 정오 부두 주변, 저녁 여관. 기존 인사는 입항세·일거리 안내. 입항세 징수 기능을 약속하지 않는다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.bran.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "bran"
+            ],
+            "conditions": []
+          },
+          "keyword": "바람을 관찰하는 습관·업무 후 휴식",
+          "voice": "브란(항만 관리인): 짧고 건조한 연장자 반말. 항만 사무소 06~12/14~19, 정오 부두 주변, 저녁 여관. 기존 인사는 입항세·일거리 안내. 입항세 징수 기능을 약속하지 않는다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.bran.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "bran"
+            ],
+            "conditions": []
+          },
+          "keyword": "처음 온 외지인과 오래 머문 사람",
+          "voice": "브란(항만 관리인): 짧고 건조한 연장자 반말. 항만 사무소 06~12/14~19, 정오 부두 주변, 저녁 여관. 기존 인사는 입항세·일거리 안내. 입항세 징수 기능을 약속하지 않는다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.sera.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "sera"
+            ],
+            "conditions": []
+          },
+          "keyword": "견습 등록과 의뢰판 이용의 차이",
+          "voice": "세라(조합 접수원): 실무적이고 명확한 존댓말. 조합 데스크 07~12/13~19, 정오 stall_b, 저녁 여관. 견습 등록/의뢰판/보고 서비스가 있다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.sera.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "sera"
+            ],
+            "conditions": []
+          },
+          "keyword": "접수대와 시장 골목",
+          "voice": "세라(조합 접수원): 실무적이고 명확한 존댓말. 조합 데스크 07~12/13~19, 정오 stall_b, 저녁 여관. 견습 등록/의뢰판/보고 서비스가 있다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.sera.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "sera"
+            ],
+            "conditions": []
+          },
+          "keyword": "접수 업무가 끝난 뒤 일상",
+          "voice": "세라(조합 접수원): 실무적이고 명확한 존댓말. 조합 데스크 07~12/13~19, 정오 stall_b, 저녁 여관. 견습 등록/의뢰판/보고 서비스가 있다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.sera.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "sera"
+            ],
+            "conditions": []
+          },
+          "keyword": "조합에 가입하지 않는 삶도 존중",
+          "voice": "세라(조합 접수원): 실무적이고 명확한 존댓말. 조합 데스크 07~12/13~19, 정오 stall_b, 저녁 여관. 견습 등록/의뢰판/보고 서비스가 있다.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.goram.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "goram"
+            ],
+            "conditions": []
+          },
+          "keyword": "물건을 다루는 장인의 태도",
+          "voice": "고람(대장장이): 툭툭 끊는 무뚝뚝한 반말, 장인다운 관찰. 대장간 06~12/13~20, 점심 여관 마당. 기존 상점 서비스만 실제 구현.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.goram.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "goram"
+            ],
+            "conditions": []
+          },
+          "keyword": "대장간 주변의 일상",
+          "voice": "고람(대장장이): 툭툭 끊는 무뚝뚝한 반말, 장인다운 관찰. 대장간 06~12/13~20, 점심 여관 마당. 기존 상점 서비스만 실제 구현.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.goram.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "goram"
+            ],
+            "conditions": []
+          },
+          "keyword": "일을 마친 뒤 조용한 휴식",
+          "voice": "고람(대장장이): 툭툭 끊는 무뚝뚝한 반말, 장인다운 관찰. 대장간 06~12/13~20, 점심 여관 마당. 기존 상점 서비스만 실제 구현.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.goram.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "goram"
+            ],
+            "conditions": []
+          },
+          "keyword": "초보 손님과 익숙한 손님",
+          "voice": "고람(대장장이): 툭툭 끊는 무뚝뚝한 반말, 장인다운 관찰. 대장간 06~12/13~20, 점심 여관 마당. 기존 상점 서비스만 실제 구현.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.miel.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "miel"
+            ],
+            "conditions": []
+          },
+          "keyword": "객실과 숙박 안내",
+          "voice": "미엘(여관 주인): 친절하고 현실적인 존댓말. 09시 stall_a, 11시 여관 마당, 나머지 여관. 숙박은 은화 3, 외상 없음.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.miel.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "miel"
+            ],
+            "conditions": []
+          },
+          "keyword": "여관 마당과 시장",
+          "voice": "미엘(여관 주인): 친절하고 현실적인 존댓말. 09시 stall_a, 11시 여관 마당, 나머지 여관. 숙박은 은화 3, 외상 없음.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.miel.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "miel"
+            ],
+            "conditions": []
+          },
+          "keyword": "여행객이 쉬는 일상의 의미",
+          "voice": "미엘(여관 주인): 친절하고 현실적인 존댓말. 09시 stall_a, 11시 여관 마당, 나머지 여관. 숙박은 은화 3, 외상 없음.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.miel.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "miel"
+            ],
+            "conditions": []
+          },
+          "keyword": "손님과 마을 주민의 생활 차이",
+          "voice": "미엘(여관 주인): 친절하고 현실적인 존댓말. 09시 stall_a, 11시 여관 마당, 나머지 여관. 숙박은 은화 3, 외상 없음.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.tino.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "tino"
+            ],
+            "conditions": []
+          },
+          "keyword": "견습 활동에 대한 자기 생각",
+          "voice": "티노(견습 모험가): 또래 느낌의 반말, 경쟁심은 있지만 강요하지 않음. 06시 의뢰판, 08시 북문 배회, 17시 분수 벤치, 19시 여관. 실적 숫자는 기존 서비스만 권위.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.tino.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "tino"
+            ],
+            "conditions": []
+          },
+          "keyword": "의뢰판과 북문·분수",
+          "voice": "티노(견습 모험가): 또래 느낌의 반말, 경쟁심은 있지만 강요하지 않음. 06시 의뢰판, 08시 북문 배회, 17시 분수 벤치, 19시 여관. 실적 숫자는 기존 서비스만 권위.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.tino.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "tino"
+            ],
+            "conditions": []
+          },
+          "keyword": "쉬는 날을 보내는 방식",
+          "voice": "티노(견습 모험가): 또래 느낌의 반말, 경쟁심은 있지만 강요하지 않음. 06시 의뢰판, 08시 북문 배회, 17시 분수 벤치, 19시 여관. 실적 숫자는 기존 서비스만 권위.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.tino.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "tino"
+            ],
+            "conditions": []
+          },
+          "keyword": "경쟁과 각자의 속도",
+          "voice": "티노(견습 모험가): 또래 느낌의 반말, 경쟁심은 있지만 강요하지 않음. 06시 의뢰판, 08시 북문 배회, 17시 분수 벤치, 19시 여관. 실적 숫자는 기존 서비스만 권위.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.iva.work",
+          "source": "named",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "iva"
+            ],
+            "conditions": []
+          },
+          "keyword": "경비의 목적과 주민 안전",
+          "voice": "이바(경비대장): 단호하고 간결한 반말. 06시 서문, 10시 광장, 14시 부두, 18시 북문. 경비 업무 안내만, 통행증 지급/신고 처리 등 미구현 기능 약속 금지.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.iva.place",
+          "source": "named",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "iva"
+            ],
+            "conditions": []
+          },
+          "keyword": "서문·북문·광장",
+          "voice": "이바(경비대장): 단호하고 간결한 반말. 06시 서문, 10시 광장, 14시 부두, 18시 북문. 경비 업무 안내만, 통행증 지급/신고 처리 등 미구현 기능 약속 금지.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.iva.rest",
+          "source": "named",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "iva"
+            ],
+            "conditions": []
+          },
+          "keyword": "근무 중 짧은 여유",
+          "voice": "이바(경비대장): 단호하고 간결한 반말. 06시 서문, 10시 광장, 14시 부두, 18시 북문. 경비 업무 안내만, 통행증 지급/신고 처리 등 미구현 기능 약속 금지.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.named.iva.people",
+          "source": "named",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 10,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "npcIds": [
+              "iva"
+            ],
+            "conditions": []
+          },
+          "keyword": "낯선 사람과 주민을 대하는 태도",
+          "voice": "이바(경비대장): 단호하고 간결한 반말. 06시 서문, 10시 광장, 14시 부두, 18시 북문. 경비 업무 안내만, 통행증 지급/신고 처리 등 미구현 기능 약속 금지.",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.common.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 0,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "conditions": []
+          },
+          "keyword": "각자의 하루와 하는 일",
+          "voice": "특정 직업·성별·출신을 가정하지 않는 자연스러운 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.common.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 0,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "conditions": []
+          },
+          "keyword": "카엘에서 눈에 띄는 장소",
+          "voice": "특정 직업·성별·출신을 가정하지 않는 자연스러운 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.common.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 0,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "conditions": []
+          },
+          "keyword": "쉬거나 산책하는 일상",
+          "voice": "특정 직업·성별·출신을 가정하지 않는 자연스러운 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.common.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 0,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "conditions": []
+          },
+          "keyword": "주민·여행객과 마주치는 생활",
+          "voice": "특정 직업·성별·출신을 가정하지 않는 자연스러운 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        }
+      ],
+      "legacyGroups": [],
+      "replyActions": []
+    },
+    "B": {
+      "graphs": [
+        {
+          "id": "kael.role.vendor.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "vendor"
+            ],
+            "conditions": []
+          },
+          "keyword": "물건을 정리하고 품질을 살피는 일",
+          "voice": "상인: 손님에게 정중하거나 소박한 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.vendor.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "vendor"
+            ],
+            "conditions": []
+          },
+          "keyword": "시장 가판대와 여관 마당",
+          "voice": "상인: 손님에게 정중하거나 소박한 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.vendor.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "vendor"
+            ],
+            "conditions": []
+          },
+          "keyword": "장사 전후의 휴식",
+          "voice": "상인: 손님에게 정중하거나 소박한 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.vendor.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "vendor"
+            ],
+            "conditions": []
+          },
+          "keyword": "손님마다 찾는 것이 다름",
+          "voice": "상인: 손님에게 정중하거나 소박한 존댓말",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.docker.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "docker"
+            ],
+            "conditions": []
+          },
+          "keyword": "짐과 통로 정리·동료와 호흡",
+          "voice": "부두 일꾼: 짧고 구어적인 말투, 협업 중심",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.docker.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "docker"
+            ],
+            "conditions": []
+          },
+          "keyword": "pier_a/pier_b와 quay",
+          "voice": "부두 일꾼: 짧고 구어적인 말투, 협업 중심",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.docker.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "docker"
+            ],
+            "conditions": []
+          },
+          "keyword": "점심 또는 일을 마친 뒤 쉬기",
+          "voice": "부두 일꾼: 짧고 구어적인 말투, 협업 중심",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.docker.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "docker"
+            ],
+            "conditions": []
+          },
+          "keyword": "주민과 오가는 손님 배려",
+          "voice": "부두 일꾼: 짧고 구어적인 말투, 협업 중심",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.folk.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "folk"
+            ],
+            "conditions": []
+          },
+          "keyword": "생활 속 자잘한 일과",
+          "voice": "주민: 평범한 일상체, 서로 다른 어조",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.folk.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "folk"
+            ],
+            "conditions": []
+          },
+          "keyword": "광장·가판대·분수·부두",
+          "voice": "주민: 평범한 일상체, 서로 다른 어조",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.folk.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "folk"
+            ],
+            "conditions": []
+          },
+          "keyword": "산책·잠깐 앉아 쉬기",
+          "voice": "주민: 평범한 일상체, 서로 다른 어조",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.folk.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "folk"
+            ],
+            "conditions": []
+          },
+          "keyword": "이웃과 낯선 사람",
+          "voice": "주민: 평범한 일상체, 서로 다른 어조",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.kid.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "kid"
+            ],
+            "conditions": []
+          },
+          "keyword": "어른들의 일에 대한 호기심",
+          "voice": "아이: 짧고 호기심 많은 말, 유아어 과장 금지",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.kid.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "kid"
+            ],
+            "conditions": []
+          },
+          "keyword": "분수·광장·부두의 눈에 띄는 풍경",
+          "voice": "아이: 짧고 호기심 많은 말, 유아어 과장 금지",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.kid.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "kid"
+            ],
+            "conditions": []
+          },
+          "keyword": "구경·쉬는 시간",
+          "voice": "아이: 짧고 호기심 많은 말, 유아어 과장 금지",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.kid.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "kid"
+            ],
+            "conditions": []
+          },
+          "keyword": "새로 온 사람에게 궁금한 점",
+          "voice": "아이: 짧고 호기심 많은 말, 유아어 과장 금지",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.guard.work",
+          "source": "personal",
+          "topicId": "kael.topic.work",
+          "label": "하는 일",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "guard"
+            ],
+            "conditions": []
+          },
+          "keyword": "경비 근무의 의미",
+          "voice": "경비병: 업무 중 간결하고 공손한 안내",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.guard.place",
+          "source": "personal",
+          "topicId": "kael.topic.place",
+          "label": "카엘의 장소",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "guard"
+            ],
+            "conditions": []
+          },
+          "keyword": "북문·서문·광장",
+          "voice": "경비병: 업무 중 간결하고 공손한 안내",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.guard.rest",
+          "source": "personal",
+          "topicId": "kael.topic.rest",
+          "label": "일상의 여유",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "guard"
+            ],
+            "conditions": []
+          },
+          "keyword": "근무 중 한가한 순간",
+          "voice": "경비병: 업무 중 간결하고 공손한 안내",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        },
+        {
+          "id": "kael.role.guard.people",
+          "source": "personal",
+          "topicId": "kael.topic.people",
+          "label": "사람들과 생활",
+          "priority": 5,
+          "eligibility": {
+            "regionIds": [
+              "sernbeld"
+            ],
+            "roles": [
+              "guard"
+            ],
+            "conditions": []
+          },
+          "keyword": "주민과 여행객 안내",
+          "voice": "경비병: 업무 중 간결하고 공손한 안내",
+          "branches": [
+            "관심을 보이며 구체적으로 묻기",
+            "다른 관점 또는 자기 생각을 말하기",
+            "다른 이야기로 돌아가기"
+          ]
+        }
+      ],
+      "legacyGroups": [
+        {
+          "id": "kael.group.vendor.quality.2",
+          "topic": "kael.group.vendor.quality",
+          "tag": "vendor",
+          "size": 2,
+          "keyword": "물건을 고르는 기준",
+          "participationIds": [
+            "kael.reply.vendor.quality.ask",
+            "kael.reply.vendor.quality.comment"
+          ]
+        },
+        {
+          "id": "kael.group.vendor.quality.3",
+          "topic": "kael.group.vendor.quality",
+          "tag": "vendor",
+          "size": 3,
+          "keyword": "물건을 고르는 기준",
+          "participationIds": [
+            "kael.reply.vendor.quality.ask",
+            "kael.reply.vendor.quality.comment"
+          ]
+        },
+        {
+          "id": "kael.group.vendor.stall.2",
+          "topic": "kael.group.vendor.stall",
+          "tag": "vendor",
+          "size": 2,
+          "keyword": "가판대 정리와 손님 응대",
+          "participationIds": [
+            "kael.reply.vendor.stall.ask",
+            "kael.reply.vendor.stall.comment"
+          ]
+        },
+        {
+          "id": "kael.group.vendor.stall.3",
+          "topic": "kael.group.vendor.stall",
+          "tag": "vendor",
+          "size": 3,
+          "keyword": "가판대 정리와 손님 응대",
+          "participationIds": [
+            "kael.reply.vendor.stall.ask",
+            "kael.reply.vendor.stall.comment"
+          ]
+        },
+        {
+          "id": "kael.group.vendor.trade.2",
+          "topic": "kael.group.vendor.trade",
+          "tag": "vendor",
+          "size": 2,
+          "keyword": "해안 채집물과 교역 이야기",
+          "participationIds": [
+            "kael.reply.vendor.trade.ask",
+            "kael.reply.vendor.trade.comment"
+          ]
+        },
+        {
+          "id": "kael.group.vendor.trade.3",
+          "topic": "kael.group.vendor.trade",
+          "tag": "vendor",
+          "size": 3,
+          "keyword": "해안 채집물과 교역 이야기",
+          "participationIds": [
+            "kael.reply.vendor.trade.ask",
+            "kael.reply.vendor.trade.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.aisle.2",
+          "topic": "kael.group.docker.aisle",
+          "tag": "docker",
+          "size": 2,
+          "keyword": "짐과 통로를 정리하는 협업",
+          "participationIds": [
+            "kael.reply.docker.aisle.ask",
+            "kael.reply.docker.aisle.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.aisle.3",
+          "topic": "kael.group.docker.aisle",
+          "tag": "docker",
+          "size": 3,
+          "keyword": "짐과 통로를 정리하는 협업",
+          "participationIds": [
+            "kael.reply.docker.aisle.ask",
+            "kael.reply.docker.aisle.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.aisle.4",
+          "topic": "kael.group.docker.aisle",
+          "tag": "docker",
+          "size": 4,
+          "keyword": "짐과 통로를 정리하는 협업",
+          "participationIds": [
+            "kael.reply.docker.aisle.ask",
+            "kael.reply.docker.aisle.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.break.2",
+          "topic": "kael.group.docker.break",
+          "tag": "docker",
+          "size": 2,
+          "keyword": "일 사이의 잠깐의 휴식",
+          "participationIds": [
+            "kael.reply.docker.break.ask",
+            "kael.reply.docker.break.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.break.3",
+          "topic": "kael.group.docker.break",
+          "tag": "docker",
+          "size": 3,
+          "keyword": "일 사이의 잠깐의 휴식",
+          "participationIds": [
+            "kael.reply.docker.break.ask",
+            "kael.reply.docker.break.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.break.4",
+          "topic": "kael.group.docker.break",
+          "tag": "docker",
+          "size": 4,
+          "keyword": "일 사이의 잠깐의 휴식",
+          "participationIds": [
+            "kael.reply.docker.break.ask",
+            "kael.reply.docker.break.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.rhythm.2",
+          "topic": "kael.group.docker.rhythm",
+          "tag": "docker",
+          "size": 2,
+          "keyword": "동료와 일의 호흡",
+          "participationIds": [
+            "kael.reply.docker.rhythm.ask",
+            "kael.reply.docker.rhythm.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.rhythm.3",
+          "topic": "kael.group.docker.rhythm",
+          "tag": "docker",
+          "size": 3,
+          "keyword": "동료와 일의 호흡",
+          "participationIds": [
+            "kael.reply.docker.rhythm.ask",
+            "kael.reply.docker.rhythm.comment"
+          ]
+        },
+        {
+          "id": "kael.group.docker.rhythm.4",
+          "topic": "kael.group.docker.rhythm",
+          "tag": "docker",
+          "size": 4,
+          "keyword": "동료와 일의 호흡",
+          "participationIds": [
+            "kael.reply.docker.rhythm.ask",
+            "kael.reply.docker.rhythm.comment"
+          ]
+        }
+      ],
+      "replyActions": [
+        {
+          "id": "kael.reply.vendor.quality.ask",
+          "kind": "reply",
+          "keyword": "물건을 고르는 기준",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.vendor.quality.comment",
+          "kind": "reply",
+          "keyword": "물건을 고르는 기준",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        },
+        {
+          "id": "kael.reply.vendor.stall.ask",
+          "kind": "reply",
+          "keyword": "가판대 정리와 손님 응대",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.vendor.stall.comment",
+          "kind": "reply",
+          "keyword": "가판대 정리와 손님 응대",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        },
+        {
+          "id": "kael.reply.vendor.trade.ask",
+          "kind": "reply",
+          "keyword": "해안 채집물과 교역 이야기",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.vendor.trade.comment",
+          "kind": "reply",
+          "keyword": "해안 채집물과 교역 이야기",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        },
+        {
+          "id": "kael.reply.docker.aisle.ask",
+          "kind": "reply",
+          "keyword": "짐과 통로를 정리하는 협업",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.docker.aisle.comment",
+          "kind": "reply",
+          "keyword": "짐과 통로를 정리하는 협업",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        },
+        {
+          "id": "kael.reply.docker.break.ask",
+          "kind": "reply",
+          "keyword": "일 사이의 잠깐의 휴식",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.docker.break.comment",
+          "kind": "reply",
+          "keyword": "일 사이의 잠깐의 휴식",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        },
+        {
+          "id": "kael.reply.docker.rhythm.ask",
+          "kind": "reply",
+          "keyword": "동료와 일의 호흡",
+          "direction": "주민에게 해당 화제를 질문"
+        },
+        {
+          "id": "kael.reply.docker.rhythm.comment",
+          "kind": "reply",
+          "keyword": "동료와 일의 호흡",
+          "direction": "주민 대화에 가볍게 의견을 보탬"
+        }
+      ]
+    }
+  }
+}

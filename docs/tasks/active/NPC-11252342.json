@@ -1,7 +1,7 @@
 {
   "id": "NPC-11252342",
-  "status": "planned",
-  "baseline": "a408a3d8ca7907c303699bb3a58cc3a3a1204e0c",
+  "status": "in_progress",
+  "baseline": "3321c23a14b002cac21af8f8a72996bb32e61755",
   "detail": "docs/tasks/active/NPC-11252342.md",
   "scope": [
     "docs/content/kael-dialogue"
@@ -16,5 +16,5 @@
     "NPC-003",
     "WORLD-001"
   ],
-  "next": "NPC-11252342/T1: 최신 main에서 실제 콘텐츠 확인 후 게임 정체성·현재 제작 목적·구현/미확정 구분·허용 참조·정확한 규격/예시·키워드/분기/ID/수량을 담은 독립형 배치별 생산 패키지를 준비한다. T2에서 사용자에게 외부 세션 생산 및 결과 반환을 요청한다."
+  "next": "NPC-11252342/T2: agent-A.md, agent-B.md를 외부 세션에 전달하고 kael-dialogue-A.json 및 kael-dialogue-B.json을 수신·수량/출처 확인한다. 미수신 상태에서는 T3 금지."
 }
