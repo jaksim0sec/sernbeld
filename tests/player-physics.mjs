@@ -38,6 +38,57 @@ clear();p=player();const npc={type:'cyl',x:.8,z:0,r:.27,bot:0,top:1.72};tick(p,i
 clear();p=player();tick(p,input(1,1),10);p.teleport(50,60,0);assert(p.renderPos.distanceTo(p.pos)===0,'teleport interpolation ghost');
 console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head clearance, jumps, landings, exact treads, slopes, swimming, NPC contact and teleport interpolation');
 
+{
+  clear();
+  const sprint = input(1, 0, true), walk = input(1, 0), idle = input(0, 0, true);
+  const runner = player(), fastFrames = player();
+  const max = runner.stamina;
+  tick(runner, idle, 60);
+  tick(runner, walk, 60);
+  assert.equal(runner.stamina, max, 'idle or walking drained stamina');
+
+  tick(runner, sprint, 120);
+  tick(fastFrames, sprint, 240, 1/120);
+  assert(Math.abs(runner.stamina - 75) < 1e-8 && runner.running);
+  assert.equal(runner.stamina, fastFrames.stamina, 'stamina drain depends on frame rate');
+  tick(runner, sprint, 360);
+  assert.equal(runner.stamina, 0);
+  assert(runner.exhausted && !runner.running);
+  tick(runner, sprint, 108);
+  assert(runner.exhausted && !runner.running);
+  assert(Math.abs(Math.hypot(runner.vel.x, runner.vel.z) - PLAYER.walk) < 1e-7);
+  tick(runner, sprint, 15);
+  assert(runner.running && !runner.exhausted);
+  const remaining = runner.stamina;
+  tick(runner, walk, 30);
+  assert.equal(runner.stamina, remaining, 'recovery started before its delay');
+  tick(runner, walk, 300);
+  assert.equal(runner.stamina, max, 'walking did not restore full stamina');
+
+  clear();
+  box(1, 0, 3, .3, 40);
+  const blocked = player();
+  tick(blocked, walk, 60);
+  tick(blocked, sprint, 120);
+  assert.equal(blocked.stamina, max, 'pushing straight into a wall drained stamina');
+
+  clear();
+  const jumper = player(0, 0, 3);
+  tick(jumper, sprint, 12);
+  assert(!jumper.onGround && jumper.stamina === max, 'airborne movement drained stamina');
+
+  terrain = () => -3;
+  water = () => 0;
+  const swimmer = player(0, 0, -3);
+  tick(swimmer, input(), 120);
+  tick(swimmer, sprint, 120);
+  assert(swimmer.swimming && swimmer.stamina === max && swimmer.vel.x > 3.5, 'swimming boost uses sprint stamina');
+  swimmer.setMode('fly');
+  tick(swimmer, {...sprint, vertical: () => 0}, 60);
+  assert.equal(swimmer.stamina, max, 'flight boost drained stamina');
+  console.log('PASS: sprint drain, fixed ticks, exhaustion, recovery, wall contact, airborne movement, swimming and flight');
+}
+
 clear();p=player(0,0,-.1);tick(p,input(),120);assert(p.onGround&&Math.abs(p.pos.y)<1e-6,'feet below terrain must recover instead of falling forever');
 clear();box(0,0,2,2,2,0,false);p=player();assert(Math.abs(p.pos.y)<.01&&!playerContacts(p.pos.x,p.pos.z,p.pos.y).length,'spawn inside a nonwalkable building must find a nearby valid position, not its roof');
 clear();box(.05,0,2,.016,2,0,false);assert(env.maktwoWorldRay({x:0,y:1,z:0},{x:1,y:0,z:0},1)<.06,'camera ray missed thin wall');

@@ -2923,6 +2923,7 @@ var SWIM_IN = 1.3;
 var SWIM_OUT = 1.05;
 var FLOAT = 1.32;
 var BOUND = 1500;
+var STAMINA = { max: 100, drain: 12.5, recovery: 25, delay: .8, restart: 30 };
 var Player = class {
   constructor() {
     this.pos = new Vector3();
@@ -2935,6 +2936,9 @@ var Player = class {
     this.swimming = false;
     this.landImpact = 0;
     this.running = false;
+    this.stamina = STAMINA.max;
+    this.staminaDelay = 0;
+    this.exhausted = false;
     this.wish = new Vector2();
     this.previousPos = new Vector3();
     this.renderPos = new Vector3();
@@ -3017,7 +3021,8 @@ var Player = class {
       this.previousPos.copy(this.pos);
     }
     const mv=input.move(),sy=Math.sin(this.yaw),cy=Math.cos(this.yaw);
-    this.running=input.run()&&mv.mag>.1;
+    const runRequested = input.run() && mv.mag > .1;
+    this.running = runRequested && (this.swimming || !this.exhausted);
     const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
     const tx=(-sy*mv.y+cy*mv.x)*sp,tz=(-cy*mv.y-sy*mv.x)*sp;
     const blend=1-Math.exp(-dt*(this.swimming?4:this.onGround?12:2.5));
@@ -3025,7 +3030,8 @@ var Player = class {
     if(mv.mag<.02&&Math.hypot(this.vel.x,this.vel.z)<.025){this.vel.x=0;this.vel.z=0;}
     const jump=input.consumeJump();
     if(jump&&this.onGround&&!this.swimming){this.vel.y=PLAYER.jump;this.onGround=false;}
-    const oldY=this.pos.y;
+    const groundedSprint = this.running && this.onGround && !this.swimming;
+    const oldX = this.pos.x, oldZ = this.pos.z, oldY = this.pos.y;
     this.stepRise=0;
     // Sweep a single vector, clipping it against every simultaneous contact.
     // No axis-wise movement or depenetration-derived velocity.
@@ -3081,11 +3087,31 @@ var Player = class {
       }
     }
     this.solids=null;
+    const sprinted = groundedSprint && !this.swimming &&
+      Math.hypot(this.pos.x - oldX, this.pos.z - oldZ) > .1 * dt;
+    this.updateStamina(dt, sprinted);
     if(this.onGround)this.stepRise=Math.max(0,this.pos.y-oldY);
     // Facing follows the actual continuous motion, not competing key axes.
     const speed=Math.hypot(this.vel.x,this.vel.z);
     if(speed>.12)this.moveHeading=Math.atan2(this.vel.x,this.vel.z);
     else if(mv.mag<.05)this.moveHeading=null;
+  }
+  updateStamina(dt, sprinted) {
+    if (sprinted) {
+      this.stamina = Math.max(0, this.stamina - STAMINA.drain * dt);
+      this.staminaDelay = STAMINA.delay;
+      if (this.stamina <= 1e-7) {
+        this.stamina = 0;
+        this.exhausted = true;
+        this.running = false;
+      }
+      return;
+    }
+    if (this.stamina === STAMINA.max) return;
+    const recoveryTime = Math.max(0, dt - this.staminaDelay);
+    this.staminaDelay = Math.max(0, this.staminaDelay - dt);
+    this.stamina = Math.min(STAMINA.max, this.stamina + STAMINA.recovery * recoveryTime);
+    if (this.stamina >= STAMINA.restart) this.exhausted = false;
   }
   candidate(dx,dz){
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
@@ -3783,6 +3809,9 @@ var el = (tag, cls, html) => {
 var $2 = (id) => document.getElementById(id);
 var GameUI = class {
   constructor() {
+    this.staminaRing = $2("staminaRing");
+    this.staminaArc = this.staminaRing.querySelector(".stamina-fill");
+    this.staminaAnchor = new Vector3();
     this.prompt = $2("prompt");
     this.toasts = $2("toasts");
     this.banner = $2("banner");
@@ -4101,6 +4130,36 @@ var GameUI = class {
       this.clockText = text;
       $2("clock").textContent = text;
     }
+  }
+  setStamina(player, camera, bodyVisible, hudVisible) {
+    const ring = this.staminaRing;
+    const show = hudVisible && player.mode === "walk" && player.stamina < STAMINA.max;
+    if (show !== ring.classList.contains("is-visible")) {
+      ring.classList.toggle("is-visible", show);
+      ring.setAttribute("aria-hidden", String(!show));
+    }
+    if (!show) return;
+
+    const percent = player.stamina / STAMINA.max * 100;
+    ring.setAttribute("aria-valuenow", String(Math.ceil(percent)));
+    ring.classList.toggle("is-exhausted", player.exhausted);
+    this.staminaArc.style.strokeDashoffset = String(100 - percent);
+
+    const shortSide = Math.min(innerWidth, innerHeight);
+    // Eye cameras have no visible waist anchor. Keep the ring clear of the center.
+    let x = innerWidth / 2 + shortSide * .14, y = innerHeight / 2 + shortSide * .08;
+    if (bodyVisible) {
+      const anchor = this.staminaAnchor.copy(player.renderPos);
+      anchor.y += PLAYER.height * .55;
+      anchor.applyMatrix4(camera.matrixWorldInverse);
+      if (anchor.z < -camera.near) {
+        const pixelsPerMeter = camera.projectionMatrix.elements[5] * innerHeight / (-2 * anchor.z);
+        anchor.applyMatrix4(camera.projectionMatrix);
+        x = (anchor.x * .5 + .5) * innerWidth + pixelsPerMeter * PLAYER.radius + 12;
+        y = (.5 - anchor.y * .5) * innerHeight;
+      }
+    }
+    ring.style.transform = `translate3d(${clamp2(x, 18, innerWidth - 18)}px, ${clamp2(y, 18, innerHeight - 18)}px, 0) translate(-50%, -50%)`;
   }
   setLabels(list, camera) {
     const box3 = $2("labels"), seen = /* @__PURE__ */ new Set(), v = this._v ?? (this._v = { x: 0, y: 0, z: 0 });
@@ -6239,6 +6298,7 @@ async function boot() {
     last = now;
     const t = now / 1e3;
     if (avatars.isOpen) {
+      ui.setStamina(player, camera, false, false);
       input.keys.clear(); input.stick.x = input.stick.y = 0;
       input.consumeLook(); input.consumeAttack(); input.consumeToggles(); input.jumpQueued = false;
       return;
@@ -6331,6 +6391,7 @@ async function boot() {
       nextGoal = now + 150;
     }
     const ambientAllowed=!ui.dialogueOpen()&&ui.bag.hidden&&ui.travel.hidden&&ui.boardP.hidden&&!fullMap.isOpen()&&!skillWorkbench.isOpen()&&$("intro").hidden;
+    ui.setStamina(player, camera, avatars.mode === "third" && avatars.bodyRoot.visible, ambientAllowed);
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
   };
   renderer.setAnimationLoop(tick);

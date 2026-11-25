@@ -33,6 +33,19 @@
 .hp.full{opacity:0}
 .hp i{width:10px;height:10px;transform:rotate(45deg);border:1px solid var(--ui-danger);background:linear-gradient(0deg,var(--ui-danger) var(--f),transparent var(--f))}
 
+.stamina-ring{
+  position:fixed;top:0;left:0;z-index:2;
+  width:clamp(1.5rem,4.5vmin,2rem);height:auto;
+  fill:none;opacity:0;pointer-events:none;
+  filter:drop-shadow(0 1px 2px rgb(16 16 16 / .55));
+  transition:opacity var(--seed-motion-color);
+}
+.stamina-ring.is-visible{opacity:1}
+.stamina-track{stroke:rgb(16 16 16 / .55);stroke-width:3.5}
+.stamina-fill{stroke:#f8d987;stroke-width:2.25;stroke-linecap:round;stroke-dasharray:100 100}
+.stamina-ring.is-exhausted .stamina-fill{stroke:#f39b83}
+@media(prefers-reduced-motion:reduce){.stamina-ring{transition:none}}
+
 /* ============ In-world actions: white icon, translucent support only ============ */
 .bar{position:fixed;z-index:3;top:calc(env(safe-area-inset-top,0px) + var(--ui-top));right:calc(env(safe-area-inset-right,0px) + var(--ui-edge));display:flex;align-items:center;gap:7px}
 .bar button.hud-btn,.atk,.jump{display:grid;place-items:center;gap:0;padding:0;width:var(--ui-control-size);height:var(--ui-control-size);min-width:var(--ui-touch);min-height:var(--ui-touch);border-radius:var(--ui-radius-control);background:var(--ui-control-wash);border:1px solid var(--ui-stroke-control);box-shadow:var(--ui-action-glow),var(--ui-shadow-control);color:var(--ui-glyph);font-size:0;line-height:1;cursor:pointer;touch-action:manipulation;transition:background var(--ui-trans-fast),transform var(--ui-trans-fast)}
