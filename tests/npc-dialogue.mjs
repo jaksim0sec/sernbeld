@@ -146,7 +146,17 @@ function checkNpcRuntime(source,createNpcStateStore,selectNpcLine,npcLinePool,ru
   Guild.state.registered=false;society.options(def)[0].act();
   check(Guild.state.registered&&writes>0,"current guild action executes");
   check(state.get("sera").memory.lastAction.id==="guild.register","real action remembered");
-  return "PASS: actual Townsfolk access, legacy greeting, Society stale action and state link";
+  const share={id:'living.group.share',itemId:'mediate',sourceNpcId:'other',targetNpcId:'sera'};
+  let effectCalls=0,available=[share];
+  society.choices=()=>available;
+  society.topicService=(_def,choice)=>{effectCalls++;return {ok:choice===share};};
+  check(society.topicEffect(def,'living.group.share',{npc:'other'}).ok&&effectCalls===1,'actual group effect accepts bound non-anchor speaker');
+  check(!society.topicEffect(def,'living.group.share',{npc:'missing'}).ok&&effectCalls===1,'group effect rejects unknown participant');
+  available=[share,{...share,itemId:'another'}];
+  check(!society.topicEffect(def,'living.group.share',{npc:'other'}).ok&&effectCalls===1,'ambiguous group effect fails closed');
+  check(society.topicEffect(def,'living.group.share',{npc:'other',itemId:'mediate'}).ok&&effectCalls===2,'explicit action reference disambiguates');
+  check(!society.topicEffect(def,'shop.buy',{npc:'other'}).ok&&effectCalls===2,'ordinary service keeps anchor restriction');
+  return "PASS: actual Townsfolk access, legacy greeting, Society stale action and state link, group effect binding";
 }
 
 console.log(checkNpcData(createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction));

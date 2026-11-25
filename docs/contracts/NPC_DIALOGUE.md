@@ -32,3 +32,5 @@ NPC 행동·담화 개발 기간에만 가까운(8m 이내) 가시 모델의 이
 
 ## 사건 그룹 그래프 (NPC-003/T4 코어)
 ambientPath가 등록된 사건 그래프는 기존 L2/L3 그룹 formation/hold를 재사용한다. 실제 joined group의 cursor, offset, currentTurn과 그룹 ID를 유지한다. 각 발화 슬롯의 active 사건·revision·사실을 재확인하고 실제 joined group에서만 해당 graph topic을 노출한다. 세션 currentSpeakerId는 발화 슬롯의 실제 NPC ID, speakerId는 기존 anchor hold ID. 실제 UI 표시 및 효과/경제 통합 검증은 후속 잔여다.
+
+T4: graph ambientPath에 등록된 participationIds는 기존 participationActions의 NPC 슬롯·사건 사실 참조를 검증한다. 실제 GameUI 이름·직급은 현재 발화자, activeSpeaker는 anchor 유지. 명시적 group effect는 유일한 기존 현재 Society 선택 및 scheduler/quote 검증만 재사용한다. 비앵커 소스/대상 슬롯은 group 효과에서만 허용하고 중복 후보는 실패 안전으로 처리한다.

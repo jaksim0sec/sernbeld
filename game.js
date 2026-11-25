@@ -52231,8 +52231,9 @@ var Society = class {
     }finally{this.ui.speechCapture=prior;}
   }
   topicEffect(def,handlerId,args) {
-    if(['guild.board','inn.sleep'].includes(handlerId)||Object.keys(args).some(k=>!['npc','itemId'].includes(k))||args.npc!==undefined&&args.npc!==def.id)return {ok:false,reason:'stale'};
-    const choices=this.choices(def).filter(c=>c.id===handlerId&&(args.itemId===undefined||c.itemId===args.itemId));
+    const group=handlerId.startsWith('living.group.');
+    if(['guild.board','inn.sleep'].includes(handlerId)||Object.keys(args).some(k=>!['npc','itemId'].includes(k))||!group&&args.npc!==undefined&&args.npc!==def.id)return {ok:false,reason:'stale'};
+    const choices=this.choices(def).filter(c=>c.id===handlerId&&(args.itemId===undefined||c.itemId===args.itemId)&&(!group||args.npc===undefined||c.sourceNpcId===args.npc||c.targetNpcId===args.npc));
     if(choices.length!==1)return {ok:false,reason:'stale'};
     return this.topicService(def,choices[0]);
   }

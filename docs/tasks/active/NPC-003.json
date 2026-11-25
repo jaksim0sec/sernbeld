@@ -43,5 +43,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T4 PARTIAL: graph ambient/현재 turn/그룹 화제 및 사실·revision 재검증 구현; 실제 UI 화자 표시·effect/경제 통합 및 CI 확인 필요."
+  "next": "NPC-003/T5: T4 코어·실제 UI 발화자/그룹 효과 어댑터·권위 scheduler/지식·관계 회귀 격리 PASS. 동일 SHA Node/브라우저/실기기 통합 검증 필요."
 }
