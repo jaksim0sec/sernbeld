@@ -25,3 +25,5 @@ T7 부분: 필요 episode 기반 요청/수락/제출/만료/자체 해결, 공�
 T7 요청 UI 연결: 기존 Society 선택지에서 명시적 수락/제출, 수량·품질·보상 표시, 거리/quote/revision/allocation 재검증. 공용 request policy 분리, 요청 결과 별도 저장 금지. PWA cache 60. V8 검증 및 번들 suffix 일치; 실제 브라우저 및 그룹 참여 미완료.
 
 T7 그룹 참여 코어: 등록형 reply/question/share/request, 사건/슬롯/실제 지식 검증, 명시적 중재만 정보 및 대상별 친화도 변경, 의뢰 포기 및 기존 원자적 거래 재사용. 그룹 hold 전환/해제. 실제 게임 어댑터 후속.
+
+T7 실제 어댑터: 그룹 전체 hold를 기존 직접 대화로 인계, 그룹 참여 선택 및 사건/거리/경로 재검증, 의뢰 포기 UI, 대화 종료 시 hold 해제. V8 코어 테스트 41 checks, 그룹 18+8+6 checks 이전 커밋 PASS; 실제 브라우저/PWA 및 전체 Node 미검증. 콘텐츠 미등록.

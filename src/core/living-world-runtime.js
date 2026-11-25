@@ -6,10 +6,11 @@ import {gameClockTick} from './npc-movement.js';
 import {createWorldSociety} from './world-society.js';
 import {createConversationBridge} from './npc-conversation.js';
 import {createNpcRequests} from './npc-requests.js';
+import {createNpcParticipation} from './npc-participation.js';
 const copy=v=>JSON.parse(JSON.stringify(v));
 const fail=reason=>({ok:false,reason});
 const point=p=>p&&[p.x,p.y,p.z].every(Number.isFinite);
-export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,conversationPair=()=>false,configureItems=()=>{},onCommit=()=>{},budget=32}){
+export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,conversationPair=()=>false,participationReach=()=>false,configureItems=()=>{},onCommit=()=>{},budget=32}){
  const known=new Map(residents.map(n=>[n.id,n]));
  if(known.size!==residents.length)return fail('duplicate_resident');
  const handlers={move:{plan({npcId,npc,action}){
@@ -24,6 +25,7 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  if(!registered.ok)return registered;
  const society=createWorldSociety(registry,content.societyHandlers??{});
  const requests=createNpcRequests(registry);
+ const participation=createNpcParticipation(registry,society,requests);
  const managed=new Set(registry.list('profiles').filter(p=>registry.get('roles',p.roleId)?.actionIds.length).map(p=>p.id));
  const initialTick=gameClockTick(clock);if(initialTick===null)return fail('invalid_clock');
  const before=copy(save.data),staged={data:copy(save.data),write:()=>true};
@@ -45,12 +47,18 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
   try{install(staged.data);if(typeof save.write!=='function'||save.write()===false)throw Error('save failed')}
   catch{install(before);return fail('save_failed')}
  }
- const scheduler=createNpcScheduler({save,registry,getDefinitions,handlers,validateRoute,society,requests,
+ const scheduler=createNpcScheduler({save,registry,getDefinitions,handlers,validateRoute,society,requests,participation,
   configureItems(items){configureItems(items);content.configureItems?.(items)},onCommit});
  let lastTarget=null,pending=0,lastResult={ok:true,processed:0,pending:0},held=null;
  const conversation=createConversationBridge({registry,scheduler,readState:()=>save.data,managed:id=>managed.has(id),knownEvents:id=>society.knownEvents(save.data,id),canPair:conversationPair,settled:()=>lastResult.ok&&!pending,playerHeld:id=>held?.id===id});
+ function reachableGroup(group){
+  try{return !!group&&participation.valid(save.data,group)&&participationReach(group)===true}catch{return false}
+ }
+ function participationContext(id){const group=conversation.joinedFor(id);return reachableGroup(group)?group:null}
  function update(activeSpeaker=null){
   conversation.retry();
+  const anchor=conversation.joinedAnchor();
+  if(anchor!==null&&(activeSpeaker!==anchor||!participationContext(anchor)))conversation.leaveJoined();
   if(held&&held.id!==activeSpeaker){
    const r=scheduler.resume(held.id,held.job);
    if(!r.ok&&r.reason!=='stale')return r;
@@ -71,6 +79,7 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  }
  function beginTalk(id){
   if(!canTalk(id))return false;
+  if(!held&&reachableGroup(conversation.participationFor(id))&&conversation.join(id))return true;
   if(!managed.has(id)){conversation.leaveNpc(id);return true}
   const a=save.data.npcStates?.[id]?.currentAction;
   if(!a||held)return false;
@@ -88,6 +97,9 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
   updateConversations:args=>conversation.update({...args,regionId}),
   requestChoices:id=>lastResult.ok&&!pending?scheduler.requestChoices(id):[],
   executeRequest:(id,choice)=>lastResult.ok&&!pending&&canTalk(id)?scheduler.executeRequest(id,choice):fail('stale'),
+  participationChoices:id=>{const group=participationContext(id);return group?scheduler.participationChoices(group):[]},
+  executeParticipation:(id,choice)=>{const group=participationContext(id);return group?scheduler.executeParticipation(group,choice):fail('stale')},
+  participationLine:id=>participationContext(id)?.materialized.turns.find(t=>t.npcId===id)?.text??null,
   knownEvents:(id,options)=>society.knownEvents(save.data,id,options),
   shareKnowledge:command=>lastResult.ok&&!pending?scheduler.shareKnowledge(command):fail('stale'),
   snapshot:()=>({state:copy(save.data.livingWorld),managed:[...managed],lastResult:copy(lastResult),conversations:conversation.snapshot()})};

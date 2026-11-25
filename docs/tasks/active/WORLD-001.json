@@ -27,7 +27,8 @@
     "src/core/npc-requests.js",
     "tests/npc-participation.mjs",
     "src/core/npc-dialogue.js",
-    "tools/verify.mjs"
+    "tools/verify.mjs",
+    "src/core/npc-participation.js"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -36,5 +37,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T7 요청 UI 및 stale quote 반영; 담화 그룹의 참여 분기, 관계 원인 확장 및 실제 브라우저 검증 후속."
+  "next": "T7 게임 어댑터 연결; 그룹/요청 실브라우저 검증 및 T8 통합·성능·콘텐츠 등록 계약 후속."
 }

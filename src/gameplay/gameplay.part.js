@@ -5236,6 +5236,8 @@ var Townsfolk = class {
     const met=Save.data.met??(Save.data.met={});
     const line=selectNpcLine(n.def,{met:!!met[n.def.id],cursor:n.lineI,hour:this.hour??12,custom:this.lineFor?.(n.def)});
     if(!line||this.living?.beginTalk(n.def.id)===false)return false;
+    const groupLine=this.living?.participationLine?.(n.def.id);
+    if(groupLine){n.talkT=5;if(n.ch)n.ch.talk=2.4;this.onSay?.(n.def,groupLine);return true;}
     if(line.first)met[n.def.id]=1;
     n.lineI=line.nextCursor;
     n.talkT=5;
@@ -5397,17 +5399,21 @@ var Society = class {
       }
     }
     if(def.role==="inn")o.push({id:"inn.sleep",label:`하룻밤 묵기 · 은화 ${INN_PRICE}`});
-    for(const request of this.folk?.living?.requestChoices(def.id)??[]){
+    const formatRequest=(choice,request=choice)=>{
       const name=ITEMS[request.definitionId]?.name??request.definitionId;
-      const verb=request.id==="living.request.accept"?"수락":"제출";
-      o.push({...request,label:`${verb}: ${request.label} · ${name} ${request.quantity}개 / 품질 ${request.minimumQuality} 이상 / 은화 ${request.reward}`});
-    }
+      const verb=request.id==="living.request.accept"?"수락":request.id==="living.request.abandon"?"포기":"제출";
+      const target=choice.targetNpcId?this.folk.list.find(n=>n.def.id===choice.targetNpcId)?.def.name:null;
+      return {...choice,label:`${target?target+" · ":""}${verb}: ${choice.label}${verb==="포기"?"":` · ${name} ${request.quantity}개 / 품질 ${request.minimumQuality} 이상 / 은화 ${request.reward}`}`};
+    };
+    for(const request of this.folk?.living?.requestChoices(def.id)??[])o.push(formatRequest(request));
+    for(const choice of this.folk?.living?.participationChoices?.(def.id)??[])o.push(choice.requestChoice?formatRequest(choice,choice.requestChoice):choice);
     return o;
   }
   options(def) {
     return this.choices(def).map(choice=>({...choice,act:()=>this.executeChoice(def,choice)}));
   }
   executeChoice(def,choice) {
+    let response=null;
     const result=runNpcAction(choice,{
       reachable:()=>this.canInteract?.(def)??false,
       choices:()=>this.choices(def),
@@ -5419,13 +5425,16 @@ var Society = class {
           case "shop.buy":return this.buy(def,action.itemId);
           case "shop.sell":return this.sell(def,action.itemId);
           case "inn.sleep":return this.sleep(def);
-          case "living.request.accept":case "living.request.submit":return this.folk?.living?.executeRequest(def.id,action)?.ok===true;
+          case "living.request.accept":case "living.request.submit":case "living.request.abandon":response=this.folk?.living?.executeRequest(def.id,action);return response?.ok===true;
+          case "living.group.reply":case "living.group.question":case "living.group.share":case "living.group.request":response=this.folk?.living?.executeParticipation(def.id,action);return response?.ok===true;
           default:return false;
         }
       }
     });
-    if(choice.id==="living.request.accept"||choice.id==="living.request.submit"){
-      if(result.reason!=="unreachable")this.ui.say(def,result.ok?(choice.id==="living.request.accept"?"의뢰를 수락했습니다.":"의뢰를 완료했습니다."):"지금은 의뢰를 처리할 수 없어요.",this.options(def));
+    if(choice.id.startsWith("living.request.")||choice.id.startsWith("living.group.")){
+      const id=choice.requestChoice?.id??choice.id;
+      const message=id==="living.request.accept"?"의뢰를 수락했습니다.":id==="living.request.abandon"?"의뢰를 포기했습니다.":"의뢰를 완료했습니다.";
+      if(result.reason!=="unreachable")this.ui.say(def,result.ok?(response?.text??message):"지금은 그 행동을 할 수 없어요.",this.options(def));
       return result;
     }
     if(result.reason==="unavailable")this.ui.say(def,"지금은 그 행동을 할 수 없어요.",this.options(def));
@@ -6627,6 +6636,11 @@ async function boot() {
   const routeAdapter=createNavGridRouteAdapter({nav:folk.nav,ground:(x,z,y)=>groundAt(x,z,y+.65),validateSegment:validateResidentSegment});
   const residentById=new Map(folk.list.map(n=>[n.def.id,n]));
   const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  const conversationPair=(a,b)=>{
+      if(!validateResidentSegment(a,b))return false;
+      const from={x:a.x,y:a.y+1.25,z:a.z},dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,d=Math.hypot(dx,dy,dz);
+      return d<.05||maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
+  };
   const living=createLivingWorldRuntime({save:Save,getDefinitions:()=>ITEMS,regionId:region.id,clock,
     residents:folk.list.map(n=>({id:n.def.id,role:n.def.role,position:{x:n.x,y:n.y,z:n.z}})),
     places:[...new Set(['home',...Object.keys(region.places)])],content:livingWorldContent,
@@ -6637,10 +6651,13 @@ async function boot() {
       return routeAdapter({regionId:region.id,from,to:{x,y,z},metersPerTick});
     },
     validateRoute:route=>route.regionId===region.id&&route.points.every((p,i)=>i===0||validateResidentSegment(route.points[i-1],p)),
-    conversationPair(a,b){
-      if(!validateResidentSegment(a,b))return false;
-      const from={x:a.x,y:a.y+1.25,z:a.z},dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,d=Math.hypot(dx,dy,dz);
-      return d<.05||maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
+    conversationPair,
+    participationReach(group){
+      if(group.regionId!==region.id||!WorldRegions.isActive(region.id))return false;
+      const anchor=residentById.get(group.anchorId);
+      if(!folk.canReach(anchor,player))return false;
+      const members=group.npcIds.map(id=>residentById.get(id)),queued=new Set(folk.queue.map(q=>q[0].def.id));
+      return members.every(n=>n&&!n.hidden&&!n.path&&n.speed<.12&&!queued.has(n.def.id))&&members.every((a,i)=>members.slice(i+1).every(b=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<=4&&conversationPair(a,b)));
     },
     configureItems(items){
       items.registerGatherSource('kael:gather',(q,data)=>{
