@@ -10,7 +10,9 @@
     "docs/contracts/LIVING_WORLD.md",
     "src/core/npc-behavior.js",
     "src/core/npc-scheduler.js",
-    "tests/npc-scheduler.mjs"
+    "tests/npc-scheduler.mjs",
+    "src/core/npc-movement.js",
+    "tests/npc-movement.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -19,5 +21,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T3 부분: 행동 엔진과 예약/일시정지/재개 구현. T4 논리 이동·게임 clock·지역 연결, 실제 정책 및 전체 검증 후속."
+  "next": "T4 부분: 논리 이동 및 clock adapter. 실제 Townsfolk/NavGrid/region/clock 연결, 저장 관찰 분리, 경로 장애물 지연, 실제 검증. MOVEMENT-002/INFRA-001 점유 조정 필요."
 }

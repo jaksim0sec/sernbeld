@@ -7,3 +7,5 @@ T2 초기 구현: [생활 세계 계약](../../contracts/LIVING_WORLD.md), regis
 T3 초기: 유틸리티 AI, deterministic due queue, 경제 draft slice, 예약/취소/재로드, fallback 및 프레임 독립 테스트. PASS NPC scheduler/behavior: 56 checks. 실제 clock, 이동, pause, 성능, 콘텐츠 등록 및 통합 후속. 기존 점유 경로 미변경.
 
 T3 추가: pause/resume, 재료 예약 해제 및 재취득, 재로드/경쟁/저장 실패 9 checks PASS. 실제 UI 연결 후속.
+
+T4 부분: 논리 경로/게임 분 변환/기존 NavGrid 인터페이스 어댑터, scheduler 이동 예약·pause·reload·경로 무효화. PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS logical NPC movement: 18 checks. 실제 게임 연결 및 점유 조정 후속.

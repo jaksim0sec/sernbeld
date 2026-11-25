@@ -1,5 +1,6 @@
 import {createItemRuntime} from './shared-items.js';
 import {createNpcBehavior,projectNeeds} from './npc-behavior.js';
+import {validLogicalRoute,positionOnRoute,samePosition,gameClockTick} from './npc-movement.js';
 const copy=v=>JSON.parse(JSON.stringify(v));
 const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -11,7 +12,7 @@ const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
 const kinds=['consume','produce','purchase','transfer','gather','offerUpdate'];
 // All economic mutations run against an isolated copy through the existing shared-item runtime.
 // A slice persists exactly once; a failed outer write discards jobs, needs, locks and receipts together.
-export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},retryTicks=5}){
+export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,retryTicks=5}){
  if(!tick(retryTicks)||retryTicks<1)throw Error('invalid retryTicks');
  const map=new Map(Object.entries(handlers));
  const behavior=createNpcBehavior(registry,map);
@@ -69,9 +70,20 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   if(p.command&&(!kinds.includes(p.command.kind)||!object(p.command.payload)))return null;
   if(p.needEffects!==undefined&&(!object(p.needEffects)||Object.values(p.needEffects).some(v=>typeof v!=='number'||!Number.isFinite(v))))return null;
   if(p.command&&p.needEffects&&Object.keys(p.needEffects).length)return null; // economic effects belong to the shared operation
+  if(p.route!==undefined&&(!validLogicalRoute(p.route)||p.command||p.reserve||p.needEffects&&Object.keys(p.needEffects).length))return null;
   if(p.reserve!==undefined&&typeof p.reserve!=='boolean')return null;
   if(p.reserve&&(!p.command||!Array.isArray(p.command.payload.allocations)||!['consume','produce','purchase','transfer'].includes(p.command.kind)))return null;
   return p;
+ }
+ function routeAllowed(n,route,npcId,at){
+  if(!validLogicalRoute(route)||!samePosition(n.logicalPosition,route.points[0])||route.regionId!==n.region)return false;
+  try{return validateRoute(copy(route),{npcId,at})===true}catch{return false}
+ }
+ function storeTravelPosition(n,j,at){
+  if(j.plan.route&&j.status==='running'){
+   const p=positionOnRoute(j.plan.route,at-j.startTick);if(!p)throw Error('invalid route');
+   n.logicalPosition=p;
+  }
  }
  function backoff(n,actionId,at){if(actionId)(n.actionBackoff??={})[actionId]=sum(at,retryTicks)}
  function start(d,items,j,n){
@@ -81,7 +93,8 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    if(!c.eligible)continue;
    const action=registry.get('actions',c.actionId),plan=cleanPlan(c.plan);
    if(!plan){backoff(n,c.actionId,at);continue}
-   const due=sum(at,action.duration),id=allocate(w);
+   if(plan.route&&!routeAllowed(n,plan.route,j.npcId,at)){backoff(n,c.actionId,at);continue}
+   const due=sum(at,plan.route?.duration??action.duration),id=allocate(w);
    if(plan.command){
     const cmd={operationId:id,actorId:'npc:'+j.npcId,kind:plan.command.kind,payload:{...plan.command.payload,tick:at}};
     if(!items.canExecute(cmd).ok){backoff(n,c.actionId,at);continue}
@@ -101,6 +114,10 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   let result=handler?{ok:true}:fail('unsupported');
   if(result.ok&&typeof handler.canComplete==='function'){
    try{if(handler.canComplete({npcId:j.npcId,npc:copy(n),plan:copy(j.plan),at,items:readItems(items)})!==true)result=fail('unavailable')}catch{result=fail('handler_error')}
+  }
+  if(result.ok&&j.plan.route){
+   if(!routeAllowed(n,j.plan.route,j.npcId,at))result=fail('unreachable');
+   else storeTravelPosition(n,j,at);
   }
   if(result.ok&&j.plan.command){
    const {kind,payload}=j.plan.command;
@@ -147,7 +164,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    if(n.currentAction?.interruptPolicy==='atomic')return fail('not_interruptible');
    if(j.plan.reserve&&j.status!=='paused'&&!items.release(j.id).ok)return fail('release_failed');
    w.scheduler=w.scheduler.filter(x=>x.id!==j.id);
-   updateNeeds(n,w.worldTick);delete n.currentAction;
+   updateNeeds(n,w.worldTick);if(j.status==='running'&&j.plan.route&&routeAllowed(n,j.plan.route,npcId,w.worldTick))storeTravelPosition(n,j,w.worldTick);delete n.currentAction;
    n.lastActionResult={id:j.id,actionId:j.actionId,tick:w.worldTick,ok:false,reason:'cancelled'};
    backoff(n,j.actionId,w.worldTick);decision(w,npcId,sum(w.worldTick,1));
    return {ok:true};
@@ -163,6 +180,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    if(j.dueTick<=w.worldTick)return fail('due');
    if(j.plan.reserve&&!items.release(j.id).ok)return fail('release_failed');
    updateNeeds(n,w.worldTick);
+   if(j.plan.route){if(!routeAllowed(n,j.plan.route,npcId,w.worldTick))return fail('unreachable');storeTravelPosition(n,j,w.worldTick)}
    j.remainingTicks=j.dueTick-w.worldTick;j.pausedAt=w.worldTick;j.dueTick=null;j.status='paused';
    n.currentAction={...n.currentAction,dueTick:null,paused:true};
    return {ok:true,remainingTicks:j.remainingTicks};
@@ -174,8 +192,9 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
    if(!n||!j)return fail('stale');
    const at=w.worldTick;updateNeeds(n,at);
    const candidate=behavior.evaluate({npcId,npc:n,at,items:readItems(items),context:{worldTick:at,resuming:true}}).find(c=>c.actionId===j.actionId&&c.eligible);
-   const plan=candidate&&cleanPlan(candidate.plan),due=sum(at,j.remainingTicks);
+   const plan=candidate&&cleanPlan(candidate.plan),due=sum(at,plan?.route?.duration??j.remainingTicks);
    let reason=plan?null:'unavailable';
+   if(plan?.route&&!routeAllowed(n,plan.route,npcId,at))reason='unreachable';
    if(plan?.command){
     const cmd={operationId:j.id,actorId:'npc:'+npcId,kind:plan.command.kind,payload:{...plan.command.payload,tick:at}};
     const validation=items.canExecute(cmd);
@@ -191,10 +210,19 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
     backoff(n,j.actionId,at);decision(w,npcId,sum(at,1));
     return {ok:true,resumed:false,reason};
    }
-   j.plan=plan;j.dueTick=due;j.status='running';delete j.remainingTicks;delete j.pausedAt;
-   n.currentAction={...n.currentAction,dueTick:due,paused:false};
+   j.plan=plan;j.dueTick=due;j.status='running';if(plan.route)j.startTick=at;delete j.remainingTicks;delete j.pausedAt;
+   n.currentAction={...n.currentAction,startTick:j.startTick,dueTick:due,paused:false};
    return {ok:true,resumed:true,dueTick:due};
   });
  }
- return {advanceTo,cancel,pause,resume,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
+ function logicalPosition(npcId){
+  if(!valid(save.data))return null;
+  const n=save.data.npcStates?.[npcId],w=save.data.livingWorld;
+  if(!n)return null;
+  const j=w.scheduler.find(x=>x.npcId===npcId&&x.status==='running'&&x.plan.route);
+  if(j&&routeAllowed(n,j.plan.route,npcId,w.worldTick))return positionOnRoute(j.plan.route,w.worldTick-j.startTick);
+  return n.logicalPosition?copy(n.logicalPosition):null;
+ }
+ function advanceClock(clock,budget=32){const target=gameClockTick(clock);return target===null?fail('invalid_tick'):advanceTo(target,budget)}
+ return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
 }

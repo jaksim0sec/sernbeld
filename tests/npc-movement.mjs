@@ -1,0 +1,42 @@
+import {createLivingWorldRegistry} from '../src/core/living-world-registry.js';
+import {createLivingWorldState} from '../src/core/living-world-state.js';
+import {extendItemDefinitions} from '../src/core/shared-items.js';
+import {createNpcScheduler} from '../src/core/npc-scheduler.js';
+import {buildLogicalRoute,positionOnRoute,gameClockTick,createNavGridRouteAdapter} from '../src/core/npc-movement.js';
+let checks=0;const a=(v,m)=>{if(!v)throw Error(m);checks++};
+const from={x:0,y:0,z:0},to={x:6,y:0,z:4},corner={x:6,y:0,z:0};
+const args={regionId:'kael',from,to,metersPerTick:2,findPath:()=>[corner,to],validateSegment:()=>true};
+const r=buildLogicalRoute(args);
+a(r.ok&&r.route.duration===5&&r.route.length===10,'path length');
+a(positionOnRoute(r.route,4).z===2,'interpolate by path length');
+a(!buildLogicalRoute({...args,findPath:()=>null}).ok,'no straight fallback');
+a(!buildLogicalRoute({...args,validateSegment:()=>false}).ok,'blocked segment rejected');
+a(!buildLogicalRoute({...args,findPath:()=>[corner]}).ok,'wrong endpoint rejected');
+a(gameClockTick({day:2,hour:0})===1440&&gameClockTick({day:1,hour:1.5})===90,'game clock minute mapping');
+const adapter=createNavGridRouteAdapter({nav:{path:()=>[[6,0],[6,4]]},ground:()=>0,validateSegment:()=>true});
+a(adapter(args).route.duration===5,'nav adapter');
+const defs=extendItemDefinitions({});
+const registry=createLivingWorldRegistry({handlers:['move'],regions:['kael']});
+a(registry.registerDefinitions({needs:[],actions:[{id:'move',handlerId:'move',duration:1,interruptPolicy:'pauseable',needWeights:{}}],roles:[{id:'worker',actionIds:['move'],needWeights:{}}],profiles:[{id:'a',regionId:'kael',roleId:'worker',tags:[]}]}).ok,'register');
+let reachable=true;
+function make(data){
+ const save={data,write(){return true}};
+ if(!data.livingWorld){createLivingWorldState(save,registry,()=>defs).initialize();save.data.npcStates.a.logicalPosition=from}
+ const handlers={move:{plan({npc}){const p=npc.logicalPosition;if(p.x===to.x&&p.z===to.z)return {ok:false,reason:'arrived'};const route=buildLogicalRoute({...args,from:p,findPath:()=>p.x<6?[corner,to]:[to]});return route.ok?{ok:true,plan:{route:route.route}}:route}}};
+ return {save,s:createNpcScheduler({save,registry,getDefinitions:()=>defs,handlers,validateRoute:()=>reachable})};
+}
+const initial=make({v:1});a(initial.s.advanceTo(0).ok,'route scheduled');
+a(initial.save.data.npcStates.a.currentAction.dueTick===5,'travel duration overrides action duration');
+a(initial.s.advanceTo(2).ok&&initial.s.logicalPosition('a').x===4,'logical progress without mesh');
+const reloaded=make(JSON.parse(JSON.stringify(initial.save.data)));
+a(reloaded.s.logicalPosition('a').x===4,'reload route progress');
+a(reloaded.s.advanceTo(5).ok&&reloaded.save.data.npcStates.a.logicalPosition.z===4,'arrival commits position');
+const paused=make(JSON.parse(JSON.stringify(initial.save.data))),job=paused.save.data.npcStates.a.currentAction.id;
+a(paused.s.pause('a',job).ok&&paused.s.logicalPosition('a').x===4,'pause checkpoints route');
+a(paused.s.advanceTo(10).ok&&paused.s.logicalPosition('a').x===4,'paused position stays');
+a(paused.s.resume('a',job).dueTick===13,'resume replans from checkpoint');
+a(paused.s.advanceTo(13).ok&&paused.s.logicalPosition('a').z===4,'resume arrives');
+const blocked=make(JSON.parse(JSON.stringify(initial.save.data)));reachable=false;
+a(blocked.s.advanceTo(5).ok&&blocked.save.data.npcStates.a.lastActionResult.reason==='unreachable'&&blocked.save.data.npcStates.a.logicalPosition.x===0,'invalidated route cannot complete');
+reachable=true;
+console.log('PASS logical NPC movement: '+checks+' checks');

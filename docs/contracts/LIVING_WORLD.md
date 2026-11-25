@@ -17,3 +17,8 @@
 ### T3 일시정지/재개
 - `pause(npcId,instanceId)`는 pauseable 행동만 정지하고 남은 tick을 저장한다. 재고를 무기한 점유하지 않도록 예약을 즉시 해제한다. `resume`은 동일 행동의 계획을 다시 검증하고 예약을 재취득, 남은 tick 이후에만 완료한다. 재취득 실패 시 행동 취소 및 backoff/다음 결정. pause 상태의 job은 실행 큐 처리 대상에서 제외하되 저장된다. 대화 UI 연결 및 재로드 시 자동 재개 정책은 후속.
 - V8 기존 scheduler 56 checks + pause/resume 9 checks PASS. 실제 게임 및 전체 검증 NOT RUN.
+
+## T4 논리 이동 초기 계약
+- `npc-movement.js`: gameClockTick은 기존 day/hour를 1일차 0시 기준 정수 분으로 변환. buildLogicalRoute는 명시적 경로 및 모든 segment 검증 필요, 미도달/미등록 경로 실패. createNavGridRouteAdapter는 기존 NavGrid의 [x,z] 경유점을 지면/충돌 검증 어댑터로 연결. 위치는 3D 경로 거리 기준 계산.
+- scheduler의 이동 전용 plan.route는 실제 경로 길이/속도로 dueTick을 결정. 시작/완료에서 trusted validateRoute 검증, logicalPosition 조회는 현재 worldTick의 위치 projection. 도착·정지 시 논리 위치 저장, pause 후 재계획. route와 경제 effect를 같은 행동에 섞지 않는다. 기본 validateRoute는 false로 미연결 시 안전하게 실패. 실제 NavGrid/지면 검증기, 능동 장애물 지연, region lifecycle/렌더 투영과 실제 clock 연결은 후속. route invalidation은 마지막 확정 위치 유지(이동 도중의 연속 checkpoint는 후속).
+- V8 PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS logical NPC movement: 18 checks. 실제 카엘/브라우저/전체 검증 NOT RUN.
