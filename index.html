@@ -85,11 +85,12 @@
 <div class="banner" id="banner" aria-live="polite"></div>
 
 <div class="labels" id="labels" aria-hidden="true"></div>
-<section class="speech" id="speech" hidden role="dialog" aria-modal="true" aria-labelledby="speechName" aria-describedby="speechLine">
-  <div class="opts" id="speechOpts" aria-label="응답 및 상호작용"></div>
+<section class="speech" id="speech" hidden role="dialog" aria-modal="true" aria-labelledby="speechName" aria-describedby="speechAnnouncement">
+  <div class="opts" id="speechOpts" aria-label="응답 및 상호작용"><button type="button" id="speechDismiss" class="interaction-token speech-dismiss"><svg class="interaction-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4v16h6 M12 8l4 4-4 4 M8 12h12"/></svg><span class="what">대화 끝내기</span></button></div>
+  <header class="speech-speaker"><b id="speechName"></b><small id="speechTitle"></small></header>
   <div class="speech-body">
-    <header class="speech-speaker"><b id="speechName"></b><small id="speechTitle"></small><button type="button" id="speechDismiss" class="speech-dismiss" aria-label="대화 마치기" title="대화 마치기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
-    <p id="speechLine" aria-live="polite"></p>
+    <p id="speechLine" aria-hidden="true"><span id="speechText"></span><span id="speechRest"></span></p>
+    <span id="speechAnnouncement" class="speech-sr-only" aria-live="polite"></span>
     <button type="button" id="speechNext" class="speech-next" hidden>계속 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
   </div>
 </section>

@@ -3941,6 +3941,7 @@ var GameUI = class {
   // --- people -----------------------------------------------------------------
   dialogueOpen() { return !$2("speech").hidden; }
   closeSpeech() {
+    this.speechFinishTyping?.();
     this.speechSession?.close();
     this.speechSession = null;
     this.activeSpeaker = null;
@@ -3949,6 +3950,7 @@ var GameUI = class {
   }
   say(def, line, options = []) {
     const sp=$2("speech"),box3=$2("speechOpts"),dismiss=$2("speechDismiss"),nextButton=$2("speechNext");
+    this.speechFinishTyping?.();
     this.speechSession?.close();
     const session=createDialogueSession(def,line,options);
     this.speechSession=session;
@@ -3956,7 +3958,35 @@ var GameUI = class {
     $2("speechName").textContent=def.name;
     $2("speechTitle").textContent=def.title??"";
     const render=()=>{
-      $2("speechLine").textContent=session.text;
+      this.speechFinishTyping?.();
+      const line=$2("speechLine"),shown=$2("speechText"),rest=$2("speechRest");
+      const text=session.text,chars=Array.from(text);
+      $2("speechAnnouncement").textContent=text;
+      line.scrollTop=0;
+      let frame=0,finished=false;
+      const finish=()=>{
+        if(finished)return;
+        finished=true;
+        if(frame)cancelAnimationFrame(frame);
+        shown.textContent=text;rest.textContent="";
+        if(this.speechFinishTyping===finish)this.speechFinishTyping=null;
+      };
+      this.speechFinishTyping=finish;
+      line.onclick=finish;
+      if(window.matchMedia("(prefers-reduced-motion: reduce)").matches||chars.length===0)finish();
+      else {
+        const started=performance.now(),duration=Math.min(3000,chars.length*25);
+        shown.textContent="";rest.textContent=text;
+        const step=now=>{
+          if(this.speechSession!==session||sp.hidden||finished)return;
+          const count=Math.min(chars.length,Math.floor((now-started)/duration*chars.length));
+          if(count>=chars.length){finish();return;}
+          shown.textContent=chars.slice(0,count).join("");
+          rest.textContent=chars.slice(count).join("");
+          frame=requestAnimationFrame(step);
+        };
+        frame=requestAnimationFrame(step);
+      }
       nextButton.hidden=!session.canAdvance;
       box3.replaceChildren(...session.choices.map((o,index)=>{
         const b=el("button","interaction-token");b.type="button";
@@ -3968,7 +3998,8 @@ var GameUI = class {
           options[index].act?.();
         });
         return b;
-      }));
+      }),dismiss);
+      box3.scrollTop=0;
       (session.canAdvance?nextButton:box3.firstElementChild??dismiss).focus({preventScroll:true});
     };
     nextButton.onclick=()=>{

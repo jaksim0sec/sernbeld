@@ -35,12 +35,14 @@ try {
       for(const b of await page.locator('#speechOpts button').all())assert.ok((await b.boundingBox()).height>=44);
       await page.locator('#speechOpts button').first().click();
       assert.equal(await page.locator('#speechLine').textContent(),'그렇군. 알겠네.');
-      assert.equal(await page.locator('#speechOpts').isVisible(),false);
+      assert.equal(await page.locator('#speechOpts button').count(),1);
+      assert.equal(await page.locator('#speechOpts button').last().getAttribute('id'),'speechDismiss');
       await page.locator('#speechDismiss').click();
       assert.equal(await page.locator('#speech').isVisible(),false);
       await page.evaluate(()=>window.showPages());
       assert.equal(await page.locator('#speechLine').textContent(),'첫 줄');
-      assert.equal(await page.locator('#speechOpts').isVisible(),false);
+      assert.equal(await page.locator('#speechOpts button').count(),1);
+      assert.equal(await page.locator('#speechOpts button').last().getAttribute('id'),'speechDismiss');
       assert.ok((await page.locator('#speechNext').boundingBox()).height>=44);
       await page.locator('#speechNext').click();
       assert.equal(await page.locator('#speechLine').textContent(),'둘째 줄');
@@ -48,8 +50,25 @@ try {
       await page.locator('#speechOpts button').first().click();
       assert.equal(await page.locator('#speech').isVisible(),false);
       await page.evaluate(()=>window.showDialogue(12,true));
-      assert.ok(await page.locator('.speech-body').evaluate(e=>e.scrollHeight>e.clientHeight));
+      assert.ok(await page.locator('#speechLine').evaluate(e=>e.scrollHeight>e.clientHeight));
+      const longPanel=await page.locator('.speech-body').boundingBox();
+      assert.ok(Math.abs(longPanel.height-panel.height)<1,'body height must be stable');
+      assert.ok(await page.locator('.speech-speaker').evaluate(e=>!e.closest('.speech-body')),'nameplate must be separate');
+      assert.equal(await page.locator('#speechOpts button').last().getAttribute('id'),'speechDismiss');
       assert.ok(await page.locator('#speechOpts').evaluate(e=>e.scrollHeight>e.clientHeight));
+      await page.emulateMedia({reducedMotion:'no-preference'});
+      await page.evaluate(()=>window.showDialogue(3,true));
+      assert.ok((await page.locator('#speechRest').textContent()).length>0,'typing should begin hidden');
+      await page.locator('#speechLine').click();
+      assert.equal(await page.locator('#speechRest').textContent(),'');
+      await page.locator('#speechDismiss').click();
+      await page.evaluate(()=>window.showPages());
+      await page.locator('#speechNext').click();
+      await page.locator('#speechLine').click();
+      assert.equal(await page.locator('#speechText').textContent(),'둘째 줄');
+      assert.equal(await page.locator('#speechAnnouncement').textContent(),'둘째 줄');
+      await page.locator('#speechDismiss').click();
+      assert.equal(await page.locator('#speech').isVisible(),false);
       console.log('PASS NPC dialogue DOM '+width+'x'+height);
     } finally {await context.close();}
   }

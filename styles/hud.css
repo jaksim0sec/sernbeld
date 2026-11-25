@@ -51,7 +51,7 @@ body:has(.speech:not([hidden])) :is(.prompt,.bar,.hud-rail,.hud-vitals,.stick,.h
 body:has(.speech:not([hidden])) :is(#view,.hud-rail button,.bar button){pointer-events:none}
 
 /* ============ Context action & guidance ============ */
-.prompt{position:fixed;z-index:4;left:58%;top:58%;display:flex;align-items:center;gap:var(--seed-gap);max-width:min(340px,76vw);min-height:var(--seed-touch);padding:.45rem .85rem;border-radius:var(--seed-radius-pill);background:rgba(24,37,36,.92);border:0;box-shadow:var(--ui-shadow-floating);color:#faf8f0;font-size:var(--seed-button-size);font-weight:var(--seed-button-weight);letter-spacing:var(--seed-button-tracking);cursor:pointer;touch-action:manipulation;transition:background var(--seed-motion-color),scale var(--seed-motion-press)}
+.prompt{position:fixed;z-index:4;left:58%;top:58%;display:flex;align-items:center;gap:var(--seed-gap);max-width:min(340px,76vw);min-height:var(--seed-touch);padding:.45rem .85rem;border-radius:var(--seed-radius-pill);background:rgba(22,35,37,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:0;box-shadow:var(--ui-shadow-floating);color:#faf8f0;font-size:var(--seed-button-size);font-weight:var(--seed-button-weight);letter-spacing:var(--seed-button-tracking);cursor:pointer;touch-action:manipulation;transition:background var(--seed-motion-color),scale var(--seed-motion-press)}
 .interaction-icon{flex:none;width:1.45rem;height:1.45rem;object-fit:contain;fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:round;stroke-linejoin:round}
 .prompt:active{scale:var(--seed-press-scale);background:#3c504b}
 .prompt .verb{flex:none;font-weight:700;color:var(--ui-accent)}
