@@ -7,7 +7,10 @@
     "src/core/living-world-registry.js",
     "src/core/living-world-state.js",
     "tests/living-world-state.mjs",
-    "docs/contracts/LIVING_WORLD.md"
+    "docs/contracts/LIVING_WORLD.md",
+    "src/core/npc-behavior.js",
+    "src/core/npc-scheduler.js",
+    "tests/npc-scheduler.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -16,5 +19,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T2 레지스트리 나머지 타입 및 정책 연결, 저장 검증 심화, T3 scheduler. 기존 gameplay/game.js/sw.js 및 verify 점유는 별도 통합 조정."
+  "next": "T3 부분: 초기 행동·예약 엔진. pause/resume·행동 중단·선행 행동 및 등록 계약 심화, T4 논리 이동/clock/게임 연결. 전체 검증 NOT RUN."
 }
