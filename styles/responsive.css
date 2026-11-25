@@ -52,11 +52,11 @@
   .ui-item-hero img{width:44px;height:44px}
   .atk{right:calc(env(safe-area-inset-right,0px) + 78px);bottom:calc(env(safe-area-inset-bottom,0px) + 60px)}
   .jump{bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
-  .speech{bottom:calc(env(safe-area-inset-bottom,0px) + 12px);max-height:calc(100dvh - 24px);overflow:auto}
+  .speech{bottom:calc(env(safe-area-inset-bottom,0px) + .6rem)}
   .prompt{bottom:calc(env(safe-area-inset-bottom,0px) + 90px)}
   .hint{bottom:calc(env(safe-area-inset-bottom,0px) + 7px)}
 }
 
-@media (prefers-reduced-motion:reduce){.loading,.hint,.toast,.atk,.jump,.bar button.hud-btn{transition:none}.banner.show,.toast-item,.intro p,.speech{animation:none}.banner.show{opacity:1}}
+@media (prefers-reduced-motion:reduce){.loading,.hint,.toast,.atk,.jump,.bar button.hud-btn{transition:none}.banner.show,.toast-item,.intro p,.speech{animation:none}.speech button,.prompt{transition:none}.banner.show{opacity:1}}
 
 

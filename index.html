@@ -85,7 +85,13 @@
 <div class="banner" id="banner" aria-live="polite"></div>
 
 <div class="labels" id="labels" aria-hidden="true"></div>
-<div class="speech" id="speech" hidden role="status"><b id="speechName"></b><small id="speechTitle"></small><p id="speechLine"></p><div class="opts" id="speechOpts"></div></div>
+<section class="speech" id="speech" hidden role="dialog" aria-modal="true" aria-labelledby="speechName" aria-describedby="speechLine">
+  <div class="opts" id="speechOpts" aria-label="응답 및 상호작용"></div>
+  <div class="speech-body">
+    <header class="speech-speaker"><b id="speechName"></b><small id="speechTitle"></small><button type="button" id="speechDismiss" class="speech-dismiss" aria-label="대화 마치기" title="대화 마치기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+    <p id="speechLine" aria-live="polite"></p>
+  </div>
+</section>
 
 <section class="panel" id="board" hidden aria-label="의뢰판"><aside class="ui-menu-sidebar" aria-label="메뉴 탐색"><div class="ui-menu-brand"><span class="ui-menu-brand-name">SERNBELD</span></div><nav class="ui-menu-nav" aria-label="메뉴"><button type="button" class="ui-nav-link" data-ui-panel="bag" aria-label="가방" title="가방"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-04"></use></svg><span>가방</span></button><span class="ui-nav-link" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="./assets/ui-icons.svg#ui-09"></use></svg><span>의뢰</span></span></nav><div class="ui-sidebar-footer">SERNBELD</div></aside><div class="ui-page-main"><header><h2>의뢰판</h2><span class="coin currency-pill" id="boardMoney"></span><button type="button" class="close" aria-label="닫기" title="닫기">닫기</button></header><div class="ui-page-scroll"><div class="ui-page-kicker">항구 조합의 의뢰</div><div class="body"></div></div></div></section>
 <div class="fade" id="fade" hidden><span id="fadeText"></span></div>

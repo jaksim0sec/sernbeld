@@ -10,13 +10,13 @@ const groups = {
     ['tests/infra-contract.mjs'], ['tools/check-infra.mjs'], ['tools/build-ecology-prototypes.mjs','--check']],
   core: ['foundation', 'durable-items', 'region-lifecycle', 'wildlife-removal',
     'skill-engine', 'skill-library', 'skill-runner', 'skill-orbit',
-    'startup-runtime', 'pwa-startup'].map(name => ['tests/' + name + '.mjs']),
+    'startup-runtime', 'pwa-startup', 'npc-dialogue'].map(name => ['tests/' + name + '.mjs']),
   clothing: ['studio-model', 'character-assembly', 'schoolyard-ik', 'schoolyard-motion',
     'shirt-reference', 'shirt-recovery', 'shirt-runtime', 'pants-runtime', 'garment-alignment', 'dev-validation']
     .map(name => ['tests/' + name + '.mjs']),
   world: [['tests/player-physics.mjs'], ['tests/world-performance.mjs'], ['tests/world-playability.mjs','--no-browser']],
   browser: [
-    ['tests/character-assets.mjs'], ['tests/character-webgl.mjs'],
+    ['tests/npc-dialogue-browser.mjs'], ['tests/character-assets.mjs'], ['tests/character-webgl.mjs'],
     ['tests/character-runtime-browser.mjs'], ['tests/cold-start-browser.mjs'],
     ['tests/garment-render.mjs'], ['tests/dev-studio.mjs'], ['tests/kael-roads.mjs'],
     ['tests/world-playability.mjs'], ['tests/custom-skills-browser.mjs'],

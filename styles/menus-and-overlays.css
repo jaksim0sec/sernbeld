@@ -73,20 +73,29 @@
 .req .row .pay{margin-left:auto;color:var(--ui-warm)}
 .req button{margin-top:8px;min-height:36px;padding:5px 12px}
 
-/* ============ Dialogue: one anchored conversation surface ============ */
-.speech{position:fixed;z-index:6;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 95px);transform:translateX(-50%);width:min(520px,calc(100vw - 34px));padding:15px 18px 16px;border:1px solid rgba(249,255,253,.25);border-radius:var(--ui-radius-card);background:linear-gradient(155deg,rgba(23,36,48,.96),rgba(29,42,55,.94));backdrop-filter:blur(var(--ui-blur-panel));-webkit-backdrop-filter:blur(var(--ui-blur-panel));cursor:pointer;animation:ui-speech-reveal 190ms ease-out}
-.speech b{font-size:.97rem;font-weight:700}
-.speech small{margin-left:7px;color:var(--ui-warm);font-size:.70rem}
-.speech p{margin:9px 0 0;color:var(--ui-ink-soft);font-size:.84rem;line-height:1.58}
-.opts{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;padding-top:12px;border-top:1px solid var(--ui-menu-separator)}
-.opts:empty{display:none}
-.opts button{width:100%;min-height:38px;padding:8px 12px;font-size:.80rem}
-.opts button:focus-visible{border-color:var(--ui-accent)}
-
-/* ============ World text / transient notices ============ */
+/* ============ Dialogue: participation and ambient world speech ============ */
+/* Local in-game material only; neutral system menu tokens stay unchanged. */
+.speech{--speech-glass:rgba(24,37,36,.88);--speech-ink:#faf8f0;--speech-accent:#efd6a0;position:fixed;z-index:6;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);transform:translateX(-50%);width:min(44rem,calc(100vw - max(2rem,env(safe-area-inset-left,0px) + env(safe-area-inset-right,0px) + 1rem)));max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 2rem);display:flex;flex-direction:column;align-items:stretch;gap:var(--seed-gap);background:none;box-shadow:none;border:0;padding:0;pointer-events:none;animation:ui-speech-reveal var(--seed-motion-sheet)}
+.speech-body{pointer-events:auto;min-height:0;flex:0 1 auto;overflow:auto;overscroll-behavior:contain;padding:.75rem var(--seed-panel-padding) 1rem;background:var(--speech-glass);color:var(--speech-ink);border:0;border-radius:var(--seed-radius-sheet);box-shadow:0 .5rem 2rem #0c191833;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.speech-speaker{display:flex;align-items:center;gap:.5rem;min-width:0}
+.speech b{font-size:var(--seed-title-size);font-weight:var(--seed-title-weight);letter-spacing:var(--seed-title-tracking);color:var(--speech-accent);overflow-wrap:anywhere}
+.speech small{color:#d1dbd2;font-size:var(--seed-caption-size);overflow-wrap:anywhere}
+.speech p{margin:.2rem 0 0;color:var(--speech-ink);font-size:1rem;line-height:1.65;overflow-wrap:anywhere}
+.speech-dismiss{flex:none;margin-left:auto;display:grid;place-items:center;width:var(--seed-touch);height:var(--seed-touch);border:0;border-radius:50%;background:#ffffff12;color:var(--speech-ink);cursor:pointer;transition:background var(--seed-motion-color),transform var(--seed-motion-press)}
+.speech-dismiss svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:round}
+.speech-dismiss:active{transform:scale(var(--seed-press-scale));background:#ffffff24}
+.speech .opts{pointer-events:auto;align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;width:auto;max-width:min(19rem,100%);max-height:40dvh;min-height:0;flex:0 1 auto;overflow:auto;overscroll-behavior:contain;margin:0;padding:.15rem .25rem;border:0;scrollbar-width:thin}
+.speech .opts:empty{display:none}
+.speech .opts button{width:auto;max-width:100%;border:0;background:rgba(24,37,36,.86);color:var(--speech-ink);border-radius:var(--seed-radius-pill);min-height:var(--seed-touch);padding:var(--seed-button-padding);gap:.5rem;font-size:var(--seed-button-size);font-weight:var(--seed-button-weight);letter-spacing:var(--seed-button-tracking);box-shadow:none;transition:background var(--seed-motion-color),transform var(--seed-motion-press)}
+.speech .opts button:hover{background:#3c504b}
+.speech .opts button:active{transform:scale(var(--seed-press-scale));background:#3c504b}
+.speech .opts .what{white-space:normal;overflow-wrap:anywhere;min-width:0}
 .labels{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:1}
 .labels div{position:absolute;transform:translate(-50%,-100%);max-width:138px;padding:2px 5px;text-align:center;white-space:nowrap;font-size:var(--ui-type-caption);line-height:1.2;color:var(--ui-ink);text-shadow:0 1px 4px rgba(4,17,23,.83)}
 .labels small{display:block;font-size:.58rem;color:var(--ui-accent);opacity:.87}
+.labels .ambient-utterance{position:absolute;left:50%;bottom:calc(100% + .5rem);transform:translateX(-50%);width:max-content;max-width:min(14rem,70vw);padding:.6rem .85rem;background:rgba(24,37,36,.94);color:#faf8f0;border-radius:var(--seed-radius-card);font-size:.82rem;font-weight:650;line-height:1.45;white-space:normal;overflow-wrap:anywhere;text-shadow:none;box-shadow:0 .25rem 1rem #14201f33}
+.labels .ambient-utterance::after{content:"";position:absolute;left:50%;bottom:-.35rem;transform:translateX(-50%) rotate(45deg);width:.7rem;height:.7rem;background:rgba(24,37,36,.94);border-radius:2px}
+@media(max-height:470px) and (orientation:landscape){.speech{gap:.35rem}.speech-body{padding:.4rem .9rem .65rem}.speech p{font-size:.9rem}.speech .opts{max-height:46dvh}}
 .toasts{position:fixed;z-index:5;left:calc(env(safe-area-inset-left,0px) + var(--ui-edge));top:44%;display:flex;flex-direction:column;gap:var(--ui-space-2);max-width:min(260px,calc(100vw - 24px));pointer-events:none}
 .toast-item{display:flex;align-items:center;gap:var(--ui-space-2);padding:6px 10px 6px 6px;border-radius:var(--ui-radius-card);background:var(--ui-panel-wash);border:1px solid var(--ui-stroke);border-left:2px solid var(--rar,var(--ui-accent));color:var(--ui-ink);box-shadow:var(--ui-shadow-floating);font-size:var(--ui-type-body);animation:ui-reveal 190ms ease-out;transition:opacity 550ms,transform 550ms}
 .toast-item img{width:30px;height:30px}

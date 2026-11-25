@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ui.npc-interaction-v2",
+    "kind": "ui",
+    "title": "참여성/비참여성 NPC 대화 및 공용 상호작용 토큰",
+    "stage": "INTEGRATED",
+    "source": [
+      "docs/contracts/NPC_DIALOGUE.md",
+      "index.html",
+      "styles/hud.css",
+      "styles/menus-and-overlays.css"
+    ],
+    "runtime": "src/gameplay/gameplay.part.js",
+    "approval": "사용자 합의 레이아웃과 SEED 규칙; 실제 색상 및 실월드 품질 미승인",
+    "checks": [
+      {
+        "criterion": "세션/토큰/주변 발화",
+        "result": "PASS",
+        "evidence": "tests/npc-dialogue.mjs RED/GREEN 실행"
+      },
+      {
+        "criterion": "독립 화면 검증",
+        "result": "PARTIAL",
+        "evidence": "4 viewport Chromium DOM 시편; 실제 GameUI 회귀 별도"
+      },
+      {
+        "criterion": "실월드 및 CI",
+        "result": "NOT RUN",
+        "evidence": "docs/tasks/archive/NPC-001.md"
+      }
+    ]
+  }
+]

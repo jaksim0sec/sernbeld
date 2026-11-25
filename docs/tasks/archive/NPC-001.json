@@ -1,0 +1,25 @@
+{
+  "id": "NPC-001",
+  "status": "done",
+  "baseline": "5e277bec917a79eda6b2acc81d08bc7aadf5d3e8",
+  "detail": "docs/tasks/archive/NPC-001.md",
+  "scope": [
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "index.html",
+    "styles/hud.css",
+    "styles/menus-and-overlays.css",
+    "styles/responsive.css",
+    "sw.js",
+    "tools/verify.mjs",
+    "tests/npc-dialogue.mjs",
+    "tests/npc-dialogue-browser.mjs"
+  ],
+  "contracts": [
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/contracts/DELIVERABLES.md",
+    "docs/UI_UX_DESIGN_GUIDELINES.md"
+  ],
+  "dependencies": [],
+  "next": "원격 CI, 실제 카엘 화면/실기기 확인; 향후 NPC 영속 ID·소유 자원 계약은 생활 경제 작업에 연계"
+}

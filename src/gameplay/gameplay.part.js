@@ -2805,7 +2805,7 @@ var Input = class {
     this.touchActive = false;
     const touches = /* @__PURE__ */ new Map();
     addEventListener("keydown", (e) => {
-      if (e.repeat) return;
+      if (e.repeat || (document.getElementById("speech")?.hidden === false && e.code !== "Escape")) return;
       this.keys.add(e.code);
       if (e.code === "Space") this.jumpQueued = true;
       if (e.code === "KeyJ" || e.code === "KeyK") this.attackQueued = true;
@@ -3383,10 +3383,10 @@ var Explore = class {
     let c = null;
     if (this.player.mode === "walk" && !this.player.swimming) {
       const n = this.gatherables.pick(p.x, p.z, REACH);
-      if (n) c = { dist: Math.hypot(n.x - p.x, n.z - p.z), verb: "\uC90D\uAE30", label: this.itemName(n), act: () => this.gather(n) };
+      if (n) c = { dist: Math.hypot(n.x - p.x, n.z - p.z), kind: "item", itemId: GATHER[n.type].item, verb: "\uC90D\uAE30", label: this.itemName(n), act: () => this.gather(n) };
       else {
         const w = this.waypoints.userData.list.find((v) => v.on && (v.x - p.x) ** 2 + (v.z - p.z) ** 2 < 9);
-        if (w) c = { dist: 3, verb: "\uC774\uB3D9\uD558\uAE30", label: w.name, act: () => this.ui.onWaypoint?.(w.name) };
+        if (w) c = { dist: 3, kind: "waypoint", verb: "\uC774\uB3D9\uD558\uAE30", label: w.name, act: () => this.ui.onWaypoint?.(w.name) };
       }
       for (const prov of this.providers) {
         const o = prov(this.player);
@@ -3397,7 +3397,7 @@ var Explore = class {
     this.ui.setPrompt(c);
   }
   interact() {
-    if (WorldRegions.isActive(this.region.id)) this.candidate?.act();
+    if (WorldRegions.isActive(this.region.id) && !this.ui.dialogueOpen?.()) this.candidate?.act();
   }
   itemName(n) {
     return this.ui.itemName(GATHER[n.type].item);
@@ -3808,11 +3808,37 @@ var GameUI = class {
       this.promptKey = null;
       return;
     }
-    const key2 = c.verb + c.label;
+    const key2 = [c.kind,c.itemId,c.verb,c.label].join("|");
     if (key2 === this.promptKey) return;
     this.promptKey = key2;
     this.prompt.hidden = false;
-    this.prompt.innerHTML = `${IS_MOBILE ? "" : "<kbd>E</kbd>"}<span class="verb">${c.verb}</span><span class="what">${c.label}</span>`;
+    this.prompt.setAttribute("aria-label", c.verb + ": " + c.label);
+    this.prompt.replaceChildren(this.interactionIcon(c.kind,c.itemId));
+    const label = el("span","what"); label.textContent = c.label;
+    this.prompt.append(label);
+    if (!IS_MOBILE) {
+      const key = el("kbd"); key.textContent = "E"; key.setAttribute("aria-hidden","true");
+      this.prompt.append(key);
+    }
+  }
+  interactionIcon(kind, itemId) {
+    if (itemId) {
+      const img = el("img","interaction-icon"); img.alt = ""; img.src = iconURL(itemId);
+      return img;
+    }
+    const ns = "http://www.w3.org/2000/svg", icon = document.createElementNS(ns,"svg");
+    icon.setAttribute("class","interaction-icon"); icon.setAttribute("viewBox","0 0 24 24");
+    icon.setAttribute("aria-hidden","true");
+    const path = document.createElementNS(ns,"path");
+    const paths = {
+      npc:"M4 5h16v11H10l-6 4V5z M8 9h8 M8 12h5",
+      waypoint:"M12 2l7 10-7 10-7-10z M12 8v8",
+      board:"M5 3h14v18H5z M8 8h8 M8 12h8 M8 16h5",
+      reply:"M5 5h14v10h-7l-5 4v-4H5z",
+      action:"M8 5l7 7-7 7"
+    };
+    path.setAttribute("d", paths[kind] || paths.action);
+    icon.append(path); return icon;
   }
   // --- toasts ---------------------------------------------------------------
   pickup(id, n, total) {
@@ -3836,12 +3862,14 @@ var GameUI = class {
     p.hidden = true;
   }
   toggleBag() {
+    if(this.dialogueOpen())return;
     this.travel.hidden = true;
     this.boardP.hidden = true;
     this.bag.hidden = !this.bag.hidden;
     if (!this.bag.hidden) this.renderBag();
   }
   toggleTravel() {
+    if(this.dialogueOpen())return;
     this.bag.hidden = true;
     this.boardP.hidden = true;
     this.travel.hidden = !this.travel.hidden;
@@ -3909,30 +3937,45 @@ var GameUI = class {
     return ITEMS[id].name;
   }
   // --- people -----------------------------------------------------------------
+  dialogueOpen() { return !$2("speech").hidden; }
+  closeSpeech() {
+    this.speechSession = null;
+    this.activeSpeaker = null;
+    $2("speech").hidden = true;
+    if (this.prompt && !this.prompt.hidden) this.prompt.focus({preventScroll:true});
+  }
   say(def, line, options = []) {
-    const sp = $2("speech");
+    const sp = $2("speech"), session = {};
+    this.speechSession = session;
+    this.activeSpeaker = def.id ?? null;
     $2("speechName").textContent = def.name;
     $2("speechTitle").textContent = def.title ?? "";
     $2("speechLine").textContent = line;
     const box3 = $2("speechOpts");
     box3.replaceChildren(...options.map((o) => {
-      const b = el("button", "", o.label);
-      b.type = "button";
-      b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        sp.hidden = true;
+      const b = el("button","interaction-token"); b.type = "button";
+      b.append(this.interactionIcon(o.kind || "reply",o.itemId));
+      const label = el("span","what"); label.textContent = o.label; b.append(label);
+      b.addEventListener("click", () => {
+        if (this.speechSession !== session || sp.hidden) return;
+        this.closeSpeech();
         o.act();
       });
       return b;
     }));
+    const dismiss = $2("speechDismiss");
+    dismiss.onclick = () => { if (this.speechSession === session) this.closeSpeech(); };
     sp.hidden = false;
-    sp.onclick = () => {
-      sp.hidden = true;
+    sp.onkeydown = e => {
+      if (e.key !== "Tab") return;
+      const buttons = [...sp.querySelectorAll("button:not([disabled])")];
+      if (!buttons.length) return;
+      const i=buttons.indexOf(document.activeElement);
+      if (i<0 || (e.shiftKey?i===0:i===buttons.length-1)) {
+        e.preventDefault(); buttons[e.shiftKey?buttons.length-1:0].focus({preventScroll:true});
+      }
     };
-    clearTimeout(this.sayT);
-    this.sayT = setTimeout(() => {
-      sp.hidden = true;
-    }, (options.length ? 9e3 : 2600) + line.length * 70);
+    (box3.firstElementChild??dismiss).focus({preventScroll:true});
   }
   openBoard(list, accept) {
     this.bag.hidden = true;
@@ -4022,13 +4065,19 @@ var GameUI = class {
       const vx = e[0] * L.x + e[4] * L.y + e[8] * L.z + e[12], vy = e[1] * L.x + e[5] * L.y + e[9] * L.z + e[13], vz = e[2] * L.x + e[6] * L.y + e[10] * L.z + e[14];
       if (vz > -0.5) continue;
       const cx = (P2[0] * vx + P2[8] * vz) / -vz, cy = (P2[5] * vy + P2[9] * vz) / -vz;
+      if (Math.abs(cx)>1 || Math.abs(cy)>1) continue;
       let el2 = this._labels.get(L.id);
       if (!el2) {
         el2 = document.createElement("div");
-        el2.innerHTML = `${L.name}<small>${L.title}</small>`;
+        const name=el("span","resident-name"); name.textContent=L.name;
+        const title=el("small"); title.textContent=L.title??"";
+        const bubble=el("span","ambient-utterance"); bubble.hidden=true;
+        el2.append(bubble,name,title); el2.bubble=bubble;
         box3.append(el2);
         this._labels.set(L.id, el2);
       }
+      if (el2.bubble.textContent !== (L.utterance??"")) el2.bubble.textContent=L.utterance??"";
+      el2.bubble.hidden=!L.utterance;
       el2.style.left = (cx * 0.5 + 0.5) * innerWidth + "px";
       el2.style.top = (-cy * 0.5 + 0.5) * innerHeight + "px";
       el2.style.opacity = String(Math.min(1, (11 - L.d) / 3));
@@ -4413,8 +4462,8 @@ var Townsfolk = class {
         this.goTo(n, x, z);
       }
       let moving = false;
-      if (n.talkT > 0) {
-        n.talkT -= dt;
+      if (n.talkT > 0 || this.activeSpeaker?.() === n.def.id) {
+        n.talkT = Math.max(0,n.talkT - dt);
         n.yaw = turn(n.yaw, Math.atan2(player.pos.x - n.x, player.pos.z - n.z), dt * 6);
       } else if (n.path && n.pi < n.path.length) {
         const [tx, tz] = n.path[n.pi], dx = tx - n.x, dz = tz - n.z, d2 = Math.hypot(dx, dz);
@@ -4485,12 +4534,12 @@ var Townsfolk = class {
     for (const n of this.list) {
       if (n.hidden||!n.ch) continue;
       const dx = n.x - player.pos.x, dz = n.z - player.pos.z, d = Math.hypot(dx, dz);
-      if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.2) {
+      if (d < bd && Math.abs(n.y-player.pos.y) < 1.8 && (dx * fx + dz * fz) / (d || 1) > 0.2 && (!this.canTalk || this.canTalk(n,player))) {
         bd = d;
         best = n;
       }
     }
-    return best && { dist: bd, verb: "\uB300\uD654", label: best.def.name, act: () => this.talk(best, player) };
+    return best && { dist: bd, kind: "npc", verb: "\uB300\uD654", label: best.def.name, act: () => this.talk(best, player) };
   }
   talk(n, player) {
     var _a;
@@ -4523,14 +4572,40 @@ var Townsfolk = class {
     }
     return out;
   }
-  labels(camera, player) {
-    const out2 = [];
+  labels(camera, player, now = 0, allowAmbient = true) {
+    const out2 = [], nearby = [];
     for (const n of this.list) {
       if (n.hidden||!n.ch) continue;
-      const d = Math.hypot(n.x - player.pos.x, n.z - player.pos.z);
+      const dx=n.x-player.pos.x,dz=n.z-player.pos.z,d=Math.hypot(dx,dz);
       if (d > 11) continue;
-      out2.push({ id: n.def.id, name: n.def.name, title: n.def.title, x: n.x, y: n.y + 1.95 * (n.def.scale ?? 1), z: n.z, d });
+      const label={id:n.def.id,name:n.def.name,title:n.def.title,x:n.x,y:n.y+1.95*(n.def.scale??1),z:n.z,d};
+      out2.push(label);
+      const forward = (-Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
+      if (d <= 6 && Math.abs(n.y-player.pos.y)<1.8 && forward>.15 && n.ch.group.visible) nearby.push({n,label});
     }
+    if (!allowAmbient) { this.ambient=null; return out2; }
+    const eligible = id => nearby.find(entry=>entry.n.def.id===id);
+    if (this.ambient) {
+      const speaker=eligible(this.ambient.speakerId);
+      if(now>=this.ambient.expiresAt || !speaker) this.ambient=null;
+      else if(now>=(this.ambient.nextSightCheck??0)) {
+        if(this.canTalk&&!this.canTalk(speaker.n,player))this.ambient=null;
+        else this.ambient.nextSightCheck=now+.25;
+      }
+    }
+    if (!this.ambient && now >= (this.ambientNext??0) && nearby.length) {
+      const visible=nearby.sort((a,b)=>a.label.d-b.label.d).find(({n})=>!this.canTalk||this.canTalk(n,player));
+      if(!visible){this.ambientNext=now+.5;return out2;}
+      const {n}=visible;
+      const lines=n.def.lines??{}, h=this.hour??12;
+      const pool=((h>=20||h<6)?lines.night:lines.day)??lines.day??[];
+      if (pool.length) {
+        const index=this.ambientIndex??0; this.ambientIndex=index+1;
+        this.ambient={speakerId:n.def.id,text:pool[index%pool.length],expiresAt:now+4.5,nextSightCheck:now+.25};
+      }
+      this.ambientNext=now+14;
+    }
+    if (this.ambient) eligible(this.ambient.speakerId).label.utterance=this.ambient.text;
     return out2;
   }
 };
@@ -4627,7 +4702,7 @@ var Society = class {
     }
     if (def.role === "smith") {
       for (const [id, it] of Object.entries(ITEMS)) if (it.kind === "weapon" && !Inventory.count(id))
-        o.push({ label: `${it.name} \xB7 \uC740\uD654 ${it.price}`, act: () => this.buy(def, id) });
+        o.push({ kind:"item", itemId:id, label: `${it.name} \xB7 \uC740\uD654 ${it.price}`, act: () => this.buy(def, id) });
     }
     if (def.role === "inn") o.push({ label: `\uD558\uB8FB\uBC24 \uBB35\uAE30 \xB7 \uC740\uD654 ${INN_PRICE}`, act: () => this.sleep(def) });
     if (def.role === "vendor" && Inventory.entries().some(([id]) => ITEMS[id].kind === "material" && ITEMS[id].rarity === "common")) o.push({ label: "\uD754\uD55C \uC7AC\uB8CC \uD314\uAE30", act: () => this.sell(def) });
@@ -4691,7 +4766,7 @@ var Society = class {
   boardCandidate(p) {
     const d = Math.hypot(p.pos.x - this.boardPos[0], p.pos.z - this.boardPos[1]);
     if (d > 2.8 || !Guild.state.registered) return null;
-    return { dist: d, verb: "\uBCF4\uAE30", label: "\uC758\uB8B0\uD310", act: () => this.openBoard() };
+    return { dist: d, kind: "board", verb: "\uBCF4\uAE30", label: "\uC758\uB8B0\uD310", act: () => this.openBoard() };
   }
   goal() {
     const G = Guild.state;
@@ -5779,6 +5854,7 @@ async function boot() {
     }
   });
   document.getElementById("hudMapOpen").addEventListener("click", () => {
+    if(ui.dialogueOpen())return;
     if (fullMap.isOpen()) fullMap.close();
     else fullMap.open();
   });
@@ -5797,6 +5873,13 @@ async function boot() {
   folk.settle(clock.hour);
   const society = new Society({ ui, clock, folk, region });
   Guild.advanceRival(clock.day);
+  folk.activeSpeaker = () => ui.activeSpeaker;
+  folk.canTalk = (n,p) => {
+    const from={x:p.pos.x,y:p.pos.y+1.35,z:p.pos.z};
+    const dx=n.x-from.x,dy=n.y+1.35*(n.def.scale??1)-from.y,dz=n.z-from.z;
+    const d=Math.hypot(dx,dy,dz);
+    return d<.05 || maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
+  };
   folk.lineFor = (def) => society.line(def);
   folk.onSay = (def, line) => ui.say(def, line, society.options(def));
   ui.activeIds = () => Save.data.requests.map((q) => q.id);
@@ -6093,6 +6176,7 @@ async function boot() {
     }
     shared.uTime.value = t;
     for (const code of input.consumeToggles()) {
+      if (ui.dialogueOpen()) { if(code==="Escape")ui.closeSpeech(); break; }
       if(!ui.travel.hidden){if(code==="Escape")ui.menuBack();break;}
       if (skillWorkbench.isOpen()) {
         if (code === "Escape") {
@@ -6116,9 +6200,10 @@ async function boot() {
         }
       } else if (!fullMap.isOpen() && code === "KeyI") ui.toggleBag();
     }
+    if(ui.dialogueOpen()&&!WorldRegions.isActive(region.id))ui.closeSpeech();
     clock.update(dt);
     folk.hour = clock.hour;
-    if (fullMap.isOpen() || !ui.travel.hidden) {
+    if (fullMap.isOpen() || !ui.travel.hidden || ui.dialogueOpen()) {
       input.keys.clear();
       input.stick.x = input.stick.y = 0;
       input.consumeLook();
@@ -6167,7 +6252,8 @@ async function boot() {
       ui.setGoal(society.goal());
       nextGoal = now + 150;
     }
-    ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player) : [], camera);
+    const ambientAllowed=!ui.dialogueOpen()&&ui.bag.hidden&&ui.travel.hidden&&ui.boardP.hidden&&!fullMap.isOpen()&&!skillWorkbench.isOpen()&&$("intro").hidden;
+    ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
   };
   renderer.setAnimationLoop(tick);
   window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
