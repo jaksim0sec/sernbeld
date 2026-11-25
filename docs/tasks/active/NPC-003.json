@@ -1,0 +1,43 @@
+{
+  "id": "NPC-003",
+  "status": "planned",
+  "baseline": "ab10c9a223d45becfce0629a47f28ee2fd1a0b83",
+  "detail": "docs/tasks/active/NPC-003.md",
+  "scope": [
+    "src/core/npc-dialogue.js",
+    "src/core/npc-conversation.js",
+    "src/core/npc-participation.js",
+    "src/core/living-world-runtime.js",
+    "src/core/living-world-registry.js",
+    "src/core/living-world-content.js",
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "sw.js",
+    "tests/npc-dialogue.mjs",
+    "tests/npc-dialogue-browser.mjs",
+    "tests/npc-conversation.mjs",
+    "tests/npc-participation.mjs",
+    "tests/living-world-integration.mjs",
+    "tests/living-world-runtime.mjs",
+    "tests/kael-living-content.mjs",
+    "tests/living-world-browser.mjs",
+    "tests/living-world-performance.mjs",
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/contracts/LIVING_WORLD.md",
+    "docs/workflows/LIVING_WORLD_CONTENT.md",
+    "docs/core/CURRENT_STATE.md"
+  ],
+  "contracts": [
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/contracts/LIVING_WORLD.md",
+    "docs/contracts/SHARED_ITEMS.md",
+    "docs/workflows/LIVING_WORLD_CONTENT.md",
+    "docs/validation/VALIDATION_POLICY.md"
+  ],
+  "dependencies": [
+    "NPC-002",
+    "WORLD-001",
+    "ITEM-001"
+  ],
+  "next": "NPC-003/T1: 최신 main에서 대화 흐름 재현 및 통합 계약 확정. TODO 대기, WORLD-001/PERF-001 등 점유 조정 전 구현 금지."
+}
