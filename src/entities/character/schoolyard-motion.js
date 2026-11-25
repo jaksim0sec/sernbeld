@@ -56,7 +56,7 @@ export function createSchoolyardMotion(actor){
  const api={
   play(name){if(!SCHOOLYARD_CLIPS[name])return false;anim={name,time:0};return true;},
   get active(){return anim?.name??null;},
-  update(dt,t,player,swing,{first=false,runSpeed=5,turnRate=null,gazeYaw=0,gaitSpeed=Math.hypot(player.vel.x,player.vel.z)}={}){
+  update(dt,t,player,swing,{first=false,runSpeed=5,turnRate=null,gazeYaw=0,gaitSpeed=Math.hypot(player.vel.x,player.vel.z),residentSocial=null}={}){
    dt=clamp(dt,0,.12);clock+=dt;
    const speed=gaitSpeed;
    const walking=clamp(speed/1.15,0,1);
@@ -117,7 +117,28 @@ export function createSchoolyardMotion(actor){
    }
    // Preserve the NPC conversation nod that the old studio animator had.
    // It is an overlay, not another locomotion implementation.
-   if(!first&&actor.talk>0){targets.head[0]=0;targets.head[1]+=Math.sin(t*7)*3;}
+   if(!first&&residentSocial){
+    const weight=grounded?1-walking:0,seed=residentSocial.seed||0,clock=t+seed*17,mode=residentSocial.mode;
+    if(mode==="idle"){
+     const cycle=clock%(7+seed*4),glance=Math.sin(Math.PI*clamp((cycle-1.2)/3.4,0,1))**2;
+     const direction=Math.floor(clock/(7+seed*4))%2?1:-1;
+     targets.head[0]+=direction*(19+seed*10)*glance*weight;
+     targets.head[1]+=Math.sin(clock*1.4)*2.5*glance*weight;
+     targets.ribcage[1]+=direction*4*glance*weight;
+    }else if(mode==="speaker"){
+     const period=2.7+seed,beat=clock%period,pulse=Math.sin(Math.PI*clamp((beat-.28)/1.45,0,1))**2*weight;
+     const side=(Math.floor(clock/period)+Math.floor(seed*10))%2?"left":"right";
+     targets["upper_arm_"+side][0]+=28*pulse;
+     targets["upper_arm_"+side][1]+=11*pulse;
+     targets["forearm_"+side][0]+=43*pulse;
+     targets["forearm_"+side][1]+=9*pulse;
+     targets.head[1]+=Math.sin(clock*4.5)*3*weight;
+     targets.ribcage[1]+=(side==="left"?1:-1)*4*pulse;
+    }else if(mode==="listener"){
+     const beat=clock%(4.6+seed*2),nod=Math.sin(Math.PI*clamp((beat-.5)/.65,0,1))**2;
+     targets.head[1]+=5*nod*weight;
+    }
+   }else if(!first&&actor.talk>0){targets.head[0]=0;targets.head[1]+=Math.sin(t*7)*3;}
    // Keep the existing sword IK and finger handling authoritative. The full
    // body drives anticipation/reaction; grip targets still solve at the wrists.
    if(swing?.weight){

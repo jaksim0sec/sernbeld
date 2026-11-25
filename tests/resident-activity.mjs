@@ -80,10 +80,11 @@ for(const n of residents){
  check(n.day.every(e=>e[1]==='home'||Object.hasOwn(places,e[1]))&&n.day.every((e,i)=>!i||e[0]>n.day[i-1][0]),'valid ordered schedule '+n.id);
 }
 const at=(n,h)=>n.day.filter(e=>e[0]<=h).at(-1);
-const counts=(job,h)=>residents.filter(n=>n.id.startsWith(job)).reduce((m,n)=>{const k=at(n,h)[1];m[k]=(m[k]??0)+1;return m},{});
+const counts=(job,h)=>residents.filter(n=>n.dialogueRole===job).reduce((m,n)=>{const k=at(n,h)[1];m[k]=(m[k]??0)+1;return m},{});
 const folk=counts('folk',11.5),dock=counts('docker',11.5);
-check(Object.values(folk).reduce((a,b)=>a+b,0)===19&&Object.keys(folk).length===6&&Math.max(...Object.values(folk))<=4,'11:30 resident distribution');
+check(Object.values(folk).reduce((a,b)=>a+b,0)===23&&Object.keys(folk).length===6&&Math.max(...Object.values(folk))<=4,'11:30 resident distribution');
 check(dock.pier_a===6&&dock.pier_b===6,'dock workers split');
+check(residents.filter(n=>n.dialogueRole==='guard').length===3&&residents.filter(n=>/^guard[3-6]$/.test(n.id)).every(n=>n.dialogueRole==='folk'),'guard ratio reduced, IDs retained');
 check(new Set(residents.filter(n=>n.id.startsWith('folk')).map(n=>n.day[2][0])).size>1,'staggered departure');
 check(residents.filter(n=>n.id.startsWith('vendor')).every(n=>n.day[1][0]===7&&n.day[1][1]===['stall_a','stall_b','stall_c'][Number(n.id.slice(6))%3]),'vendor hours and work locations unchanged');
 check(stamp!==JSON.stringify([actor().entry,spot]),'old presentation stamp invalidated');
@@ -95,3 +96,14 @@ check(residentDestinationClear(n,0,0,[n,far]),'clear point accepted');
 check(pickResidentWanderPoint([0,0],{random:()=>0,pointAt,available:()=>false})===null,'bounded retry when saturated');
 check(pickResidentWanderPoint([0,0],{random:()=>0,pointAt,available:()=>true})?.x===2,'valid candidate accepted');
 console.log('PASS resident activity, walk pace and distributed destinations: '+checks+' checks');
+
+const socialActors=[0,3].map((x,i)=>({def:{id:"p"+i},entry:[8,"plaza","wander"],x,y:0,z:0,yaw:0,talkT:0,hidden:false,path:null,wait:5}));
+const socialFolk=Object.assign(Object.create(Townsfolk.prototype),{list:socialActors,activityPoint:(x,z)=>({x,y:0,z}),activitySegment:()=>true});
+check(socialFolk.prepareConversation(["p0","p1"],"g",{x:30,y:0,z:30}),"formation planned");
+check(Math.abs(Math.hypot(socialActors[0].social.target.x-socialActors[1].social.target.x,socialActors[0].social.target.z-socialActors[1].social.target.z)-1.52)<.001,"conversation spacing");
+for(let i=0;i<120;i++)for(const actor of socialActors)if(!actor.social.arrived)socialFolk.socialStep(actor,1/60,{pos:{x:30,y:0,z:30}});
+check(socialActors.every(n=>n.social.arrived)&&Math.hypot(socialActors[0].x-socialActors[1].x,socialActors[0].z-socialActors[1].z)<1.65,"walk into formation");
+for(const actor of socialActors)actor.social=null;
+socialFolk.activitySegment=()=>false;
+check(!socialFolk.prepareConversation(["p0","p1"],"blocked",{x:30,y:0,z:30})&&socialActors.every(n=>!n.social),"reject obstruction");
+console.log("PASS resident social approach: 4 checks");

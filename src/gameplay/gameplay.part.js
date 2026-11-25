@@ -5045,15 +5045,18 @@ function townsfolk() {
   const extraNames = ["라온","미라","다온","에단","리나","유안","세린","로엔","하린","아린","엘로","마린","루엔","나리","소라","이안","카린","레온","리아","아벨","하엘","테오","시온","노엘","엘린"];
   for (const extra of [false,true]) for (const [job, J] of Object.entries(JOBS)) for (let i = extra ? J.n : 0; i < J.n + (extra ? extraCounts[job] ?? 0 : 0); i++) {
     const stall2 = ["stall_a", "stall_b", "stall_c"][i % 3];
+    // Reassign surplus guards without changing stable cast IDs.
+    const civilian=job==="guard"&&i>=3,effectiveJob=civilian?"folk":job,effective=JOBS[effectiveJob];
     out2.push({
       id: `${job}${i}`,
       name: extra ? extraNames[added++] : NAMES[k++ % NAMES.length],
-      title: { vendor: "\uC0C1\uC778", docker: "\uBD80\uB450 \uC77C\uAFBC", folk: "\uC8FC\uBBFC", kid: "\uC544\uC774", guard: "\uACBD\uBE44\uBCD1" }[job],
+      appearanceTitle: civilian ? "\uACBD\uBE44\uBCD1" : undefined,
+      title: { vendor: "\uC0C1\uC778", docker: "\uBD80\uB450 \uC77C\uAFBC", folk: "\uC8FC\uBBFC", kid: "\uC544\uC774", guard: "\uACBD\uBE44\uBCD1" }[effectiveJob],
       scale: J.scale ?? 0.94 + r() * 0.1,
       role: job === "vendor" ? "vendor" : void 0,
-      dialogueRole:job,
-      day: distributedResidentDay(job,i,J.day(stall2)),
-      lines: { day: J.lines, night: ["\uC774\uC81C \uB4E4\uC5B4\uAC00 \uBD10\uC57C\uC9C0."] },
+      dialogueRole:effectiveJob,
+      day: distributedResidentDay(effectiveJob,civilian?i+16:i,effective.day(stall2)),
+      lines: { day: effective.lines, night: ["\uC774\uC81C \uB4E4\uC5B4\uAC00 \uBD10\uC57C\uC9C0."] },
       minor: true
     });
   }
@@ -5079,7 +5082,7 @@ var Townsfolk = class {
     this.nav = World.kaelNav || new NavGrid(B2.x0, B2.z0, B2.x1, B2.z1, 2);
     const r = mulberry32(5), houses = [...TOWN.houses].sort(() => r() - 0.5);
     this.list = [...NAMED, ...townsfolk()].map((def, i) => {
-      const appearance = resolveNpcAppearance(def);
+      const appearance = resolveNpcAppearance(def.appearanceTitle?{...def,title:def.appearanceTitle}:def);
       def.gender = appearance.gender;
       def.character = appearance.character;
       // Resident data/schedules are cheap and stay live regardless of mesh residency.
@@ -5136,6 +5139,7 @@ var Townsfolk = class {
     this.living?.clearGroups();
     this.queue.length = 0;
     const placed=[];
+    for(const n of this.list)n.social=null;
     for (const n of this.list) {
       if(this.living?.managed(n.def.id)){placed.push(n);continue;}
       n.entry = this.entry(n.def, hour);
@@ -5200,11 +5204,61 @@ var Townsfolk = class {
   checkpointActivity(regionId,clock,force=false) {
     const entries=Object.create(null),pending=new Map(this.queue.map(([n,x,z])=>[n,[x,z]]));
     for(const n of this.list){
-      if(this.living?.managed(n.def.id)||!n.entry||n.entry!==this.entry(n.def,clock.hour))continue;
+      if(this.living?.managed(n.def.id)||n.social||!n.entry||n.entry!==this.entry(n.def,clock.hour))continue;
       const record=captureResidentActivity(n,residentActivityStamp(n.entry,this.spot(n,n.entry)),pending.get(n));
       if(record)entries[n.def.id]=record;
     }
     return residentActivityCache.write(regionId,clock.day,entries,Date.now(),force);
+  }
+  // A short, validated approach to a conversation circle. Managed actors keep
+  // their scheduler-owned world positions.
+  prepareConversation(ids,groupId,player) {
+    const members=ids.map(id=>this.list.find(n=>n.def.id===id));
+    if(members.some(n=>!n||n.hidden||n.social||n.path||n.talkT>0))return false;
+    const center={x:members.reduce((v,n)=>v+n.x,0)/members.length,z:members.reduce((v,n)=>v+n.z,0)/members.length};
+    const memberSet=new Set(members),radius=members.length===2?.76:members.length===3?.86:1;
+    const sorted=[...members].sort((a,b)=>Math.atan2(a.z-center.z,a.x-center.x)-Math.atan2(b.z-center.z,b.x-center.x)||a.def.id.localeCompare(b.def.id));
+    let targets=null;
+    if(members.some(n=>this.living?.managed(n.def.id))){
+      if(members.some((a,i)=>members.slice(i+1).some(b=>Math.hypot(a.x-b.x,a.z-b.z)>2||Math.hypot(a.x-b.x,a.z-b.z)<.65)))return false;
+      targets=sorted.map(n=>({x:n.x,y:n.y,z:n.z}));
+    }else{
+      const start=Math.atan2(sorted[0].z-center.z,sorted[0].x-center.x);
+      for(const rotation of [0,.25,-.25,.5,-.5]){
+        const trial=sorted.map((n,i)=>{
+          const angle=start+rotation+i*Math.PI*2/sorted.length;
+          return this.activityPoint(center.x+radius*Math.cos(angle),center.z+radius*Math.sin(angle),n.y);
+        });
+        if(trial.some((q,i)=>!q||Math.abs(q.y-sorted[i].y)>.55||!this.activitySegment(sorted[i],q)||
+          Math.hypot(q.x-player.x,q.z-player.z)<.85||
+          this.list.some(n=>!memberSet.has(n)&&!n.hidden&&Math.abs(n.y-q.y)<1.1&&Math.hypot(n.x-q.x,n.z-q.z)<.85)))continue;
+        if(trial.some((a,i)=>trial.slice(i+1).some(b=>!this.activitySegment(a,b))))continue;
+        targets=trial;break;
+      }
+    }
+    if(!targets)return false;
+    for(let i=0;i<sorted.length;i++){
+      const n=sorted[i],target=targets[i];
+      n.social={groupId,members,target,origin:{x:n.x,y:n.y,z:n.z},entry:n.entry,arrived:Math.hypot(n.x-target.x,n.z-target.z)<.06,returning:false};
+    }
+    return true;
+  }
+  socialStep(n,dt,player) {
+    const social=n.social,target=social.target,dx=target.x-n.x,dz=target.z-n.z,d=Math.hypot(dx,dz);
+    if(d<=.06){social.arrived=true;return 0;}
+    const step=Math.min(d,1.25*dt),x=n.x+dx/d*step,z=n.z+dz/d*step;
+    const blocked=p=>Math.abs((p.y??n.y)-n.y)<1.1&&Math.hypot(x-p.x,z-p.z)<.68&&Math.hypot(x-p.x,z-p.z)<Math.hypot(n.x-p.x,n.z-p.z);
+    if(blocked(player.pos)||this.list.some(other=>other!==n&&!other.hidden&&blocked(other)))return 0;
+    const q=this.activityPoint(x,z,n.y);
+    if(!q||Math.abs(q.y-n.y)>.5){if(!social.returning)this.living?.leaveGroup(n.def.id);return 0;}
+    n.x=x;n.y=q.y;n.z=z;n.yaw=turn(n.yaw,Math.atan2(dx,dz),dt*6);
+    social.arrived=d-step<=.06;
+    return dt>0?step/dt:0;
+  }
+  faceConversation(n,dt) {
+    const peers=n.social.members.filter(m=>m!==n),speaker=this.groupSpeech?.get(n.def.id);
+    const look=peers.find(m=>m.def.id===speaker)??{x:peers.reduce((v,m)=>v+m.x,0)/peers.length,z:peers.reduce((v,m)=>v+m.z,0)/peers.length};
+    n.yaw=turn(n.yaw,Math.atan2(look.x-n.x,look.z-n.z),dt*5);
   }
   goTo(n, x, z, strict=false) {
     const pending = this.queue.findIndex(job => job[0] === n);
@@ -5236,6 +5290,7 @@ var Townsfolk = class {
       const e = this.entry(n.def, hour);
       if (!managed&&e !== n.entry) {
         this.living?.leaveGroup(n.def.id);
+        n.social=null;
         n.entry = e;
         const [x, z] = this.spot(n, e);
         if (n.hidden) {
@@ -5250,9 +5305,19 @@ var Townsfolk = class {
         }else this.goTo(n, x, z);
       }
       let moving = false, movingSpeed = 0;
-      if (n.talkT > 0 || this.activeSpeaker?.() === n.def.id) {
+      const groupId=this.living?.groupFor(n.def.id),speakingToPlayer=n.talkT>0||this.activeSpeaker?.()===n.def.id;
+      if(n.social&&!n.social.returning&&n.social.groupId!==groupId){
+        if(!managed&&n.social.entry===n.entry&&n.entry?.[2]!=="wander"&&Math.hypot(n.x-n.social.origin.x,n.z-n.social.origin.z)>.08){
+          n.social.target=n.social.origin;n.social.returning=true;n.social.arrived=false;
+        }else{n.social=null;n.wait=Math.max(n.wait,3+n.rnd()*5);}
+      }
+      if (speakingToPlayer) {
         n.talkT = Math.max(0,n.talkT - dt);
         n.yaw = turn(n.yaw, Math.atan2(player.pos.x - n.x, player.pos.z - n.z), dt * 6);
+      } else if(n.social&&!managed){
+        if(!n.social.arrived){movingSpeed=this.socialStep(n,dt,player);moving=movingSpeed>0;}
+        if(n.social?.returning){if(n.social.arrived)n.social=null;}
+        else if(n.social?.arrived)this.faceConversation(n,dt);
       } else if(managed){
         const pos=this.living.position(n.def.id);
         if(pos){const dx=pos.x-n.x,dz=pos.z-n.z;moving=Math.hypot(dx,dz)>.001;if(moving){n.yaw=turn(n.yaw,Math.atan2(dx,dz),dt*5);movingSpeed=Math.hypot(dx,dz)*60/CLOCK_RATE;}n.x=pos.x;n.y=pos.y;n.z=pos.z;n.hidden=false;n.path=null;}
@@ -5278,6 +5343,7 @@ var Townsfolk = class {
       } else if (n.entry[2] === "wander" && !this.living?.groupFor(n.def.id) && (n.wait -= dt) <= 0) {
         this.queueWander(n);
       }
+      if(managed&&groupId&&n.social&&!speakingToPlayer&&!moving)this.faceConversation(n,dt);
       n.speed += ((moving ? movingSpeed : 0) - n.speed) * Math.min(1, dt * 8);
       const dxCam = n.x - camPos.x, dzCam = n.z - camPos.z;
       const d = Math.hypot(dxCam, dzCam);
@@ -5304,6 +5370,8 @@ var Townsfolk = class {
       }
       n.ch.setShadow(d < SHADOW);
       n.ch.speed = n.speed;
+      const speaker=this.groupSpeech?.get(n.def.id);
+      n.ch.residentSocial={mode:speakingToPlayer||speaker===n.def.id?"speaker":groupId&&n.social?.arrived?"listener":"idle",seed:n.poseOffset??0};
       const interval = d < SHADOW || n.talkT > 0 ? 0 : d < 22 ? 1 / 30 : d < 42 ? 1 / 20 : 1 / 10;
       n.poseAge = (n.poseAge ?? interval * n.poseOffset) + dt;
       if (n.poseAge >= interval) {
@@ -6791,6 +6859,7 @@ async function boot() {
     },
     validateRoute:route=>route.regionId===region.id&&route.points.every((p,i)=>i===0||validateResidentSegment(route.points[i-1],p)),
     conversationPair,
+    prepareConversation:(ids,groupId)=>folk.prepareConversation(ids,groupId,player.pos),
     participationReach(group){
       if(group.regionId!==region.id||!WorldRegions.isActive(region.id))return false;
       const anchor=residentById.get(group.anchorId);
@@ -7199,8 +7268,9 @@ async function boot() {
     if(living.ok&&living.conversationsEnabled){
       const queued=new Set(folk.queue.map(q=>q[0].def.id));
       groupLines=living.updateConversations({active:regionActive,player:player.pos,now:t,suppressed:!ambientAllowed,
-        npcs:regionActive&&ambientAllowed?folk.list.map(n=>({id:n.def.id,x:n.x,y:n.y,z:n.z,hidden:n.hidden,stationary:!n.path&&!queued.has(n.def.id)&&n.speed<.12&&n.talkT<=0,available:ui.activeSpeaker!==n.def.id})):[]});
+        npcs:regionActive&&ambientAllowed?folk.list.map(n=>({id:n.def.id,x:n.x,y:n.y,z:n.z,hidden:n.hidden,stationary:!n.path&&!queued.has(n.def.id)&&n.speed<.12&&n.talkT<=0&&(!n.social||n.social.arrived),approaching:!!n.social&&!n.social.returning,available:ui.activeSpeaker!==n.def.id&&!n.social?.returning})):[]});
     }
+    folk.groupSpeech=new Map(groupLines.flatMap(line=>line.npcIds.map(id=>[id,line.speakerId])));
     ui.setLabels(regionActive ? folk.labels(camera, player,t,ambientAllowed,groupLines) : [], camera);
   };
   renderer.setAnimationLoop(tick);

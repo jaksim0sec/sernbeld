@@ -20,12 +20,12 @@ function matchSlots(slots,members){
  if(slots.length===members.length)match(0);
  return matches;
 }
-export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>false,hold=()=>true,release=()=>{},config={}}){
+export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>false,hold=()=>true,release=()=>{},prepareGroup=null,config={}}){
  const c={midIn:18,midOut:22,nearIn:7,nearOut:9,pairIn:3,pairOut:4,scanEvery:.5,duration:30,cooldown:20,maxGroups:3,maxCandidates:64,maxPairs:256,cell:6,...config};
  if(!Object.values(c).every(v=>Number.isFinite(v)&&v>0)||!(c.nearIn<c.nearOut&&c.nearOut<c.midIn&&c.midIn<c.midOut&&c.pairIn<c.pairOut)||!['maxGroups','maxCandidates','maxPairs'].every(k=>Number.isSafeInteger(c[k])))throw Error('invalid conversation config');
  const groups=new Map(),owner=new Map(),cooldown=new Map(),ordinaryCursor=new Map();
  let next=1,lastTime=-Infinity,nextScan=0,region=null,stats={scans:0,pairs:0,materializations:0};
- const eligible=n=>n&&typeof n.id==='string'&&point(n)&&n.stationary===true&&n.available!==false&&!n.hidden&&Array.isArray(n.tags)&&n.tags.length>0;
+ const eligible=(n,approaching=false)=>n&&typeof n.id==='string'&&point(n)&&(n.stationary===true||approaching&&n.approaching===true)&&n.available!==false&&!n.hidden&&Array.isArray(n.tags)&&n.tags.length>0;
  const templates=()=>registry.list('conversationTemplates').map(t=>ambientTemplate(t,registry)).filter(Boolean).sort((a,b)=>Number(!!b.graph)-Number(!!a.graph)||Number(!!b.eventTypeId)-Number(!!a.eventTypeId)||(a.graph||b.graph||a.eventTypeId||b.eventTypeId?cmp(a.id,b.id):0));
  const closest=(g,byId,player)=>Math.min(...g.npcIds.map(id=>dist(byId.get(id),player)));
  function end(g,now){
@@ -114,7 +114,11 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
    const id='conversation:'+next++,npcIds=members.map(n=>n.id).sort(cmp),acquired=[];
    for(const n of npcIds){let ok=false;try{ok=hold(n,id)===true}catch{}if(!ok)break;acquired.push(n)}
    if(acquired.length!==npcIds.length){for(const n of acquired)try{release(n,id)}catch{}continue}
-   const g={id,regionId:region,npcIds,formedAt:now,endAt:now+c.duration,lod:2,attempted:false,materialized:null};
+   if(prepareGroup){
+    let prepared=false;try{prepared=prepareGroup(npcIds,id)===true}catch{}
+    if(!prepared){for(const n of acquired){cooldown.set(n,now+3);try{release(n,id)}catch{}}continue;}
+   }
+   const g={id,regionId:region,npcIds,formedAt:now,endAt:now+c.duration,lod:2,attempted:false,materialized:null,...(prepareGroup?{approaching:true,approachUntil:now+6}:{})};
    groups.set(id,g);for(const n of npcIds)owner.set(n,id);
   }
  }
@@ -127,7 +131,14 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   for(const [id,until] of cooldown)if(until<=now)cooldown.delete(id);
   // No template evaluation or candidate pair scans outside the local observation radius.
   for(const g of [...groups.values()]){
-   if(now>=g.endAt||g.npcIds.some(id=>!eligible(byId.get(id)))||closest(g,byId,player)>c.midOut){end(g,now);continue}
+   if(now>=g.endAt||g.npcIds.some(id=>!eligible(byId.get(id),g.approaching))||closest(g,byId,player)>c.midOut){end(g,now);continue}
+   if(g.approaching){
+    if(now>=g.approachUntil){end(g,now);continue;}
+    if(!g.npcIds.every(id=>byId.get(id).stationary===true))continue;
+    const members=g.npcIds.map(id=>byId.get(id));
+    if(members.some((a,i)=>members.slice(i+1).some(b=>dist(a,b)>2.2||!pair(a,b,c.pairOut)))){end(g,now);continue;}
+    g.approaching=false;g.formedAt=now;g.endAt=now+c.duration;
+   }
    if(now>=nextScan){
     const m=g.npcIds.map(id=>byId.get(id));
     if(m.some((a,i)=>m.slice(i+1).some(b=>!pair(a,b,c.pairOut)))){end(g,now);continue}
@@ -140,6 +151,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   }
   const out=[];
   for(const g of [...groups.values()]){
+   if(g.approaching)continue;
    const d=closest(g,byId,player);
    g.lod=d<=(g.lod===3?c.nearOut:c.nearIn)?3:2;
    if(g.lod===3&&!g.attempted){g.attempted=true;materialize(g,byId,now)}
@@ -156,12 +168,12 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   return out;
  }
  function leaveNpc(id){const g=groups.get(owner.get(id));if(g)end(g,lastTime)}
- function participationFor(id){const g=groups.get(owner.get(id));return g&&g.lod===3&&(g.materialized?.graph||g.materialized?.participationIds.length)&&lastTime<g.endAt&&stillValid(g)?(()=>{let offset=lastTime-g.formedAt;const cursor=g.materialized.turns.findIndex(t=>{if(offset<t.duration)return true;offset-=t.duration;return false});if(cursor<0)return null;return copy({...g,anchorId:id,cursor,offset,currentTurn:g.materialized.turns[cursor]})})():null}
+ function participationFor(id){const g=groups.get(owner.get(id));return g&&!g.approaching&&g.lod===3&&(g.materialized?.graph||g.materialized?.participationIds.length)&&lastTime<g.endAt&&stillValid(g)?(()=>{let offset=lastTime-g.formedAt;const cursor=g.materialized.turns.findIndex(t=>{if(offset<t.duration)return true;offset-=t.duration;return false});if(cursor<0)return null;return copy({...g,anchorId:id,cursor,offset,currentTurn:g.materialized.turns[cursor]})})():null}
  return {update,clear,leaveNpc,participationFor,groupFor:id=>owner.get(id)??null,snapshot:()=>({groups:copy([...groups.values()]),stats:{...stats}})};
 }
 
 // Ephemeral group ownership uses the authoritative action scheduler for managed residents.
-export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,settled,playerHeld=()=>false}){
+export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,prepareGroup=null,settled,playerHeld=()=>false}){
  const locks=new Map(),enabled=registry.list('conversationTemplates').some(t=>!!ambientTemplate(t,registry));
  let joined=null;
  const action=id=>readState().npcStates?.[id]?.currentAction;
@@ -185,7 +197,7 @@ export function createConversationBridge({registry,scheduler,readState,managed,k
   const r=scheduler.resume(id,l.job);
   if(r.ok||r.reason==='stale')locks.delete(id);else l.released=true;
  }
- const core=createNpcConversations({registry,knownEvents,canPair,hold,release});
+ const core=createNpcConversations({registry,knownEvents,canPair,hold,release,prepareGroup});
  function retry(){for(const [id,l] of locks)if(l.released)release(id,l.groupId)}
  function claim(id){
   const l=locks.get(id);

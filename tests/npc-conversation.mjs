@@ -84,3 +84,17 @@ for(let i=0;i<8;i++){
 }
 a(observed.slice(0,4).join(',')==='old,new_a,new_b,new_c'&&observed.slice(4).join(',')===observed.slice(0,4).join(','),'all variants and repeat cycle');
 console.log('PASS ordinary group template rotation: 18 checks');
+
+const approachRegistry=createLivingWorldRegistry({regions:['kael']});
+a(approachRegistry.registerDefinitions({conversationTemplates:[{id:'approach',topic:'chat',regionIds:['kael'],slots:[{id:'s',tags:['worker']},{id:'t',tags:['worker']}],turns:[{slotId:'s',text:'start',duration:12}]}]}).ok,'approach definition');
+let prepared=0,approachReleases=0;
+const approach=createNpcConversations({registry:approachRegistry,canPair:()=>true,prepareGroup:()=>{prepared++;return true},release:()=>approachReleases++});
+const approachUpdate=(now,npcs)=>approach.update({active:true,regionId:'kael',player:{x:0,y:0,z:0},npcs,now});
+a(approachUpdate(0,[person('a',0),person('b',3)]).length===0&&prepared===1,'no speech before approach');
+a(approachUpdate(1,[{...person('a',.3),stationary:false,approaching:true},{...person('b',2.7),stationary:false,approaching:true}]).length===0&&approach.snapshot().groups.length===1,'moving members retain group');
+a(approachUpdate(2,[person('a',.7),person('b',2.2)])[0]?.text==='start'&&approach.snapshot().groups[0].formedAt===2,'clock starts after both arrive');
+approach.clear(3);
+a(approachReleases===2,'approach group releases normally');
+approachUpdate(24,[person('a',0),person('b',3)]);
+a(approachUpdate(30,[{...person('a',0),stationary:false,approaching:true},{...person('b',3),stationary:false,approaching:true}]).length===0&&approach.snapshot().groups.length===0&&approachReleases===4,'blocked approach timeout releases both');
+console.log('PASS delayed conversation start: 6 checks');

@@ -11,7 +11,7 @@ import {createNpcParticipation} from './npc-participation.js';
 const copy=v=>JSON.parse(JSON.stringify(v));
 const fail=reason=>({ok:false,reason});
 const point=p=>p&&[p.x,p.y,p.z].every(Number.isFinite);
-export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,conversationPair=()=>false,participationReach=()=>false,configureItems=()=>{},onCommit=()=>{},budget=32}){
+export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,conversationPair=()=>false,prepareConversation=null,participationReach=()=>false,configureItems=()=>{},onCommit=()=>{},budget=32}){
  const known=new Map(residents.map(n=>[n.id,n]));
  if(known.size!==residents.length)return fail('duplicate_resident');
  const handlers={move:{plan({npcId,npc,action}){
@@ -52,7 +52,7 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  const scheduler=createNpcScheduler({save,registry,getDefinitions,handlers,validateRoute,society,requests,participation,
   configureItems(items){configureItems(items);content.configureItems?.(items)},onCommit});
  let lastTarget=null,pending=0,lastResult={ok:true,processed:0,pending:0},held=null;
- const conversation=createConversationBridge({registry,scheduler,readState:()=>save.data,managed:id=>managed.has(id),knownEvents:id=>society.knownEvents(save.data,id),canPair:conversationPair,settled:()=>lastResult.ok&&!pending,playerHeld:id=>held?.id===id});
+ const conversation=createConversationBridge({registry,scheduler,readState:()=>save.data,managed:id=>managed.has(id),knownEvents:id=>society.knownEvents(save.data,id),canPair:conversationPair,prepareGroup:prepareConversation,settled:()=>lastResult.ok&&!pending,playerHeld:id=>held?.id===id});
  function reachableGroup(group){
   try{return !!group&&participation.valid(save.data,group)&&participationReach(group)===true}catch{return false}
  }

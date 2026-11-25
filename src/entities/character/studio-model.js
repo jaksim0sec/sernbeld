@@ -229,7 +229,7 @@ export function createStudioModel(T, factory, profile, {scale=1,clothing=true}={
    if(!this._npcLocomotion)this._npcLocomotion={vel:{x:0,z:0},onGround:true,swimming:false,pitch:0,yaw:0};
    this._npcLocomotion.vel.x=speed;
    const motion=this._schoolyardMotion??(this._schoolyardMotion=createSchoolyardMotion(this));
-   motion.update(dt,t,this._npcLocomotion,null,{runSpeed:5});
+   motion.update(dt,t,this._npcLocomotion,null,{runSpeed:5,residentSocial:this.residentSocial??{mode:this.talk>0?"speaker":"idle",seed:0}});
    this.talk=Math.max(0,this.talk-dt);
   },
   dispose(){
