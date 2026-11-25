@@ -14,7 +14,7 @@ function verifySynthetic(kit,parts,synthetic,checkGeometry){
  for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]]){
   const fit=synthetic(kit,scale),cap=kit.scalpCap(fit);checkGeometry(kit,cap);assert(kit.compatible(parts,'male')&&kit.compatible(parts,'female'),'compatible');assert(!kit.compatible([parts[0],parts[0]],'male'),'duplicate slot');assert(!kit.compatible([parts[0],{...parts[1],join:'other'}],'female'),'join mismatch');
   const geos=parts.flatMap(p=>kit.makePart(fit,p));const regen=parts.flatMap(p=>kit.makePart(fit,p));
-  for(let i=0;i<geos.length;i++){const g=geos[i];checkGeometry(kit,g,true);assert(g.positions.every((v,j)=>v===regen[i].positions[j]),'determinism');const width=(ring,sides=10)=>{const a=(ring*(sides+1))*3,b=(ring*(sides+1)+sides/2)*3;return Math.hypot(...[0,1,2].map(k=>g.positions[a+k]-g.positions[b+k]));};assert(width(24)<width(0)*.25,'taper');}
+  for(let i=0;i<geos.length;i++){const g=geos[i];checkGeometry(kit,g,true);assert(g.positions.every((v,j)=>v===regen[i].positions[j]),'determinism');const width=(ring,sides=10)=>{const a=(ring*(sides+1))*3,b=(ring*(sides+1)+sides/2)*3;return Math.hypot(...[0,1,2].map(k=>g.positions[a+k]-g.positions[b+k]));};assert(width(22,8)<width(0,8)*.25,'taper');}
   const metrics=[cap,...geos].map(g=>kit.penetration(fit,g));assert(metrics.every(m=>m.miss===0&&m.maxMetres<=.001),'synthetic penetration '+JSON.stringify(metrics));results.push({scale,triangles:[cap,...geos].reduce((s,g)=>s+g.indices.length/3,0),maxMm:Math.max(...metrics.map(m=>m.maxMetres))*1000,rootMask:geos.reduce((s,g)=>s+g.rootMask.reduce((x,y)=>x+y,0),0)});
  }return results;
 }

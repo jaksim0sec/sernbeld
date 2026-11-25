@@ -74,7 +74,27 @@ function createHairKit(){
   return part;
  }
  function compatible(parts,body){try{if(!['male','female'].includes(body)||!parts.length)return false;parts.forEach(validatePart);return new Set(parts.map(p=>p.slot)).size===parts.length&&parts.every(p=>p.bodies.includes(body)&&p.join===parts[0].join)&&parts[0].compatibility.some(t=>parts.every(p=>p.compatibility.includes(t)));}catch{return false;}}
- function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
+ function ribbon(fit,c){
+  const p=[],uv=[],ix=[],seams=[],root=[],segments=22,sides=8,stride=sides+1;
+  for(let i=0;i<=segments;i++){
+   const t=i/segments, [theta,phi,clearance]=cat(c.controlPoints,t),width=profile(c.angularWidth,t),depth=profile(c.depthProfile,t);
+   for(let k=0;k<=sides;k++){
+    const a=2*Math.PI*(k%sides)/sides,side=Math.cos(a),outer=Math.sin(a);
+    const angle=phi+side*width/2, polar=Math.max(1,theta+side*c.sweep*Math.sin(Math.PI*t));
+    // Follow the actual skull through the crown; below the ear line extend the lock
+    // from a measured surface anchor instead of projecting it onto the cheek/neck.
+    const limit=c.surfaceLimit??112, at=Math.min(polar,limit), anchor=fit.anchor(at,angle,0);
+    const extension=Math.max(0,polar-limit)*Math.PI/180*fit.radius(direction(at,angle));
+    const point=add(anchor.position,mul(anchor.normal,clearance+outer*depth/2));
+    point[1]-=extension;p.push(...point);uv.push(k/sides,t);root.push(i===0?1:0);
+   }
+   seams.push([i*stride,i*stride+sides]);
+   if(i)for(let k=0;k<sides;k++){const a=(i-1)*stride+k,b=i*stride+k;ix.push(a,b,a+1,a+1,b,b+1);}
+  }
+  for(const end of [0,1]){const start=end?segments*stride:0,center=p.length/3,avg=[0,0,0];for(let k=0;k<sides;k++)for(let a=0;a<3;a++)avg[a]+=p[(start+k)*3+a]/sides;p.push(...avg);uv.push(.5,end);root.push(end?0:1);for(let k=0;k<sides;k++)if(end)ix.push(center,start+k+1,start+k);else ix.push(center,start+k,start+k+1);}
+  let result=mesh(p,uv,ix,seams,root);if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,uv,ix,seams,root);}return result;
+ }
+ function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
  return {loft,surface,studioHead,scalpCap,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
