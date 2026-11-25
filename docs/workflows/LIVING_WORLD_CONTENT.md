@@ -17,4 +17,4 @@
 
 - 논리 부하 회귀: `node tests/living-world-performance.mjs`. 100/300/1000 인구의 초기 스케줄링, 7일 sparse queue, 비관측/밀집 담화 카운터 및 저장 크기 계측. 기기 프레임 시간과 구분한다.
 
-- 첫 production 사례: 카엘 상인 3명의 기존 채집물 납품(품질·NPC 자금·친화도·1회 보상) 및 상인/부두 일꾼 담화. `tests/kael-living-content.mjs`는 실제 production 모듈을 읽는다. 기존 일과를 대체하지 않으며 그룹 크기별 2~4인 템플릿을 등록한다. 신규 아이템은 임시 SVG 아이콘을 사용한다.
+- 첫 production 사례: 카엘 상인 3명의 기존 채집물 납품(품질·NPC 자금·친화도·1회 보상) 및 상인/부두 일꾼 담화. `tests/kael-living-content.mjs`는 실제 production 모듈을 읽는다. 기존 일과를 대체하지 않으며 그룹 크기별 2~4인 템플릿을 등록한다. 신규 아이템은 [신규 아이템 등록 규칙](../contracts/DELIVERABLES.md#신규-아이템-등록-및-후속-에셋-제작-필수)에 따라 임시 SVG 아이콘을 실제 연결하고 같은 변경에서 전역 TODO에 정식 에셋 제작을 등록한다.
