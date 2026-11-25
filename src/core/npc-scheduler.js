@@ -12,7 +12,7 @@ const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
 const kinds=['consume','produce','purchase','transfer','gather','offerUpdate'];
 // All economic mutations run against an isolated copy through the existing shared-item runtime.
 // A slice persists exactly once; a failed outer write discards jobs, needs, locks and receipts together.
-export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,retryTicks=5}){
+export function createNpcScheduler({save,registry,getDefinitions,handlers={},configureItems=()=>{},onCommit=()=>{},validateRoute=()=>false,society=null,retryTicks=5}){
  if(!tick(retryTicks)||retryTicks<1)throw Error('invalid retryTicks');
  const map=new Map(Object.entries(handlers));
  const behavior=createNpcBehavior(registry,map);
@@ -20,6 +20,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
  function valid(data){
   const w=data?.livingWorld;
   if(!object(w)||w.version!==1||!tick(w.worldTick)||!tick(w.nextSerial)||w.nextSerial<1||!tick(w.seed)||!Array.isArray(w.scheduler))return false;
+  if(society?.enabled()&&!society.valid(data))return false;
   const actors=new Set(),jobIds=new Set();
   for(const j of w.scheduler){
    if(!object(j)||typeof j.id!=='string'||!registry.get('profiles',j.npcId)||!Object.hasOwn(data.npcStates??{},j.npcId)||(j.status!=='paused'&&(!tick(j.dueTick)||j.dueTick<w.worldTick))||actors.has(j.npcId)||jobIds.has(j.id)||!['decision','running','paused'].includes(j.status))return false;
@@ -42,7 +43,7 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   try{
    const items=createItemRuntime({data:draft,write:()=>true},getDefinitions,{emit:(type,detail)=>notifications.push({type,detail})});
    configureItems(items);items.initialize();
-   const result=work(draft,items);
+   const result=work(draft,items,notifications);
    if(!result.ok)return result;
    if(!valid(draft))return fail('invalid_scheduler');
    if(JSON.stringify(draft)===JSON.stringify(before))return result;
@@ -140,20 +141,35 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
  }
  function advanceTo(target,budget=32){
   if(!tick(target)||!tick(budget)||budget<1||target<(save.data?.livingWorld?.worldTick??0))return fail('invalid_tick');
-  return transact((d,items)=>{
+  return transact((d,items,notifications)=>{
    const w=d.livingWorld;seedActors(d);let processed=0;
    while(processed<budget){
     w.scheduler.sort(order);const j=w.scheduler[0];
-    if(!j||j.status==='paused'||j.dueTick>target)break;
+    const jobDue=j&&j.status!=='paused'?j.dueTick:Infinity, socialDue=society?.nextDue(w)??Infinity;
+    if(Math.min(jobDue,socialDue)>target)break;
+    if(socialDue<=jobDue){
+     w.worldTick=socialDue;
+     const r=society.periodicDraft(d,items,socialDue);if(!r.ok)return r;
+     for(const detail of r.changes)notifications.push({type:'world.event.changed',detail});
+     processed++;continue;
+    }
     w.scheduler.shift();w.worldTick=j.dueTick;
     const n=d.npcStates[j.npcId];updateNeeds(n,j.dueTick);
-    if(j.status==='decision')start(d,items,j,n);else complete(d,items,j,n);
+    if(j.status==='decision')start(d,items,j,n);else {
+     complete(d,items,j,n);
+     if(society?.enabled()){
+      const r=society.evaluateDraft(d,items,w.worldTick);if(!r.ok)return r;
+      for(const detail of r.changes)notifications.push({type:'world.event.changed',detail});
+     }
+    }
     processed++;
    }
    w.scheduler.sort(order);
-   const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length;
+   const socialDue=society?.nextDue(w)??Infinity;
+   const pending=w.scheduler.filter(j=>j.status!=='paused'&&j.dueTick<=target).length+Number(socialDue<=target);
    if(!pending)w.worldTick=target;
-   const settledThrough=pending?Math.max(0,Math.min(w.worldTick,w.scheduler[0].dueTick-1)):target;
+   const first=w.scheduler[0],nextDue=Math.min(first&&first.status!=='paused'?first.dueTick:Infinity,socialDue);
+   const settledThrough=pending?Math.max(0,Math.min(w.worldTick,nextDue-1)):target;
    return {ok:true,processed,pending,settledThrough,worldTick:w.worldTick};
   });
  }
@@ -224,5 +240,11 @@ export function createNpcScheduler({save,registry,getDefinitions,handlers={},con
   return n.logicalPosition?copy(n.logicalPosition):null;
  }
  function advanceClock(clock,budget=32){const target=gameClockTick(clock);return target===null?fail('invalid_tick'):advanceTo(target,budget)}
- return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
+ function shareKnowledge(command){
+  if(!society?.enabled())return fail('unsupported');
+  return transact((d,items,notifications)=>{
+   const r=society.shareDraft(d,command);return r;
+  });
+ }
+ return {advanceTo,advanceClock,logicalPosition,cancel,pause,resume,shareKnowledge,snapshot:()=>valid(save.data)?copy(save.data.livingWorld.scheduler):null};
 }

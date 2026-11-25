@@ -19,7 +19,9 @@
     "src/gameplay/gameplay.part.js",
     "game.js",
     "sw.js",
-    "docs/core/CURRENT_STATE.md"
+    "docs/core/CURRENT_STATE.md",
+    "src/core/world-society.js",
+    "tests/world-society.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -28,5 +30,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T4 부분 연결: 실제 게임 및 PWA/동적 장애물/보간 검증 미완료. T5 세계 사건 및 정보 전파, 이후 담화/요청 및 통합."
+  "next": "T5 부분: 사건/지식/지역 지표, scheduler 및 런타임 연결. T6 근접 담화·템플릿·LOD, T7 요청/관계 및 지식 실제 상호작용. T8 전체 검증."
 }

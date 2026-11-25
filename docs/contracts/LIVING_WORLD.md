@@ -30,3 +30,9 @@
 - 검증: V8 PASS living-world runtime bridge: 11 checks, 이전 번들의 gameplay 원본 suffix 일치 후 해당 조각 교체, 정규화 V8 문법 컴파일 및 sw 문법 PASS. 전체 Node/infra NOT RUN.
 
 - 후속: 현재 참여 중인 pauseable NPC는 pause 상태에서도 기존 Society 접근 검증을 통과하도록 연결하되 중복 pause 금지. 스케줄러 decision 대기 상태의 관리 NPC와의 대화 hold는 미구현이므로 현재는 선택지를 표시하지 않는다. T6/T7에서 보강. 런타임 브리지 12 checks PASS.
+
+## T5 세계 사건·지식·지역 지표 (부분)
+- `eventTypes`: id, regionIds, evaluateHandlerId, propagationHandlerId, minIntensity/maxIntensity, factKeys. `regionSignalTypes`: id, regionIds, handlerId, min/max. 등록된 trusted `content.societyHandlers`만 실행한다. evaluate는 현재 상태·active 사건·읽기 전용 item 조회를 받아 현재 활성 원인의 배열을 반환: key, intensity, affectedNpcIds, subjectRefs, facts, 선택 observations(NPC별 관찰 fact key). 부재한 기존 원인은 resolved로 전환; 임계값 hysteresis는 등록 정책이 active를 보고 처리. 동일 원인·지역·type 중복 방지. 실제 데이터 없음.
+- scheduler의 5게임분 정기 평가(설정 가능)와 행동 완료 직후 평가를 동일 draft에 포함. 정기 검사도 budget을 소비하며 같은 tick은 정기 검사 우선. 저장 실패 시 사건/지표/경제/지식 함께 복구. 사건 알림은 성공 후만. 정책 없는 경우 검사 없음. 플레이어 경제 변경은 다음 정기 평가에 반영(즉시 hook 미연결).
+- `shareKnowledge`는 유효한 현재 사건 revision과 실제 발신자가 아는 fact key, 동일 지역 및 등록 propagation guard를 검증; 명시적 호출만 전달. 영속 operationReceipts 멱등성. 영향자 전원에게 원인 broadcast 금지, 과거 지식과 현재 사실 구분. 관계 효과 및 실제 비관측 상호작용 연결은 T7 후속. `knownEvents`는 아는 사실만 제공. 사건/영수증 압축 및 세부 저장 검증은 후속.
+- V8 PASS world society: 26 checks; PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS living-world runtime bridge: 12 checks; PASS living world registry/state: 15 checks; PASS logical NPC movement: 18 checks. PWA 캐시 목록 갱신 및 문법 검사. 전체 Node/Chromium/카엘/PWA 실행 NOT RUN. 실제 이벤트/신호 콘텐츠 등록 없음.

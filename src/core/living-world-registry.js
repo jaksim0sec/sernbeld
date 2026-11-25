@@ -6,8 +6,9 @@ const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const ids=v=>Array.isArray(v)&&v.every(id)&&new Set(v).size===v.length;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v};
-const types=['needs','actions','roles','profiles'];
-export function createLivingWorldRegistry({handlers=[],regions=[],places=[]}={}){
+const types=['needs','actions','roles','profiles','eventTypes','regionSignalTypes'];
+export function createLivingWorldRegistry({handlers=[],regions=[],places=[],societyHandlers=[]}={}){
+ const knownSocietyHandlers=new Set(societyHandlers);
  const knownHandlers=new Set(handlers),knownRegions=new Set(regions),knownPlaces=new Set(places);
  let tables=Object.fromEntries(types.map(t=>[t,new Map()]));
  function inspect(data){
@@ -45,6 +46,12 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[]}={})
    if(p.roleId!==null)ref('profiles',p.id,'roles',p.roleId);
    if(p.placeId!==undefined&&!knownPlaces.has(p.placeId))fail('profiles',p.id,'unknown place');
    if(p.needWeights!==undefined)weightMap('profiles',p,'needWeights');
+  }
+  for(const e of next.eventTypes.values()){
+   if(!knownSocietyHandlers.has(e.evaluateHandlerId)||!knownSocietyHandlers.has(e.propagationHandlerId)||!ids(e.regionIds)||!e.regionIds.length||e.regionIds.some(r=>!knownRegions.has(r))||!number(e.minIntensity)||!number(e.maxIntensity)||e.minIntensity>=e.maxIntensity||!ids(e.factKeys))fail('eventTypes',e.id,'invalid event policy');
+  }
+  for(const s of next.regionSignalTypes.values()){
+   if(!knownSocietyHandlers.has(s.handlerId)||!ids(s.regionIds)||!s.regionIds.length||s.regionIds.some(r=>!knownRegions.has(r))||!number(s.min)||!number(s.max)||s.min>=s.max)fail('regionSignalTypes',s.id,'invalid signal policy');
   }
   return errors.length?{ok:false,errors}:{ok:true,tables:next};
  }

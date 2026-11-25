@@ -13,3 +13,5 @@ T4 부분: 논리 경로/게임 분 변환/기존 NavGrid 인터페이스 어댑
 T4 실제 초기 연결: 기존 resident/상인 등록, clock, 논리 이동, 대화 pause, 채집 adapter, 번들/PWA cache 등록. PASS living-world runtime bridge: 11 checks. 기존 등반 범위 중 gameplay/game.js/sw.js 점유를 순차 통합 목적 WORLD-001로 이동; 등반 미검증 상태 유지. 실제 Chromium/동적 장애물/성능 미검증.
 
 T4 후속: 참여 중 pause된 NPC 접근 검증 및 중복 pause 방지. V8 runtime bridge 12 checks PASS. decision 대기 상태 hold는 T6 후속.
+
+T5 부분: 사건의 조건 평가·해결·지식 전달·지표 및 scheduler/runtime 통합. PASS world society: 26 checks. 플레이어 변경 즉시 hook/관계/비관측 상호작용, 실제 브라우저 및 전체 검증 후속. 실제 콘텐츠 없음.
