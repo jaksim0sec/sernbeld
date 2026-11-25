@@ -24,3 +24,19 @@ clock.hour=8+7.1/60;a(rt.update().ok&&rt.position('a').x===3,'arrival via game c
 const future={data:{...JSON.parse(snapshot),livingWorld:{...JSON.parse(snapshot).livingWorld,version:99}},write(){throw Error('unexpected write')}};
 const original=JSON.stringify(future.data);a(!createLivingWorldRuntime({...opts,save:future}).ok&&JSON.stringify(future.data)===original,'future version untouched');
 console.log('PASS living-world runtime bridge: '+checks+' checks');
+
+const groupResidents=[{id:'a',role:'worker',position:{x:0,y:0,z:0}},{id:'b',role:'worker',position:{x:1,y:0,z:0}}];
+let reach=true;
+const groupSave={data:{v:1,money:0},write:()=>true};
+const groupRuntime=createLivingWorldRuntime({save:groupSave,getDefinitions:()=>defs,regionId:'kael',clock:{day:1,hour:8},residents:groupResidents,
+ content:{definitions:{participationActions:[{id:'chat',kind:'reply',label:'Chat',reply:'Hi'}],conversationTemplates:[{id:'talk',topic:'talk',regionIds:['kael'],slots:[{id:'a',tags:['worker']},{id:'b',tags:['worker']}],turns:[{slotId:'a',text:'Hello',duration:5}],participationIds:['chat']}]}},
+ conversationPair:()=>true,participationReach:()=>reach});
+const groupLines=groupRuntime.updateConversations({active:true,player:{x:0,y:0,z:1},now:0,npcs:groupResidents.map(n=>({id:n.id,...n.position,stationary:true}))});
+a(groupRuntime.ok&&groupLines.length===1&&groupRuntime.beginTalk('a'),'join group via runtime');
+const groupChoices=groupRuntime.participationChoices('a');
+a(groupChoices.length===1&&groupRuntime.executeParticipation('a',groupChoices[0]).text==='Hi','group reply via runtime');
+groupRuntime.update('a');a(!!groupRuntime.groupFor('a'),'joined hold survives open dialogue');
+reach=false;
+a(!groupRuntime.participationChoices('a').length&&!groupRuntime.executeParticipation('a',groupChoices[0]).ok,'stale group reach rejects execution');
+groupRuntime.update('a');a(!groupRuntime.groupFor('a'),'invalid group released');
+console.log('PASS group participation runtime integration: 5 checks');
