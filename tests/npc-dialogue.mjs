@@ -50,12 +50,17 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
     {id:'ask',type:'choice',choices:[{id:'follow',label:'더 묻기',conditions:[],nextNode:'answer'}]},
     {id:'answer',type:'speak',pages:['마지막 대답'],next:'hub'},{id:'hub',type:'end',mode:'topicHub'}]};
   const choice={template:graph,topicId:graph.topicId,source:'personal',facts:{},eventRef:null,slotBinding:{npc:'bran',player:'player'}};
-  const gs=createTopicSession({id:'bran'},'첫 인사',{resolve:()=>({topics:[choice],services:[]})});
+  graph.nodes[2].speakerSlot='other';
+  choice.slotBinding.other='sera';
+  ui.dialogueSpeaker=id=>id==='sera'?{id:'sera',name:'세라',title:'길드원'}:null;
+  const gs=createTopicSession({id:'bran'},'첫 인사',{initialSpeakerId:'sera',resolve:()=>({topics:[choice],services:[]})});
   ui.say({id:'bran',name:'브란'},'첫 인사',[],gs);
+  check(get('speechName').textContent==='세라'&&ui.activeSpeaker==='bran','ambient speaker shown, anchor unchanged');
   const oldTopic=get('speechOpts').children[0];oldTopic.click();oldTopic.click();
   check(ui.speechSession===gs&&ui.activeSpeaker==='bran'&&get('speechText').textContent==='대답 하나','graph UI keeps anchor and rejects duplicate click');
   get('speechNext').click();check(get('speechText').textContent==='대답 둘','graph page progression');
   get('speechOpts').children[0].click();check(get('speechText').textContent==='마지막 대답'&&ui.speechSession===gs,'graph follow-up stays open');
+  check(get('speechName').textContent==='세라'&&get('speechTitle').textContent==='길드원'&&ui.activeSpeaker==='bran','branch speaker changes without changing anchor');
   check(get('speechOpts').children.length===2,'topic hub returns');
   ui.closeSpeech();check(gs.status==='closed'&&ui.activeSpeaker===null,'graph close releases anchor');
   const folkSrc=source.slice(source.indexOf('var Townsfolk = class {'),source.indexOf('var turn ='));

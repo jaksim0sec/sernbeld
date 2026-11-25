@@ -4569,6 +4569,9 @@ var GameUI = class {
     $2("speechTitle").textContent=def.title??"";
     const render=()=>{
       this.speechFinishTyping?.();
+      const speaker=session.currentSpeakerId===def.id?def:this.dialogueSpeaker?.(session.currentSpeakerId)??def;
+      $2("speechName").textContent=speaker.name;
+      $2("speechTitle").textContent=speaker.title??"";
       const line=$2("speechLine"),shown=$2("speechText"),rest=$2("speechRest");
       const text=session.text,chars=Array.from(text);
       $2("speechAnnouncement").textContent=text;
@@ -6627,6 +6630,7 @@ async function boot() {
   const society = new Society({ ui, clock, folk, region });
   Guild.advanceRival(clock.day);
   folk.activeSpeaker = () => ui.activeSpeaker;
+  ui.dialogueSpeaker=id=>folk.list.find(n=>n.def.id===id)?.def;
   folk.canTalk = (n,p) => {
     const from={x:p.pos.x,y:p.pos.y+1.35,z:p.pos.z};
     const dx=n.x-from.x,dy=n.y+1.35*(n.def.scale??1)-from.y,dz=n.z-from.z;
@@ -6643,7 +6647,7 @@ async function boot() {
         services,actionIds:[...new Set(services.map(s=>s.id))],choiceHistory:memory.choices??[],topicIds:memory.topics??[],
         lastTopicTicks:memory.lastTopicTicks??{},lastTemplateId:memory.lastTemplateId});
     };
-    const session=createTopicSession(def,line,{readContext,resolve:(context,options)=>folk.living.resolveTopics(def.id,context,options),
+    const session=createTopicSession(def,line,{initialSpeakerId:folk.living.participationTurn?.(def.id)?.npcId??def.id,readContext,resolve:(context,options)=>folk.living.resolveTopics(def.id,context,options),
       reachable:()=>society.canInteract(def),executeService:choice=>society.topicService(def,choice),executeEffect:(id,args)=>society.topicEffect(def,id,args),
       remember:record=>NpcState.recordTopic(def.id,record)});
     ui.say(def,line,[],session);

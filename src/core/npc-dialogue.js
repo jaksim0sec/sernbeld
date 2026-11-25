@@ -107,12 +107,12 @@ export function createDialogueSession(def,line,options=[]) {
 }
 
 // Graph and legacy greeting pages use one ephemeral anchor; domain services own all effects.
-export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({topics:[],services:[]}),reachable=()=>true,executeService=()=>({ok:false}),executeEffect=()=>({ok:false,reason:'stale'}),remember=()=>true}={}){
+export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({topics:[],services:[]}),reachable=()=>true,executeService=()=>({ok:false}),executeEffect=()=>({ok:false,reason:'stale'}),remember=()=>true,initialSpeakerId=def.id}={}){
  const pagesOf=v=>{const a=(Array.isArray(v)?v:[v]).filter(s=>typeof s==='string'&&s.length);return a.length?a:['안녕하세요.'];};
  const serviceKey=s=>JSON.stringify([s.id,s.itemId??null,s.revision??null,s.quote??null,s.allocations??null]);
  const topicKey=t=>JSON.stringify([t.template.id,t.eventRef?.id??null,t.eventRef?.revision??null,t.groupId??null]);
  let status='active',revision=0,pages=pagesOf(line),page=0,phase='hub',selected=null,node=null,nextNode=null;
- let choiceHistory=[],topicIds=[],lastTemplateId=null,currentSpeakerId=def.id;
+ let choiceHistory=[],topicIds=[],lastTemplateId=null,currentSpeakerId=initialSpeakerId;
  const context=()=>{const x=readContext()??{};return {...x,choiceHistory:[...(x.choiceHistory??[]),...choiceHistory],topicIds:[...(x.topicIds??[]),...topicIds],lastTemplateId:lastTemplateId??x.lastTemplateId};};
  const findNode=k=>selected?.template.nodes.find(n=>n.id===k);
  const safeReach=()=>{try{return reachable()===true;}catch{return false;}};
