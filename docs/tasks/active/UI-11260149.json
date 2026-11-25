@@ -1,0 +1,18 @@
+{
+  "id": "UI-11260149",
+  "status": "in_progress",
+  "baseline": "2aa35f595298c760bf8ac9554979d021d8d6bf2e",
+  "detail": "docs/tasks/active/UI-11260149.md",
+  "scope": [
+    "styles/menus-and-overlays.css"
+  ],
+  "contracts": [
+    "docs/UI_UX_DESIGN_GUIDELINES.md",
+    "docs/workflows/UI_UX.md",
+    "docs/contracts/NPC_DIALOGUE.md"
+  ],
+  "dependencies": [
+    "NPC-003"
+  ],
+  "next": "UI-11260149/T2: 간이 Chromium 검증 통과; 실제 GameUI DOM 회귀, 화면 캡처, 실게임 및 최종 CI 확인."
+}
