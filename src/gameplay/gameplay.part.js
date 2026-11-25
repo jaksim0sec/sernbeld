@@ -11,6 +11,9 @@ import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogu
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
 import {createSkillWorkbench} from './src/ui/skill-workbench.js';
+import {createLivingWorldRuntime} from './src/core/living-world-runtime.js';
+import {livingWorldContent} from './src/core/living-world-content.js';
+import {createNavGridRouteAdapter} from './src/core/npc-movement.js';
 var TINT = {
   stone: [0.82, 0.8, 0.75],
   roof: [0.8, 0.47, 0.36],
@@ -5102,6 +5105,7 @@ var Townsfolk = class {
   settle(hour) {
     this.queue.length = 0;
     for (const n of this.list) {
+      if(this.living?.managed(n.def.id))continue;
       n.entry = this.entry(n.def, hour);
       const [x, z] = this.spot(n, n.entry);
       n.x = x;
@@ -5123,12 +5127,14 @@ var Townsfolk = class {
     const deadline = performance.now() + 2.5;
     for (let k = 0; k < 3 && this.queue.length && (k === 0 || performance.now() < deadline); k++) {
       const [n, x, z] = this.queue.shift();
+      if(this.living?.managed(n.def.id))continue;
       n.path = this.nav.path(n.x, n.z, x, z) ?? [[x, z]];
       n.pi = 0;
     }
     for (const n of this.list) {
+      const managed=this.living?.managed(n.def.id)===true;
       const e = this.entry(n.def, hour);
-      if (e !== n.entry) {
+      if (!managed&&e !== n.entry) {
         n.entry = e;
         const [x, z] = this.spot(n, e);
         if (n.hidden) {
@@ -5142,6 +5148,9 @@ var Townsfolk = class {
       if (n.talkT > 0 || this.activeSpeaker?.() === n.def.id) {
         n.talkT = Math.max(0,n.talkT - dt);
         n.yaw = turn(n.yaw, Math.atan2(player.pos.x - n.x, player.pos.z - n.z), dt * 6);
+      } else if(managed){
+        const pos=this.living.position(n.def.id);
+        if(pos){const dx=pos.x-n.x,dz=pos.z-n.z;moving=Math.hypot(dx,dz)>.001;if(moving)n.yaw=turn(n.yaw,Math.atan2(dx,dz),dt*5);n.x=pos.x;n.y=pos.y;n.z=pos.z;n.hidden=false;n.path=null;}
       } else if (n.path && n.pi < n.path.length) {
         const [tx, tz] = n.path[n.pi], dx = tx - n.x, dz = tz - n.z, d2 = Math.hypot(dx, dz);
         const pd = Math.hypot(player.pos.x - n.x, player.pos.z - n.z);
@@ -5206,7 +5215,7 @@ var Townsfolk = class {
   }
   // The same live condition gates candidate creation and execution.
   canReach(n,player) {
-    if(!n||n.hidden||!n.ch||player.mode!=="walk"||player.swimming||Math.abs(n.y-player.pos.y)>=1.8)return false;
+    if(!n||n.hidden||!n.ch||this.living?.canTalk(n.def.id)===false||player.mode!=="walk"||player.swimming||Math.abs(n.y-player.pos.y)>=1.8)return false;
     const dx=n.x-player.pos.x,dz=n.z-player.pos.z,d=Math.hypot(dx,dz);
     return d<2.6&&(dx*(-Math.sin(player.yaw))+dz*(-Math.cos(player.yaw)))/(d||1)>.2&&(!this.canTalk||this.canTalk(n,player));
   }
@@ -5224,7 +5233,7 @@ var Townsfolk = class {
     if(!this.canReach(n,player))return false;
     const met=Save.data.met??(Save.data.met={});
     const line=selectNpcLine(n.def,{met:!!met[n.def.id],cursor:n.lineI,hour:this.hour??12,custom:this.lineFor?.(n.def)});
-    if(!line)return false;
+    if(!line||this.living?.beginTalk(n.def.id)===false)return false;
     if(line.first)met[n.def.id]=1;
     n.lineI=line.nextCursor;
     n.talkT=5;
@@ -5375,7 +5384,6 @@ var Society = class {
     }
     if(def.role==="smith"||def.role==="vendor"){
       const merchant="npc:"+def.id;
-      Inventory.seedMerchant(merchant,def.role);
       for(const offer of Inventory.merchantOffers(merchant)){
         const id=offer.definitionId,it=ITEMS[id];
         if(offer.customerBuyPrice!==null&&offer.stockRecordIds.length)
@@ -6577,7 +6585,7 @@ async function boot() {
   folk.state=NpcState; folk.now=()=>({day:clock.day,hour:clock.hour});
   society.state=NpcState;
   society.canInteract=def=>WorldRegions.isActive(region.id)&&folk.canReach(folk.list.find(n=>n.def.id===def.id),player);
-  const observeNpc=n=>NpcState.observe(n.def.id,{region:region.id,activity:n.hidden?"home":ui.activeSpeaker===n.def.id?"talk":n.path?"travel":n.entry?.[2]??"idle",position:n});
+  const observeNpc=n=>{if(folk.living?.managed(n.def.id))return;NpcState.observe(n.def.id,{region:region.id,activity:n.hidden?"home":ui.activeSpeaker===n.def.id?"talk":n.path?"travel":n.entry?.[2]??"idle",position:n});};
   ui.activeIds = () => Save.data.requests.map((q) => q.id);
   explore.providers.push((p) => folk.candidate(p), (p) => society.boardCandidate(p));
   scene.add(camera);
@@ -6590,7 +6598,46 @@ async function boot() {
   WorldRegions.mount(region.id, regionEntries);
   for(const n of folk.list)n.lineI=NpcState.ensure(n.def.id,region.id,n.lineI).lineI;
   const checkpointRegions=Save.beforeWrite;
-  Save.beforeWrite=()=>{checkpointRegions();if(WorldRegions.isActive(region.id))for(const n of folk.list)observeNpc(n);};
+  Save.beforeWrite=()=>{checkpointRegions();Save.data.clock={day:clock.day,hour:clock.hour};if(WorldRegions.isActive(region.id))for(const n of folk.list)observeNpc(n);};
+  const validateResidentSegment=(a,b)=>{
+    const d=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),steps=Math.max(1,Math.ceil(d/.35));
+    if(steps>4096)return false;
+    let prev=a.y;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,y=groundAt(x,z,prev+.65),expected=a.y+(b.y-a.y)*t;
+      if(!Number.isFinite(y)||Math.abs(y-expected)>.55||Math.abs(y-prev)>.6||waterLevel(x,z,y)-y>=.3||occupiedAt(x,z,y,.4))return false;
+      prev=y;
+    }
+    return true;
+  };
+  const routeAdapter=createNavGridRouteAdapter({nav:folk.nav,ground:(x,z,y)=>groundAt(x,z,y+.65),validateSegment:validateResidentSegment});
+  const residentById=new Map(folk.list.map(n=>[n.def.id,n]));
+  const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  const living=createLivingWorldRuntime({save:Save,getDefinitions:()=>ITEMS,regionId:region.id,clock,
+    residents:folk.list.map(n=>({id:n.def.id,role:n.def.role,position:{x:n.x,y:n.y,z:n.z}})),
+    places:[...new Set(['home',...Object.keys(region.places)])],content:livingWorldContent,
+    routeFor({npcId,from,placeId,metersPerTick}){
+      const n=residentById.get(npcId),p=placeId==='home'?n?.home:region.places[placeId];
+      if(!p)return {ok:false,reason:'unreachable'};
+      const [x,z]=p,y=groundAt(x,z,400);
+      return routeAdapter({regionId:region.id,from,to:{x,y,z},metersPerTick});
+    },
+    validateRoute:route=>route.regionId===region.id&&route.points.every((p,i)=>i===0||validateResidentSegment(route.points[i-1],p)),
+    configureItems(items){
+      items.registerGatherSource('kael:gather',(q,data)=>{
+        const node=nodeById.get(q.payload.nodeId),npc=data.npcStates?.[q.actorId.slice(4)],p=npc?.logicalPosition;
+        if(!node||npc?.region!==region.id||!p||Math.hypot(p.x-node.x,p.z-node.z)>REACH||Math.abs(p.y-node.y)>1.8||!validateResidentSegment(p,{x:node.x,y:node.y,z:node.z}))return null;
+        const def=GATHER[node.type],item=ITEMS[def.item],rng=mulberry32(q.payload.seed);
+        const min=item.yieldMin??(node.type.startsWith('flower')?2:1),max=item.yieldMax??min;
+        return {definitionId:def.item,quantity:min+Math.floor(rng()*(max-min+1)),quality:Math.floor(rng()*101),respawnMs:def.respawn*1000};
+      });
+    },
+    onCommit(notices){if(notices.some(n=>n.detail?.action==='gather'))gatherables.refresh();for(const n of notices)GameEvents.emit(n.type,n.detail);}
+  });
+  if(living.ok){folk.living=living;}else{
+    console.warn('Living world unavailable',living);
+    for(const n of folk.list)if(n.def.role==='smith'||n.def.role==='vendor')Inventory.seedMerchant('npc:'+n.def.id,n.def.role);
+  }
   const view = new ViewModel(camera);
   const combat = new Combat({ player, rig, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
@@ -6903,6 +6950,7 @@ async function boot() {
     }
     if(ui.dialogueOpen()&&!WorldRegions.isActive(region.id))ui.closeSpeech();
     clock.update(dt);
+    if(living.ok)living.update(ui.activeSpeaker);
     folk.hour = clock.hour;
     if (fullMap.isOpen() || !ui.travel.hidden || ui.dialogueOpen()) {
       movementCamera.reset(player);
@@ -6963,7 +7011,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, livingWorld: living.ok?{snapshot:living.snapshot}: {status:living}, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

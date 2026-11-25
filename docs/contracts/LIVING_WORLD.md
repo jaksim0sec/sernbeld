@@ -22,3 +22,9 @@
 - `npc-movement.js`: gameClockTick은 기존 day/hour를 1일차 0시 기준 정수 분으로 변환. buildLogicalRoute는 명시적 경로 및 모든 segment 검증 필요, 미도달/미등록 경로 실패. createNavGridRouteAdapter는 기존 NavGrid의 [x,z] 경유점을 지면/충돌 검증 어댑터로 연결. 위치는 3D 경로 거리 기준 계산.
 - scheduler의 이동 전용 plan.route는 실제 경로 길이/속도로 dueTick을 결정. 시작/완료에서 trusted validateRoute 검증, logicalPosition 조회는 현재 worldTick의 위치 projection. 도착·정지 시 논리 위치 저장, pause 후 재계획. route와 경제 effect를 같은 행동에 섞지 않는다. 기본 validateRoute는 false로 미연결 시 안전하게 실패. 실제 NavGrid/지면 검증기, 능동 장애물 지연, region lifecycle/렌더 투영과 실제 clock 연결은 후속. route invalidation은 마지막 확정 위치 유지(이동 도중의 연속 checkpoint는 후속).
 - V8 PASS NPC scheduler/behavior: 56 checks; PASS NPC pause/resume: 9 checks; PASS logical NPC movement: 18 checks. 실제 카엘/브라우저/전체 검증 NOT RUN.
+
+### T4 실제 게임 초기 연결
+- living-world-runtime.js 및 living-world-content.js: 기존 NPC ID/지역/소유자 구조 등록. 실제 생활 정책은 비어 있음. smith/vendor 초기 재산은 조회가 아니라 시작 단계에서 기존 seedMerchant 정책 그대로 부여; 기존 재산 보존. 다른 NPC 0 잔액. 빈 콘텐츠에서 기존 일과 유지, 매 프레임 저장 없음.
+- 정책 등록 NPC만 Townsfolk 기존 일과 및 저장 관찰에서 제외, 논리 위치 투영. GameClock 정수 분, 대화 시작/종료 pause/resume, 기존 NavGrid 경유점 및 지면/수면/충돌 검증, 실제 채집 노드 adapter 및 picked 공유. 지역 비활성 중에도 clock 처리.
+- 현재 tick 직접 위치 투영; 보간/동적 장애물 지연 및 실제 카엘/Chromium/PWA 미검증. 미등록 시장/레시피/소비 정책 unsupported. 실제 콘텐츠 없음.
+- 검증: V8 PASS living-world runtime bridge: 11 checks, 이전 번들의 gameplay 원본 suffix 일치 후 해당 조각 교체, 정규화 V8 문법 컴파일 및 sw 문법 PASS. 전체 Node/infra NOT RUN.

@@ -12,7 +12,14 @@
     "src/core/npc-scheduler.js",
     "tests/npc-scheduler.mjs",
     "src/core/npc-movement.js",
-    "tests/npc-movement.mjs"
+    "tests/npc-movement.mjs",
+    "src/core/living-world-runtime.js",
+    "src/core/living-world-content.js",
+    "tests/living-world-runtime.mjs",
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "sw.js",
+    "docs/core/CURRENT_STATE.md"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -21,5 +28,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T4 부분: 논리 이동 및 clock adapter. 실제 Townsfolk/NavGrid/region/clock 연결, 저장 관찰 분리, 경로 장애물 지연, 실제 검증. MOVEMENT-002/INFRA-001 점유 조정 필요."
+  "next": "T4 부분 연결: 실제 게임 및 PWA/동적 장애물/보간 검증 미완료. T5 세계 사건 및 정보 전파, 이후 담화/요청 및 통합."
 }

@@ -2,7 +2,7 @@
  * Version changes force a clean install; network-first fetches also refresh unchanged-SW deployments.
  * Never serve cached HTML or JS while the network returns a successful newer response.
  */
-const VERSION = 'sernbeld-pwa-56';
+const VERSION = 'sernbeld-pwa-57';
 const PREFIX = 'sernbeld-pwa-';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
@@ -11,6 +11,8 @@ const OFFLINE_FILES = [
   './', './index.html', './game.js', './pwa.js', './manifest.webmanifest',
   './src/core/game-events.js', './src/core/entity-registry.js', './src/core/inventory.js', './src/core/shared-items.js',
   './src/core/region-lifecycle.js', './src/core/npc-dialogue.js', './src/core/skill-engine.js',
+  './src/core/living-world-registry.js', './src/core/living-world-state.js', './src/core/npc-behavior.js',
+  './src/core/npc-scheduler.js', './src/core/npc-movement.js', './src/core/living-world-runtime.js', './src/core/living-world-content.js',
   './src/core/skill-library.js', './src/core/skill-runner.js', './src/ui/skill-workbench.js',
   './src/ui/skill-orbit-model.js',
   './src/entities/character/appearance.js',
