@@ -1,5 +1,5 @@
 import {createLivingWorldRegistry} from '../src/core/living-world-registry.js';
-import {createNpcConversations} from '../src/core/npc-conversation.js';
+import {createNpcConversations,createConversationBridge} from '../src/core/npc-conversation.js';
 let checks=0;const a=(v,m)=>{if(!v)throw Error(m);checks++};
 const r=createLivingWorldRegistry({regions:['kael'],societyHandlers:['e','p']});
 const t={id:'talk',topic:'supply',regionIds:['kael'],slots:[{id:'speaker',tags:['worker']},{id:'listener',tags:['worker']}],eventTypeId:'shortage',factRefs:[{key:'amount',slotId:'speaker',factKey:'amount'}],turns:[{slotId:'speaker',text:'fixture {amount}',duration:12},{slotId:'listener',text:'fixture reply',duration:15}]};
@@ -32,3 +32,25 @@ a(q.every(g=>g.npcIds.length<=4)&&new Set(q.flatMap(g=>g.npcIds)).size===q.flatM
 a(dense.snapshot().stats.pairs<=12,'pair budget');
 dense.clear(1);a(dense.snapshot().groups.length===0,'region release');
 console.log('PASS NPC conversation groups: '+checks+' checks');
+
+a(r.registerDefinitions({profiles:['a','b'].map(id=>({id,regionId:'kael',roleId:null,tags:['worker']}))}).ok,'registered bridge profiles');
+const actual={npcStates:{a:{currentAction:{id:'job:1',interruptPolicy:'pauseable'}},b:{currentAction:{id:'job:2',interruptPolicy:'pauseable'}}},livingWorld:{scheduler:[]}};
+let pauses=0,resumes=0,failResume=false;
+const scheduler={pause(id,job){const a=actual.npcStates[id].currentAction;if(a.id!==job||a.paused)return {ok:false};a.paused=true;pauses++;return {ok:true}},resume(id,job){if(failResume)return {ok:false,reason:'save_failed'};const a=actual.npcStates[id].currentAction;if(a.id!==job||!a.paused)return {ok:false,reason:'stale'};a.paused=false;resumes++;return {ok:true}}};
+const bridge=createConversationBridge({registry:r,scheduler,readState:()=>actual,managed:()=>true,knownEvents:id=>id==='b'?[{id:'event:1',typeId:'shortage',revision:1,state:'active',facts:{amount:5}}]:[],canPair:()=>true,settled:()=>true});
+const args={active:true,player:{x:0,y:0,z:0},regionId:'kael',npcs:[person('a',0),person('b',2)],now:0};
+const b=bridge.update(args);
+a(b[0]?.text==='fixture 5'&&b[0]?.speakerId==='b','role binding selects participant with actual knowledge');
+a(pauses===2&&bridge.groupHeld('a')==='job:1','group pauses both');
+a(bridge.claim('a')==='job:1'&&actual.npcStates.a.currentAction.paused&&!actual.npcStates.b.currentAction.paused&&resumes===1,'player claims existing hold, others resume');
+const blockedBridge=createConversationBridge({registry:r,scheduler,readState:()=>actual,managed:()=>true,knownEvents:()=>[],canPair:()=>true,settled:()=>true});
+actual.npcStates.a.currentAction.paused=false;
+actual.livingWorld.scheduler=[{npcId:'a',status:'running',plan:{route:{}}}];
+a(blockedBridge.update(args).length===0,'logical travel excluded even at zero render speed');
+actual.livingWorld.scheduler=[];
+a(blockedBridge.update({...args,now:1}).length===1,'hold after travel');
+failResume=true;blockedBridge.update({...args,now:2,active:false});
+a(actual.npcStates.a.currentAction.paused&&blockedBridge.groupHeld('a')===null,'failed release remains pending not claimed');
+failResume=false;blockedBridge.retry();
+a(!actual.npcStates.a.currentAction.paused&&!actual.npcStates.b.currentAction.paused,'retry release');
+console.log('PASS NPC conversation runtime adapter: 8 checks');

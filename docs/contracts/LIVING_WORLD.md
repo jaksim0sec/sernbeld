@@ -41,3 +41,8 @@
 - conversationTemplates: id, topic, regionIds, 2~4 slots(id/tags), turns(slotId/text/duration seconds), optional eventTypeId/factRefs(key,slotId,factKey), participationIds(식별자만, T7 실행/참조 검증 후속). 등록된 사실만 해당 화자 placeholder로 허용. 현재 event revision 및 지식을 확인하고 안정 ID 순으로 슬롯을 매칭한다.
 - createNpcConversations: 세션 시간(초), 활성 지역·주변 정지 NPC·공통 태그·전원 pair 거리/장애물 guard, 최대 4명, 공간 셀 및 후보/비교 예산, 독점 hold/release. 중거리 dots, 근거리 최초 materialize, hysteresis 및 경과 cursor, stale 사건 종료, cooldown/지역 해제. 비활성/외곽은 pair scan 및 materialize 없음. 빈 템플릿에서는 그룹 미형성 및 레거시 발화 유지. 실제 UI/hold 어댑터는 다음 통합 작업. 템플릿 발화는 지식/경제 변경 없음.
 - V8 PASS NPC conversation groups: 18 checks. Node/브라우저/실기기 NOT RUN. 실제 콘텐츠 없음.
+
+### T6 실제 연결 (부분)
+- 런타임 bridge는 registry profile 분류 태그, 논리 이동·pauseable 여부, 현재 참여/스케줄 backlog를 검증. 관리 NPC는 scheduler.pause/resume, 기존 일과 NPC는 그룹 소유 동안 wander만 보류. 일정 변경·지역 해제·메뉴 진입은 그룹 종료. 플레이어의 기존 직접 대화는 해당 NPC hold를 인계하고 다른 참가자를 해제한다. 실패한 resume은 다음 update에서 재시도. 기존 참여 UI는 유지, 실제 그룹 참여 분기/효과는 T7 후속.
+- Townsfolk/기존 GameUI 말풍선 연결. 그룹 발화 우선, 그룹 없으면 기존 주변 발화. 실제 템플릿이 없으면 그룹 업데이트 자체를 하지 않는다. 지면과 기존 월드 ray를 pair guard로 사용. 동일 role slot의 여러 binding 중 실제 지식 충족 binding 탐색(최대 24). PWA precache 59.
+- V8 PASS NPC conversation groups: 18 checks; PASS NPC conversation runtime adapter: 8 checks (scheduler bridge는 mock 의존성), 게임 번들 원본 suffix 일치 및 교체 후 정규화 문법 PASS. 실제 브라우저/카엘/PWA/모바일 성능·전체 Node NOT RUN. 실제 템플릿 미등록.

@@ -32,5 +32,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T6 부분: 담화 그룹/LOD/템플릿 코어. 실제 Townsfolk/말풍선/hold/지역 및 PWA 연결, T7 참여·요청, T8 검증."
+  "next": "T6 부분: 기존 NPC/말풍선/hold 및 PWA 연결. T7 그룹 참여·요청·친화도, T8 실제 브라우저/성능/통합 검증."
 }

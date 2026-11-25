@@ -17,3 +17,5 @@ T4 후속: 참여 중 pause된 NPC 접근 검증 및 중복 pause 방지. V8 run
 T5 부분: 사건의 조건 평가·해결·지식 전달·지표 및 scheduler/runtime 통합. PASS world society: 26 checks. 플레이어 변경 즉시 hook/관계/비관측 상호작용, 실제 브라우저 및 전체 검증 후속. 실제 콘텐츠 없음.
 
 T6 초기: 그룹/템플릿/LOD core. PASS NPC conversation groups: 18 checks. 실제 연결 후속.
+
+T6 초기 실제 연결: Townsfolk 및 말풍선 adapter, 관리 NPC hold 인계/재개/실패 재시도, PWA. PASS NPC conversation groups: 18 checks; PASS NPC conversation runtime adapter: 8 checks. 실제 콘텐츠 없음; 그룹 참여 및 실브라우저 미검증.

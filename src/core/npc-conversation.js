@@ -5,19 +5,19 @@ const point=p=>p&&[p.x,p.y,p.z].every(Number.isFinite);
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
 const all=(tags,required)=>required.every(t=>tags.includes(t));
 function matchSlots(slots,members){
- const used=new Set(),binding={};
+ const used=new Set(),binding={},matches=[];
  function match(i){
-  if(i===slots.length)return true;
+  if(i===slots.length){matches.push({...binding});return}
   const s=slots[i];
   for(const n of members){
    if(used.has(n.id)||!all(n.tags,s.tags))continue;
    used.add(n.id);binding[s.id]=n.id;
-   if(match(i+1))return true;
+   match(i+1);
    used.delete(n.id);delete binding[s.id];
   }
-  return false;
  }
- return slots.length===members.length&&match(0)?binding:null;
+ if(slots.length===members.length)match(0);
+ return matches;
 }
 export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>false,hold=()=>true,release=()=>{},config={}}){
  const c={midIn:18,midOut:22,nearIn:7,nearOut:9,pairIn:3,pairOut:4,scanEvery:.5,duration:30,cooldown:20,maxGroups:3,maxCandidates:64,maxPairs:256,cell:6,...config};
@@ -43,13 +43,13 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   const members=g.npcIds.map(id=>byId.get(id));
   for(const t of templates()){
    if(!t.regionIds.includes(g.regionId))continue;
-   const binding=matchSlots(t.slots,members);if(!binding)continue;
+   const bindings=matchSlots(t.slots,members);if(!bindings.length)continue;
    const refs=t.factRefs??[],events=new Map();
    if(t.eventTypeId){
     for(const n of members)events.set(n.id,knownEvents(n.id).filter(e=>e.typeId===t.eventTypeId&&e.state==='active'));
    }
    const candidates=t.eventTypeId?[...new Set(members.flatMap(n=>events.get(n.id).map(e=>e.id)))].sort(cmp):[null];
-   for(const eventId of candidates){
+   for(const binding of bindings)for(const eventId of candidates){
     const selected=new Map();
     if(eventId!==null){
      for(const n of members){const e=events.get(n.id).find(e=>e.id===eventId);if(e)selected.set(n.id,e)}
@@ -123,7 +123,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
    const d=closest(g,byId,player);
    g.lod=d<=(g.lod===3?c.nearOut:c.nearIn)?3:2;
    if(g.lod===3&&!g.attempted){g.attempted=true;materialize(g,byId,now)}
-   if(!stillValid(g)){end(g,now);continue}
+   if(g.lod===3&&!stillValid(g)){end(g,now);continue}
    let speakerId=g.npcIds[0],text='···',cursor=null;
    if(g.lod===3&&g.materialized){
     let elapsed=now-g.formedAt;
@@ -137,4 +137,49 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
  }
  function leaveNpc(id){const g=groups.get(owner.get(id));if(g)end(g,lastTime)}
  return {update,clear,leaveNpc,groupFor:id=>owner.get(id)??null,snapshot:()=>({groups:copy([...groups.values()]),stats:{...stats}})};
+}
+
+// Ephemeral group ownership uses the authoritative action scheduler for managed residents.
+export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,settled,playerHeld=()=>false}){
+ const locks=new Map(),enabled=registry.list('conversationTemplates').length>0;
+ const action=id=>readState().npcStates?.[id]?.currentAction;
+ const isTraveling=id=>readState().livingWorld?.scheduler?.some(j=>j.npcId===id&&j.status==='running'&&j.plan?.route);
+ function available(id){
+  if(playerHeld(id)||!settled())return false;
+  if(!managed(id))return true;
+  const a=action(id),l=locks.get(id);
+  return !!a&&a.interruptPolicy==='pauseable'&&!isTraveling(id)&&(!a.paused||l?.job===a.id&&!l.released);
+ }
+ function hold(id,groupId){
+  if(!available(id))return false;
+  if(!managed(id))return true;
+  const a=action(id);
+  if(a.paused)return false;
+  const r=scheduler.pause(id,a.id);if(!r.ok)return false;
+  locks.set(id,{groupId,job:a.id,released:false});return true;
+ }
+ function release(id,groupId){
+  const l=locks.get(id);if(!l||l.groupId!==groupId)return;
+  const r=scheduler.resume(id,l.job);
+  if(r.ok||r.reason==='stale')locks.delete(id);else l.released=true;
+ }
+ const core=createNpcConversations({registry,knownEvents,canPair,hold,release});
+ function retry(){for(const [id,l] of locks)if(l.released)release(id,l.groupId)}
+ function claim(id){
+  const l=locks.get(id);
+  if(l&&!l.released&&action(id)?.id===l.job&&action(id)?.paused===true){
+   locks.delete(id);core.leaveNpc(id);return l.job;
+  }
+  core.leaveNpc(id);return null;
+ }
+ return {
+  enabled,groupFor:core.groupFor,leaveNpc:core.leaveNpc,clear:core.clear,claim,retry,
+  groupHeld:id=>{const l=locks.get(id);return l&&!l.released?l.job:null},
+  update(args){
+   if(!enabled)return [];
+   if(!args.active||args.suppressed||!settled())return core.update({...args,npcs:[],suppressed:true});
+   return core.update({...args,npcs:args.npcs.map(n=>({...n,tags:registry.get('profiles',n.id)?.tags??[],available:n.available!==false&&available(n.id)}))});
+  },
+  snapshot:core.snapshot
+ };
 }

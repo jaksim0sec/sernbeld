@@ -51551,7 +51551,7 @@ var GameUI = class {
       el2.bubble.hidden=!L.utterance;
       el2.style.left = (cx * 0.5 + 0.5) * innerWidth + "px";
       el2.style.top = (-cy * 0.5 + 0.5) * innerHeight + "px";
-      el2.style.opacity = String(Math.min(1, (11 - L.d) / 3));
+      el2.style.opacity = String(Math.max(0,Math.min(1, ((L.maxDistance??11) - L.d) / 3)));
       seen.add(L.id);
     }
     for (const [id, el2] of this._labels) if (!seen.has(id)) {
@@ -51894,6 +51894,7 @@ var Townsfolk = class {
   }
   // place everyone where their schedule says, without walking (load / time skip)
   settle(hour) {
+    this.living?.clearGroups();
     this.queue.length = 0;
     for (const n of this.list) {
       if(this.living?.managed(n.def.id))continue;
@@ -51926,6 +51927,7 @@ var Townsfolk = class {
       const managed=this.living?.managed(n.def.id)===true;
       const e = this.entry(n.def, hour);
       if (!managed&&e !== n.entry) {
+        this.living?.leaveGroup(n.def.id);
         n.entry = e;
         const [x, z] = this.spot(n, e);
         if (n.hidden) {
@@ -51960,7 +51962,7 @@ var Townsfolk = class {
           if (n.entry[1] === "home") n.hidden = true;
           n.wait = 6 + n.rnd() * 14;
         }
-      } else if (n.entry[2] === "wander" && (n.wait -= dt) <= 0) {
+      } else if (n.entry[2] === "wander" && !this.living?.groupFor(n.def.id) && (n.wait -= dt) <= 0) {
         const p = this.places[n.entry[1]] ?? this.places.plaza, a = n.rnd() * 6.28, r = 2 + n.rnd() * 9;
         this.goTo(n, p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r);
         n.wait = 1e9;
@@ -52046,18 +52048,20 @@ var Townsfolk = class {
     }
     return out;
   }
-  labels(camera, player, now = 0, allowAmbient = true) {
-    const out2 = [], nearby = [];
+  labels(camera, player, now = 0, allowAmbient = true, groupLines = []) {
+    const out2 = [], nearby = [], groupBubbles=new Map(groupLines.map(l=>[l.speakerId,l]));
     for (const n of this.list) {
       if (n.hidden||!n.ch) continue;
       const dx=n.x-player.pos.x,dz=n.z-player.pos.z,d=Math.hypot(dx,dz);
-      if (d > 11) continue;
-      const label={id:n.def.id,name:n.def.name,title:n.def.title,x:n.x,y:n.y+1.95*(n.def.scale??1),z:n.z,d};
+      const groupLine=groupBubbles.get(n.def.id),maxDistance=groupLine?23:11;
+      if (d > maxDistance) continue;
+      const label={id:n.def.id,name:n.def.name,title:n.def.title,x:n.x,y:n.y+1.95*(n.def.scale??1),z:n.z,d,maxDistance};
+      if(groupLine&&n.ch.group.visible)label.utterance=groupLine.text;
       out2.push(label);
       const forward = (-Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
       if (d <= 6 && Math.abs(n.y-player.pos.y)<1.8 && forward>.15 && n.ch.group.visible) nearby.push({n,label});
     }
-    if (!allowAmbient) { this.ambient=null; return out2; }
+    if (!allowAmbient||groupLines.length) { this.ambient=null; return out2; }
     const eligible = id => nearby.find(entry=>entry.n.def.id===id);
     if (this.ambient) {
       const speaker=eligible(this.ambient.speakerId);
@@ -53414,6 +53418,11 @@ async function boot() {
       return routeAdapter({regionId:region.id,from,to:{x,y,z},metersPerTick});
     },
     validateRoute:route=>route.regionId===region.id&&route.points.every((p,i)=>i===0||validateResidentSegment(route.points[i-1],p)),
+    conversationPair(a,b){
+      if(!validateResidentSegment(a,b))return false;
+      const from={x:a.x,y:a.y+1.25,z:a.z},dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,d=Math.hypot(dx,dy,dz);
+      return d<.05||maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
+    },
     configureItems(items){
       items.registerGatherSource('kael:gather',(q,data)=>{
         const node=nodeById.get(q.payload.nodeId),npc=data.npcStates?.[q.actorId.slice(4)],p=npc?.logicalPosition;
@@ -53799,7 +53808,14 @@ async function boot() {
     }
     const ambientAllowed=!ui.dialogueOpen()&&ui.bag.hidden&&ui.travel.hidden&&ui.boardP.hidden&&!fullMap.isOpen()&&!skillWorkbench.isOpen()&&$("intro").hidden;
     ui.setStamina(player, camera, (avatars.mode === "third" || player.traversal) && avatars.bodyRoot.visible, ambientAllowed);
-    ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
+    const regionActive=WorldRegions.isActive(region.id);
+    let groupLines=[];
+    if(living.ok&&living.conversationsEnabled){
+      const queued=new Set(folk.queue.map(q=>q[0].def.id));
+      groupLines=living.updateConversations({active:regionActive,player:player.pos,now:t,suppressed:!ambientAllowed,
+        npcs:regionActive&&ambientAllowed?folk.list.map(n=>({id:n.def.id,x:n.x,y:n.y,z:n.z,hidden:n.hidden,stationary:!n.path&&!queued.has(n.def.id)&&n.speed<.12&&n.talkT<=0,available:ui.activeSpeaker!==n.def.id})):[]});
+    }
+    ui.setLabels(regionActive ? folk.labels(camera, player,t,ambientAllowed,groupLines) : [], camera);
   };
   renderer.setAnimationLoop(tick);
   window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, livingWorld: living.ok?{snapshot:living.snapshot}: {status:living}, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };

@@ -4,10 +4,11 @@ import {createNpcScheduler} from './npc-scheduler.js';
 import {createItemRuntime} from './shared-items.js';
 import {gameClockTick} from './npc-movement.js';
 import {createWorldSociety} from './world-society.js';
+import {createConversationBridge} from './npc-conversation.js';
 const copy=v=>JSON.parse(JSON.stringify(v));
 const fail=reason=>({ok:false,reason});
 const point=p=>p&&[p.x,p.y,p.z].every(Number.isFinite);
-export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,configureItems=()=>{},onCommit=()=>{},budget=32}){
+export function createLivingWorldRuntime({save,getDefinitions,regionId,residents,clock,places=[],content={},routeFor,validateRoute,conversationPair=()=>false,configureItems=()=>{},onCommit=()=>{},budget=32}){
  const known=new Map(residents.map(n=>[n.id,n]));
  if(known.size!==residents.length)return fail('duplicate_resident');
  const handlers={move:{plan({npcId,npc,action}){
@@ -45,7 +46,9 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  const scheduler=createNpcScheduler({save,registry,getDefinitions,handlers,validateRoute,society,
   configureItems(items){configureItems(items);content.configureItems?.(items)},onCommit});
  let lastTarget=null,pending=0,lastResult={ok:true,processed:0,pending:0},held=null;
+ const conversation=createConversationBridge({registry,scheduler,readState:()=>save.data,managed:id=>managed.has(id),knownEvents:id=>society.knownEvents(save.data,id),canPair:conversationPair,settled:()=>lastResult.ok&&!pending,playerHeld:id=>held?.id===id});
  function update(activeSpeaker=null){
+  conversation.retry();
   if(held&&held.id!==activeSpeaker){
    const r=scheduler.resume(held.id,held.job);
    if(!r.ok&&r.reason!=='stale')return r;
@@ -62,13 +65,15 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  function canTalk(id){
   if(!managed.has(id))return true;
   const a=save.data.npcStates?.[id]?.currentAction;
-  return lastResult.ok&&!pending&&!!a&&a.interruptPolicy==='pauseable'&&(!a.paused||held?.id===id&&held.job===a.id);
+  return lastResult.ok&&!pending&&!!a&&a.interruptPolicy==='pauseable'&&(!a.paused||held?.id===id&&held.job===a.id||conversation.groupHeld(id)===a.id);
  }
  function beginTalk(id){
   if(!canTalk(id))return false;
-  if(!managed.has(id))return true;
+  if(!managed.has(id)){conversation.leaveNpc(id);return true}
   const a=save.data.npcStates?.[id]?.currentAction;
   if(!a||held)return false;
+  const claimed=conversation.claim(id);
+  if(claimed===a.id){held={id,job:a.id};return true}
   const r=scheduler.pause(id,a.id);if(!r.ok)return false;
   held={id,job:a.id};return true;
  }
@@ -77,7 +82,9 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  }
  return {ok:true,managed:id=>managed.has(id),update,canTalk,beginTalk,
   position:id=>managed.has(id)?scheduler.logicalPosition(id):null,
+  conversationsEnabled:conversation.enabled,groupFor:conversation.groupFor,leaveGroup:conversation.leaveNpc,clearGroups:conversation.clear,
+  updateConversations:args=>conversation.update({...args,regionId}),
   knownEvents:(id,options)=>society.knownEvents(save.data,id,options),
   shareKnowledge:command=>lastResult.ok&&!pending?scheduler.shareKnowledge(command):fail('stale'),
-  snapshot:()=>({state:copy(save.data.livingWorld),managed:[...managed],lastResult:copy(lastResult)})};
+  snapshot:()=>({state:copy(save.data.livingWorld),managed:[...managed],lastResult:copy(lastResult),conversations:conversation.snapshot()})};
 }
