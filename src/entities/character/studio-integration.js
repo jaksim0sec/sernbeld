@@ -46,8 +46,10 @@ export function solveThirdBoom({feet,aimY,yaw,pitch,near,fov,aspect,height,previ
  // A little extra clearance prevents flickering at the mode threshold.
  if(!reset&&previous===0&&room<minimum+.15)return {fallback:true,boom:0};
  let boom=reset?room:Math.min(room,room+(Math.max(minimum,previous)-room)*Math.exp(-Math.max(0,dt)*8));
- if(!clearBody(boom)||!clearWorld(boom))boom=room;
- if(!clearBody(boom)||!clearWorld(boom))return {fallback:true,boom:0};
+ // The room candidate was already world-checked above. In open space this
+ // keeps the normal frame at five rays instead of checking it three times.
+ if(boom!==room&&(!clearBody(boom)||!clearWorld(boom)))boom=room;
+ if(!clearBody(boom))return {fallback:true,boom:0};
  return {fallback:false,boom,position:point(boom)};
 }
 
