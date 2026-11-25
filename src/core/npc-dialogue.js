@@ -89,7 +89,7 @@ export function runNpcAction(choice,{reachable,choices,execute}) {
 export function createDialogueSession(def,line,options=[]) {
   const pages=(Array.isArray(line)?line:[line]).filter(value=>typeof value==="string"&&value.length);
   if(!pages.length)pages.push("");
-  const responses=options.map(o=>({id:o.id??null,label:o.label,kind:o.kind??"reply",itemId:o.itemId??null}));
+  const responses=options.map(o=>({id:o.id??null,label:o.label,kind:o.kind??"reply",itemId:o.itemId??null,...(o.iconItemId?{iconItemId:o.iconItemId}:{})}));
   let page=0,status="active";
   return {
     speakerId:def.id??null,

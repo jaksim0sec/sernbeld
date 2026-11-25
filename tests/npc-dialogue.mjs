@@ -14,7 +14,7 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   const fakeDoc={createElement:tag=>new Node(tag),createElementNS:(_,tag)=>new Node(tag)};
   let scheduled=0;
   const uiSrc=source.slice(source.indexOf('var GameUI = class {'),source.indexOf('var CLOCK_RATE ='));
-  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout','createDialogueSession','window',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>'image:'+id,()=>{scheduled++;},()=>{},createDialogueSession,{matchMedia:()=>({matches:true})});
+  const UI=Function('$2','el','document','IS_MOBILE','iconURL','setTimeout','clearTimeout','createDialogueSession','window',uiSrc+'\nreturn GameUI;')(get,(tag,cls)=>Object.assign(new Node(tag),{className:cls}),fakeDoc,false,id=>{if(id!=='herb')throw new TypeError("Cannot read properties of undefined (reading 'icon')");return 'image:'+id;},()=>{scheduled++;},()=>{},createDialogueSession,{matchMedia:()=>({matches:true})});
   const ui=Object.create(UI.prototype);
   ui.prompt=new Node('button');
   ui.setPrompt({kind:'npc',verb:'대화',label:'브란'});
@@ -63,6 +63,21 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   check(get('speechName').textContent==='세라'&&get('speechTitle').textContent==='길드원'&&ui.activeSpeaker==='bran','branch speaker changes without changing anchor');
   check(get('speechOpts').children.length===2,'topic hub returns');
   ui.closeSpeech();check(gs.status==='closed'&&ui.activeSpeaker===null,'graph close releases anchor');
+  const iconChoices=[
+    {id:'living.group.reply',itemId:'kael_dock_reply',label:'부두 이야기',act:()=>{}},
+    {id:'living.request.accept',kind:'item',itemId:'request:1',iconItemId:'herb',label:'납품 의뢰',act:()=>{}},
+    {id:'shop.buy',kind:'item',itemId:'herb',label:'약초 구매',act:()=>{}}
+  ];
+  const assertIcons=()=>{
+    const buttons=get('speechOpts').children;
+    check(buttons[0].children[0].tagName==='svg','group action identity is not an item icon');
+    check(buttons[1].children[0].src==='image:herb','request icon uses definition ID rather than request ID');
+    check(buttons[2].children[0].src==='image:herb','shop still uses real item ID');
+    check(ui.speechSession.choices[1].itemId==='request:1','request identity preserved');
+  };
+  ui.say({id:'bran',name:'브란'},'의뢰',iconChoices);assertIcons();ui.closeSpeech();
+  const iconsGraph=createTopicSession({id:'bran'},'의뢰',{resolve:()=>({topics:[],services:iconChoices})});
+  ui.say({id:'bran',name:'브란'},'의뢰',[],iconsGraph);assertIcons();ui.closeSpeech();
   const folkSrc=source.slice(source.indexOf('var Townsfolk = class {'),source.indexOf('var turn ='));
   const Folk=Function('npcLinePool',folkSrc+'\nreturn Townsfolk;')(npcLinePool);
   const folk=Object.create(Folk.prototype);
@@ -146,6 +161,14 @@ function checkNpcRuntime(source,createNpcStateStore,selectNpcLine,npcLinePool,ru
   Guild.state.registered=false;society.options(def)[0].act();
   check(Guild.state.registered&&writes>0,"current guild action executes");
   check(state.get("sera").memory.lastAction.id==="guild.register","real action remembered");
+  const request={id:'living.request.accept',itemId:'request:1',definitionId:'roadside_mugwort',label:'납품',quantity:2,minimumQuality:40,reward:6};
+  const groupReply={id:'living.group.reply',itemId:'kael_dock_reply',label:'부두 이야기'};
+  const groupRequest={...request,id:'living.group.request',itemId:'request:2',requestChoice:{...request,itemId:'request:2'}};
+  society.folk={list:[],living:{requestChoices:()=>[request],participationChoices:()=>[groupReply,groupRequest]}};
+  const presented=society.choices({...def,role:'worker'});
+  check(presented[0].itemId==='request:1'&&presented[0].iconItemId==='roadside_mugwort'&&presented[0].kind==='item','direct request separates action ID and icon definition');
+  check(presented[1].itemId==='kael_dock_reply'&&presented[1].kind!=='item','non-item group service keeps action identity');
+  check(presented[2].itemId==='request:2'&&presented[2].iconItemId==='roadside_mugwort'&&presented[2].kind==='item','group request uses definition icon');
   const share={id:'living.group.share',itemId:'mediate',sourceNpcId:'other',targetNpcId:'sera'};
   let effectCalls=0,available=[share];
   society.choices=()=>available;

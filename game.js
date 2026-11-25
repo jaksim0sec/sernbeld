@@ -51224,7 +51224,7 @@ var GameUI = class {
     }
   }
   interactionIcon(kind, itemId) {
-    if (itemId) {
+    if (kind === "item" && itemId) {
       const img = el("img","interaction-icon"); img.alt = ""; img.src = iconURL(itemId);
       return img;
     }
@@ -51399,7 +51399,7 @@ var GameUI = class {
       };
       box3.replaceChildren(...session.choices.map((o,index)=>{
         const b=el("button","interaction-token");b.type="button";
-        b.append(this.interactionIcon(o.kind,o.itemId));
+        b.append(this.interactionIcon(o.kind??"reply",o.iconItemId??o.itemId));
         const label=el("span","what");label.textContent=o.label;b.append(label);
         b.addEventListener("click",()=>{
           if(this.speechSession!==session||sp.hidden||!session.select(index,revision,o.token))return;
@@ -52213,7 +52213,7 @@ var Society = class {
       const name=ITEMS[request.definitionId]?.name??request.definitionId;
       const verb=request.id==="living.request.accept"?"수락":request.id==="living.request.abandon"?"포기":"제출";
       const target=choice.targetNpcId?this.folk.list.find(n=>n.def.id===choice.targetNpcId)?.def.name:null;
-      return {...choice,label:`${target?target+" · ":""}${verb}: ${choice.label}${verb==="포기"?"":` · ${name} ${request.quantity}개 / 품질 ${request.minimumQuality} 이상 / 은화 ${request.reward}`}`};
+      return {...choice,kind:"item",iconItemId:request.definitionId,label:`${target?target+" · ":""}${verb}: ${choice.label}${verb==="포기"?"":` · ${name} ${request.quantity}개 / 품질 ${request.minimumQuality} 이상 / 은화 ${request.reward}`}`};
     };
     for(const request of this.folk?.living?.requestChoices(def.id)??[])o.push(formatRequest(request));
     for(const choice of this.folk?.living?.participationChoices?.(def.id)??[])o.push(choice.requestChoice?formatRequest(choice,choice.requestChoice):choice);

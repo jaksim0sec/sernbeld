@@ -14,7 +14,9 @@
     "tests/kael-living-content.mjs",
     "tests/living-world-browser.mjs",
     "docs/contracts/LIVING_WORLD.md",
-    "docs/core/CURRENT_STATE.md"
+    "docs/core/CURRENT_STATE.md",
+    "src/core/npc-dialogue.js",
+    "docs/contracts/NPC_DIALOGUE.md"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -27,5 +29,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-11252115/T1: icon 오류 재현·원인 확정·수정·검증"
+  "next": "NPC-11252115/T1: 수정분 격리 회귀 PASS, CI/실게임 및 실기기 검증 후 T2"
 }

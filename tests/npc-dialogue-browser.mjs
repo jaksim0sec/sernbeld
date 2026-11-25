@@ -23,7 +23,7 @@ try {
         const get=id=>document.getElementById(id);
         const el=(tag,cls)=>Object.assign(document.createElement(tag),{className:cls||''});
         const session=Function('return ('+sessionSource+')')();
-        const UI=Function('$2','el','document','IS_MOBILE','iconURL','createDialogueSession',uiSource+'\nreturn GameUI;')(get,el,document,touch,()=> 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E',session);
+        const UI=Function('$2','el','document','IS_MOBILE','iconURL','createDialogueSession',uiSource+'\nreturn GameUI;')(get,el,document,touch,id=>{if(id!=='roadside_mugwort')throw new TypeError("Cannot read properties of undefined (reading 'icon')");return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E';},session);
         const ui=Object.create(UI.prototype);ui.prompt=get('prompt');
         ui.setPrompt({kind:'npc',verb:'대화',label:'브란'});
         window.showDialogue=(count=3,long=false)=>ui.say({id:'bran',name:'브란',title:'항구 관리인'},long?'긴 대화 내용입니다. '.repeat(100):'처음 보는 얼굴이군. 어디서 왔나?',Array.from({length:count},(_,i)=>({label:['이곳에 대해 물어보기','물건 거래하기','의뢰판 보기'][i%3],act:()=>ui.say({id:'bran',name:'브란'},'그렇군. 알겠네.')})));
@@ -33,6 +33,15 @@ try {
         const anchor={id:'bran',name:'브란',title:'관리인'};
         const other={id:'other',name:'동료',title:'부두 일꾼'};
         ui.dialogueSpeaker=id=>id===other.id?other:anchor;
+        window.showIconChoices=()=>{
+          const services=[
+            {id:'living.group.reply',itemId:'kael_dock_reply',label:'부두 이야기'},
+            {id:'living.request.accept',kind:'item',itemId:'request:1',iconItemId:'roadside_mugwort',label:'납품'},
+            {id:'shop.buy',kind:'item',itemId:'roadside_mugwort',label:'구매'}
+          ];
+          const session=createTopicSession(anchor,'의뢰',{resolve:()=>({topics:[],services})});
+          ui.say(anchor,'의뢰',[],session);
+        };
         window.showGraph=()=>{
           const named={template:graphTemplate,topicId:graphTemplate.topicId,source:'named',eventRef:null,facts:{},slotBinding:{npc:'bran',player:'player'}};
           const eventTemplate={...graphTemplate,id:'fixture.browser.group',topicId:'fixture.browser.event',source:'event',label:'사건 화제',nodes:graphTemplate.nodes.map(n=>n.id==='answer'?{...n,speakerSlot:'companion',pages:['동료의 사건 답변']}:n)};
@@ -92,6 +101,11 @@ try {
       await page.locator('#speechDismiss').click();
       assert.equal(await page.locator('#speech').isVisible(),false);
       await page.emulateMedia({reducedMotion:'reduce'});
+      await page.evaluate(()=>window.showIconChoices());
+      assert.equal(await page.locator('#speechOpts button').nth(0).locator('svg').count(),1,'group reply uses SVG');
+      assert.equal(await page.locator('#speechOpts button').nth(1).locator('img').count(),1,'request uses item definition image');
+      assert.equal(await page.locator('#speechOpts button').nth(2).locator('img').count(),1,'shop uses item image');
+      await page.locator('#speechDismiss').click();
       await page.evaluate(()=>window.showGraph());
       const choices=page.locator('#speechOpts button');
       const line=page.locator('#speechLine');
