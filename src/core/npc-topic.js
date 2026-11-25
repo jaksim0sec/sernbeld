@@ -53,12 +53,12 @@ export function validateTopicGraph(t,{regions=new Set(),profiles=new Map(),roles
  const refs=new Map(),binding=t.eventBinding;
  if(t.source==='event'){
   const event=events.get(binding?.typeId);
-  if(!shape(binding,['typeId','factRefs'])||!event||!Array.isArray(binding.factRefs)||binding.factRefs.length>32||!ids(binding.factRefs.map(r=>r?.alias)))return [...errors,'invalid event binding'];
+  if(!shape(binding,['typeId','factRefs'])||!event||!ids(event.factKeys)||!ids(event.regionIds)||!Array.isArray(binding.factRefs)||binding.factRefs.length>32||!ids(binding.factRefs.map(r=>r?.alias)))return [...errors,'invalid event binding'];
   for(const r of binding.factRefs){
    if(!shape(r,['alias','slotId','factKey'])||!npcSlots.has(r.slotId)||!event.factKeys.includes(r.factKey))bad('unregistered fact reference');
    else refs.set(r.alias,r);
   }
-  if(e.regionIds?.some(r=>!event.regionIds.includes(r)))bad('event region mismatch');
+  if(Array.isArray(e.regionIds)&&e.regionIds.some(r=>!event.regionIds.includes(r)))bad('event region mismatch');
  }else if(own(t,'eventBinding'))bad('non-event binding');
  if(!ids(t.nodes.map(n=>n?.id)))return [...errors,'invalid or duplicate node id'];
  const nodes=new Map(t.nodes.map(n=>[n.id,n])),choiceIds=new Set();
@@ -73,7 +73,7 @@ export function validateTopicGraph(t,{regions=new Set(),profiles=new Map(),roles
   case 'choice':
    if(!shape(n,['id','type','choices'])||!Array.isArray(n.choices)||!n.choices.length||n.choices.length>16){bad('invalid choices '+n.id);break;}
    for(const c of n.choices)if(!shape(c,['id','label','conditions','nextNode'])||!text(c.label)||/[{}]/.test(c.label)||!conditionsOK(c.conditions,condRefs)||!nodes.has(c.nextNode))bad('invalid choice '+n.id);
-   if(!n.choices.some(c=>Array.isArray(c.conditions)&&!c.conditions.length))bad('choice has no unconditional fallback '+n.id);
+   if(!n.choices.some(c=>Array.isArray(c?.conditions)&&!c.conditions.length))bad('choice has no unconditional fallback '+n.id);
    break;
   case 'effect':
    if(!shape(n,['id','type','action','outcomes'])||!shape(n.action,['handlerId','argsRefs'])||!handlers.has(n.action.handlerId)||!obj(n.action.argsRefs)||Object.entries(n.action.argsRefs).some(([k,v])=>!id(k)||!shape(v,['kind','id'])||!(v.kind==='slot'&&slotIds.has(v.id)||v.kind==='fact'&&refs.has(v.id)))||!shape(n.outcomes,['ok','fail','stale'])||!['ok','fail','stale'].every(k=>nodes.has(n.outcomes[k])))bad('invalid effect '+n.id);

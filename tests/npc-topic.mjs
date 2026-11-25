@@ -46,6 +46,10 @@ invalid(b=>{addEffect(b);b.conversationTemplates[0].nodes[0].next='act';},'autom
 invalid(b=>{addEffect(b);b.conversationTemplates[0].nodes.at(-1).action.argsRefs.npc.id='missing';},'unknown effect argument ref');
 invalid(b=>{addEffect(b);delete b.conversationTemplates[0].nodes.at(-1).outcomes.stale;},'missing stale outcome');
 invalid(b=>{b.conversationTemplates[0].nodes[1].choices[1].conditions=[{op:'met',value:true}];},'no unconditional exit');
+invalid(b=>b.conversationTemplates[0].nodes[1].choices[0]=null,'null choice rejected atomically');
+invalid(b=>b.conversationTemplates[3].eligibility.regionIds='x','malformed region scope rejected atomically');
+invalid(b=>delete b.eventTypes[0].factKeys,'missing event fact keys rejected atomically');
+invalid(b=>b.eventTypes[0].regionIds=null,'malformed event regions rejected atomically');
 const valid=cp(defs);addEffect(valid);a(make().registerDefinitions(valid).ok,'explicit effect is registration only');
 const alt=cp(fixture.templates[1]);alt.id='fixture.personal.alt';alt.cooldown=5;
 const extra=cp(fixture.templates[2]);extra.id='fixture.personal.extra';extra.topicId='fixture.extra';
