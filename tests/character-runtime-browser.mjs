@@ -112,7 +112,11 @@ try{
    });
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
    assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
-   assert(stats.npc.length===25&&stats.npc.every(n=>n.body===n.gender&&n.features>=10&&n.vertices>20000&&n.vertices<120000),'NPCs must use optimized studio body/face');
+   // The approved Kael population was doubled from 25 to 50; verify count and geometry independently.
+   assert.equal(stats.npc.length,50,'Kael must retain its 50 registered residents');
+   assert.equal(new Set(stats.npc.map(n=>n.id)).size,stats.npc.length,'NPC IDs must be unique');
+   const invalidNpcGeometry=stats.npc.filter(n=>!(n.body===n.gender&&n.features>=10&&n.vertices>20000&&n.vertices<120000));
+   assert.deepEqual(invalidNpcGeometry.map(({id,gender,body,features,vertices})=>({id,gender,body,features,vertices})),[],'NPCs must use optimized studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
    for(const [mode,d] of Object.entries({third:stats.thirdGripClearance,first:stats.firstGripClearance})){
     assert(d.thumb>.011&&d.thumb<.026,'Thumb misses sword handle ('+mode+'): '+JSON.stringify(d));
