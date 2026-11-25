@@ -3,7 +3,7 @@ import {createLivingWorldRegistry} from './living-world-registry.js';
 import {createLivingWorldState} from './living-world-state.js';
 import {createNpcScheduler} from './npc-scheduler.js';
 import {createItemRuntime} from './shared-items.js';
-import {gameClockTick} from './npc-movement.js';
+import {gameClockTick,RESIDENT_WALK_SPEED} from './npc-movement.js';
 import {createWorldSociety} from './world-society.js';
 import {createConversationBridge} from './npc-conversation.js';
 import {createNpcRequests} from './npc-requests.js';
@@ -16,7 +16,7 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  if(known.size!==residents.length)return fail('duplicate_resident');
  const handlers={move:{plan({npcId,npc,action}){
   if(!point(npc.logicalPosition)||!action.placeId||typeof routeFor!=='function')return fail('unreachable');
-  const r=routeFor({npcId,from:npc.logicalPosition,placeId:action.placeId,metersPerTick:action.metersPerTick??1.35});
+  const r=routeFor({npcId,from:npc.logicalPosition,placeId:action.placeId,metersPerTick:action.metersPerTick??RESIDENT_WALK_SPEED});
   return r?.ok?{ok:true,plan:{route:r.route}}:fail(r?.reason??'unreachable');
  }},...(content.handlers??{})};
  const registry=createLivingWorldRegistry({handlers:Object.keys(handlers),regions:[regionId],places,societyHandlers:Object.keys(content.societyHandlers??{}),dialogueHandlers:content.dialogueHandlers??[],dialogueActions:content.dialogueActions??[],dialogueQuests:content.dialogueQuests??[]});

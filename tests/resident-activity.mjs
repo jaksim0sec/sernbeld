@@ -1,4 +1,6 @@
 import {createResidentActivityCache,RESIDENT_ACTIVITY_KEY,RESIDENT_ACTIVITY_TTL,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity} from '../src/core/resident-activity.js';
+import {readFileSync} from 'node:fs';
+import {residentWalkSpeed,RESIDENT_WALK_SPEED} from '../src/core/npc-movement.js';
 let checks=0;
 const check=(v,label)=>{if(!v)throw Error(label);checks++};
 const memory=new Map();let writes=0;
@@ -46,4 +48,24 @@ const waiter=actor();check(!seedResidentActivity(waiter,{random:()=>.8,pointAt,s
 const worker={...actor(),entry:[8,'stall','work']};
 check(!seedResidentActivity(worker,{random:()=>0,pointAt,segment:()=>true})&&!worker.path,'work remains work');
 const blocked=actor();check(!seedResidentActivity(blocked,{random:()=>.1,pointAt,segment:()=>false})&&blocked.wait>0&&!blocked.path,'blocked initial route');
-console.log('PASS resident activity cache: '+checks+' checks');
+check(walker.speed===RESIDENT_WALK_SPEED,'cold moving pose shares walk pace');
+check(residentWalkSpeed(.72)===RESIDENT_WALK_SPEED*1.25,'small resident pace multiplier preserved');
+const source=readFileSync(new URL('../src/gameplay/gameplay.part.js',import.meta.url),'utf8');
+const start=source.indexOf('var Townsfolk = class {'),end=source.indexOf('\n};',start);
+check(start>=0&&end>start,'actual movement class located');
+const Townsfolk=new Function('residentWalkSpeed','groundAt','turn','performance','CLOCK_RATE','SHADOW','residentLOD',source.slice(start,end+3)+';return Townsfolk;')(residentWalkSpeed,()=>0,(_a,b)=>b,{now:()=>0},60,12,()=>0);
+function traverse({scale=1,blocked=false,talking=false}={}){
+ const entry=[8,'plaza','stand'],n={def:{id:'a',scale,day:[entry]},entry,x:0,y:0,z:0,yaw:0,path:[[12,0]],pi:0,wait:0,talkT:talking?10:0,speed:0,rnd:()=>.5,ch:{group:{position:{set(){}},rotation:{}},setLOD(){},setShadow(){},animate(){}}};
+ const f=Object.assign(Object.create(Townsfolk.prototype),{list:[n],queue:[],quality:{npcRange:105,npcDetail:1}});
+ const dt=1/60,player={pos:{x:blocked?.5:1000,z:0}},cam={x:0,y:0,z:0};
+ let elapsed=0;
+ for(let i=0;i<600&&n.path;i++){f.update(dt,elapsed,8,player,cam);elapsed+=dt;if(i===59&&(blocked||talking))break;}
+ return {n,elapsed};
+}
+const adult=traverse(),small=traverse({scale:.72}),blockedWalk=traverse({blocked:true}),heldWalk=traverse({talking:true});
+check(!adult.n.path&&adult.elapsed>5&&adult.elapsed<5.5,'adult 12m route arrives in about 5.3s');
+check(!small.n.path&&small.elapsed<adult.elapsed,'small resident arrives sooner');
+check(adult.n.ch.speed>1.8&&adult.n.ch.speed<=RESIDENT_WALK_SPEED,'animation follows new displacement pace');
+check(blockedWalk.n.x===0&&blockedWalk.n.speed===0&&blockedWalk.n.path,'player blocking preserved');
+check(heldWalk.n.x===0&&heldWalk.n.speed===0&&heldWalk.n.path,'talk hold preserved');
+console.log('PASS resident activity cache and walk pace: '+checks+' checks');

@@ -4,6 +4,9 @@ const tick=v=>Number.isSafeInteger(v)&&v>=0;
 const copy=v=>JSON.parse(JSON.stringify(v));
 const distance=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);
 const fail=reason=>({ok:false,reason});
+// World metres per real second; CLOCK_RATE=60 makes one logical minute one real second.
+export const RESIDENT_WALK_SPEED=2.25;
+export function residentWalkSpeed(scale){return RESIDENT_WALK_SPEED*(scale&&scale<.8?1.25:1);}
 export function gameClockTick({day,hour}={}){
  if(!Number.isSafeInteger(day)||day<1||!Number.isFinite(hour)||hour<0||hour>=24)return null;
  const t=(day-1)*1440+Math.floor(hour*60);

@@ -1,6 +1,6 @@
 import {createLivingWorldRuntime} from '../src/core/living-world-runtime.js';
 import {createItemRuntime,extendItemDefinitions} from '../src/core/shared-items.js';
-import {buildLogicalRoute} from '../src/core/npc-movement.js';
+import {buildLogicalRoute,RESIDENT_WALK_SPEED} from '../src/core/npc-movement.js';
 let checks=0;const a=(v,m)=>{if(!v)throw Error(m);checks++};
 const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2},sword:{kind:'weapon',rarity:'common',name:'sword',value:15,price:15,dmg:14,rate:1.6,reach:2.1}});
 const residents=[{id:'smith',role:'smith',position:{x:0,y:0,z:0}},{id:'a',position:{x:0,y:0,z:0}}];
@@ -13,9 +13,11 @@ a(items.balance('npc:a')===0&&save.data.npcStates.a.lineI===5,'legacy state pres
 const snapshot=JSON.stringify(save.data);a(empty.update().ok&&JSON.stringify(save.data)===snapshot&&writes===1,'empty engine no per-frame save');
 a(createLivingWorldRuntime(opts).ok&&JSON.stringify(save.data)===snapshot,'no duplicate seeding');
 const policy={definitions:{actions:[{id:'walk',handlerId:'move',duration:1,interruptPolicy:'pauseable',needWeights:{},placeId:'home'}],roles:[{id:'worker',actionIds:['walk'],needWeights:{}}],profiles:[{id:'a',regionId:'kael',roleId:'worker',tags:[]}]},handlers:{}};
-const rt=createLivingWorldRuntime({...opts,content:policy,routeFor({from,metersPerTick}){const to={x:3,y:0,z:0};return buildLogicalRoute({regionId:'kael',from,to,metersPerTick,findPath:()=>[to],validateSegment:()=>true})},validateRoute:()=>true});
+let plannedPace;
+const rt=createLivingWorldRuntime({...opts,content:policy,routeFor({from,metersPerTick}){plannedPace=metersPerTick;const to={x:3,y:0,z:0};return buildLogicalRoute({regionId:'kael',from,to,metersPerTick,findPath:()=>[to],validateSegment:()=>true})},validateRoute:()=>true});
 a(rt.ok&&rt.managed('a')&&!rt.managed('smith'),'selective ownership');
 a(rt.update().ok&&save.data.npcStates.a.currentAction.actionId==='walk','clock starts job');
+a(plannedPace===RESIDENT_WALK_SPEED,'new managed routes use shared default pace');
 a(rt.beginTalk('a')&&save.data.npcStates.a.currentAction.paused,'talk pauses');
 a(rt.canTalk('a')&&!rt.beginTalk('a'),'active dialogue remains reachable without duplicate pause');
 clock.hour=8+3.1/60;a(rt.update('a').ok&&rt.position('a').x===0,'pause remains while talking');

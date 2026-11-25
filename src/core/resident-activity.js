@@ -1,4 +1,5 @@
 // Presentation-only resident activity; scheduler jobs remain authoritative.
+import {residentWalkSpeed} from './npc-movement.js';
 export const RESIDENT_ACTIVITY_KEY='sernbeld.resident-activity.v1';
 export const RESIDENT_ACTIVITY_TTL=30*60*1000;
 const LIMIT=512, MAX_BYTES=128*1024, HEARTBEAT=60*1000;
@@ -69,6 +70,6 @@ export function seedResidentActivity(n,{random=Math.random,pointAt,segment}){
  if(!b||!segment(a,b))return false;
  const t=.15+random()*.65,p=pointAt(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t,a.y+(b.y-a.y)*t);
  if(!p||!segment(p,b))return false;
- Object.assign(n,{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(b.x-a.x,b.z-a.z),path:[[b.x,b.z]],pi:0,wait:0,speed:1.35});
+ Object.assign(n,{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(b.x-a.x,b.z-a.z),path:[[b.x,b.z]],pi:0,wait:0,speed:residentWalkSpeed(n.def?.scale)});
  return true;
 }

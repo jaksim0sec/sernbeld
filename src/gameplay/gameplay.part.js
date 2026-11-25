@@ -13,7 +13,7 @@ import {createSkillLibrary} from './src/core/skill-library.js';
 import {createSkillWorkbench} from './src/ui/skill-workbench.js';
 import {createLivingWorldRuntime} from './src/core/living-world-runtime.js';
 import {livingWorldContent} from './src/core/living-world-content.js';
-import {createNavGridRouteAdapter} from './src/core/npc-movement.js';
+import {createNavGridRouteAdapter,residentWalkSpeed} from './src/core/npc-movement.js';
 import {createResidentActivityCache,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity} from './src/core/resident-activity.js';
 const residentActivityCache=createResidentActivityCache();
 var TINT = {
@@ -5211,20 +5211,21 @@ var Townsfolk = class {
         }
         this.goTo(n, x, z);
       }
-      let moving = false;
+      let moving = false, movingSpeed = 0;
       if (n.talkT > 0 || this.activeSpeaker?.() === n.def.id) {
         n.talkT = Math.max(0,n.talkT - dt);
         n.yaw = turn(n.yaw, Math.atan2(player.pos.x - n.x, player.pos.z - n.z), dt * 6);
       } else if(managed){
         const pos=this.living.position(n.def.id);
-        if(pos){const dx=pos.x-n.x,dz=pos.z-n.z;moving=Math.hypot(dx,dz)>.001;if(moving)n.yaw=turn(n.yaw,Math.atan2(dx,dz),dt*5);n.x=pos.x;n.y=pos.y;n.z=pos.z;n.hidden=false;n.path=null;}
+        if(pos){const dx=pos.x-n.x,dz=pos.z-n.z;moving=Math.hypot(dx,dz)>.001;if(moving){n.yaw=turn(n.yaw,Math.atan2(dx,dz),dt*5);movingSpeed=Math.hypot(dx,dz)*60/CLOCK_RATE;}n.x=pos.x;n.y=pos.y;n.z=pos.z;n.hidden=false;n.path=null;}
       } else if (n.path && n.pi < n.path.length) {
         const [tx, tz] = n.path[n.pi], dx = tx - n.x, dz = tz - n.z, d2 = Math.hypot(dx, dz);
         const pd = Math.hypot(player.pos.x - n.x, player.pos.z - n.z);
         const blockedByPlayer = pd < 1.1 && dx * (player.pos.x - n.x) + dz * (player.pos.z - n.z) > 0;
         if (d2 < 0.3) n.pi++;
         else if (!blockedByPlayer) {
-          const sp = 1.35 * (n.def.scale && n.def.scale < 0.8 ? 1.25 : 1), step = Math.min(d2, sp * dt);
+          const sp = residentWalkSpeed(n.def.scale), step = Math.min(d2, sp * dt);
+          movingSpeed = dt>0 ? step/dt : 0;
           n.x += dx / d2 * step;
           n.z += dz / d2 * step;
           moving = true;
@@ -5241,7 +5242,7 @@ var Townsfolk = class {
         this.goTo(n, p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r);
         n.wait = 1e9;
       }
-      n.speed += ((moving ? 1.35 : 0) - n.speed) * Math.min(1, dt * 8);
+      n.speed += ((moving ? movingSpeed : 0) - n.speed) * Math.min(1, dt * 8);
       const dxCam = n.x - camPos.x, dzCam = n.z - camPos.z;
       const d = Math.hypot(dxCam, dzCam);
       // Keep a generous margin for peripheral vision, especially on portrait screens.
