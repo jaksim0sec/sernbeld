@@ -81,6 +81,18 @@ function createHairKit(){
   for(let i=1;i<=rings;i++){const start=p.length/3;for(let j=0;j<=sides;j++){const phi=360*(j%sides)/sides;p.push(...fit.anchor(hairline(phi)*i/rings,phi,clearance).position);uv.push(j/sides,i/rings);}seams.push([start,start+sides]);for(let j=0;j<sides;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-sides-1;ix.push(b,a,b+1,b+1,a,a+1);}}}
   return mesh(p,uv,ix,seams,root);
  }
+ // Continuous front root panel, not the full scalp cap. It ends at the
+ // frontal hairline, leaving the unbuilt side/back deliberately bare.
+ function frontFoundation(fit,{rings=18,sides=36}={}){
+  const p=[...fit.anchor(0,0,.006).position],uv=[.5,0],ix=[];
+  for(let i=1;i<=rings;i++){const t=i/rings,start=p.length/3;
+   for(let j=0;j<=sides;j++){const u=j/sides,phi=-81+162*u,edge=Math.abs(u*2-1);
+    const end=67+11*edge,theta=t*end,clearance=.006+.002*Math.sin(Math.PI*t)*(1-edge*.5);
+    p.push(...fit.anchor(theta,phi,clearance).position);uv.push(u,t);
+   }
+   for(let j=0;j<sides;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-sides-1;ix.push(b,a,b+1,b+1,a,a+1);}}
+  }return mesh(p,uv,ix);
+ }
  const slots=['front','middle','back','extra'];
  function validatePart(part){
   if(part?.version!==1||!/^hair-[a-z0-9-]+$/.test(part.id)||!slots.includes(part.slot)||!Array.isArray(part.bodies)||!part.bodies.length||!part.bodies.every(x=>['male','female'].includes(x))||typeof part.join!=='string'||!part.join||!Array.isArray(part.compatibility)||!part.compatibility.length||!part.compatibility.every(x=>typeof x==='string'&&x)||!Array.isArray(part.clumps)||!part.clumps.length||!part.material||!part.lod||!part.physics)throw Error('invalid hair part');
@@ -111,6 +123,6 @@ function createHairKit(){
  function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
- return {loft,surface,studioHead,scalpCap,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
+ return {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
 }
-export const {loft,surface,studioHead,scalpCap,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();
+export const {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();

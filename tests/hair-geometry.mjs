@@ -12,12 +12,13 @@ function checkGeometry(kit,g,closed=false){const assert=(ok,msg)=>{if(!ok)throw 
 function verifySynthetic(kit,parts,synthetic,checkGeometry){
  const assert=(ok,msg)=>{if(!ok)throw Error(msg);};const results=[];
  for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]]){
-  const fit=synthetic(kit,scale),cap=kit.scalpCap(fit);checkGeometry(kit,cap);assert(kit.compatible(parts,'male')&&kit.compatible(parts,'female'),'compatible');assert(!kit.compatible([parts[0],parts[0]],'male'),'duplicate slot');assert(!kit.compatible([parts[0],{...parts[1],join:'other'}],'female'),'join mismatch');
+  const fit=synthetic(kit,scale),cap=kit.frontFoundation(fit);checkGeometry(kit,cap);assert(kit.compatible(parts,'male')&&kit.compatible(parts,'female'),'compatible');assert(!kit.compatible([parts[0],parts[0]],'male'),'duplicate slot');assert(!kit.compatible([parts[0],{...parts[0],id:'hair-t1-test-middle',slot:'middle',join:'other'}],'female'),'join mismatch');
   const geos=parts.flatMap(p=>kit.makePart(fit,p));const regen=parts.flatMap(p=>kit.makePart(fit,p));
-  for(let i=0;i<geos.length;i++){const g=geos[i];checkGeometry(kit,g,true);assert(g.positions.every((v,j)=>v===regen[i].positions[j]),'determinism');const width=(ring,sides=10)=>{const a=(ring*(sides+1))*3,b=(ring*(sides+1)+sides/2)*3;return Math.hypot(...[0,1,2].map(k=>g.positions[a+k]-g.positions[b+k]));};assert(width(22,8)<width(0,8)*.25,'taper');}
+  for(let i=0;i<geos.length;i++){const g=geos[i];checkGeometry(kit,g,true);assert(g.positions.every((v,j)=>v===regen[i].positions[j]),'determinism');const width=(ring,sides=10)=>{const a=(ring*(sides+1))*3,b=(ring*(sides+1)+sides/2)*3;return Math.hypot(...[0,1,2].map(k=>g.positions[a+k]-g.positions[b+k]));};assert(width(22,8)<Math.max(width(8,8),width(12,8))*.25,'taper');}
   const metrics=[cap,...geos].map(g=>kit.penetration(fit,g));assert(metrics.every(m=>m.miss===0&&m.maxMetres<=.001),'synthetic penetration '+JSON.stringify(metrics));results.push({scale,triangles:[cap,...geos].reduce((s,g)=>s+g.indices.length/3,0),maxMm:Math.max(...metrics.map(m=>m.maxMetres))*1000,rootMask:geos.reduce((s,g)=>s+g.rootMask.reduce((x,y)=>x+y,0),0)});
  }return results;
 }
+if(parts.length!==1||parts[0].slot!=='front')throw Error('T1 front-only scope');
 console.log('PASS synthetic geometry',JSON.stringify(verifySynthetic(kit,parts,synthetic,checkGeometry)));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');
@@ -25,5 +26,5 @@ const {createStudioGeometry,controls}=await import('../src/entities/character/st
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 let failed=false;
 for(const body of ['male','female'])for(const variant of ['default','wide','narrow','high','low','deep','shallow']){
- try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);const geometries=[kit.scalpCap(fit),...parts.flatMap(p=>kit.makePart(fit,p))];geometries.forEach((g,i)=>checkGeometry(kit,g,i>0));const metrics=geometries.map(g=>kit.penetration(fit,g));const pass=metrics.every(m=>!m.miss&&m.maxMetres<=.001);failed||=!pass;console.log(pass?'PASS':'FAIL',body,variant,JSON.stringify(metrics));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
+ try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);const geometries=[kit.frontFoundation(fit),...parts.flatMap(p=>kit.makePart(fit,p))];geometries.forEach((g,i)=>checkGeometry(kit,g,i>0));const metrics=geometries.map(g=>kit.penetration(fit,g));const pass=metrics.every(m=>!m.miss&&m.maxMetres<=.001);failed||=!pass;console.log(pass?'PASS':'FAIL',body,variant,JSON.stringify(metrics));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
 }if(failed)process.exitCode=1;

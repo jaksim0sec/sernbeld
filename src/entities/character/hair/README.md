@@ -5,3 +5,6 @@ Head-local metres, Y up, +Z front. Studio body remains read-only; `studioHead(fa
 - `specimen.js`: HAIR-11260710 T1 front/middle/back sample only, no art approval. Original images remain user attachments. Extra slot accepted but no T1 specimen required.
 - `node tests/hair-geometry.mjs --synthetic`: isolated geometric checks on three ellipsoids. `node tests/hair-geometry.mjs`: also actual two bodies × seven profiles, ray misses and vertex intrusion. Vertex-only radial depth does not prove triangle/ear/neck intersections; visual and further direct checks required.
 - Serve repository root over HTTP, open `tools/dev/hair.html` for actual body/face morph, free orbit and debug color separation. No external CDN or game changes.
+
+### Front-only inspection (v3)
+The front foundation is a continuous frontal root panel; six individually authored asymmetric locks overlap it. Full scalp guide is optional/off; unfinished side and rear remain exposed intentionally. No side/back expansion before user front approval. Synthetic and actual tests cover the foundation and front locks, not the optional guide.
