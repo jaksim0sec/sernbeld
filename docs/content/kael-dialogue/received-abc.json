@@ -249,6 +249,75 @@
       "browser": "NOT RUN",
       "ci": "NOT RUN",
       "catalog": "pending due to active INFRA-001 docs/catalog scope"
+    },
+    "revision": {
+      "baseline": "114d9a71cea85634915a443757bcc95c5ce98494",
+      "contentCommit": "612a49369e17a915538b2274ae8e540f5aca4f92",
+      "stats": {
+        "A": {
+          "before": {
+            "nodes": 120,
+            "pages": 72,
+            "normal": 48,
+            "deep": 0,
+            "max": 1
+          },
+          "after": {
+            "nodes": 138,
+            "pages": 84,
+            "normal": 54,
+            "deep": 6,
+            "max": 2
+          },
+          "changed": 24
+        },
+        "B": {
+          "before": {
+            "nodes": 258,
+            "pages": 333,
+            "normal": 86,
+            "deep": 24,
+            "max": 3
+          },
+          "after": {
+            "nodes": 258,
+            "pages": 318,
+            "normal": 86,
+            "deep": 24,
+            "max": 3
+          },
+          "changed": 10
+        },
+        "C": {
+          "before": {
+            "nodes": 120,
+            "pages": 72,
+            "normal": 48,
+            "deep": 0,
+            "max": 1
+          },
+          "after": {
+            "nodes": 147,
+            "pages": 90,
+            "normal": 57,
+            "deep": 9,
+            "max": 2
+          },
+          "changed": 24
+        }
+      },
+      "assertions": 5090,
+      "checks": {
+        "registry": "PASS",
+        "resolver": "PASS",
+        "allPaths": "PASS (static DFS)",
+        "existingChoiceIds": "PASS",
+        "legacyDefinitions": "PASS",
+        "browser": "NOT RUN",
+        "ci": "NOT RUN",
+        "checkInfra": "NOT RUN"
+      },
+      "decision": "48 A/C graph texts revised; 15 selected follow-up branches added; 10 B graphs edited without topology changes; original IDs and metadata preserved"
     }
   }
 }
