@@ -10,6 +10,6 @@
 | UI | [UI/UX 지침](../UI_UX_DESIGN_GUIDELINES.md) 및 [공용 SEED](../../styles/seed.css) | 캐릭터 생성이 시스템 UI 기준. 마법진의 게임 콘텐츠 표현은 별도 목적에 맞춘다 |
 | 카엘 항구 | [월드 소스](../../src/world/), [실월드 시나리오](../../tests/world-playability.mjs) | 경로·계단·충돌과 지역 상태의 구현 범위. 다른 지역의 자동 스트리밍이나 생태 기획 전체의 통합 여부는 항목별 확인 |
 | 생태·생활 경제 기획 | [70종 인덱스 및 오늘 범위](../content/kael-economy-20261125.md) | 기획 등록; 한국풍 가중치 폐기; 런타임 미통합 |
-| NPC 대화·상호작용 | [계약](../contracts/NPC_DIALOGUE.md), [회귀](../../tests/npc-dialogue.mjs), [DOM 검증](../../tests/npc-dialogue-browser.mjs) | 기존 액션과 일과 재사용; 참여 패널/비참여 발화 분리, NPC 경제·관계 영속 상태는 미구현. 실월드 검증은 작업 기록 참조 |
+| NPC 대화·상호작용 | [계약](../contracts/NPC_DIALOGUE.md), [회귀](../../tests/npc-dialogue.mjs), [DOM 검증](../../tests/npc-dialogue-browser.mjs) | 기존 액션과 일과 재사용; 참여 패널/비참여 발화 분리, 안정 ID NPC 상태·참여 대화 기억 및 조건 재검증 연결. NPC 실제 경제 소유권·관계 시뮬레이션은 미구현; 실월드 검증은 작업 기록 참조 |
 | 아이템·스킬·저장 | [코어](../../src/core/), [게임 진입](../../src/gameplay/gameplay.part.js), [산출물 계약](../contracts/DELIVERABLES.md) | 등록·저장 API와 런타임 호출 경로를 각각 확인 |
 | 빌드·배포 | [검증·통합](../validation/VALIDATION_POLICY.md), [PWA](../PWA.md) | 배포된 SHA, 검증한 SHA, 작업 HEAD를 구분 |

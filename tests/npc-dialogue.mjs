@@ -1,4 +1,4 @@
-function checkDialogue(source,html,css) {
+function checkDialogue(source,html,css,npcLinePool) {
   const check=(ok,message)=>{if(!ok)throw Error(message);};
   class Node {
     constructor(tag='div'){this.tagName=tag;this.hidden=true;this.children=[];this.attrs={};this.style={};this.dataset={};this.listeners={};this.textContent='';}
@@ -34,7 +34,7 @@ function checkDialogue(source,html,css) {
   ui.closeSpeech();
   check(get('speech').hidden&&ui.activeSpeaker===null,'explicit close releases session');
   const folkSrc=source.slice(source.indexOf('var Townsfolk = class {'),source.indexOf('var turn ='));
-  const Folk=Function(folkSrc+'\nreturn Townsfolk;')();
+  const Folk=Function('npcLinePool',folkSrc+'\nreturn Townsfolk;')(npcLinePool);
   const folk=Object.create(Folk.prototype);
   const n={def:{id:'bran',name:'브란',title:'관리인',lines:{first:'첫 대화',day:['낮 발화'],night:['밤 발화']}},x:0,y:0,z:-2,ch:{group:{visible:true}},hidden:false,lineI:7};
   folk.list=[n];folk.hour=12;
@@ -51,5 +51,73 @@ function checkDialogue(source,html,css) {
   return 'PASS: common interaction chip, persistent explicit conversation, one-shot action, ambient lifetime/cursor, separate choice layout';
 }
 import {readFileSync} from 'node:fs';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction} from '../src/core/npc-dialogue.js';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-console.log(checkDialogue(read('src/gameplay/gameplay.part.js'),read('index.html'),read('styles/menus-and-overlays.css')));
+console.log(checkDialogue(read('src/gameplay/gameplay.part.js'),read('index.html'),read('styles/menus-and-overlays.css'),npcLinePool));
+
+function checkNpcData(createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction) {
+  const equal=(a,b,message)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw Error(message+": "+JSON.stringify(a)+" != "+JSON.stringify(b));};
+  const save={data:{v:1,met:{bran:1},inv:{herb:3},money:4,regionEntities:{kael:{"resident:kael:0":{lineI:7}}}}};
+  const state=createNpcStateStore(save);
+  equal(state.ensure("bran","kael",7).lineI,7,"legacy cursor migration");
+  state.recordTalk("bran",{lineI:8,day:2,hour:9});
+  state.observe("bran",{region:"kael",activity:"work",position:{x:1,y:2,z:3}});
+  state.recordAction("bran",{id:"guild.register",ok:true,day:2,hour:9});
+  const copy=state.get("bran");copy.relationships.player.talks=99;copy.resources.money=999;
+  equal(state.get("bran").relationships.player.talks,1,"snapshot not mutable");
+  equal(state.get("bran").resources,{},"no invented resources");
+  save.data=JSON.parse(JSON.stringify(save.data));
+  const restored=createNpcStateStore(save);
+  equal(restored.ensure("bran","kael",0).lineI,8,"stable record takes precedence over older cursor");
+  equal(restored.get("bran").memory.lastAction.id,"guild.register","action remembered on reload");
+  equal(restored.get("bran").activity,"work","activity persisted");
+  equal(restored.get("bran").position,{x:1,y:2,z:3},"location persisted");
+  equal(save.data.met,{bran:1},"old first meeting flag preserved");
+  equal(save.data.inv,{herb:3},"existing inventory preserved");
+  equal(save.data.money,4,"player money preserved");
+  equal(save.data.regionEntities.kael["resident:kael:0"].lineI,7,"legacy region record preserved");
+  let rejected=false;try{state.ensure("__proto__","kael",0);}catch{rejected=true;}equal(rejected,true,"invalid ID rejected");
+  const def={lines:{first:"hello",day:["one","two"],night:["night"]}};
+  equal(selectNpcLine(def,{met:false,cursor:5,hour:22,custom:"custom"}),{text:"hello",first:true,nextCursor:5},"first meeting priority");
+  equal(selectNpcLine(def,{met:true,cursor:5,hour:22,custom:"custom"}),{text:"custom",first:false,nextCursor:5},"conditional line priority");
+  equal(selectNpcLine(def,{met:true,cursor:5,hour:10}),{text:"two",first:false,nextCursor:6},"day cursor");
+  equal(npcLinePool(def,22),["night"],"shared night pool");
+  equal(selectNpcLine({lines:{}},{met:true,cursor:0,hour:10}),null,"empty dialogue has no session");
+  let effects=0, choices=[{id:"buy",itemId:"herb",label:"herb"}], reachable=true;
+  const run=choice=>runNpcAction(choice,{reachable:()=>reachable,choices:()=>choices,execute:()=>{effects++;return true;}});
+  equal(run({id:"buy",itemId:"wrong"}),{ok:false,reason:"unavailable"},"unlisted payload rejected");
+  reachable=false;equal(run(choices[0]),{ok:false,reason:"unreachable"},"reach revalidated");
+  reachable=true;const oldChoice=choices[0];choices=[];equal(run(oldChoice),{ok:false,reason:"unavailable"},"stale condition rejected");
+  equal(effects,0,"invalid actions do not mutate");
+  choices=[oldChoice];equal(run(oldChoice),{ok:true,reason:"executed"},"current action executes");
+  equal(effects,1,"exactly one dispatch");
+  equal(runNpcAction(oldChoice,{reachable:()=>true,choices:()=>choices,execute:()=>false}),{ok:false,reason:"rejected"},"domain failure propagated");
+  return "PASS: stable NPC state, legacy save compatibility, dialogue selection, action revalidation";
+}
+function checkNpcRuntime(source,createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction) {
+  const check=(v,m)=>{if(!v)throw Error(m);};
+  let writes=0,spoken=0;
+  const Save={data:{v:1,met:{},equip:{},rival:{done:0}},write(){writes++;}};
+  const Guild={state:{registered:false,merit:0,done:0},readyList:()=>[]};
+  const state=createNpcStateStore(Save);
+  const Folk=Function("Save","selectNpcLine","npcLinePool",source.slice(source.indexOf("var Townsfolk = class {"),source.indexOf("var turn ="))+"return Townsfolk;")(Save,selectNpcLine,npcLinePool);
+  const folk=Object.create(Folk.prototype);const def={id:"sera",role:"guild",name:"Sera",lines:{first:"hello",day:["day"]}};
+  const n={def,x:0,y:0,z:-2,ch:{group:{visible:true}},lineI:0,hidden:false};
+  state.ensure("sera","kael",0);folk.list=[n];folk.state=state;folk.now=()=>({day:1,hour:8});folk.onSay=()=>spoken++;
+  const player={pos:{x:0,y:0,z:0},yaw:0,mode:"walk"};const candidate=folk.candidate(player);check(candidate,"NPC in reach");
+  player.pos.z=10;candidate.act();check(spoken===0&&!Save.data.met.sera,"stale access cannot start dialogue");
+  player.pos.z=0;player.swimming=true;candidate.act();check(spoken===0,"swimming blocks stale interaction");
+  player.swimming=false;folk.candidate(player).act();check(spoken===1&&Save.data.met.sera===1,"first interaction retained");
+  check(state.get("sera").relationships.player.talks===1,"real NPC records dialogue");
+  const Society=Function("Save","Guild","ITEMS","Inventory","INN_PRICE","Wallet","runNpcAction",source.slice(source.indexOf("var Society = class {"),source.indexOf("var ViewModel = class {"))+"return Society;")(Save,Guild,{}, {entries:()=>[]},3,{},runNpcAction);
+  const society=Object.create(Society.prototype);society.ui={say(){}};society.clock={day:1,hour:8};society.state=state;society.canInteract=()=>true;
+  const stale=society.options(def)[0];Guild.state.registered=true;writes=0;stale.act();
+  check(writes===0,"stale guild choice must not write or execute");
+  Guild.state.registered=false;society.options(def)[0].act();
+  check(Guild.state.registered&&writes>0,"current guild action executes");
+  check(state.get("sera").memory.lastAction.id==="guild.register","real action remembered");
+  return "PASS: actual Townsfolk access, legacy greeting, Society stale action and state link";
+}
+
+console.log(checkNpcData(createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction));
+console.log(checkNpcRuntime(read('src/gameplay/gameplay.part.js'),createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction));

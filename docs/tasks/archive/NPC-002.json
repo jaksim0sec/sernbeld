@@ -1,8 +1,8 @@
 {
   "id": "NPC-002",
-  "status": "in_progress",
+  "status": "done",
   "baseline": "be309a3605889160f0954c85b8bc7f2f45242b7a",
-  "detail": "docs/tasks/active/NPC-002.md",
+  "detail": "docs/tasks/archive/NPC-002.md",
   "scope": [
     "src/core/npc-dialogue.js",
     "src/gameplay/gameplay.part.js",
@@ -21,5 +21,5 @@
     "docs/contracts/DELIVERABLES.md"
   ],
   "dependencies": [],
-  "next": "기존 UI 유지; 안정 ID 상태, 조건 재검증 행동, 저장 호환, 회귀 확인"
+  "next": "전 게임 및 실기기 검증, 실제 NPC 경제 소유권 연동은 후속"
 }

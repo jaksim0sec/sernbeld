@@ -46661,6 +46661,7 @@ import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createInventory} from './src/core/inventory.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction} from './src/core/npc-dialogue.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
 import {createSkillWorkbench} from './src/ui/skill-workbench.js';
@@ -50012,6 +50013,7 @@ var WorldEntities = createEntityRegistry();
 var Inventory = createInventory(Save, GameEvents);
 var SkillLibrary = createSkillLibrary(Save, GameEvents);
 var WorldRegions = createRegionLifecycle({registry: WorldEntities, save: Save, events: GameEvents});
+var NpcState = createNpcStateStore(Save);
 Save.beforeWrite = () => WorldRegions.checkpointActive();
 var DISCOVER_R = 7;
 var REACH = 2.6;
@@ -50599,7 +50601,7 @@ var GameUI = class {
     if (this.prompt && !this.prompt.hidden) this.prompt.focus({preventScroll:true});
   }
   say(def, line, options = []) {
-    const sp = $2("speech"), session = {};
+    const sp = $2("speech"), session = {speakerId:def.id??null,text:line,choices:options.map(o=>({id:o.id??null,label:o.label,itemId:o.itemId??null}))};
     this.speechSession = session;
     this.activeSpeaker = def.id ?? null;
     $2("speechName").textContent = def.name;
@@ -51181,39 +51183,36 @@ var Townsfolk = class {
       this.ensureActor(pendingModel);this.nextModelAt=t+.08;
     }
   }
+  // The same live condition gates candidate creation and execution.
+  canReach(n,player) {
+    if(!n||n.hidden||!n.ch||player.mode!=="walk"||player.swimming||Math.abs(n.y-player.pos.y)>=1.8)return false;
+    const dx=n.x-player.pos.x,dz=n.z-player.pos.z,d=Math.hypot(dx,dz);
+    return d<2.6&&(dx*(-Math.sin(player.yaw))+dz*(-Math.cos(player.yaw)))/(d||1)>.2&&(!this.canTalk||this.canTalk(n,player));
+  }
   // nearest person in front of the player within reach
   candidate(player) {
-    let best = null, bd = 2.6;
-    const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
-    for (const n of this.list) {
-      if (n.hidden||!n.ch) continue;
-      const dx = n.x - player.pos.x, dz = n.z - player.pos.z, d = Math.hypot(dx, dz);
-      if (d < bd && Math.abs(n.y-player.pos.y) < 1.8 && (dx * fx + dz * fz) / (d || 1) > 0.2 && (!this.canTalk || this.canTalk(n,player))) {
-        bd = d;
-        best = n;
-      }
+    let best=null,bd=2.6;
+    for(const n of this.list) {
+      if(!this.canReach(n,player))continue;
+      const d=Math.hypot(n.x-player.pos.x,n.z-player.pos.z);
+      if(d<bd){best=n;bd=d;}
     }
-    return best && { dist: bd, kind: "npc", verb: "\uB300\uD654", label: best.def.name, act: () => this.talk(best, player) };
+    return best&&{dist:bd,kind:"npc",verb:"\uB300\uD654",label:best.def.name,act:()=>this.talk(best,player)};
   }
-  talk(n, player) {
-    var _a;
-    const met = (_a = Save.data).met ?? (_a.met = {}), L = n.def.lines, h = this.hour ?? 12;
-    let line;
-    const custom = this.lineFor?.(n.def);
-    if (!met[n.def.id] && L.first) {
-      line = L.first;
-      met[n.def.id] = 1;
-      Save.write();
-    } else if (custom) line = custom;
-    else {
-      const pool = (h >= 20 || h < 6) && L.night ? L.night : L.day;
-      line = pool[n.lineI++ % pool.length];
-    }
-    n.talkT = 5;
-    if(n.ch)n.ch.talk = 2.4;
-    n.path && (n.wait = 0);
-    this.onSay?.(n.def, line);
+  talk(n,player) {
+    if(!this.canReach(n,player))return false;
+    const met=Save.data.met??(Save.data.met={});
+    const line=selectNpcLine(n.def,{met:!!met[n.def.id],cursor:n.lineI,hour:this.hour??12,custom:this.lineFor?.(n.def)});
+    if(!line)return false;
+    if(line.first)met[n.def.id]=1;
+    n.lineI=line.nextCursor;
+    n.talkT=5;
+    if(n.ch)n.ch.talk=2.4;
+    n.path&&(n.wait=0);
+    this.state?.recordTalk(n.def.id,{lineI:n.lineI,...this.now?.()});
+    this.onSay?.(n.def,line.text);
     Save.write();
+    return true;
   }
   // Dynamic residents participate in the same horizontal contact solver.
   // Their navigation must not teleport or inject velocity into the player.
@@ -51251,8 +51250,7 @@ var Townsfolk = class {
       const visible=nearby.sort((a,b)=>a.label.d-b.label.d).find(({n})=>!this.canTalk||this.canTalk(n,player));
       if(!visible){this.ambientNext=now+.5;return out2;}
       const {n}=visible;
-      const lines=n.def.lines??{}, h=this.hour??12;
-      const pool=((h>=20||h<6)?lines.night:lines.day)??lines.day??[];
+      const pool=npcLinePool(n.def,this.hour??12);
       if (pool.length) {
         const index=this.ambientIndex??0; this.ambientIndex=index+1;
         this.ambient={speakerId:n.def.id,text:pool[index%pool.length],expiresAt:now+4.5,nextSightCheck:now+.25};
@@ -51344,44 +51342,71 @@ var Society = class {
     }
     return null;
   }
-  options(def) {
-    const o = [];
-    if (def.role === "guild") {
-      if (!Guild.state.registered) o.push({ label: "\uACAC\uC2B5 \uB4F1\uB85D", act: () => this.register(def) });
+  choices(def) {
+    const o=[];
+    if(def.role==="guild") {
+      if(!Guild.state.registered)o.push({id:"guild.register",label:"\uACAC\uC2B5 \uB4F1\uB85D"});
       else {
-        const n = Guild.readyList().length;
-        if (n) o.push({ label: `\uC758\uB8B0 \uBCF4\uACE0 (${n})`, act: () => this.report(def) });
-        o.push({ label: "\uC758\uB8B0\uD310 \uBCF4\uAE30", act: () => this.openBoard() });
+        const n=Guild.readyList().length;
+        if(n)o.push({id:"guild.report",label:`의뢰 보고 (${n})`});
+        o.push({id:"guild.board",label:"\uC758\uB8B0\uD310 \uBCF4\uAE30"});
       }
     }
-    if (def.role === "smith") {
-      for (const [id, it] of Object.entries(ITEMS)) if (it.kind === "weapon" && !Inventory.count(id))
-        o.push({ kind:"item", itemId:id, label: `${it.name} \xB7 \uC740\uD654 ${it.price}`, act: () => this.buy(def, id) });
-    }
-    if (def.role === "inn") o.push({ label: `\uD558\uB8FB\uBC24 \uBB35\uAE30 \xB7 \uC740\uD654 ${INN_PRICE}`, act: () => this.sleep(def) });
-    if (def.role === "vendor" && Inventory.entries().some(([id]) => ITEMS[id].kind === "material" && ITEMS[id].rarity === "common")) o.push({ label: "\uD754\uD55C \uC7AC\uB8CC \uD314\uAE30", act: () => this.sell(def) });
+    if(def.role==="smith")for(const [id,it] of Object.entries(ITEMS))if(it.kind==="weapon"&&!Inventory.count(id))
+      o.push({id:"shop.buy",kind:"item",itemId:id,label:`${it.name} · 은화 ${it.price}`});
+    if(def.role==="inn")o.push({id:"inn.sleep",label:`하룻밤 묵기 · 은화 ${INN_PRICE}`});
+    if(def.role==="vendor"&&Inventory.entries().some(([id])=>ITEMS[id].kind==="material"&&ITEMS[id].rarity==="common"))o.push({id:"shop.sell",label:"\uD754\uD55C \uC7AC\uB8CC \uD314\uAE30"});
     return o;
+  }
+  options(def) {
+    return this.choices(def).map(choice=>({...choice,act:()=>this.executeChoice(def,choice)}));
+  }
+  executeChoice(def,choice) {
+    const result=runNpcAction(choice,{
+      reachable:()=>this.canInteract?.(def)??false,
+      choices:()=>this.choices(def),
+      execute:action=>{
+        switch(action.id) {
+          case "guild.register":return this.register(def);
+          case "guild.report":return this.report(def);
+          case "guild.board":return this.openBoard();
+          case "shop.buy":return this.buy(def,action.itemId);
+          case "shop.sell":return this.sell(def);
+          case "inn.sleep":return this.sleep(def);
+          default:return false;
+        }
+      }
+    });
+    if(result.reason==="unavailable")this.ui.say(def,"지금은 그 행동을 할 수 없어요.",this.options(def));
+    if(result.reason==="executed"||result.reason==="rejected"){
+      this.state?.recordAction(def.id,{id:choice.id,ok:result.ok,day:this.clock.day,hour:this.clock.hour});
+      Save.write();
+    }
+    return result;
   }
   register(def) {
     Guild.state.registered = true;
     Save.write();
     this.ui.say(def, "\uBC14\uB78C\uAE38 \uC870\uD569 \uACAC\uC2B5, \uB4F1\uB85D \uB05D. \uC758\uB8B0\uD310\uC740 \uBC14\uB85C \uC606\uC774\uC5D0\uC694. \uBCF4\uC218\uB294 \uC5EC\uAE30\uC11C \uBC1B\uC544\uC694.");
+    return true;
   }
   report(def) {
     const r = Guild.turnIn();
     this.ui.say(def, r.count ? `${r.count}\uAC74 \uD655\uC778\uD588\uC5B4\uC694. \uC740\uD654 ${r.pay}\uB2E2.` : "\uC544\uC9C1 \uB35C \uBAA8\uC558\uB124\uC694.");
+    return r.count>0;
   }
   buy(def, id) {
     const it = ITEMS[id];
     if (!Wallet.spend(it.price)) {
       this.ui.say(def, `${it.price}\uB2E2. \uBAA8\uC790\uB77C\uBA74 \uB3C8\uBD80\uD130 \uBC8C\uC5B4 \uC640.`);
-      return;
+      return false;
     }
     Inventory.add(id, 1);
     Save.write();
     const E = Save.data.equip;
     this.onBought?.(id, !E.right ? "right" : !E.left ? "left" : null);
     this.ui.say(def, `${it.name}. \uD718\uB450\uB974\uB2E4 \uB0A0 \uB098\uAC00\uBA74 \uB2E4\uC2DC \uAC00\uC838\uC640.`);
+    return true;
   }
   sell(def) {
     let pay = 0;
@@ -51392,11 +51417,12 @@ var Society = class {
     Wallet.add(pay);
     Save.write();
     this.ui.say(def, `\uC740\uD654 ${pay}\uB2E2. \uB2E4\uC74C\uC5D0 \uB610 \uC640\uC694.`);
+    return pay>0;
   }
   sleep(def) {
     if (!Wallet.spend(INN_PRICE)) {
       this.ui.say(def, "\uC740\uD654 \uC14B\uC774\uC694. \uC678\uC0C1\uC740 \uC548 \uB3FC\uC694.");
-      return;
+      return false;
     }
     this.ui.fade(() => {
       const c = this.clock;
@@ -51409,6 +51435,7 @@ var Society = class {
       Save.data.clock = { day: c.day, hour: c.hour };
       Save.write();
     }, `${this.clock.day + (this.clock.hour >= 7 ? 1 : 0)}\uC77C\uCC28 \uC544\uCE68`);
+    return true;
   }
   openBoard() {
     const list = Guild.board(this.clock.day);
@@ -51416,6 +51443,7 @@ var Society = class {
       Guild.accept(q);
       this.openBoard();
     });
+    return true;
   }
   boardCandidate(p) {
     const d = Math.hypot(p.pos.x - this.boardPos[0], p.pos.z - this.boardPos[1]);
@@ -52536,6 +52564,10 @@ async function boot() {
   };
   folk.lineFor = (def) => society.line(def);
   folk.onSay = (def, line) => ui.say(def, line, society.options(def));
+  folk.state=NpcState; folk.now=()=>({day:clock.day,hour:clock.hour});
+  society.state=NpcState;
+  society.canInteract=def=>WorldRegions.isActive(region.id)&&folk.canReach(folk.list.find(n=>n.def.id===def.id),player);
+  const observeNpc=n=>NpcState.observe(n.def.id,{region:region.id,activity:n.hidden?"home":ui.activeSpeaker===n.def.id?"talk":n.path?"travel":n.entry?.[2]??"idle",position:n});
   ui.activeIds = () => Save.data.requests.map((q) => q.id);
   explore.providers.push((p) => folk.candidate(p), (p) => society.boardCandidate(p));
   scene.add(camera);
@@ -52543,9 +52575,12 @@ async function boot() {
     id: 'resident:' + region.id + ':' + i, kind: 'resident', ref: n,
     getState: () => ({lineI: n.lineI}),
     setState: state => { if (Number.isSafeInteger(state.lineI) && state.lineI >= 0) n.lineI = state.lineI; },
-    setActive: active => { if(n.ch)n.ch.group.visible = active && !n.hidden; }
+    setActive: active => { if(!active)observeNpc(n); if(n.ch)n.ch.group.visible = active && !n.hidden; }
   }));
   WorldRegions.mount(region.id, regionEntries);
+  for(const n of folk.list)n.lineI=NpcState.ensure(n.def.id,region.id,n.lineI).lineI;
+  const checkpointRegions=Save.beforeWrite;
+  Save.beforeWrite=()=>{checkpointRegions();if(WorldRegions.isActive(region.id))for(const n of folk.list)observeNpc(n);};
   const view = new ViewModel(camera);
   const combat = new Combat({ player, rig, ui, view, onDown: (lost) => {
     const m = region.places.monastery;
@@ -52910,7 +52945,7 @@ async function boot() {
     ui.setLabels(WorldRegions.isActive(region.id) ? folk.labels(camera, player,t,ambientAllowed) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);

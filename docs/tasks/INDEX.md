@@ -10,7 +10,7 @@
 
 [상호작용 UI v2](archive/NPC-001.md)
 
-[NPC 데이터 계약 후속](active/NPC-002.md)
+[NPC 데이터 계약 후속](archive/NPC-002.md)
 
 ## 병렬 작업의 기계 검사
 
