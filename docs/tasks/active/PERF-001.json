@@ -1,6 +1,6 @@
 {
   "id": "PERF-001",
-  "status": "in_progress",
+  "status": "planned",
   "baseline": "d2f3733f6e479b40043e55dc7bdb19e4957415dd",
   "detail": "docs/tasks/active/PERF-001.md",
   "scope": [
@@ -15,5 +15,5 @@
     "src/entities/character/clothing/README.md"
   ],
   "dependencies": [],
-  "next": "PERF-001/T1: 수정 CI 8개 시나리오 확인, 리소스/long task/SW 및 실제 배포·S22급 실측 분석으로 병목 확정. T2(통합 개선) 전 점유 재조정. 이후 T3 검증 및 통합."
+  "next": "사용자 명시 재개 전 보류(자동 TODO 착수 금지). 재개 주소: PERF-001/T1: 수정 CI 8개 시나리오 확인, 리소스/long task/SW 및 실제 배포·S22급 실측 분석으로 병목 확정. T2(통합 개선) 전 점유 재조정. 이후 T3 검증 및 통합."
 }
