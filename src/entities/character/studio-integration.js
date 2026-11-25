@@ -2,6 +2,55 @@ import {normalizeStudioCharacter} from './appearance.js';
 import {animatePlayer,armTargets,mountWeapon,poseGrip} from './avatar-motion.js';
 const clamp01=x=>Math.max(0,Math.min(1,x));
 
+// Presentation-only camera math. No physics or animated bone writes.
+export function smoothCameraHeight(previous,target,dt,grounded){
+ if(!Number.isFinite(previous))return target;
+ const next=target+(previous-target)*Math.exp(-Math.max(0,dt)*(grounded?8:14));
+ return Math.max(target-.42,Math.min(target+.42,next));
+}
+export function solveThirdBoom({feet,aimY,yaw,pitch,near,fov,aspect,height,previous,reset,dt,worldRay}){
+ const desired=3.1, margin=.075, minBoom=.85;
+ const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
+ const direction={x:sy*cp,y:-sp,z:cy*cp};
+ const right={x:cy,y:0,z:-sy},up={x:sy*sp,y:cp,z:cy*sp};
+ const pivot={x:feet.x,y:feet.y+1.23,z:feet.z};
+ const target={x:feet.x,y:aimY+1.23,z:feet.z};
+ const h=Math.tan(fov*Math.PI/360)*near+.025,w=h*Math.max(.5,aspect);
+ const point=(length,x=0,y=0)=>({
+  x:target.x+direction.x*length+right.x*x+up.x*y,
+  y:target.y+direction.y*length+up.y*y,
+  z:target.z+direction.z*length+right.z*x+up.z*y
+ });
+ const corners=[[-w,-h],[-w,h],[w,-h],[w,h]];
+ const clearRay=end=>{
+  if(!worldRay)return true;
+  const x=end.x-pivot.x,y=end.y-pivot.y,z=end.z-pivot.z,d=Math.hypot(x,y,z);
+  return d<1e-6||worldRay(pivot,{x:x/d,y:y/d,z:z/d},d+margin)>=d+margin-.001;
+ };
+ const clearWorld=length=>clearRay(point(length))&&corners.every(([x,y])=>clearRay(point(length-near,x,y)));
+ // Both the camera and its actual near plane must stay outside the player's
+ // conservative torso/head/limb envelope, even at steep pitch.
+ const outside=p=>p.y<feet.y-.18||p.y>feet.y+height+.22||Math.hypot(p.x-feet.x,p.z-feet.z)>=.50;
+ const clearBody=length=>outside(point(length))&&outside(point(length-near))&&corners.every(([x,y])=>outside(point(length-near,x,y)));
+ let minimum=minBoom;
+ while(minimum<desired&&!clearBody(minimum))minimum+=.15;
+ if(minimum>desired||!clearBody(minimum))return {fallback:true,boom:0};
+ let room=desired;
+ if(!clearWorld(desired)){
+  if(!clearWorld(minimum))return {fallback:true,boom:0};
+  let lo=minimum,hi=desired;
+  for(let i=0;i<6;i++){const mid=(lo+hi)*.5;if(clearWorld(mid))lo=mid;else hi=mid;}
+  room=lo;
+ }
+ // Recovery starts outside the body, not at the compressed (inside-body) boom.
+ // A little extra clearance prevents flickering at the mode threshold.
+ if(!reset&&previous===0&&room<minimum+.15)return {fallback:true,boom:0};
+ let boom=reset?room:Math.min(room,room+(Math.max(minimum,previous)-room)*Math.exp(-Math.max(0,dt)*8));
+ if(!clearBody(boom)||!clearWorld(boom))boom=room;
+ if(!clearBody(boom)||!clearWorld(boom))return {fallback:true,boom:0};
+ return {fallback:false,boom,position:point(boom)};
+}
+
 export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,groundSurface,view,height,runSpeed=5}){
  let profile=normalizeStudioCharacter(Save.data.character??{body:'male'}),actor=makeCharacter(profile);
  scene.add(actor.group);actor.group.name='SERNBELD Player';
@@ -47,15 +96,16 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   const next=normalizeStudioCharacter(raw),replacement=makeCharacter(next);
   for(const weapon of Object.values(weapons)){weapon?.removeFromParent();weapon?.geometry.dispose();}
   actor.dispose();actor=replacement;profile=next;actor.group.name='SERNBELD Player';scene.add(actor.group);
-  anchors=null;thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
+  anchors=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;headMotion.set(0,0,0);weapons={right:null,left:null};equipped={};attachWeapons();Save.data.character=profile;Save.write();
  }
  function setThird(value, {persist=true}={}){
-  third=Boolean(value);thirdAim=null;headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;lastMode=null;
+  third=Boolean(value);headCut=null;bodyCut=null;lastHeadMode=null;headRoll=0;lastMode=null;
   if(persist){Save.data.settings.view=third?'third':'first';Save.write();}
  }
  // Body-frame anchors (metres, actor group space): the shoulder midpoint and the
  // first-person eye point a little above and in front of it.
- let anchors=null,thirdAim=null;
+ let anchors=null;
+ let cameraY=null,cameraCut=null,headPitch=0,headYaw=0;
  // Head-follow is a camera offset, never a player-world transform. This keeps
  // the existing step-up, stairs, camera wall avoidance and attack recoil.
  const headMotion=new T.Vector3(),headTarget=new T.Vector3(),headPivot=new T.Vector3(),headEye=new T.Vector3(),neutralEye=new T.Vector3();
@@ -78,8 +128,11 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   attachWeapons();
   const walking=player.mode==='walk',firstPerson=!third&&walking;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;return;}
+  if(!walking){bodyCut=null;cameraCut=null;return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
+  const cameraReset=cameraCut!==player.teleportId;
+  cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
+  cameraCut=player.teleportId;
   const aimYaw=player.yaw+Math.PI;
   if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
   const speed=Math.hypot(player.vel.x,player.vel.z);
@@ -104,6 +157,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
+   // Keep the eye anchor independent of the actor's floor-clamped render Y.
+   const yOffset=cameraY-renderPos.y;
+   if(Math.abs(yOffset)>1e-6){
+    const dir=new T.Vector3(0,Math.sign(yOffset),0),distance=Math.abs(yOffset);
+    const safe=worldRay?Math.max(0,Math.min(distance,worldRay(camera.position,dir,distance+.075)-.075)):distance;
+    camera.position.addScaledVector(dir,safe);
+   }
    // First evaluate the skeleton in world/player space, BEFORE camera-locking the
    // first-person arms. Otherwise the head follows the camera and cannot drive it.
    actor.group.position.copy(renderPos);
@@ -117,15 +177,15 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    headEye.copy(eyeBasis).applyQuaternion(headQ);
    neutralEye.copy(eyeBasis).applyQuaternion(yawQ);
    headTarget.sub(headPivot).add(headEye).sub(neutralEye);
-   headTarget.clampLength(0,.22);
+   headTarget.clampLength(0,.08);
    const changed=headCut!==player.teleportId||lastHeadMode!==player.mode;
    lastHeadMode=player.mode;
    headCut=player.teleportId;
-   if(changed)headMotion.copy(headTarget);
-   else headMotion.lerp(headTarget,1-Math.exp(-dt*45));
+   if(changed){headMotion.set(0,0,0);headPitch=headYaw=headRoll=0;}
+   else headMotion.lerp(headTarget,1-Math.exp(-dt*9));
    // Keep collision-aware base camera and its attack recoil. Apply only the
    // skeleton-relative head offset, clipped by the same world-ray provider.
-   displacement.copy(headMotion).multiplyScalar(.86);
+   displacement.copy(headMotion).multiplyScalar(.55);
    const distance=displacement.length();
    if(distance>1e-6){
     const dir=displacement.divideScalar(distance);
@@ -146,10 +206,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    tmpUp.set(0,1,0).applyQuaternion(localHeadQ);
    const angularRoll=Math.atan2(tmpUp.x,tmpUp.y);
    const roll=Math.max(-.03,Math.min(.03,angularRoll*.3));
-   headRoll+=(roll-headRoll)*(1-Math.exp(-dt*28));
+   const headAlpha=1-Math.exp(-dt*9);
+   headRoll+=(roll-headRoll)*headAlpha;
+   headPitch+=(Math.max(-.045,Math.min(.045,headPitchOffset))-headPitch)*headAlpha;
+   headYaw+=(Math.max(-.04,Math.min(.04,headYawOffset))-headYaw)*headAlpha;
    camera.rotation.set(
-    Math.max(-1.55,Math.min(1.55,player.pitch+recoilPitch+Math.max(-.18,Math.min(.18,headPitchOffset)))),
-    player.yaw+recoilYaw+Math.max(-.15,Math.min(.15,headYawOffset)),
+    Math.max(-1.55,Math.min(1.55,player.pitch+recoilPitch+headPitch)),
+    player.yaw+recoilYaw+headYaw,
     originalRoll+headRoll,'YXZ'
    );
    // Camera-locked arms: the skinned model follows the final, head-aware view.
@@ -232,6 +295,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  const trail=[];
  function updateTrail(combat){
   for(const h of Object.values(view.hands))h.g.visible=false;
+  if(third&&!actor.group.visible){trail.length=0;view.trailMesh.visible=false;return;}
   const swing=combat.swing,pose=attackPose(swing),weapon=swing&&weapons[swing.hand];
   const striking=weapon&&pose.travel>0&&pose.travel<1&&pose.weight>.45;
   if(striking){
@@ -252,37 +316,29 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  }
  function applyThirdCamera(dt,rig){
   if(!third||player.mode!=='walk')return;
-  const yaw=rig.yaw,pitch=rig.pitch;
-  // Retarget the schoolyard head-follow camera onto the actual animated head.
-  // The avatar is only an aim target: collision, camera recoil and the existing
-  // camera boom remain authoritative. Never move the player to fit the camera.
-  const p=player.renderPos??player.pos;
+  const yaw=rig.yaw,pitch=rig.pitch,feet=player.renderPos??player.pos;
   const reset=cut!==player.teleportId||lastMode!==player.mode;
-  const desiredTarget=new T.Vector3(p.x,p.y+1.23,p.z);
-  if(reset||!thirdAim)thirdAim=desiredTarget.clone();
-  else {
-   // Horizontal position is already interpolated by the physics clock.
-   // A second delayed anchor can sit behind a wall after turning a corner.
-   thirdAim.x=desiredTarget.x;thirdAim.z=desiredTarget.z;
-   thirdAim.y=Math.max(desiredTarget.y-.10,Math.min(desiredTarget.y+.10,thirdAim.y+(desiredTarget.y-thirdAim.y)*(1-Math.exp(-dt*30))));
+  const result=solveThirdBoom({feet,aimY:cameraY??feet.y,yaw,pitch,near:camera.near??.2,
+   fov:camera.fov??65,aspect:camera.aspect||1,height,previous:boom,reset,dt,worldRay});
+  boom=result.boom;cut=player.teleportId;lastMode=player.mode;
+  if(result.fallback){
+   // No collision-free third-person view outside the body. Keep the base
+   // eye camera from CameraRig for this frame and suppress the world avatar.
+   // Never force the boom through the wall or persist a view-mode change.
+   actor.group.visible=false;
+   const offset=(cameraY??feet.y)-feet.y;
+   if(Math.abs(offset)>1e-6){
+    const dir=new T.Vector3(0,Math.sign(offset),0),distance=Math.abs(offset);
+    const safe=worldRay?Math.max(0,Math.min(distance,worldRay(camera.position,dir,distance+.075)-.075)):distance;
+    camera.position.addScaledVector(dir,safe);
+   }
+  }else{
+   actor.group.visible=true;
+   camera.position.set(result.position.x,result.position.y,result.position.z);
   }
-  const target=thirdAim;
-  const direction=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
-  const desired=3.1,margin=.22;
-  let room=desired;
-  const right=new T.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
-  const up=new T.Vector3().crossVectors(direction,right).normalize();
-  const nearHeight=Math.tan((camera.fov??65)*Math.PI/360)*(camera.near??.2)+.025,nearWidth=nearHeight*Math.max(.5,camera.aspect||1);
-  // Protect the actual near-plane corners, including landscape aspect.
-  for(const [x,y] of [[0,0],[-1,-1],[-1,1],[1,-1],[1,1]]){
-   const origin=target.clone().addScaledVector(right,x*nearWidth).addScaledVector(up,y*nearHeight);
-   room=Math.min(room,Math.max(.05,worldRay(origin,direction,desired+margin)-margin));
-  }
-  boom=reset||room<boom?room:room+(boom-room)*Math.exp(-dt*8);
-  cut=player.teleportId;lastMode=player.mode;
-  camera.position.copy(target).addScaledVector(direction,boom);
   camera.rotation.set(pitch,yaw,0,'YXZ');
  }
+
  attachWeapons();
  return {update,updateTrail,applyThirdCamera,setThird,setProfile,openChooser,closeChooser,
   get mode(){return third?'third':'first';},get isOpen(){return open;},get profile(){return profile;},

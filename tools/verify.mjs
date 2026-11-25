@@ -14,7 +14,7 @@ const groups = {
   clothing: ['studio-model', 'character-assembly', 'schoolyard-ik', 'schoolyard-motion',
     'shirt-reference', 'shirt-recovery', 'shirt-runtime', 'pants-runtime', 'garment-alignment', 'dev-validation']
     .map(name => ['tests/' + name + '.mjs']),
-  world: [['tests/player-physics.mjs'], ['tests/world-performance.mjs'], ['tests/world-playability.mjs','--no-browser']],
+  world: [['tests/camera-comfort.mjs'], ['tests/player-physics.mjs'], ['tests/world-performance.mjs'], ['tests/world-playability.mjs','--no-browser']],
   browser: [
     ['tests/npc-dialogue-browser.mjs'], ['tests/character-assets.mjs'], ['tests/character-webgl.mjs'],
     ['tests/character-runtime-browser.mjs'], ['tests/cold-start-browser.mjs'],
