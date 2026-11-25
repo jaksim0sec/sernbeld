@@ -6,7 +6,7 @@ import {createStudioGeometry,controls} from '../src/entities/character/studio-ge
 import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter,resolveNpcAppearance} from '../src/entities/character/appearance.js';
 import {calculateFemalePose} from '../src/entities/character/female-base.js';
-import {animatePlayer,armTargets,solveArm,gripFrame} from '../src/entities/character/avatar-motion.js';
+import {animatePlayer,armTargets,solveArm,gripFrame,fitSurfaceReachOffset} from '../src/entities/character/avatar-motion.js';
 import {createCharacterRuntime} from '../src/entities/character/studio-integration.js';
 import {createSchoolyardMotion} from '../src/entities/character/schoolyard-motion.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
@@ -126,6 +126,47 @@ for(const body of ['male','female']){
  const windup=armTargets(T,'right',{...pose,arc:2.16},{armed:true,first:false});
  const prepared=armTargets(T,'right',{...pose,arc:1.3},{armed:true,first:false});
  assert(windup.blade.angleTo(prepared.blade)>.25,'The outer part of the swing must not flatten at a fixed blade heading');
+}
+// Mantle grip regression: both real rigs, low/medium/high lips, rotated wall.
+{
+ const phase=(a,b,t)=>{const u=Math.max(0,Math.min(1,(t-a)/(b-a)));return u*u*(3-2*u);};
+ const offset=fitSurfaceReachOffset([{x:-.26,y:-.58,lateral:.03,min:.23,max:.53,weight:1},
+  {x:-.26,y:-.58,lateral:.03,min:.23,max:.53,weight:1}]);
+ assert(Math.hypot(-.26-offset.outward,-.58-offset.vertical,.03)<=.53001,'Reach correction failed for planted hands');
+ globalThis.document={createElement:()=>({style:{},addEventListener(){},querySelector:()=>({})}),body:{append(){}}};
+ globalThis.addEventListener=()=>{};
+ try{
+  for(const body of ['male','female']){
+   const player={mode:'walk',pos:new T.Vector3(),renderPos:new T.Vector3(),vel:new T.Vector3(),yaw:0,pitch:0,onGround:false,teleportId:1};
+   const runtime=createCharacterRuntime({T,scene:new T.Scene(),camera:new T.PerspectiveCamera(),player,
+    Save:{data:{character:{body},settings:{view:'third'}},write(){}},
+    makeCharacter:profile=>createStudioModel(T,factory,profile,{clothing:false}),attackPose:()=>null,height:1.76});
+   let maxError=0;
+   for(const yaw of [0,.61])for(const height of [.50,1.08,1.70]){
+    const outward=new T.Vector3(Math.sin(yaw),0,Math.cos(yaw)),across=new T.Vector3(outward.z,0,-outward.x);
+    const from=outward.clone().multiplyScalar(.41),approach=outward.clone().multiplyScalar(.34);
+    const to=outward.clone().multiplyScalar(-.36);to.y=height;
+    const hands=[-1,1].map(sign=>({point:across.clone().multiplyScalar(sign*.195).add(new T.Vector3(0,height,0)),normal:new T.Vector3(0,1,0),lip:true}));
+    const action={kind:'mantle',surface:{nx:outward.x,nz:outward.z},from,approach,to,hands,tilt:0};
+    for(let frame=26;frame<=59;frame++){
+     const t=frame/100;
+     player.renderPos.copy(approach).lerp(to,phase(.63,.92,t));
+     player.renderPos.y=(height+.045)*phase(.25,.63,t);
+     player.renderTraversal={action,t};
+     runtime.update(1/60,t,{});
+     for(const [i,side] of ['left','right'].entries()){
+      const target=hands[i].point.clone().add(new T.Vector3(0,.029,0)).addScaledVector(outward,-.014);
+      const actual=runtime.actor.B['hand_'+side].localToWorld(gripFrame(T,runtime.actor,side).grip.clone());
+      const error=actual.distanceTo(target);
+      maxError=Math.max(maxError,error);
+      assert(error<.04,body+' '+side+' mantle lip '+height+' t='+t+' error='+error);
+     }
+    }
+   }
+   console.log('PASS mantle planted hand reach',body,maxError);
+   runtime.actor.dispose();
+  }
+ }finally{delete globalThis.document;delete globalThis.addEventListener;}
 }
 // LOD sidecar: progressive levels must shrink and stay a vertex subset of level 0.
 {

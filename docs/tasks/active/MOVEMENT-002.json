@@ -3,8 +3,21 @@
   "status": "in_progress",
   "baseline": "352b593efea0d81fa2c2ebe370ac689ca475ee06",
   "detail": "docs/tasks/active/MOVEMENT-002.md",
-  "scope": ["src/gameplay/gameplay.part.js", "src/entities/character/studio-integration.js", "src/entities/character/avatar-motion.js", "game.js", "sw.js", "tests/player-physics.mjs", "tests/world-playability.mjs"],
-  "contracts": ["docs/contracts/CHARACTER_RIG.md", "docs/validation/VALIDATION_POLICY.md"],
+  "scope": [
+    "src/gameplay/gameplay.part.js",
+    "src/entities/character/studio-integration.js",
+    "src/entities/character/avatar-motion.js",
+    "game.js",
+    "sw.js",
+    "tests/player-physics.mjs",
+    "tests/world-playability.mjs",
+    "tests/camera-comfort.mjs",
+    "tests/studio-model.mjs"
+  ],
+  "contracts": [
+    "docs/contracts/CHARACTER_RIG.md",
+    "docs/validation/VALIDATION_POLICY.md"
+  ],
   "dependencies": [],
-  "next": "물리, 손발 접촉, 실제 카엘 표면 검증"
+  "next": "남녀 실제 리그 턱 잡기 오차, 전체 world/clothing 회귀와 카엘 카메라 시각 검증"
 }

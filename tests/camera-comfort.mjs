@@ -1,4 +1,4 @@
-import {smoothCameraHeight,solveThirdBoom} from '../src/entities/character/studio-integration.js';
+import {smoothCameraHeight,solveThirdBoom,solveTraversalCamera} from '../src/entities/character/studio-integration.js';
 function regression(smoothCameraHeight,solveThirdBoom){
  const check=(ok,msg)=>{if(!ok)throw Error(msg)};
  let y=0,max=0,raw=0;
@@ -23,3 +23,18 @@ function regression(smoothCameraHeight,solveThirdBoom){
  return {maxStairFrameDelta:max,rawStep:.18,checks:"stair, settle, teleport, 30/60/120fps, open boom, wall, fallback, recovery, 21 pitch/aspect cases"};
 }
 console.log('PASS camera comfort:',JSON.stringify(regression(smoothCameraHeight,solveThirdBoom)));
+
+{
+ const base={feet:{x:0,y:0,z:0},bodyFeet:{x:0,y:-.3,z:0},aimY:-.58,yaw:0,pitch:0,
+  near:.2,fov:65,aspect:16/9,height:1.76,previous:3.1,reset:true,dt:1/60,surface:{nx:0,nz:-1}};
+ const wall=(o,d,limit)=>d.z>0?Math.max(0,Math.min(limit,(.35-o.z)/d.z)):limit;
+ const result=solveTraversalCamera({...base,worldRay:wall});
+ if(result.fallback||result.position.z>=0||result.boom<1.65)throw Error('Traversal hid the avatar instead of selecting the open side');
+ const corridor=(o,d,limit)=>Math.abs(d.z)<1e-9?limit:Math.max(0,Math.min(limit,((d.z>0?.55:-.55)-o.z)/d.z));
+ const side=solveTraversalCamera({...base,worldRay:corridor});
+ if(side.fallback||Math.abs(side.position.x)<1.6)throw Error('Traversal failed to find the lateral corridor');
+ const free=(_,__,limit)=>limit;
+ const recovered=solveTraversalCamera({...base,reset:false,previousView:result,worldRay:free});
+ if(recovered.fallback||Math.abs(recovered.yaw-result.yaw)>.6)throw Error('Traversal camera snapped when clearance returned');
+ console.log('PASS traversal camera: blocked orbit, lateral corridor, gradual recovery');
+}

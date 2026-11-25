@@ -1,5 +1,5 @@
 import {normalizeStudioCharacter} from './appearance.js';
-import {animatePlayer,armTargets,mountWeapon,poseGrip,poseSurfaceHand} from './avatar-motion.js';
+import {animatePlayer,armTargets,mountWeapon,poseGrip,poseSurfaceHand,fitSurfaceHandReach} from './avatar-motion.js';
 const clamp01=x=>Math.max(0,Math.min(1,x));
 const phase=(from,to,t)=>{
  const fraction=clamp01((t-from)/(to-from));
@@ -12,7 +12,7 @@ export function smoothCameraHeight(previous,target,dt,grounded){
  const next=target+(previous-target)*Math.exp(-Math.max(0,dt)*(grounded?8:14));
  return Math.max(target-.42,Math.min(target+.42,next));
 }
-export function solveThirdBoom({feet,aimY,yaw,pitch,near,fov,aspect,height,previous,reset,dt,worldRay}){
+export function solveThirdBoom({feet,bodyFeet=feet,aimY,yaw,pitch,near,fov,aspect,height,previous,reset,dt,worldRay}){
  const desired=3.1, margin=.075, minBoom=.85;
  const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
  const direction={x:sy*cp,y:-sp,z:cy*cp};
@@ -34,7 +34,7 @@ export function solveThirdBoom({feet,aimY,yaw,pitch,near,fov,aspect,height,previ
  const clearWorld=length=>clearRay(point(length))&&corners.every(([x,y])=>clearRay(point(length-near,x,y)));
  // Both the camera and its actual near plane must stay outside the player's
  // conservative torso/head/limb envelope, even at steep pitch.
- const outside=p=>p.y<feet.y-.18||p.y>feet.y+height+.22||Math.hypot(p.x-feet.x,p.z-feet.z)>=.50;
+ const outside=p=>p.y<bodyFeet.y-.18||p.y>bodyFeet.y+height+.22||Math.hypot(p.x-bodyFeet.x,p.z-bodyFeet.z)>=.50;
  const clearBody=length=>outside(point(length))&&outside(point(length-near))&&corners.every(([x,y])=>outside(point(length-near,x,y)));
  let minimum=minBoom;
  while(minimum<desired&&!clearBody(minimum))minimum+=.15;
@@ -57,11 +57,39 @@ export function solveThirdBoom({feet,aimY,yaw,pitch,near,fov,aspect,height,previ
  return {fallback:false,boom,position:point(boom)};
 }
 
+// Try collision-checked views around the traversal surface instead of hiding
+// the avatar immediately. Retain the previous safe orbit during recovery.
+export function solveTraversalCamera({surface,previousView,...base}){
+ const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+ const outward=Math.atan2(surface.nx,surface.nz);
+ const pitch=Math.max(-.70,Math.min(.70,base.pitch));
+ const follow=1-Math.exp(-Math.max(0,base.dt)*10);
+ const previous=base.reset?null:previousView;
+ const yaw=previous?previous.yaw+wrap(base.yaw-previous.yaw)*follow:base.yaw;
+ const preferredPitch=previous?previous.pitch+(pitch-previous.pitch)*follow:pitch;
+ const candidates=[[yaw,preferredPitch]];
+ if(previous)candidates.push([previous.yaw,previous.pitch]);
+ for(const a of [outward,outward+Math.PI/3,outward-Math.PI/3,outward+Math.PI/2,outward-Math.PI/2,base.yaw+Math.PI/2,base.yaw-Math.PI/2]){
+  candidates.push([a,pitch],[a,0]);
+ }
+ let best=null;
+ for(const [a,p] of candidates){
+  const result=solveThirdBoom({...base,yaw:a,pitch:p,reset:true});
+  if(result.fallback)continue;
+  const view={...result,yaw:a,pitch:p};
+  if(!best||view.boom>best.boom)best=view;
+  if(view.boom>=1.65){best=view;break;}
+ }
+ if(!best)return {fallback:true,boom:0,yaw:base.yaw,pitch:base.pitch};
+ const eased=solveThirdBoom({...base,yaw:best.yaw,pitch:best.pitch});
+ return {...(eased.fallback?best:eased),yaw:best.yaw,pitch:best.pitch};
+}
+
 export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter,makeWeapon,attackPose,worldRay,groundSurface,view,height,runSpeed=5}){
  let profile=normalizeStudioCharacter(Save.data.character??{body:'male'}),actor=makeCharacter(profile);
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
- let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null;
+ let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
  let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
@@ -362,7 +390,10 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    return {point,normal,lip:to.lip&&progress>.5};
   };
   const sole=bodyAnchors().ankleRest*actor.group.scale.y;
-  for(const [i,side] of ['right','left'].entries()){
+  const limbs=[];
+  // Across is opposite the actor's local +X when facing into the surface.
+  // Local +X is anatomical left: negative across belongs to the left limbs.
+  for(const [i,side] of ['left','right'].entries()){
    const sign=i===0?-1:1;
    let hand=action.hands?.[i]??previous?.hands[i],handWeight=1;
    let foot=action.feet?.[i]??previous?.feet[i],footWeight=1;
@@ -381,13 +412,24 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
     handWeight=1-phase(.15+i*.11,.58+i*.11,t);
     footWeight=1-phase(.10+i*.12,.49+i*.12,t);
    }
+   let fingers,palm,pole;
    if(hand){
-    const fingers=hand.lip?uphill:upAxis.clone().addScaledVector(hand.normal,-hand.normal.y).normalize();
-    const palm=hand.point.clone().addScaledVector(hand.normal,hand.lip?.029:.018);
+    fingers=hand.lip?uphill:upAxis.clone().addScaledVector(hand.normal,-hand.normal.y).normalize();
+    palm=hand.point.clone().addScaledVector(hand.normal,hand.lip?.029:.018);
     if(hand.lip)palm.addScaledVector(uphill,.014);
     // The released limb lifts away before merging back to the arm swing.
     if(mantle&&t>.59)palm.addScaledVector(upAxis,phase(.60,.82,t)*.12);
-    const pole=across.clone().multiplyScalar(sign*.65).addScaledVector(outward,.27).addScaledVector(upAxis,-.71);
+    pole=across.clone().multiplyScalar(sign*.65).addScaledVector(outward,.27).addScaledVector(upAxis,-.71);
+   }
+   limbs.push({i,side,sign,hand,foot,handWeight,footWeight,fingers,palm,pole});
+  }
+  if(mantle){
+   // Bounded visual offset only. Apply before both arm and leg IK.
+   actor.group.position.add(fitSurfaceHandReach(T,actor,limbs,outward));
+   actor.group.updateWorldMatrix(true,false);
+  }
+  for(const {i,side,sign,hand,foot,handWeight,footWeight,fingers,palm,pole} of limbs){
+   if(hand){
     actor.grip(side,hand.lip?.15:.055);
     poseSurfaceHand(T,actor,side,palm,hand.normal,fingers,pole,handWeight);
    }else actor.grip(side,.08);
@@ -438,10 +480,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
  function applyThirdCamera(dt,rig){
   if((!third&&!player.renderTraversal)||player.mode!=='walk')return;
   const yaw=rig.yaw,pitch=rig.pitch,feet=player.renderPos??player.pos;
-  const mode=player.renderTraversal?'traversal':player.mode;
+  const traversal=player.renderTraversal,mode=traversal?'traversal':player.mode;
   const reset=cut!==player.teleportId||lastMode!==mode;
-  const result=solveThirdBoom({feet,aimY:cameraY??feet.y,yaw,pitch,near:camera.near??.2,
-   fov:camera.fov??65,aspect:camera.aspect||1,height,previous:boom,reset,dt,worldRay});
+  const base={feet,aimY:cameraY??feet.y,yaw,pitch,near:camera.near??.2,
+   fov:camera.fov??65,aspect:camera.aspect||1,height,previous:boom,reset,dt,worldRay};
+  const result=traversal?solveTraversalCamera({...base,bodyFeet:actor.group.position,
+   aimY:actor.group.position.y-.28,surface:traversal.action.surface,previousView:traversalView}):solveThirdBoom(base);
+  traversalView=traversal&&!result.fallback?{yaw:result.yaw,pitch:result.pitch}:null;
   boom=result.boom;cut=player.teleportId;lastMode=mode;
   if(result.fallback){
    // No collision-free third-person view outside the body. Keep the base
@@ -458,7 +503,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,makeCharacter
    actor.group.visible=true;
    camera.position.set(result.position.x,result.position.y,result.position.z);
   }
-  camera.rotation.set(pitch,yaw,0,'YXZ');
+  camera.rotation.set(result.fallback?pitch:result.pitch??pitch,result.fallback?yaw:result.yaw??yaw,0,'YXZ');
  }
 
  attachWeapons();

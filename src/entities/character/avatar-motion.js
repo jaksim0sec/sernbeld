@@ -142,20 +142,56 @@ export function poseGrip(T,actor,side,gripW,bladeW,inwardW,poleW,options){
  return solveArmChain(T,actor,side,wristW,handQW,poleW,options);
 }
 
-// Match the anatomical palm and finger axes to the support frame. The wrist
-// is offset from the contact by the actual rig's knuckle position.
-export function poseSurfaceHand(T,actor,side,contact,normal,fingers,pole,weight){
- if(weight<=0)return;
- const rig=armRig(T,actor)[side],hand=actor.B['hand_'+side];
+// Both reach fitting and IK use the same anatomical wrist target.
+export function surfaceHandTarget(T,actor,side,contact,normal,fingers){
+ const rig=armRig(T,actor)[side];
  const palm=normal.clone().negate();
  const x=palm.multiplyScalar(side==='right'?1:-1);
  const y=fingers.clone().negate().addScaledVector(x,fingers.dot(x)).normalize();
  const z=new T.Vector3().crossVectors(x,y);
  const orientation=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z)).multiply(rig.frameInv);
  const wrist=contact.clone().sub(rig.grip.clone().multiplyScalar(actor.units*actor.group.scale.x).applyQuaternion(orientation));
+ return {wrist,orientation};
+}
+
+// Fit the visual torso to planted hands in the wall-normal/vertical plane.
+// Preserve lateral grip spacing and the original anatomical elbow limits.
+export function fitSurfaceReachOffset(holds){
+ let outward=0,vertical=0,weight=0;
+ for(const h of holds)weight=Math.max(weight,h.weight);
+ for(let pass=0;pass<10;pass++)for(const h of holds){
+  if(h.weight<=0)continue;
+  const x=h.x-outward,y=h.y-vertical,r=Math.hypot(x,y),d=Math.hypot(r,h.lateral);
+  const target=clamp(d,h.min,h.max);
+  if(Math.abs(d-target)<1e-7||r<1e-8)continue;
+  const allowed=Math.sqrt(Math.max(0,target*target-h.lateral*h.lateral));
+  const factor=(1-allowed/r)*Math.min(1,h.weight*2);
+  outward=clamp(outward+x*factor,-.08,.08);
+  vertical=clamp(vertical+y*factor,-.28,.28);
+ }
+ return {outward:outward*weight,vertical:vertical*weight};
+}
+export function fitSurfaceHandReach(T,actor,holds,outward){
+ const scale=actor.units*actor.group.scale.x;
+ const constraints=holds.filter(h=>h.hand&&h.handWeight>0).map(h=>{
+  const {wrist}=surfaceHandTarget(T,actor,h.side,h.palm,h.hand.normal,h.fingers);
+  const shoulder=actor.B['upper_arm_'+h.side].getWorldPosition(new T.Vector3());
+  const delta=wrist.sub(shoulder),x=delta.dot(outward),y=delta.y;
+  const l1=actor.B['forearm_'+h.side].position.length()*scale;
+  const l2=actor.B['hand_'+h.side].position.length()*scale;
+  return {x,y,lateral:Math.sqrt(Math.max(0,delta.lengthSq()-x*x-y*y)),
+   min:clampArmReach(l1,l2,0)+.004,max:clampArmReach(l1,l2,Infinity)-.006,weight:h.handWeight};
+ });
+ const correction=fitSurfaceReachOffset(constraints);
+ return outward.clone().multiplyScalar(correction.outward).add(new T.Vector3(0,correction.vertical,0));
+}
+export function poseSurfaceHand(T,actor,side,contact,normal,fingers,pole,weight){
+ if(weight<=0)return;
+ const hand=actor.B['hand_'+side];
+ const {wrist,orientation}=surfaceHandTarget(T,actor,side,contact,normal,fingers);
  const current=hand.getWorldPosition(new T.Vector3()).lerp(wrist,weight);
  const rotation=hand.getWorldQuaternion(new T.Quaternion()).slerp(orientation,weight);
- solveArmChain(T,actor,side,current,rotation,pole);
+ return solveArmChain(T,actor,side,current,rotation,pole);
 }
 // Compatibility wrapper: place the wrist at targetWorld with the given hand orientation.
 export function solveArm(T,actor,side,targetWorld,orientationWorld){
