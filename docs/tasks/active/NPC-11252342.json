@@ -1,0 +1,26 @@
+{
+  "id": "NPC-11252342",
+  "status": "planned",
+  "baseline": "a408a3d8ca7907c303699bb3a58cc3a3a1204e0c",
+  "detail": "docs/tasks/active/NPC-11252342.md",
+  "scope": [
+    "src/core/living-world-content.js",
+    "docs/content/kael-dialogue",
+    "docs/catalog/kael-dialogue.json",
+    "tests/kael-dialogue-content.mjs",
+    "docs/core/CURRENT_STATE.md",
+    "game.js",
+    "sw.js"
+  ],
+  "contracts": [
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/workflows/LIVING_WORLD_CONTENT.md",
+    "docs/contracts/DELIVERABLES.md",
+    "docs/validation/VALIDATION_POLICY.md"
+  ],
+  "dependencies": [
+    "NPC-003",
+    "WORLD-001"
+  ],
+  "next": "NPC-11252342/T1: 새 세션 첫 응답에서 사용자에게 외부 에이전트 생산 템플릿 JSON/ZIP/파일 제공을 요청한다(이미 제공된 원본은 재요청하지 않음). 실제 원본 수신 전 병합·생성하지 않는다."
+}

@@ -26,6 +26,8 @@
 
 ## P2 · 콘텐츠와 플레이 품질
 
+- [ ] **카엘 NPC 대화 콘텐츠 배치 통합** ([NPC-11252342](../tasks/active/NPC-11252342.md) / T1~T4, 계획): 외부 에이전트 템플릿 수신 후 병합·규격 검사·키워드 재정의·자연성 검수·실제 등록 및 main 통합. T1 시작 시 사용자에게 생산물 파일 요청. 현재 미착수.
+
 - [x] **통합 NPC 대화 템플릿·진행 엔진** ([NPC-003](../tasks/archive/NPC-003.md) / T1~T5): 구현·자동 통합 검증 및 배포 종결. [CI 45606026442](https://github.com/jaksim0sec/sernbeld/actions/runs/45606026442), blocking 0. 실제 신규 graph 전체 게임 E2E 및 실기기는 NOT RUN(작업 기록 참조); 기존 WORLD-001 독립 검증 범위 유지, 실기기 TODO 신규 이관 없음.
 
 - [ ] **임시 NPC 상태 말풍선 제거**: NPC 행동·담화 개발 중에는 `src/gameplay/gameplay.part.js`의 `devStatus`/`npc-dev-status` 및 `styles/menus-and-overlays.css`의 표시를 유지한다. 정식 행동·담화 기능 안정화와 개발용 관찰 필요성 종료를 확인한 뒤 임시 표시만 제거하고 실제 발화·50명 주민 등록을 보존한다. 제거 후 번들·실게임 검증. 현재 50명 인구의 동선·모바일 성능 및 상태 표시 실화면은 추가 검증 필요.
