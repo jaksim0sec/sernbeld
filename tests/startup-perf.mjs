@@ -108,7 +108,7 @@ await mkdir(output,{recursive:true});
 const meta={sha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,cpu:os.cpus()[0]?.model,cores:os.cpus().length,memory:os.totalmem(),platform:os.platform(),network:'loopback; no throttling',viewport:{width:780,height:360},renderer:'headless Chromium SwiftShader',instrumented:true};
 const records=[];
 let browser;
-async function sample(context,page,label,create){
+async function sample(page,label,create){
  const start=Date.now(),errors=[],warnings=[],sw=[];
  const onError=e=>errors.push(String(e));
  const onConsole=m=>{if(m.type()==='warning'||m.type()==='error')warnings.push(m.text().slice(0,1000));};
@@ -152,9 +152,18 @@ async function sample(context,page,label,create){
   }
   const state=await page.evaluate(()=>({profile:window.__dev?.avatars.profile,created:window.__dev?.Save.data.characterCreated,residents:window.__dev?.folk.list.length,quality:window.__dev?.graphics.get(),controller:navigator.serviceWorker.controller?.scriptURL})).catch(()=>null);
   const record={label,stage,failure,elapsed:Date.now()-start,errors,warnings,state,frames,creatorSnapshots:sw};
+  const summarize=data=>{
+   if(!data)return null;
+   const resources=data.resources??[],longs=data.longTasks??[],sw=data.serviceWorker??[];
+   return {resourceCount:resources.length,transferBytes:resources.reduce((n,x)=>n+(x.transferSize||0),0),encodedBytes:resources.reduce((n,x)=>n+(x.encodedBodySize||0),0),
+    longTasks:{count:longs.length,totalMs:longs.reduce((n,x)=>n+x.duration,0),maxMs:Math.max(0,...longs.map(x=>x.duration))},
+    slowResources:resources.slice().sort((a,b)=>b.duration-a.duration).slice(0,8).map(x=>({name:x.name,duration:x.duration,transferSize:x.transferSize,encodedBodySize:x.encodedBodySize})),
+    serviceWorker:sw.reduce((a,x)=>{const v=a[x.name]??={count:0,ms:0,max:0};v.count++;v.ms+=x.duration;v.max=Math.max(v.max,x.duration);return a;},{})};
+  };
+  record.summary={main:summarize(frames[0]?.data),creator:summarize(sw.find(x=>x.frame==='creator-before-apply')?.data)};
   records.push(record);
   await writeFile(output+'/report.json',JSON.stringify({meta,records},null,2));
-  console.log('STARTUP SAMPLE',JSON.stringify({label,stage,failure,elapsed:record.elapsed,state,marks:frames[0]?.data?.marks,measures:frames[0]?.data?.measures?.reduce((a,m)=>{const s=a[m.name]??={count:0,ms:0,max:0};s.count++;s.ms+=m.duration;s.max=Math.max(s.max,m.duration);return a;},{})}));
+  console.log('STARTUP SAMPLE',JSON.stringify({label,stage,failure,elapsed:record.elapsed,state,summary:record.summary,marks:frames[0]?.data?.marks,measures:frames[0]?.data?.measures?.reduce((a,m)=>{const s=a[m.name]??={count:0,ms:0,max:0};s.count++;s.ms+=m.duration;s.max=Math.max(s.max,m.duration);return a;},{})}));
   page.off('pageerror',onError);page.off('console',onConsole);
  }
  return !failure&&errors.length===0;
@@ -175,13 +184,20 @@ try{
     navigator.serviceWorker?.addEventListener('message',e=>{if(e.data?.perfSW)sw.push(e.data);});
     window.__startupPerfSnapshot=()=>({origin:performance.timeOrigin,marks:performance.getEntriesByType('mark').map(e=>e.toJSON()),measures:performance.getEntriesByType('measure').map(e=>e.toJSON()),resources:performance.getEntriesByType('resource').map(e=>e.toJSON()),navigation:performance.getEntriesByType('navigation').map(e=>e.toJSON()),longTasks:longs,serviceWorker:sw});
    });
-   const page=await context.newPage();
-   if(!await sample(context,page,'cold-online-create-'+i,true))continue;
-   if(!await sample(context,page,'warm-online-saved-'+i,false))continue;
+   // Each navigation gets a fresh page, keeping the same context/cache but excluding
+   // previous-page teardown and preventing old runtime writes after save reset.
+   const run=async(label,create)=>{
+    const page=await context.newPage();
+    try{return await sample(page,label,create);}finally{await page.close();}
+   };
+   if(!await run('cold-online-create-'+i,true))continue;
+   if(!await run('warm-online-saved-'+i,false))continue;
    await context.setOffline(true);
-   if(!await sample(context,page,'warm-offline-saved-'+i,false))continue;
-   await page.evaluate(()=>localStorage.clear());
-   await sample(context,page,'warm-offline-create-'+i,true);
+   if(!await run('warm-offline-saved-'+i,false))continue;
+   await context.addInitScript(()=>{
+    if(window.top===window&&location.origin==='http://127.0.0.1:8798')localStorage.clear();
+   });
+   await run('warm-offline-create-'+i,true);
   }finally{await context.close();}
  }
  assert.equal(records.length,repeats*4,'One or more scenarios could not be reached');
