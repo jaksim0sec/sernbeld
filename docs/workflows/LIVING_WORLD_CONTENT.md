@@ -16,3 +16,5 @@
 - 성능은 동일 모바일 월드/카메라 frame p50/p95, heap, draw calls, localStorage 실제 쓰기, 30분 실플레이 및 7일 논리 진행을 기록. 2ms p95/4ms slice 목표 및 10% 회귀 한계는 실제 측정 없이는 통과로 표기하지 않는다.
 
 - 논리 부하 회귀: `node tests/living-world-performance.mjs`. 100/300/1000 인구의 초기 스케줄링, 7일 sparse queue, 비관측/밀집 담화 카운터 및 저장 크기 계측. 기기 프레임 시간과 구분한다.
+
+- 첫 production 사례: 카엘 상인 3명의 기존 채집물 납품(품질·NPC 자금·친화도·1회 보상) 및 상인/부두 일꾼 담화. `tests/kael-living-content.mjs`는 실제 production 모듈을 읽는다. 기존 일과를 대체하지 않으며 그룹 크기별 2~4인 템플릿을 등록한다. 신규 아이템은 임시 SVG 아이콘을 사용한다.

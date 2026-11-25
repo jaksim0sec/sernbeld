@@ -45,3 +45,9 @@ T8 재개: main `59759df5dbe9301b0a0c4768c8a8a478454ae4c8`의 [Actions 455814843
 검증 전용 [실브라우저 fixture](../../../tests/living-world-browser.mjs) 추가: Playwright route로 격리된 테스트 콘텐츠만 주입, 실제 게임의 goram 관리 정책·공용 의뢰/품질 lot·보상·저장 재로드·지역 suspend/resume·대화 hold·큐 상한 및 update 시간 측정. `node tests/living-world-browser.mjs` 단기 smoke, `node tests/living-world-browser.mjs --minutes=30` 장시간 실행. 이 세션은 Git checkout DNS 및 Chromium 실행 불가로 문법 검사만 수행; fixture 실행 NOT RUN, 기본 CI에 아직 미등록. 기존 UI 실제 참여/그룹/사건 전 흐름, 30분 전체 검증, 고빈도 7일 장기 부하, 실제 S22급 성능은 별도 미완료. T8은 PARTIAL/in_progress 유지. 운영 콘텐츠나 게임 런타임 수정 없음.
 
 T8 총검증 재개: 별도 [Living world T8 soak](../../../.github/workflows/living-world-soak.yml) 워크플로 등록. 검증 전용 fixture 변경 시 smoke 성공 후 30분 실제 Chromium 연속 실행, 수동 workflow_dispatch 지원. 기존 main-validation 및 INFRA-001 점유 경로 변경 없음. 운영 정책 미등록 유지. 이 커밋 시점의 신규 smoke/soak 결과는 NOT RUN(실행 결과는 Actions에서 확인); 실제 UI/사건/그룹/고빈도 7일/실기기 기준에 대한 대체 검증이 아니다. 원격 조회는 가능하나 로컬 GitHub DNS 실패로 전체 저장소 checkout 불가. 완료 선언 보류.
+
+### T8 후속: 카엘 첫 production 콘텐츠 (2026-11-25)
+
+- 사용자 요청에 따라 기존 vendor0~2의 길뚝쑥 2개/품질 40/은화 6, 둥근토끼풀 3개/품질 30/은화 5, 조개껍데기 2개/품질 50/은화 6 납품 의뢰 등록. NPC의 기존 지갑을 지급 재원으로 사용하며 친화도 +2, 7게임일 만료, 재발행 없음. 수치·문구는 첫 플레이 검증용 제안값. 신규 아이템 정의/아이콘은 추가하지 않음(향후 신규 아이콘 SVG). 기존 상점·일과·물리·장착 계약 변경 없음.
+- 상인 2~3인 및 부두 일꾼 2~4인 담화와 선택적 참여 답변 등록. 그룹 크기 불일치로 2인 템플릿만으로는 3~4인 그룹이 발화하지 않음을 재현하여 모든 실제 그룹 크기의 템플릿 등록. 실제 사건/생산/자동 재고 보충은 추가하지 않음.
+- V8 격리: production 모듈 직접 등록 및 의뢰, 품질, 소유·은화, 중복 지급, 저장 실패 복구, 이전 저장, 2~4인 담화/참여 회귀 75 checks PASS; 기존 통합/runtime 테스트 PASS. checkout DNS 차단으로 Node 전체/실제 카엘/브라우저/PWA/30분/모바일 검증 NOT RUN. T8 soak 기존 범위 및 상태는 그대로 유지. 신규 콘텐츠는 별도 실게임 검증 필요.

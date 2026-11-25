@@ -1,0 +1,49 @@
+[
+  {
+    "id": "npc.kael-first-deliveries",
+    "kind": "npc",
+    "title": "카엘 상인 납품 의뢰 3종",
+    "stage": "INTEGRATED",
+    "source": [
+      "src/core/living-world-content.js",
+      "docs/content/kael-economy-20261125.md"
+    ],
+    "runtime": "src/core/living-world-content.js",
+    "approval": "첫 실제 콘텐츠 추가 요청; 가격/대사/외형 최종 승인 아님",
+    "checks": [
+      {
+        "criterion": "실물 납품·품질·보상·저장 복구·재로드",
+        "result": "PASS",
+        "evidence": "tests/kael-living-content.mjs; V8 격리"
+      },
+      {
+        "criterion": "실제 카엘 이동·대화 UI 및 모바일",
+        "result": "NOT RUN",
+        "evidence": "checkout DNS 차단; CI 및 실기기 확인 필요"
+      }
+    ]
+  },
+  {
+    "id": "npc.kael-market-dock-chat",
+    "kind": "npc",
+    "title": "카엘 상인·부두 일꾼 생활 담화",
+    "stage": "INTEGRATED",
+    "source": [
+      "src/core/living-world-content.js"
+    ],
+    "runtime": "src/core/living-world-content.js",
+    "approval": "첫 실제 콘텐츠 추가 요청; 대화문 최종 승인 아님",
+    "checks": [
+      {
+        "criterion": "2~4인 그룹 매칭·중거리·근거리·참여",
+        "result": "PASS",
+        "evidence": "tests/kael-living-content.mjs; V8 격리"
+      },
+      {
+        "criterion": "실월드 자연 발생 및 말풍선",
+        "result": "NOT RUN",
+        "evidence": "실제 브라우저 검증 필요"
+      }
+    ]
+  }
+]

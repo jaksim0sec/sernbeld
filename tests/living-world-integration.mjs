@@ -94,3 +94,6 @@ const late=autonomous.rt.requestChoices('a').find(c=>c.id==='living.request.subm
 a(autonomous.advance(3).ok&&autonomous.save.data.livingWorld.events[0].state==='resolved','NPC consumes own supply and resolves');
 a(!autonomous.rt.executeRequest('a',late).ok&&autonomous.items.balance()===0,'stale competing submission cannot pay');
 console.log('PASS full living-world integration: '+checks+' cumulative checks (actual event, supply, group, relationship, autonomous race and reload)');
+
+// Production regression, not fixture injection.
+import './kael-living-content.mjs';
