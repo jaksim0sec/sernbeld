@@ -43,6 +43,8 @@ console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head
   const sprint = input(1, 0, true), walk = input(1, 0), idle = input(0, 0, true);
   const runner = player(), fastFrames = player();
   const max = runner.stamina;
+  assert.equal(PLAYER.run,7.5,'sprint is 1.5x previous speed');
+  assert.equal(PLAYER.walk,2.6,'walk speed preserved');
   tick(runner, idle, 60);
   tick(runner, walk, 60);
   assert.equal(runner.stamina, max, 'idle or walking drained stamina');

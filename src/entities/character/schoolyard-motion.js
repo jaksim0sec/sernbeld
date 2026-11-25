@@ -61,7 +61,7 @@ export function createSchoolyardMotion(actor){
    const speed=gaitSpeed;
    const walking=clamp(speed/1.15,0,1);
    const run=clamp((speed-2.6)/Math.max(.5,runSpeed-2.6),0,1);
-   const moving=walking*(1-.14*run);
+   const moving=walking*(1-.05*run);
    const phase=actor.phase;
    const s=Math.sin(phase),c=Math.cos(phase);
    const grounded=!!player.onGround&&!player.swimming;
@@ -85,9 +85,9 @@ export function createSchoolyardMotion(actor){
    // Schoolyard V3 distributes gaze pitch along lumbar, thoracic, neck and
    // head joints (12/12/30/46%) so first-person view can follow the skull.
    const pitch=clamp((player.pitch||0)*rad,-75,75);
-   put('waist',pitch*.12-crouch*.78-4*run,-clamp(turn*.65,-9,9));
+   put('waist',pitch*.12-crouch*.78-(first?4:14)*run,-clamp(turn*.65,-9,9));
    const gaze=clamp(gazeYaw*rad,-55,55);
-   put('ribcage',pitch*.12-crouch*.25+Math.sin(t*1.7)*.8,-6*s*moving+clamp(turn*.9,-13,13)+gaze*.32);
+   put('ribcage',pitch*.12-crouch*.25+Math.sin(t*1.7)*.8,-(6+4*run)*s*moving+clamp(turn*.9,-13,13)+gaze*.32);
    put('neck',pitch*.30+crouch*.16,0);
    put('head',-clamp(turn*.75,-12,12)+gaze*.68,pitch*.46+crouch*.12);
    for(const [side,o] of [['left',0],['right',Math.PI]]){
@@ -104,15 +104,15 @@ export function createSchoolyardMotion(actor){
      put('foot_'+side,lead?5-12*descent:4-15*descent);
      put('upper_arm_'+side,22+7*airAge,8);put('forearm_'+side,48,0);
     }else{
-     const hip=(27+10*run)*stepping*q+(side==='left'?1:-1)*2+crouch*.53;
-     const knee=((40+22*run)*Math.max(push,0)+5)*stepping+crouch*.65;
+     const hip=(27+23*run)*stepping*q+(side==='left'?1:-1)*2+crouch*.53;
+     const knee=((40+38*run)*Math.max(push,0)+5)*stepping+crouch*.65;
      const lift=stepLift*Math.max(0,q);
      put('thigh_'+side,hip+lift*16,4);
      put('shin_'+side,knee+lift*22);
      // Shin rotates opposite the hip axis in the studio rig.
      put('foot_'+side,clamp(knee-hip,-35,30)*.65);
-     put('upper_arm_'+side,-23*moving*q+6*turnFlex,6);
-     put('forearm_'+side,18+14*moving+5*turnFlex,0);
+     put('upper_arm_'+side,-(23+22*run)*moving*q+6*turnFlex,6);
+     put('forearm_'+side,18+14*moving+42*run+5*turnFlex,0);
     }
    }
    // Preserve the NPC conversation nod that the old studio animator had.
@@ -158,7 +158,7 @@ export function createSchoolyardMotion(actor){
    // terrain sampling, climbing, swimming, and jump collision intact.
    actor.pose(angles);
    actor.B.pelvis.position.copy(actor.rest.pelvis);
-   actor.B.pelvis.position.y-=grounded?.013*moving*(1+Math.cos(phase*2))*.5:0;
+   actor.B.pelvis.position.y-=grounded?(.013+.014*run)*moving*(1+Math.cos(phase*2))*.5:0;
    applyCombatStance(actor,swing,grounded,speed);
    return {bob:-.018*moving*Math.cos(2*phase),landing,grounded,first};
   }

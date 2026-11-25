@@ -14,7 +14,7 @@
 .skill-satellite{position:fixed;z-index:3;right:calc(env(safe-area-inset-right,0px) + var(--skill-attack-right) + 1rem);bottom:calc(env(safe-area-inset-bottom,0px) + var(--skill-attack-bottom) + var(--skill-action-size) + .375rem);display:grid;place-items:center;width:3rem;height:3rem;border:1px dashed #a6edef86;border-radius:50%;background:#07334770;color:var(--skill-cyan);font:1.5rem var(--ui-font,sans-serif);touch-action:manipulation;cursor:pointer}
 .skill-satellite.has-skill{border-style:solid;background:#10566d91;box-shadow:0 0 12px #55ffff44}
 body:has(.panel:not([hidden]),.speech:not([hidden]),.world-map-screen:not([hidden])) .skill-satellite,
-body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,.toast,.hint,.stick,.jump,.atk,.skill-satellite,.hud-vitals){visibility:hidden;pointer-events:none}
+body.skill-editing > :is(.hud-rail,.bar,.prompt,.toasts,.banner,.labels,.speech,.toast,.hint,.stick,.jump,.atk,.sprint,.skill-satellite,.hud-vitals){visibility:hidden;pointer-events:none}
 
 /* The world remains visible. Only the two circles and small tool controls intercept pointers. */
 .skill-workbench{position:fixed;z-index:8;inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;place-items:center;pointer-events:none;color:var(--skill-cyan);perspective:900px}

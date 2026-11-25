@@ -44544,7 +44544,7 @@ var PLAYER = {
   radius: 0.35,
   body: 1.72,
   walk: 2.6,
-  run: 5,
+  run: 7.5,
   jump: 7,
   gravity: 24,
   step: 0.48,
@@ -49651,7 +49651,7 @@ var Gatherables = class {
 var LOOK_SENSITIVITY = 23e-4;
 var LOOK_FRAME_LIMIT = 180 * LOOK_SENSITIVITY;
 var Input = class {
-  constructor(canvas2, { stickEl, jumpEl, atkEl, onAnyInput } = {}) {
+  constructor(canvas2, { stickEl, jumpEl, atkEl, sprintEl, onAnyInput } = {}) {
     this.attackQueued = false;
     this.keys = /* @__PURE__ */ new Set();
     this.stick = { x: 0, y: 0 };
@@ -49660,6 +49660,8 @@ var Input = class {
     this.jumpQueued = false;
     this.toggles = [];
     this.touchActive = false;
+    this.sprintEl = sprintEl;
+    this.sprintEnabled = false;
     const touches = /* @__PURE__ */ new Map();
     this.isLooking=()=>[...touches.values()].some(t=>t.kind==="look"&&t.travel>2);
     addEventListener("keydown", (e) => {
@@ -49674,6 +49676,7 @@ var Input = class {
     addEventListener("blur", () => {
       this.keys.clear();
       this.stick.x = this.stick.y = 0;
+      this.setSprint(false);
     });
     canvas2.addEventListener("pointerdown", (e) => {
       canvas2.setPointerCapture(e.pointerId);
@@ -49732,6 +49735,11 @@ var Input = class {
       e.preventDefault();
       this.attackQueued = true;
     });
+    sprintEl?.addEventListener("click", () => {
+      if (this.lookOnly || sprintEl.hidden) return;
+      this.setSprint(!this.sprintEnabled);
+      onAnyInput?.();
+    });
   }
   // forward (y) / strafe (x), magnitude <= 1
   move() {
@@ -49745,8 +49753,12 @@ var Input = class {
     }
     return { x, y, mag: Math.min(1, l) };
   }
+  setSprint(enabled) {
+    this.sprintEnabled = Boolean(enabled);
+    this.sprintEl?.setAttribute("aria-pressed", String(this.sprintEnabled));
+  }
   run() {
-    return this.keys.has("ShiftLeft") || this.keys.has("ShiftRight") || Math.hypot(this.stick.x, this.stick.y) > 0.93;
+    return this.keys.has("ShiftLeft") || this.keys.has("ShiftRight") || this.sprintEnabled;
   }
   vertical() {
     const k = this.keys;
@@ -53425,8 +53437,11 @@ async function boot() {
   const grass = new Grass(scene, makeGrassAtlas());
   const nodes = scatterGatherables(region, veg.trees, shared.uNoise.value);
   const gatherables = new Gatherables(scene, nodes, Save);
-  const input = new Input(canvas2, { stickEl: hud.el.stick, jumpEl: hud.el.jump, atkEl: document.getElementById("atk"), onAnyInput: () => hud.hideHint() });
-  if (IS_MOBILE) document.getElementById("atk").hidden = false;
+  const input = new Input(canvas2, { stickEl: hud.el.stick, jumpEl: hud.el.jump, atkEl: document.getElementById("atk"), sprintEl: document.getElementById("sprint"), onAnyInput: () => hud.hideHint() });
+  if (IS_MOBILE) {
+    document.getElementById("atk").hidden = false;
+    document.getElementById("sprint").hidden = false;
+  }
   const player = new Player();
   const miniMap = new Minimap(document.getElementById("miniMap"), region);
   const rig = new CameraRig(camera);
@@ -53591,6 +53606,7 @@ async function boot() {
     attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
   let previousView;
   const clearEditorInput = () => {
+    input.setSprint(false);
     input.keys.clear();
     input.stick.x = input.stick.y = 0;
     input.consumeJump();
@@ -53843,6 +53859,7 @@ async function boot() {
     if (avatars.isOpen) {
       movementCamera.reset(player);
       ui.setStamina(player, camera, false, false);
+      input.setSprint(false);
       input.keys.clear(); input.stick.x = input.stick.y = 0;
       input.consumeLook(); input.consumeAttack(); input.consumeToggles(); input.jumpQueued = false;
       return;
@@ -53888,6 +53905,7 @@ async function boot() {
     folk.hour = clock.hour;
     if (fullMap.isOpen() || !ui.travel.hidden || ui.dialogueOpen()) {
       movementCamera.reset(player);
+      input.setSprint(false);
       input.keys.clear();
       input.stick.x = input.stick.y = 0;
       input.consumeLook();
@@ -53941,6 +53959,7 @@ async function boot() {
       nextGoal = now + 150;
     }
     const ambientAllowed=!ui.dialogueOpen()&&ui.bag.hidden&&ui.travel.hidden&&ui.boardP.hidden&&!fullMap.isOpen()&&!skillWorkbench.isOpen()&&$("intro").hidden;
+    if(!ambientAllowed && input.sprintEnabled) input.setSprint(false);
     ui.setStamina(player, camera, (avatars.mode === "third" || player.traversal) && avatars.bodyRoot.visible, ambientAllowed);
     const regionActive=WorldRegions.isActive(region.id);
     let groupLines=[];

@@ -26,7 +26,7 @@ var PLAYER = {
   radius: 0.35,
   body: 1.72,
   walk: 2.6,
-  run: 5,
+  run: 7.5,
   jump: 7,
   gravity: 24,
   step: 0.48,

@@ -48,15 +48,20 @@
 
 /* ============ In-world actions: white icon, translucent support only ============ */
 .bar{position:fixed;z-index:3;top:calc(env(safe-area-inset-top,0px) + var(--ui-top));right:calc(env(safe-area-inset-right,0px) + var(--ui-edge));display:flex;align-items:center;gap:7px}
-.bar button.hud-btn,.atk,.jump{display:grid;place-items:center;gap:0;padding:0;width:var(--ui-control-size);height:var(--ui-control-size);min-width:var(--ui-touch);min-height:var(--ui-touch);border-radius:var(--ui-radius-control);background:var(--ui-control-wash);border:1px solid var(--ui-stroke-control);box-shadow:var(--ui-action-glow),var(--ui-shadow-control);color:var(--ui-glyph);font-size:0;line-height:1;cursor:pointer;touch-action:manipulation;transition:background var(--ui-trans-fast),transform var(--ui-trans-fast)}
+.bar button.hud-btn,.atk,.jump,.sprint{display:grid;place-items:center;gap:0;padding:0;width:var(--ui-control-size);height:var(--ui-control-size);min-width:var(--ui-touch);min-height:var(--ui-touch);border-radius:var(--ui-radius-control);background:var(--ui-control-wash);border:1px solid var(--ui-stroke-control);box-shadow:var(--ui-action-glow),var(--ui-shadow-control);color:var(--ui-glyph);font-size:0;line-height:1;cursor:pointer;touch-action:manipulation;transition:background var(--ui-trans-fast),transform var(--ui-trans-fast)}
 .bar button.hud-btn i{display:none}
 .bar button.hud-btn[aria-pressed="true"],.bar button.hud-btn:active,.atk:active,.jump:active{background:var(--ui-control-press);transform:scale(.96)}
 .hud-icon{display:block;width:91%;height:91%;flex:none;pointer-events:none;overflow:visible;filter:drop-shadow(0 1px 2px rgba(2,16,28,.76))}
 .bar .hud-icon{width:90%;height:90%}
-.atk,.jump{position:fixed;z-index:3;width:var(--ui-action-size);height:var(--ui-action-size);min-width:50px;min-height:50px}
+.atk,.jump,.sprint{position:fixed;z-index:3;width:var(--ui-action-size);height:var(--ui-action-size);min-width:50px;min-height:50px}
 .atk{right:calc(env(safe-area-inset-right,0px) + 91px);bottom:calc(env(safe-area-inset-bottom,0px) + 74px)}
 .jump{right:calc(env(safe-area-inset-right,0px) + 17px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
 .atk .hud-icon,.jump .hud-icon{width:92%;height:92%}
+.sprint{right:calc(env(safe-area-inset-right,0px) + 17px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px + var(--ui-action-size) + .75rem)}
+.sprint-icon{width:56%;height:56%;fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.sprint[aria-pressed="true"]{background:var(--seed-white);color:var(--seed-black,#101010);border-color:var(--seed-white)}
+.sprint:active{transform:scale(.96)}
+body:has(.speech:not([hidden]),.panel:not([hidden]),.world-map-screen:not([hidden]),#intro:not([hidden]),#character-chooser[open]) .sprint{visibility:hidden;pointer-events:none}
 body:has(.speech:not([hidden])) .atk,body:has(.speech:not([hidden])) .jump,
 body:has(.panel:not([hidden])) .atk,body:has(.panel:not([hidden])) .jump{opacity:0;pointer-events:none}
 body:has(.panel:not([hidden])) .bar,body:has(.panel:not([hidden])) .hud-rail,body:has(.panel:not([hidden])) .hud-vitals{opacity:0;pointer-events:none}
