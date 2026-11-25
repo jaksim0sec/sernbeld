@@ -1,18 +1,13 @@
 {
   "id": "HAIR-11260710",
-  "status": "planned",
-  "baseline": "3fa58c069f7cc883416b44a7a12f100ffc197af8",
+  "status": "in_progress",
+  "baseline": "0b6943fb207276d858ebf45190b227139b4bd4cb",
   "detail": "docs/tasks/active/HAIR-11260710.md",
   "scope": [
     "src/entities/character/hair",
-    "assets/models/characters/hair",
-    "src/render/materials/hair-toon.js",
-    "src/entities/character/studio-model.js",
-    "src/entities/character/studio-integration.js",
-    "studio.html",
-    "tests/studio-model.mjs",
-    "tests/character-runtime-browser.mjs",
-    "sw.js"
+    "tools/dev/hair.html",
+    "tools/dev/hair.js",
+    "tests/hair-geometry.mjs"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -23,5 +18,5 @@
     "docs/PWA.md"
   ],
   "dependencies": [],
-  "next": "HAIR-11260710/T1: 미착수. 최신 main·점유/리그/두상 확인 후 파라메트릭 다발 생성기·파츠 계약·피팅·독립 뷰어와 직접 형상 검증."
+  "next": "HAIR-11260710/T1: 합성 검증 PASS. 실제 원본 남녀 7 profile 피팅 및 다각도 뷰·접합/간섭 계측 후 T1 종결; T2 착수 전 실제 계약 입증."
 }
