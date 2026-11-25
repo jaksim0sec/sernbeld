@@ -31,7 +31,8 @@
     "tests/living-world-integration.mjs",
     "tests/npc-dialogue.mjs",
     "tests/pwa-offline.mjs",
-    "docs/workflows/LIVING_WORLD_CONTENT.md"
+    "docs/workflows/LIVING_WORLD_CONTENT.md",
+    "tests/living-world-performance.mjs"
   ],
   "contracts": [
     "docs/contracts/LIVING_WORLD.md",
@@ -40,5 +41,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 통합/부하/콘텐츠 작성 계약 및 CI 결과 확인; 기기 frame/저장 비용과 장시간 실제 월드 검증 후 종료."
+  "next": "T8 구현 및 테스트 등록 완료; 최종 CI/실기기 frame·저장 비용, 실제 장시간 월드 검증 후 종료."
 }

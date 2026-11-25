@@ -33,3 +33,5 @@ T7 연결 후 V8 실행: 요청/참여 41 checks, 그룹 18+8+6 checks, 기존 r
 T8 초기: 의뢰 평가를 slice 종료에서 결정적 게임 분 예약으로 변경, 같은 tick 기존 사건→행동→의뢰 순, budget에 포함. 요청/스케줄러/공용 아이템/재로드 통합 테스트와 기존 생활 코어 테스트 CI 등록. V8 검증; 브라우저/실기기/전체 Node 미실행. 전체 T8 게이트 미충족.
 
 T8 후속: bc85cae Actions Node에서 통합 72 checks 및 생활 코어/공용 경제 통과. 기존 대화 테스트의 새 DOM 반영, INFRA-001 소유 verify 파일 점유 반환(순차 등록), 실제 게임/PWA 생활 모듈 확인 및 콘텐츠 작성 규약 추가. 새 CI, 실기기 및 30분 실제 월드 검증 미확정. 기존 ecology GLB, shirt-recovery, 기본 sword 오류 별도.
+
+T8 통합 fixture: 91 cumulative checks V8 PASS. 실제 공급·사건·지식·담화·관계·자율 해결·경쟁·재로드. 부하 fixture: 100/300/1000 논리 NPC, slice 32, 100 NPC 7일 sparse queue, 30분 비관측 및 밀집 담화 상한 V8 PASS. Node CI 등록. 이 검사는 실제 모바일 frame/저장 latency, 30분 실제 게임이나 고빈도 7일 경제 부하를 대신하지 않는다. 최종 CI 및 실기기 검증 전 PARTIAL.
