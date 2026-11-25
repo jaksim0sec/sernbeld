@@ -53,3 +53,5 @@ TRACE의 작업 주소는 `AREA-NNN` 또는 `AREA-NNN/Tn`이다. 작업 ID는 �
 [카엘 NPC 대화 콘텐츠 배치 통합 (NPC-11252342)](active/NPC-11252342.md)
 
 [NPC 대화 UI 외형 개편 (UI-11260149)](active/UI-11260149.md)
+
+[모듈형 3D 헤어 제작·물리·통합 (HAIR-11260710)](active/HAIR-11260710.md)
