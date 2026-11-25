@@ -16,5 +16,5 @@
     "NPC-003",
     "WORLD-001"
   ],
-  "next": "NPC-11252342/T2: agent-A.md, agent-B.md를 외부 세션에 전달하고 kael-dialogue-A.json 및 kael-dialogue-B.json을 수신·수량/출처 확인한다. 미수신 상태에서는 T3 금지."
+  "next": "NPC-11252342/T2: A/B/C 범용 72개 수신 완료. 기존 manifest와 다른 범위이므로 named/group/reply 추가 생산 또는 범용 한정 여부 및 topicId 매핑을 정합화한 뒤 T3 진행. 기존 첨부는 재요청하지 않는다."
 }

@@ -1,0 +1,89 @@
+{
+  "task": "NPC-11252342/T2",
+  "baseline": "0581fa69556e728e8c5e7f2bf1cacc37d8507944",
+  "source": "user conversation uploads; original files not copied to repository",
+  "batches": [
+    {
+      "id": "A",
+      "filename": "batch_A.json",
+      "sha256": "9be924bc887cee9e1e310981a811bed3dd5b99f899287c9fa3641714198bd302",
+      "bytes": 50854,
+      "graphs": 24,
+      "topics": 6,
+      "nodes": 120,
+      "pages": 72,
+      "maxChoiceDepth": 1,
+      "normalPaths": 48,
+      "backPaths": 24,
+      "scope": [
+        "common",
+        "folk"
+      ]
+    },
+    {
+      "id": "B",
+      "filename": "batch_B.json",
+      "sha256": "6a61e063ecabc43d113a46a602f74f4eed8b2cd1dfd0974244f86bcad1b8dd44",
+      "bytes": 102320,
+      "graphs": 24,
+      "topics": 6,
+      "nodes": 258,
+      "pages": 333,
+      "maxChoiceDepth": 3,
+      "normalPaths": 86,
+      "backPaths": 24,
+      "scope": [
+        "vendor",
+        "docker"
+      ]
+    },
+    {
+      "id": "C",
+      "filename": "batch_C.json",
+      "sha256": "d59a4f0d3e5a2622f5a6199ee6b95b1a4e4353b7d53c0c8e26612be2bcc6ad8b",
+      "bytes": 42985,
+      "graphs": 24,
+      "topics": 6,
+      "nodes": 120,
+      "pages": 72,
+      "maxChoiceDepth": 1,
+      "normalPaths": 48,
+      "backPaths": 24,
+      "scope": [
+        "kid",
+        "guard"
+      ]
+    }
+  ],
+  "totals": {
+    "graphs": 72,
+    "topics": 18,
+    "nodes": 498,
+    "pages": 477,
+    "normalPaths": 182,
+    "backPaths": 72,
+    "duplicateIds": 0,
+    "named": 0,
+    "personal": 72,
+    "legacyGroups": 0,
+    "replyActions": 0,
+    "event": 0
+  },
+  "manifestComparison": {
+    "matchingTemplateIds": 0,
+    "status": "scope reconciliation required",
+    "missing": [
+      "named 24",
+      "legacy group 15",
+      "reply actions 12"
+    ],
+    "note": "All 72 are generic personal variants from earlier A/B/C production; not the later A/B manifest. Do not discard them or assume replacement of approved scope."
+  },
+  "checks": {
+    "jsonParse": "PASS",
+    "uniqueGraphIds": "PASS",
+    "pathCounting": "PASS (static DFS; excludes back/c_back routes)",
+    "runtimeValidator": "NOT RUN",
+    "qualityReview": "T3 pending"
+  }
+}
