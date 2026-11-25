@@ -79,3 +79,37 @@ const abandon=sc.requestChoices('a').find(c=>c.id==='living.request.abandon');
 a(sc.executeRequest('a',abandon).ok&&save.data.livingWorld.requests.at(-1).state==='abandoned','abandon explicit even without supply');
 a(sc.advanceTo(12).ok&&sc.requestChoices('a').length===0,'no same episode reissue');
 console.log('PASS participation + requests: '+checks+' checks');
+
+
+// Registered graph uses the existing authoritative participation transaction.
+import {createTopicSession} from '../src/core/npc-dialogue.js';
+import {graphGroupTopic} from '../src/core/npc-topic.js';
+const graph={id:'group.graph',version:1,source:'event',topicId:'supply',priority:1,
+ eligibility:{regionIds:['kael'],conditions:[]},slots:[{id:'source',kind:'npc',tags:['worker']},{id:'target',kind:'npc',tags:['worker']},{id:'player',kind:'player'}],
+ eventBinding:{typeId:'shortage',factRefs:[{alias:'amount',slotId:'source',factKey:'amount'}]},ambientPath:[{slotId:'source',text:'Amount {amount}',duration:10}],
+ participationIds:['mediate'],entryNode:'ask',nodes:[
+ {id:'ask',type:'choice',choices:[{id:'share',label:'Share',conditions:[],nextNode:'effect'},{id:'back',label:'Back',conditions:[],nextNode:'hub'}]},
+ {id:'effect',type:'effect',action:{handlerId:'living.group.share',argsRefs:{npc:{kind:'slot',id:'source'}}},outcomes:{ok:'ok',fail:'fail',stale:'fail'}},
+ {id:'ok',type:'speak',speakerSlot:'target',pages:['Thank you'],next:'hub'},{id:'fail',type:'speak',speakerSlot:'target',pages:['Not now'],next:'hub'},{id:'hub',type:'end',mode:'topicHub'}]};
+const rg=createLivingWorldRegistry({regions:['kael'],societyHandlers:['e','prop'],dialogueHandlers:['living.group.share']});
+const gd={...registrations,conversationTemplates:[graph]};
+a(!rg.validateRegistry({...gd,conversationTemplates:[{...graph,participationIds:['missing']}]}).ok,'unknown graph participation rejected');
+a(rg.registerDefinitions(gd).ok,'graph participation registered');
+const saved={data:JSON.parse(snap),write:()=>true};
+const rs=createWorldSociety(rg,{prop:()=>.8}),rp=createNpcParticipation(rg,rs,createNpcRequests(rg)),rc=createNpcScheduler({save:saved,registry:rg,getDefinitions:get,participation:rp});
+const joined={...group,materialized:{...group.materialized,templateId:graph.id,graph:true,facts:{amount:3}}};
+const ctx={npcId:'a',regionId:'kael',tags:['worker']};
+const resolve=()=>{const t=graphGroupTopic(rg,joined,id=>rs.knownEvents(saved.data,id),ctx);return {topics:t?[t]:[],services:rc.participationChoices(joined)}};
+const S=createTopicSession({id:'a'},'Amount 3',{readContext:()=>ctx,resolve,executeEffect:(id,args)=>{
+ const choices=rc.participationChoices(joined).filter(c=>c.id===id&&c.sourceNpcId===args.npc);
+ return choices.length===1?rc.executeParticipation(joined,choices[0]):{ok:false,reason:'stale'};
+}});
+const choose=id=>{const i=S.choices.findIndex(c=>c.id===id);return i>=0&&S.select(i,S.revision,S.choices[i].token)};
+a(choose(graph.id)&&JSON.stringify(saved.data)===snap,'graph entry read only');
+saved.write=()=>false;
+a(choose('share')&&S.text==='Not now'&&JSON.stringify(saved.data)===snap,'graph share transaction rollback');
+saved.write=()=>true;
+a(choose(graph.id)&&choose('share')&&S.text==='Thank you'&&S.currentSpeakerId==='b'&&S.status==='active','real graph effect and followup');
+a(saved.data.npcStates.b.relationships.player.affinity===2&&rs.knownEvents(saved.data,'b').some(e=>e.facts.amount===3),'real knowledge and relation changed');
+a(!rc.participationChoices(joined).length,'no duplicate share');
+console.log('PASS graph participation with authoritative scheduler and save');

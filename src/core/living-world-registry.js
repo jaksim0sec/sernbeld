@@ -79,7 +79,19 @@ export function createLivingWorldRegistry({handlers=[],regions=[],places=[],soci
   const graphOptions={regions:knownRegions,profiles:next.profiles,roles:new Set([...dialogueRoles,...next.roles.keys()]),events:next.eventTypes,topics:new Set([...next.conversationTemplates.values()].filter(isTopicGraph).map(t=>t.topicId)),handlers:new Set(dialogueHandlers),quests:new Set(dialogueQuests),actions:new Set(dialogueActions)};
   for(const t of next.conversationTemplates.values()){
    const bad=m=>fail('conversationTemplates',t.id,m);
-   if(isTopicGraph(t)){for(const error of validateTopicGraph(t,graphOptions))bad(error);continue;}
+   if(isTopicGraph(t)){
+    for(const error of validateTopicGraph(t,graphOptions))bad(error);
+    if(Array.isArray(t.participationIds)&&Array.isArray(t.slots)){
+     const slots=t.slots.filter(s=>s?.kind==='npc').map(s=>s.id);
+     for(const key of t.participationIds){
+      const p=next.participationActions.get(key);
+      if(!p){bad('unknown participation action');continue}
+      if(p.sourceSlot!==undefined&&!slots.includes(p.sourceSlot)||p.targetSlot!==undefined&&!slots.includes(p.targetSlot))bad('unbound participation slot');
+      if(['question','share'].includes(p.kind)&&(!Array.isArray(p.factKeys)||!p.factKeys.every(k=>next.eventTypes.get(t.eventBinding?.typeId)?.factKeys?.includes(k))))bad('unregistered participation fact');
+     }
+    }
+    continue;
+   }
    if(!id(t.topic)||!ids(t.regionIds)||!t.regionIds.length||t.regionIds.some(r=>!knownRegions.has(r))||!Array.isArray(t.slots)||t.slots.length<2||t.slots.length>4||!Array.isArray(t.turns)||!t.turns.length||t.turns.length>32){bad('invalid template scope or size');continue}
    const slotIds=t.slots.map(s=>s?.id);
    if(!ids(slotIds)||t.slots.some(s=>!object(s)||!ids(s.tags)))bad('invalid role slots');

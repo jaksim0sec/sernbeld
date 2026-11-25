@@ -39,7 +39,7 @@ function placeholders(s,aliases,slot){
 function edges(n){return n.type==='speak'?[n.next]:n.type==='choice'?n.choices.map(c=>c.nextNode):n.type==='effect'?Object.values(n.outcomes):[];}
 export function validateTopicGraph(t,{regions=new Set(),profiles=new Map(),roles=new Set(),events=new Map(),topics=new Set(),handlers=new Set(),quests=new Set(),actions=new Set()}={}){
  const errors=[],bad=m=>errors.push(m);
- if(!shape(t,['id','version','source','topicId','priority','eligibility','slots','eventBinding','entryNode','nodes','cooldown','memoryPolicy','ambientPath','label'])||!id(t.id)||t.version!==1||!['named','personal','event'].includes(t.source)||!id(t.topicId)||!Number.isSafeInteger(t.priority)||Math.abs(t.priority)>10000||!id(t.entryNode)||!Array.isArray(t.nodes)||t.nodes.length<1||t.nodes.length>128){return ['invalid graph header'];}
+ if(!shape(t,['id','version','source','topicId','priority','eligibility','slots','eventBinding','entryNode','nodes','cooldown','memoryPolicy','ambientPath','label','participationIds'])||!id(t.id)||t.version!==1||!['named','personal','event'].includes(t.source)||!id(t.topicId)||!Number.isSafeInteger(t.priority)||Math.abs(t.priority)>10000||!id(t.entryNode)||!Array.isArray(t.nodes)||t.nodes.length<1||t.nodes.length>128){return ['invalid graph header'];}
  if(own(t,'label')&&!text(t.label))bad('invalid topic label');
  const e=t.eligibility;
  if(!shape(e,['npcIds','regionIds','roles','tags','conditions'])||!Array.isArray(e.conditions))return ['invalid eligibility'];
@@ -84,6 +84,7 @@ export function validateTopicGraph(t,{regions=new Set(),profiles=new Map(),roles
   }
  }
  if(!nodes.has(t.entryNode))bad('missing entry');
+ if(own(t,'participationIds')&&(!t.ambientPath?.length||!ids(t.participationIds)))bad('invalid graph participation ids');
  if(own(t,'ambientPath')){
   if(npcs.length<2||!Array.isArray(t.ambientPath)||!t.ambientPath.length||t.ambientPath.length>32||t.ambientPath.some(x=>!shape(x,['slotId','text','duration'])||!npcSlots.has(x.slotId)||!placeholders(x.text,refs,x.slotId)||!Number.isFinite(x.duration)||x.duration<.5||x.duration>30))bad('invalid ambient path');
  }
@@ -187,7 +188,7 @@ export function legacyLineGraph(line){
 export function ambientTemplate(t,registry){
  if(!isTopicGraph(t))return t;
  if(!t.ambientPath?.length)return null;
- return {id:t.id,regionIds:t.eligibility.regionIds??registry.get('eventTypes',t.eventBinding.typeId)?.regionIds??[],slots:t.slots.filter(s=>s.kind==='npc').map(s=>({...s,tags:s.tags??[]})),eventTypeId:t.eventBinding.typeId,factRefs:t.eventBinding.factRefs.map(r=>({...r,key:r.alias})),turns:t.ambientPath,participationIds:[],graph:t};
+ return {id:t.id,regionIds:t.eligibility.regionIds??registry.get('eventTypes',t.eventBinding.typeId)?.regionIds??[],slots:t.slots.filter(s=>s.kind==='npc').map(s=>({...s,tags:s.tags??[]})),eventTypeId:t.eventBinding.typeId,factRefs:t.eventBinding.factRefs.map(r=>({...r,key:r.alias})),turns:t.ambientPath,participationIds:t.participationIds??[],graph:t};
 }
 // Each referenced fact must still belong to its bound speaker, not merely the anchor.
 export function groupFacts(t,binding,eventId,revision,knownEvents){
