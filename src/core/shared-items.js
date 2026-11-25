@@ -218,8 +218,64 @@ export function createItemRuntime(save,getDefinitions,events){
   if(!validId(reservationId))return fail('invalid');
   return change(s=>{if(s.reservations)s.reservations=s.reservations.filter(l=>l.id!==reservationId);return {ok:true}},{persist:true});
  }
+ // Trusted code registers policy validators; production data cannot execute arbitrary handlers.
+ const transferPolicies=new Map();
+ function registerTransferPolicy(id,validatePolicy){
+  if(!validId(id)||typeof validatePolicy!=='function'||transferPolicies.has(id))return fail('invalid');
+  transferPolicies.set(id,validatePolicy);return {ok:true};
+ }
+ function operationRequest(command){
+  if(!command||!validId(command.operationId)||!validId(command.actorId)||typeof command.kind!=='string'||!command.payload||typeof command.payload!=='object'||Array.isArray(command.payload))return null;
+  try{return clone({...command,requestId:command.operationId})}catch{return null}
+ }
+ function prepareOperation(s,q){
+  const prior=s.transactions.find(t=>t.request.requestId===q.requestId);
+  if(prior)return equal(prior.request,q)?{ok:true,replay:clone(prior.result)}:fail('request_id_conflict');
+  if(q.kind!=='transfer')return fail('unsupported');
+  const {recipientId,allocations,reservationId,policyId,tick}=q.payload;
+  const policy=transferPolicies.get(policyId);
+  if(!policy)return fail('unsupported');
+  if(!wallet(s,q.actorId)||!wallet(s,recipientId)||recipientId===q.actorId||!Array.isArray(allocations)||!allocations.length||new Set(allocations.map(a=>a?.recordId)).size!==allocations.length)return fail('invalid');
+  const reservation=reservationId===undefined?null:locks(s).find(l=>l.id===reservationId);
+  if(reservationId!==undefined&&(!reservation||reservation.actorId!==q.actorId||!safe(tick)||tick>reservation.expiresAt||!equal(reservation.allocations,allocations)))return fail('stale');
+  for(const a of allocations){
+   if(!a||a.source!=='owned'||!safe(a.quantity,1))return fail('invalid');
+   const r=record(s,a.recordId),h=holding(s,a.recordId);
+   if(!r||!available(h,q.actorId)||r.usageType==='permanent'||a.quantity>qty(r))return fail('unavailable');
+   if(!reservation&&a.expected!==JSON.stringify(canonical({record:r,holding:h})))return fail('stale');
+   if(a.quantity>qty(r)-locked(s,r.id,reservationId??null))return fail('reserved');
+  }
+  try{if(policy(clone(q),clone(save.data))!==true)return fail('unavailable')}catch{return fail('invalid_policy')}
+  return {ok:true};
+ }
+ function applyOperation(s,q){
+  const validation=prepareOperation(s,q);
+  if(!validation.ok||validation.replay)return validation.replay??validation;
+  const {recipientId,allocations,reservationId}=q.payload;
+  if(reservationId!==undefined)s.reservations=s.reservations.filter(l=>l.id!==reservationId);
+  const moved=[];
+  for(const a of allocations){
+   const r=record(s,a.recordId),h=holding(s,r.id);let moving=r;
+   if(a.quantity<qty(r)){r.quantity-=a.quantity;moving=put(s,recipientId,{...clone(r),id:allocate(s),quantity:a.quantity})}
+   else{h.ownerId=recipientId;h.location=location(recipientId);for(const o of s.offers)o.stockRecordIds=o.stockRecordIds.filter(id=>id!==r.id)}
+   moving=merge(s,moving,recipientId);moved.push({recordId:moving.id,quantity:a.quantity});
+  }
+  const result={ok:true,operationId:q.operationId,kind:q.kind,allocations:moved};
+  s.transactions.push({request:clone(q),result:clone(result)});return result;
+ }
+ function canExecute(command){
+  const q=operationRequest(command);if(!q)return fail('invalid');
+  const result=prepareOperation(state(),q);return result.replay??result;
+ }
+ function commitOperation(command){
+  if(writing)return fail('busy');
+  const q=operationRequest(command);if(!q)return fail('invalid');
+  const prior=state().transactions.find(t=>t.request.requestId===q.requestId);
+  if(prior)return equal(prior.request,q)?clone(prior.result):fail('request_id_conflict');
+  return change(s=>applyOperation(s,q),{persist:true,event:{action:q.kind,operationId:q.operationId}});
+ }
  return {
-  planSupply,reserve,release,
+  planSupply,reserve,release,registerTransferPolicy,canExecute,commitOperation,
   initialize(){validate(state());for(const k of ['inv','uniqueItems','nextItemSerial','money','equip'])delete save.data[k];return true},snapshot:()=>clone(state()),player,count,entries(){return Object.keys(defs()).map(id=>[id,count(id)]).filter(([,n])=>n>0)},
   add(id,n=1,quality=50){change(s=>{addTo(s,player,id,n,quality);return true},{event:{action:'added',itemId:id,quantity:n}});return count(id)},
   take(id,n){if(!safe(n,1))throw Error('invalid quantity');return change(s=>{const a=s.records.filter(r=>r.definitionId===id&&r.usageType!=='permanent'&&available(holding(s,r.id),player));if(a.reduce((v,r)=>v+free(s,r),0)<n)return false;let left=n;for(const r of a){const k=Math.min(left,free(s,r));if(!k)continue;if(k===qty(r))erase(s,r.id);else r.quantity-=k;left-=k;if(!left)break}return true},{event:{action:'removed',itemId:id,quantity:n}})},

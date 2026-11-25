@@ -7,3 +7,5 @@
 ## 2026-11-25 생활 세계 Beta T1 부분 진행
 
 기준 3a4d71429cd2244f866c0b9d247bccfc90d7e4b0. 기존 ITEM-001 점유 범위 내에서 공급 계획·소유 재고 예약·저장 실패 복구 보강. V8 원본 12 시나리오 및 추가 공급/예약/복구 검증 PASS. 계약 참조. T0 전체 기준선·T1 공용 commitOperation/시장 예약/실제 등록 단계 연결 미완료. MOVEMENT-002, INFRA-001 활성 점유 경로 및 기존 기록 변경 없음. 전체 검증 NOT RUN, 상태 blocked 유지.
+
+T1 추가: 정책 등록 기반 공용 `commitOperation` transfer/canExecute 구현, 기존 거래와 영수증 namespace 공유. V8 추가 14 checks PASS. 소비/생산/요청/시장 예약 및 등록 경로 연결은 미완료. 기존 blocked 상태 유지.

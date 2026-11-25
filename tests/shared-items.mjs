@@ -54,3 +54,40 @@ function runSupplyTests(){
  return 14;
 }
 console.log('PASS shared item supply and rollback: '+runSupplyTests()+' checks');
+
+function runTransferOperationTests(){
+ const assert=(v,m)=>{if(!v)throw Error(m)};
+ const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2},sword:{kind:'weapon',rarity:'common',name:'sword',value:15,price:15,dmg:14,rate:1.6,reach:2.1}});
+ const save={data:{v:1,money:15,npcStates:{a:{lineI:1}}},write(){return true}};
+ const events=[];const s=createItemRuntime(save,()=>defs,{emit:(...a)=>events.push(a)});
+ s.initialize();s.registerActor('npc:a','npc',7);
+ s.add('flower',2,40);s.add('flower',3,70);s.add('sword',1,91);
+ const plan=s.planSupply({actorId:s.player,selector:{definitionId:'flower'},quantity:4});
+ const cmd={operationId:'operation:1',kind:'transfer',actorId:s.player,payload:{recipientId:'npc:a',allocations:plan.allocations,policyId:'test:give',tick:1}};
+ assert(s.commitOperation(cmd).reason==='unsupported','unregistered policy rejected');
+ assert(s.registerTransferPolicy('test:give',(q,data)=>q.payload.recipientId==='npc:a'&&data.npcStates.a.lineI===1).ok,'register policy');
+ const before=JSON.stringify(save.data),notices=events.length;
+ assert(s.canExecute(cmd).ok&&JSON.stringify(save.data)===before&&events.length===notices,'canExecute pure');
+ save.write=()=>{save.data.npcStates.a.lineI=99;return false};
+ assert(s.commitOperation(cmd).reason==='save_failed'&&JSON.stringify(save.data)===before&&events.length===notices,'transfer rollback');
+ save.write=()=>true;
+ assert(s.reserve({operationId:'hold:1',actorId:s.player,allocations:plan.allocations,expiresAt:5}).ok,'reserve multi-lot');
+ assert(s.commitOperation(cmd).reason==='reserved','direct transfer cannot bypass reservation');
+ const reserved={...cmd,payload:{...cmd.payload,reservationId:'hold:1'}};
+ assert(s.commitOperation({...reserved,payload:{...reserved.payload,tick:6}}).reason==='stale','expired reservation rejected');
+ const result=s.commitOperation(reserved);
+ assert(result.ok&&s.count('flower')===1&&s.count('flower','npc:a')===4&&s.balance()===15&&s.balance('npc:a')===7,'multi-lot transfer and money conservation');
+ assert(s.snapshot().reservations.length===0,'reservation released on commit');
+ assert(s.holdingsFor('npc:a').filter(x=>x.record.definitionId==='flower').map(x=>x.record.quality).sort().join(',')==='40,70','quality preserved');
+ const snap=JSON.stringify(save.data),noticeAfter=events.length;
+ assert(JSON.stringify(s.commitOperation(reserved))===JSON.stringify(result)&&JSON.stringify(save.data)===snap&&events.length===noticeAfter,'replay no effects');
+ assert(s.commitOperation({...reserved,payload:{...reserved.payload,tick:2}}).reason==='request_id_conflict','operation conflict');
+ const restored=createItemRuntime({data:JSON.parse(snap),write(){throw Error('must not write')}},()=>defs);
+ assert(JSON.stringify(restored.commitOperation(reserved))===JSON.stringify(result),'replay across reload without policy or write');
+ const sword=s.holdingsFor(s.player).find(x=>x.record.definitionId==='sword').record;
+ const swordPlan=s.planSupply({actorId:s.player,selector:{definitionId:'sword'},quantity:1});
+ const swordResult=s.commitOperation({...cmd,operationId:'operation:2',payload:{...cmd.payload,allocations:swordPlan.allocations}});
+ assert(swordResult.ok&&JSON.stringify(s.holdingsFor('npc:a').find(x=>x.record.id===sword.id).record)===JSON.stringify(sword),'unique identity and attributes preserved');
+ return 14;
+}
+console.log('PASS shared item transfer operations: '+runTransferOperationTests()+' checks');

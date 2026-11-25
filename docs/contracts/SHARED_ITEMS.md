@@ -15,3 +15,9 @@
 - `reserve({operationId,actorId,allocations,expiresAt})`, `release(id)`: 현 단계는 소유 재고만 지원. itemEconomy의 선택 필드 reservations에 저장하고 재로드 시 검증. expiresAt는 논리 tick이며 실제 만료 처리는 scheduler 후속; 자동 실시간 만료 없음. 예약된 수량은 기존 trade/take/equip/merge에서 보호한다. 시장 예약·장소 용량·예약 소비·생산·공용 commitOperation은 아직 미구현.
 - 기존 trade/equip/gather 등의 저장 실패에서 Save.data의 모든 JSON root를 복구하도록 공통 경계를 보강. 저장 콜백의 외부 부작용/렌더 논리 상태 보호는 T4에서 별도 검증. 기존 레거시 API의 non-persist 변경은 유지.
 - 검증: 최신 main의 실제 원본 테스트와 추가 공급/예약/복구 테스트를 V8 격리 실행 PASS. 전체 Node/브라우저/카엘/PWA/인프라 검증 NOT RUN(DNS로 checkout 불가). 신규 콘텐츠 없음. 
+
+### T1 공용 operation 1차: 직접 제공
+
+- `registerTransferPolicy(id,validatePolicy)`는 trusted JS 코드의 검증기를 등록한다. 미등록 정책은 unsupported. 정책은 command/Save.data의 복제본만 전달받으며 순수 검증이어야 한다. 실제 거리·영업·관계 정책과 등록 호출은 런타임 연결 후속이다.
+- `canExecute(command)`는 효과 없이 검증, `commitOperation({operationId,kind:'transfer',actorId,payload:{recipientId,allocations,policyId,reservationId?,tick?}})`는 소유자의 복수 lot/unique 제공을 단일 저장 및 영수증으로 처리한다. 예약 사용 시 정확한 예약 할당과 유효 tick 필요. 미예약 제공은 fingerprint 및 가용량 재검증. 지갑 보존, offer 참조 정리, unique ID/속성 보존, 동일 ID 재실행 및 재로드 멱등성. 기존 trade와 동일 transactions ID namespace 사용. 미등록 정책/다른 kind는 unsupported. 생산/소비/거래/요청의 공통 operation 핸들러 및 여러 도메인 draft 효과는 후속.
+- 원본 12 시나리오, 공급/예약/복구 14 checks, 복수 실물 제공/영수증 14 checks V8 격리 실행 PASS. 전체 Node/브라우저 및 실제 게임 연결 NOT RUN.
