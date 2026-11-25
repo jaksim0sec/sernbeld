@@ -41,7 +41,7 @@ const {Townsfolk}=new Function('SHADOW','residentLOD',part('var Townsfolk = clas
 for(const preset of Object.values(quality.GRAPHICS)){
  const samples=[];
  const entry=[0,'plaza','idle'];
- const resident={x:10,y:0,z:0,entry,poseOffset:0,ch:{
+ const resident={def:{id:'performance-resident'},talkT:0,x:10,y:0,z:0,entry,poseOffset:0,ch:{
   group:{position:{set(){}},rotation:{}},setLOD(){},setShadow(){},animate(dt,t){samples.push(t);}
  }};
  const folk={entry:()=>entry,queue:[],list:[resident],quality:preset};
