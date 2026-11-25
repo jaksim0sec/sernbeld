@@ -134,3 +134,39 @@ function runProductionTests(){
  return 16;
 }
 console.log('PASS shared item production and consumption: '+runProductionTests()+' checks');
+
+function runMarketTests(){
+ const a=(v,m)=>{if(!v)throw Error(m)};
+ const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2}});
+ const save={data:{v:1,money:30},write(){return true}};
+ const s=createItemRuntime(save,()=>defs);
+ s.initialize();s.seedMerchant('npc:vendor','vendor');s.registerActor('npc:buyer','npc',30);s.registerActor('npc:other','npc',30);
+ for(const quality of [40,80]){
+  s.add('flower',2,quality);const r=s.holdingsFor(s.player).find(x=>x.record.definitionId==='flower'&&x.record.quality===quality).record;
+  a(s.trade({requestId:'stock:'+quality,actorId:s.player,counterpartyId:'npc:vendor',action:'sell',itemRecordId:r.id,quantity:2,expectedUnitPrice:2}).ok,'stock setup');
+ }
+ let open=true;
+ a(s.registerMarketPolicy('test:market',q=>open&&q.payload.allocations.every(a=>a.merchantId==='npc:vendor')).ok,'market policy');
+ const actorId='npc:buyer',plan=s.planSupply({actorId,selector:{definitionId:'flower'},sourceKinds:['market'],constraints:{accessibleMerchantIds:['npc:vendor']},quantity:3});
+ a(plan.ok&&plan.allocations.length===2,'multi-lot market plan');
+ const cmd={operationId:'buy:multi',actorId,kind:'purchase',payload:{allocations:plan.allocations,policyId:'test:market',tick:5}};
+ const lock={operationId:'market:hold',actorId,allocations:plan.allocations,expiresAt:6,policyId:'test:market',tick:4};
+ a(s.reserve(lock).ok,'market reservation');
+ const other={requestId:'other:buy',actorId:'npc:other',counterpartyId:'npc:vendor',action:'buy',itemRecordId:plan.allocations[0].recordId,quantity:1,expectedUnitPrice:4};
+ a(s.trade(other).reason==='reserved','existing trade respects market reservation');
+ const reserved={...cmd,payload:{...cmd.payload,reservationId:'market:hold'}};
+ open=false;a(s.commitOperation(reserved).reason==='unreachable','access revalidated at completion');
+ open=true;
+ const before=JSON.stringify(save.data);
+ save.write=()=>false;a(s.commitOperation(reserved).reason==='save_failed'&&JSON.stringify(save.data)===before,'market failure rollback');save.write=()=>true;
+ const merchantBefore=s.balance('npc:vendor'),receipt=s.commitOperation(reserved);
+ a(receipt.ok&&receipt.total===12&&s.balance(actorId)===18&&s.balance('npc:vendor')===merchantBefore+12&&s.count('flower',actorId)===3&&s.count('flower','npc:vendor')===1,'market atomic transfer and money');
+ a(s.snapshot().reservations.length===0,'market lock consumed');
+ a(JSON.stringify(s.commitOperation(reserved))===JSON.stringify(receipt),'market replay');
+ const remainder=s.planSupply({actorId:'npc:other',selector:{definitionId:'flower'},sourceKinds:['market'],constraints:{accessibleMerchantIds:['npc:vendor']},quantity:1});
+ a(s.reserve({...lock,operationId:'market:expire',actorId:'npc:other',allocations:remainder.allocations,expiresAt:7}).ok,'second reservation');
+ a(s.releaseExpiredReservations(7).released.length===0&&s.releaseExpiredReservations(8).released[0]==='market:expire','bounded logical expiry');
+ a(s.commitOperation({...cmd,operationId:'buy:other',actorId:'npc:other',payload:{...cmd.payload,allocations:remainder.allocations,tick:8}}).ok,'unlocked stock purchase');
+ return 14;
+}
+console.log('PASS shared item market purchases: '+runMarketTests()+' checks');

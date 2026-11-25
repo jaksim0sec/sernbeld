@@ -85,7 +85,11 @@ export function createItemRuntime(save,getDefinitions,events){
   check(unique(locks(s),l=>l.id),'duplicate reservation');
   for(const l of locks(s)){
    check(validId(l.id)&&owner(l.actorId)&&safe(l.expiresAt)&&Array.isArray(l.allocations)&&l.allocations.length>0&&unique(l.allocations,a=>a.recordId),'invalid reservation');
-   for(const a of l.allocations){const r=record(s,a.recordId);check(r&&r.usageType!=='permanent'&&available(holding(s,r.id),l.actorId)&&safe(a.quantity,1)&&locked(s,r.id)<=qty(r),'invalid reserved holding')}
+   for(const a of l.allocations){
+    const r=record(s,a.recordId),market=a.source==='market';
+    check(['owned','market'].includes(a.source)&&r&&r.usageType!=='permanent'&&available(holding(s,r.id),market?a.merchantId:l.actorId)&&safe(a.quantity,1)&&locked(s,r.id)<=qty(r),'invalid reserved holding');
+    if(market)check(validId(l.policyId)&&a.merchantId!==l.actorId&&safe(a.unitPrice)&&s.offers.some(o=>o.merchantId===a.merchantId&&o.stockRecordIds.includes(r.id)),'invalid market reservation');
+   }
   }
   return s;
  }
@@ -166,7 +170,7 @@ export function createItemRuntime(save,getDefinitions,events){
  }
  const equipped=(slot,actor=player)=>{const s=state(),h=s.holdings.find(h=>owns(h,actor)&&h.location.kind==='equipped'&&h.location.slotId===slot);return h?clone(record(s,h.itemRecordId)):null};
  function equip(actor,rid,slot){
-  return change(s=>{const r=record(s,rid),h=holding(s,rid);if(!r||!owns(h,actor)||locked(s,rid)>0||r.usageType!=='long_use'||r.wear===100||!slots.includes(slot))return fail('invalid_equipment');for(const a of s.holdings)if(owns(a,actor)&&a.location.kind==='equipped'&&a.location.slotId===slot)a.location=location(actor);h.location={kind:'equipped',holderId:actor,slotId:slot};return {ok:true,recordId:rid}},{persist:true});
+  return change(s=>{const r=record(s,rid),h=holding(s,rid);if(!r||!owns(h,actor)||locked(s,rid)>0||r.usageType!=='long_use'||r.wear===100||!slots.includes(slot))return fail('invalid_equipment');for(const a of s.holdings)if(owns(a,actor)&&a.location.kind==='equipped'&&a.location.slotId===slot)a.location=location(actor);h.location={kind:'equipped',holderId:actor,slotId:slot};for(const o of s.offers)o.stockRecordIds=o.stockRecordIds.filter(id=>id!==rid);return {ok:true,recordId:rid}},{persist:true});
  }
  function findDefinitions(q={}){return Object.values(defs()).filter(d=>(q.requiredTags??[]).every(t=>d.tags.includes(t))&&(!q.anyTags?.length||q.anyTags.some(t=>d.tags.includes(t)))&&(q.requiredCapabilities??[]).every(c=>d.capabilities.some(b=>b.capabilityId===c))&&(!q.usageType||d.usageType===q.usageType)&&(!q.category||d.category===q.category)&&(!q.skillId||d.skillLinks.some(l=>l.skillId===q.skillId)))}
  function tradeDefinition(merchant,id,action){
@@ -197,15 +201,22 @@ export function createItemRuntime(save,getDefinitions,events){
   for(const {available,...a} of candidates){const n=Math.min(remaining,available,a.unitPrice?Math.floor(budget/a.unitPrice):remaining);if(!n)continue;allocations.push({...a,quantity:n});remaining-=n;budget-=a.unitPrice*n;if(!remaining)break}
   return remaining?fail('unavailable'):{ok:true,allocations};
  }
- // Owned allocations only until access, market and scheduler contracts are integrated.
- function reserve({operationId,actorId,allocations,expiresAt}={}){
+ // Reserve stock without transferring ownership; money is checked again at purchase.
+ function reserve({operationId,actorId,allocations,expiresAt,policyId,tick}={}){
   if(!validId(operationId)||!safe(expiresAt)||!Array.isArray(allocations)||!allocations.length||new Set(allocations.map(a=>a?.recordId)).size!==allocations.length)return fail('invalid');
   return change(s=>{
-   const entry={id:operationId,actorId,expiresAt,allocations:clone(allocations)};
+   const market=allocations.every(a=>a?.source==='market');
+   if(!market&&!allocations.every(a=>a?.source==='owned'))return fail('unsupported');
+   const entry={id:operationId,actorId,expiresAt,allocations:clone(allocations),...(market?{policyId}: {})};
    const prior=locks(s).find(l=>l.id===operationId);
    if(prior)return equal(prior,entry)?{ok:true,reservation:prior}:fail('request_id_conflict');
    if(!wallet(s,actorId))return fail('invalid');
-   for(const a of allocations){
+   if(market){
+    if(!safe(tick)||tick>expiresAt)return fail('invalid');
+    const validation=checkPurchase(s,{operationId,kind:'purchase',actorId,payload:{policyId,allocations,tick}},null);
+    if(!validation.ok)return validation;
+   }
+   for(const a of market?[]:allocations){
     if(!a||a.source!=='owned'||!safe(a.quantity,1))return fail('unsupported');
     const r=record(s,a.recordId),h=holding(s,a.recordId);
     if(!r||!available(h,actorId)||r.usageType==='permanent'||a.expected!==JSON.stringify(canonical({record:r,holding:h})))return fail('stale');
@@ -219,7 +230,40 @@ export function createItemRuntime(save,getDefinitions,events){
   return change(s=>{if(s.reservations)s.reservations=s.reservations.filter(l=>l.id!==reservationId);return {ok:true}},{persist:true});
  }
  // Trusted code registers policy validators; production data cannot execute arbitrary handlers.
- const transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map();
+ const transferPolicies=new Map(), consumptionPolicies=new Map(), recipes=new Map(),marketPolicies=new Map();
+ function registerMarketPolicy(id,guard){
+  if(!validId(id)||typeof guard!=='function'||marketPolicies.has(id))return fail('invalid');
+  marketPolicies.set(id,guard);return {ok:true};
+ }
+ function releaseExpiredReservations(tick,limit=32){
+  if(!safe(tick)||!safe(limit,1))return fail('invalid');
+  const ids=locks(state()).filter(l=>l.expiresAt<tick).sort((a,b)=>a.expiresAt-b.expiresAt||(a.id<b.id?-1:a.id>b.id?1:0)).slice(0,limit).map(l=>l.id);
+  if(!ids.length)return {ok:true,released:[]};
+  const selected=new Set(ids);
+  return change(s=>{s.reservations=locks(s).filter(l=>!selected.has(l.id));return {ok:true,released:ids}},{persist:true});
+ }
+ function checkPurchase(s,q,reservation){
+  const {allocations,policyId}=q.payload,guard=marketPolicies.get(policyId);
+  if(!guard)return fail('unsupported');
+  if(reservation&&reservation.policyId!==policyId)return fail('stale');
+  if(!wallet(s,q.actorId)||!Array.isArray(allocations)||!allocations.length||new Set(allocations.map(a=>a?.recordId)).size!==allocations.length)return fail('invalid');
+  const sellers=new Map();let total=0;
+  for(const a of allocations){
+   if(!a||a.source!=='market'||!safe(a.quantity,1)||!safe(a.unitPrice)||a.merchantId===q.actorId)return fail('invalid');
+   const r=record(s,a.recordId),h=holding(s,a.recordId),w=wallet(s,a.merchantId);
+   if(!r||!w||r.usageType==='permanent'||!available(h,a.merchantId)||a.quantity>qty(r))return fail('unavailable');
+   if(a.quantity>qty(r)-locked(s,r.id,reservation?.id??null))return fail('reserved');
+   if(!reservation&&a.expected!==JSON.stringify(canonical({record:r,holding:h})))return fail('stale');
+   const offer=s.offers.find(o=>o.merchantId===a.merchantId&&o.stockRecordIds.includes(r.id));
+   if(!offer||offer.customerBuyPrice!==a.unitPrice||r.quality<(offer.minimumQuality??0))return fail('offer_mismatch');
+   const cost=a.unitPrice*a.quantity,next=(sellers.get(a.merchantId)??0)+cost;
+   if(!safe(cost)||!safe(next)||!safe(total+cost)||!safe(w.balance+next))return fail('funds');
+   sellers.set(a.merchantId,next);total+=cost;
+  }
+  if(wallet(s,q.actorId).balance<total)return fail('funds');
+  try{if(guard(clone(q),clone(save.data))!==true)return fail('unreachable')}catch{return fail('invalid_policy')}
+  return {ok:true,total,sellers:[...sellers]};
+ }
  const plain=o=>o!==null&&typeof o==='object'&&!Array.isArray(o);
  const validSelector=s=>plain(s)&&safe(s.quantity,1)&&
   (s.definitionId===undefined||!!def(s.definitionId))&&
@@ -276,14 +320,16 @@ export function createItemRuntime(save,getDefinitions,events){
  function prepareOperation(s,q){
   const prior=s.transactions.find(t=>t.request.requestId===q.requestId);
   if(prior)return equal(prior.request,q)?{ok:true,replay:clone(prior.result)}:fail('request_id_conflict');
-  if(!['transfer','consume','produce'].includes(q.kind))return fail('unsupported');
+  if(!['transfer','consume','produce','purchase'].includes(q.kind))return fail('unsupported');
   const {recipientId,allocations,reservationId,policyId,tick,recipeId}=q.payload;
   const transfer=q.kind==='transfer',consume=q.kind==='consume';
-  const policy=transfer?transferPolicies.get(policyId):consume?consumptionPolicies.get(policyId):recipes.get(recipeId);
+  const purchase=q.kind==='purchase';
+  const policy=transfer?transferPolicies.get(policyId):consume?consumptionPolicies.get(policyId):purchase?marketPolicies.get(policyId):recipes.get(recipeId);
   if(!policy)return fail('unsupported');
   if(!wallet(s,q.actorId)||(transfer&&(!wallet(s,recipientId)||recipientId===q.actorId))||!Array.isArray(allocations)||!allocations.length||new Set(allocations.map(a=>a?.recordId)).size!==allocations.length)return fail('invalid');
   const reservation=reservationId===undefined?null:locks(s).find(l=>l.id===reservationId);
   if(reservationId!==undefined&&(!reservation||reservation.actorId!==q.actorId||!safe(tick)||tick>reservation.expiresAt||!equal(reservation.allocations,allocations)))return fail('stale');
+  if(purchase)return checkPurchase(s,q,reservation);
   for(const a of allocations){
    if(!a||a.source!=='owned'||!safe(a.quantity,1))return fail('invalid');
    const r=record(s,a.recordId),h=holding(s,a.recordId);
@@ -304,12 +350,12 @@ export function createItemRuntime(save,getDefinitions,events){
  }
  function applyOperation(s,q,validation){
   if(!validation.ok||validation.replay)return validation.replay??validation;
-  const {recipientId,allocations,reservationId}=q.payload;
+  const {allocations,reservationId}=q.payload,recipientId=q.kind==='purchase'?q.actorId:q.payload.recipientId;
   if(reservationId!==undefined)s.reservations=s.reservations.filter(l=>l.id!==reservationId);
   const moved=[];
   for(const a of allocations){
    const r=record(s,a.recordId),h=holding(s,r.id);let moving=r;
-   if(q.kind!=='transfer'){
+   if(q.kind!=='transfer'&&q.kind!=='purchase'){
     if(a.quantity===qty(r))erase(s,r.id);else r.quantity-=a.quantity;
     moved.push({recordId:a.recordId,quantity:a.quantity});continue;
    }
@@ -318,6 +364,11 @@ export function createItemRuntime(save,getDefinitions,events){
    moving=merge(s,moving,recipientId);moved.push({recordId:moving.id,quantity:a.quantity});
   }
   const result={ok:true,operationId:q.operationId,kind:q.kind,allocations:moved};
+  if(q.kind==='purchase'){
+   wallet(s,q.actorId).balance-=validation.total;
+   for(const [seller,cost] of validation.sellers)wallet(s,seller).balance+=cost;
+   result.total=validation.total;
+  }
   if(q.kind==='consume')result.need={npcId:validation.npcId,needId:validation.needId,value:validation.value};
   if(q.kind==='produce'){
    result.outputs=[];
@@ -345,7 +396,7 @@ export function createItemRuntime(save,getDefinitions,events){
   }catch{return fail('invalid_operation')}
  }
  return {
-  planSupply,reserve,release,registerTransferPolicy,registerConsumptionPolicy,registerRecipe,canExecute,commitOperation,
+  planSupply,reserve,release,releaseExpiredReservations,registerTransferPolicy,registerConsumptionPolicy,registerRecipe,registerMarketPolicy,canExecute,commitOperation,
   initialize(){validate(state());for(const k of ['inv','uniqueItems','nextItemSerial','money','equip'])delete save.data[k];return true},snapshot:()=>clone(state()),player,count,entries(){return Object.keys(defs()).map(id=>[id,count(id)]).filter(([,n])=>n>0)},
   add(id,n=1,quality=50){change(s=>{addTo(s,player,id,n,quality);return true},{event:{action:'added',itemId:id,quantity:n}});return count(id)},
   take(id,n){if(!safe(n,1))throw Error('invalid quantity');return change(s=>{const a=s.records.filter(r=>r.definitionId===id&&r.usageType!=='permanent'&&available(holding(s,r.id),player));if(a.reduce((v,r)=>v+free(s,r),0)<n)return false;let left=n;for(const r of a){const k=Math.min(left,free(s,r));if(!k)continue;if(k===qty(r))erase(s,r.id);else r.quantity-=k;left-=k;if(!left)break}return true},{event:{action:'removed',itemId:id,quantity:n}})},

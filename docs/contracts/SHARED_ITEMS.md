@@ -28,3 +28,9 @@
 - `registerRecipe(id,{inputs,outputs,qualityPolicy,validate})`: 입력은 수량·definitionId/태그/category·minQuality, 출력은 definitionId/quantity. 장소/도구/능력 조건은 trusted guard가 확인하고 품질은 등록된 함수가 결정한다. `kind:'produce'` payload의 recipeId, allocations, inputBindings(입력 슬롯별 recordId/quantity), seed 및 선택 예약/tick 사용. 여러 입력 슬롯이 같은 lot를 사용할 때 합산 검증, 불필요한 입력/잘못된 품질/미등록 출력 거부. 산출물은 실제 도감 기준이며 임의 caller 출력은 사용하지 않는다. 예약 해제·재료 소모·산출물·영수증 원자 저장.
 - 등록/검증 함수는 신뢰된 코드 전용으로 순수하고 결정론적이어야 한다. 실제 정책·레시피는 추가하지 않았다. 필요도 상태 초기화, scheduler, 도구/장소 예약, 자동 만료, 시장 실행 및 종합 등록기 연결은 후속.
 - V8 원본 12 시나리오 + 추가 44 checks PASS. Node 전체·카엘·브라우저·PWA/인프라 NOT RUN. 
+
+### T1 복수 시장 구매·재고 예약
+
+- `registerMarketPolicy(id,guard)`로 신뢰된 접근/영업 검증기를 등록한다. `planSupply`의 market 할당을 `reserve({operationId,actorId,allocations,expiresAt,policyId,tick})`로 잠그고 `commitOperation({operationId,actorId,kind:'purchase',payload:{allocations,policyId,reservationId?,tick?}})`로 복수 상인의 실물과 은화를 단일 저장에서 이동한다. 구매 시 현재 offer 가격/품질/소유권/잔액/접근 정책 재확인. 기존 trade도 예약된 수량에 접근 불가. 예약은 재고만 잠그며 은화를 별도 예약하지 않는다; 구매 시 잔액 부족은 실패. mixed owned/market 할당은 각각 분리해서 사용.
+- `releaseExpiredReservations(tick,limit=32)`: 기존 expiresAt보다 큰 논리 tick에서 정렬된 최대 limit 예약을 해제. scheduler 호출 연결 후속. 기존 장착 시 해당 실물의 offer 노출 제거. 실제 상인 접근 정책 등록은 게임 연결 후속.
+- V8 원본 12 시나리오 + 추가 58 checks PASS. 전체 checkout/Node/카엘/브라우저/PWA NOT RUN.

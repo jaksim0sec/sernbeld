@@ -12,5 +12,5 @@
     "docs/contracts/SHARED_ITEMS.md"
   ],
   "dependencies": [],
-  "next": "T1 부분: 공급/소유 재고 예약/저장 복구/직접 제공/소비/생산 구현. 시장 거래·예약, 공통 gather/offer/request, merchant 등록 경계 및 T2 이후. 전체 검증 NOT RUN."
+  "next": "T1 부분: 공급/소유 및 시장 재고 예약/저장 복구/제공/소비/생산/복수 구매 및 만료 API 반영. 공통 gather/offer/request·merchant 초기 등록·게임 접근 정책 연결 및 T2 이후. 전체 검증 NOT RUN."
 }

@@ -11,3 +11,5 @@
 T1 추가: 정책 등록 기반 공용 `commitOperation` transfer/canExecute 구현, 기존 거래와 영수증 namespace 공유. V8 추가 14 checks PASS. 소비/생산/요청/시장 예약 및 등록 경로 연결은 미완료. 기존 blocked 상태 유지.
 
 T1 추가: 소비/생산 정책 등록 및 단일 저장, 명시 입력 슬롯 바인딩, 실제 재료 소모/산출물/필요 변화와 영수증. 추가 16 checks V8 PASS. 실제 콘텐츠 미등록. 시장 예약/실행·공통 gather/offer/request·등록 초기화/스케줄러 및 전체 검증은 미완료. blocked 유지.
+
+T1 추가: 정책 기반 복수 시장 구매 및 판매자 재고 예약·논리 만료 API, 기존 trade 경쟁 방지. 추가 14 checks V8 PASS. 실제 게임의 접근/영업·등록 연결, gather/offer/request 공통 핸들러, 스케줄러 및 전체 검증 미완료. blocked 유지.
