@@ -39,7 +39,8 @@ function placeholders(s,aliases,slot){
 function edges(n){return n.type==='speak'?[n.next]:n.type==='choice'?n.choices.map(c=>c.nextNode):n.type==='effect'?Object.values(n.outcomes):[];}
 export function validateTopicGraph(t,{regions=new Set(),profiles=new Map(),roles=new Set(),events=new Map(),topics=new Set(),handlers=new Set(),quests=new Set(),actions=new Set()}={}){
  const errors=[],bad=m=>errors.push(m);
- if(!shape(t,['id','version','source','topicId','priority','eligibility','slots','eventBinding','entryNode','nodes','cooldown','memoryPolicy','ambientPath'])||!id(t.id)||t.version!==1||!['named','personal','event'].includes(t.source)||!id(t.topicId)||!Number.isSafeInteger(t.priority)||Math.abs(t.priority)>10000||!id(t.entryNode)||!Array.isArray(t.nodes)||t.nodes.length<1||t.nodes.length>128){return ['invalid graph header'];}
+ if(!shape(t,['id','version','source','topicId','priority','eligibility','slots','eventBinding','entryNode','nodes','cooldown','memoryPolicy','ambientPath','label'])||!id(t.id)||t.version!==1||!['named','personal','event'].includes(t.source)||!id(t.topicId)||!Number.isSafeInteger(t.priority)||Math.abs(t.priority)>10000||!id(t.entryNode)||!Array.isArray(t.nodes)||t.nodes.length<1||t.nodes.length>128){return ['invalid graph header'];}
+ if(own(t,'label')&&!text(t.label))bad('invalid topic label');
  const e=t.eligibility;
  if(!shape(e,['npcIds','regionIds','roles','tags','conditions'])||!Array.isArray(e.conditions))return ['invalid eligibility'];
  for(const [k,set] of [['npcIds',profiles],['regionIds',regions],['roles',roles],['tags',null]])if(own(e,k)&&(!ids(e[k])||!e[k].length||set&&e[k].some(x=>!set.has(x))))bad('invalid eligibility '+k);
@@ -146,17 +147,18 @@ export function createTopicResolver(registry){
   else if(e.regionIds)for(const k of e.regionIds)put(byRegion,k,t);
   else global.push(t);
  }
- function resolve(x){
+ function resolve(x,{onlyTemplateId=null,ignoreCooldown=false}={}){
   const choices=new Map(),eligible=[...global,...(byNpc.get(x.npcId)??[]),...(byRole.get(x.role)??[]),...(byRegion.get(x.regionId)??[])];
   const services=Array.isArray(x.services)?x.services.slice():[]; // authoritative descriptors, not effects
   for(const t of eligible){
+   if(onlyTemplateId&&t.id!==onlyTemplateId)continue;
    const e=t.eligibility,slot=t.slots.find(s=>s.kind==='npc');
    if(!match(e.npcIds,x.npcId)||!match(e.roles,x.role)||!match(e.regionIds,x.regionId)||!all(e.tags,x.tags)||!all(slot.tags,x.tags)||slot.role&&slot.role!==x.role)continue;
-   if(t.cooldown&&own(x.lastTopicTicks,t.id)&&(!tick(x.now)||!tick(x.lastTopicTicks[t.id])||x.now-x.lastTopicTicks[t.id]<t.cooldown))continue;
+   if(!ignoreCooldown&&t.cooldown&&own(x.lastTopicTicks,t.id)&&(!tick(x.now)||!tick(x.lastTopicTicks[t.id])||x.now-x.lastTopicTicks[t.id]<t.cooldown))continue;
    const contexts=t.source==='event'?(Array.isArray(x.knownEvents)?x.knownEvents:[]).map(event=>eventContext(t,x,event)).filter(Boolean):[{event:null,facts:{}}];
    for(const context of contexts){
     if(t.source==='event'&&!registry.get('eventTypes',t.eventBinding.typeId)?.regionIds.includes(x.regionId))continue;
-    if(!topicConditionsPass(e.conditions,{...x,...context}))continue;
+    if(!topicConditionsPass(e.conditions,{...x,...context,choiceIds:[...(x.choiceIds??[]),...(x.choiceHistory??[]).filter(c=>c.templateId===t.id).map(c=>c.choiceId)]}))continue;
     const key=JSON.stringify([t.source==='event'?'event':'personal',t.topicId,context.event?.id??null]);
     if(!choices.has(key))choices.set(key,[]);
     choices.get(key).push({template:t,topicId:t.topicId,source:t.source,eventRef:context.event?{id:context.event.id,revision:context.event.revision}:null,facts:copy(context.facts),slotBinding:Object.fromEntries(t.slots.map(s=>[s.id,s.kind==='player'?'player':x.npcId]))});

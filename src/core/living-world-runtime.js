@@ -1,3 +1,4 @@
+import {createTopicResolver} from './npc-topic.js';
 import {createLivingWorldRegistry} from './living-world-registry.js';
 import {createLivingWorldState} from './living-world-state.js';
 import {createNpcScheduler} from './npc-scheduler.js';
@@ -18,11 +19,12 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
   const r=routeFor({npcId,from:npc.logicalPosition,placeId:action.placeId,metersPerTick:action.metersPerTick??1.35});
   return r?.ok?{ok:true,plan:{route:r.route}}:fail(r?.reason??'unreachable');
  }},...(content.handlers??{})};
- const registry=createLivingWorldRegistry({handlers:Object.keys(handlers),regions:[regionId],places,societyHandlers:Object.keys(content.societyHandlers??{})});
+ const registry=createLivingWorldRegistry({handlers:Object.keys(handlers),regions:[regionId],places,societyHandlers:Object.keys(content.societyHandlers??{}),dialogueHandlers:content.dialogueHandlers??[],dialogueActions:content.dialogueActions??[],dialogueQuests:content.dialogueQuests??[]});
  const defs=content.definitions??{},overrides=new Map((defs.profiles??[]).map(p=>[p.id,p]));
  if(overrides.size!==(defs.profiles??[]).length||[...overrides.keys()].some(id=>!known.has(id)))return fail('invalid_profile');
  const registered=registry.registerDefinitions({...defs,profiles:residents.map(n=>overrides.get(n.id)??{id:n.id,regionId,roleId:null,tags:n.role?[n.role]:[]})});
  if(!registered.ok)return registered;
+ const topics=createTopicResolver(registry);
  const society=createWorldSociety(registry,content.societyHandlers??{});
  const requests=createNpcRequests(registry);
  const participation=createNpcParticipation(registry,society,requests);
@@ -91,7 +93,13 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
  for(const job of scheduler.snapshot()??[])if(job.status==='paused'){
   const r=scheduler.resume(job.npcId,job.id);if(!r.ok)return r;
  }
- return {ok:true,managed:id=>managed.has(id),update,canTalk,beginTalk,
+ function topicContext(id,context={}){
+  const n=known.get(id),profile=registry.get('profiles',id),state=save.data.npcStates?.[id];
+  if(!n||!profile)return null;
+  return {...context,npcId:id,regionId,role:n.dialogueRole??n.role??profile.roleId,tags:[...new Set([...(profile.tags??[]),...(n.dialogueRole?[n.dialogueRole]:[])])],met:!!save.data.met?.[id],affinity:state?.relationships?.player?.affinity??0,knownEvents:lastResult.ok&&!pending?society.knownEvents(save.data,id):[],now:gameClockTick(clock)??0};
+ }
+ return {ok:true,managed:id=>managed.has(id),update,canTalk,beginTalk,topicContext,
+  resolveTopics:(id,context={},options={})=>{const x=topicContext(id,context);return x?topics.resolve(x,options):{topics:[],services:[]};},
   position:id=>managed.has(id)?scheduler.logicalPosition(id):null,
   conversationsEnabled:conversation.enabled,groupFor:conversation.groupFor,leaveGroup:conversation.leaveNpc,clearGroups:conversation.clear,
   updateConversations:args=>conversation.update({...args,regionId}),

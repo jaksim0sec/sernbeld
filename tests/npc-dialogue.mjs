@@ -45,6 +45,19 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   ui.say({id:'bran',name:'브란'},['다음 줄','종료'],[]);
   ui.closeSpeech();get('speechNext').click();
   check(get('speech').hidden&&ui.activeSpeaker===null,'close invalidates page progression');
+  const graph={id:'fixture.graph',topicId:'fixture.topic',label:'질문',entryNode:'intro',nodes:[
+    {id:'intro',type:'speak',pages:['대답 하나','대답 둘'],next:'ask'},
+    {id:'ask',type:'choice',choices:[{id:'follow',label:'더 묻기',conditions:[],nextNode:'answer'}]},
+    {id:'answer',type:'speak',pages:['마지막 대답'],next:'hub'},{id:'hub',type:'end',mode:'topicHub'}]};
+  const choice={template:graph,topicId:graph.topicId,source:'personal',facts:{},eventRef:null,slotBinding:{npc:'bran',player:'player'}};
+  const gs=createTopicSession({id:'bran'},'첫 인사',{resolve:()=>({topics:[choice],services:[]})});
+  ui.say({id:'bran',name:'브란'},'첫 인사',[],gs);
+  const oldTopic=get('speechOpts').children[0];oldTopic.click();oldTopic.click();
+  check(ui.speechSession===gs&&ui.activeSpeaker==='bran'&&get('speechText').textContent==='대답 하나','graph UI keeps anchor and rejects duplicate click');
+  get('speechNext').click();check(get('speechText').textContent==='대답 둘','graph page progression');
+  get('speechOpts').children[0].click();check(get('speechText').textContent==='마지막 대답'&&ui.speechSession===gs,'graph follow-up stays open');
+  check(get('speechOpts').children.length===2,'topic hub returns');
+  ui.closeSpeech();check(gs.status==='closed'&&ui.activeSpeaker===null,'graph close releases anchor');
   const folkSrc=source.slice(source.indexOf('var Townsfolk = class {'),source.indexOf('var turn ='));
   const Folk=Function('npcLinePool',folkSrc+'\nreturn Townsfolk;')(npcLinePool);
   const folk=Object.create(Folk.prototype);
@@ -63,7 +76,7 @@ function checkDialogue(source,html,css,npcLinePool,createDialogueSession) {
   return 'PASS: common interaction chip, persistent explicit conversation, one-shot action, ambient lifetime/cursor, separate choice layout';
 }
 import {readFileSync} from 'node:fs';
-import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession} from '../src/core/npc-dialogue.js';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession,createTopicSession} from '../src/core/npc-dialogue.js';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 console.log(checkDialogue(read('src/gameplay/gameplay.part.js'),read('index.html'),read('styles/menus-and-overlays.css'),npcLinePool,createDialogueSession));
 
@@ -133,3 +146,45 @@ function checkNpcRuntime(source,createNpcStateStore,selectNpcLine,npcLinePool,ru
 
 console.log(checkNpcData(createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction));
 console.log(checkNpcRuntime(read('src/gameplay/gameplay.part.js'),createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction));
+
+function checkGraphRunner(){
+ const a=(v,m)=>{if(!v)throw Error(m);};
+ const fixture=JSON.parse(read('tests/fixtures/npc-003-topics.json')),template=fixture.templates[0];
+ const topic={template,topicId:template.topicId,source:template.source,eventRef:null,facts:{},slotBinding:{npc:'bran',player:'player'}};
+ let service={id:'buy',itemId:'herb',quote:'q1',label:'거래'},reachable=true,executions=0,records=[];
+ const session=createTopicSession({id:'bran'},['one','two'],{reachable:()=>reachable,readContext:()=>({now:9}),resolve:()=>({topics:[topic],services:[service]}),executeService:()=>{executions++;return {ok:true,text:'구매 완료'};},remember:r=>records.push(r)});
+ a(session.canAdvance&&!session.choices.length,'legacy pages preserved');
+ a(session.advance()&&session.text==='two','legacy second page');
+ let token=session.choices[0].token,rev=session.revision;
+ a(session.select(0,rev,token)&&session.text==='첫 인사','graph selection');
+ a(!session.select(0,rev,token),'old revision rejected');
+ a(session.advance()&&session.text==='항구에 온 걸 환영하네.','graph second page');
+ a(session.choices.length===2,'graph choices');
+ a(session.select(0,session.revision,session.choices[0].token)&&session.text==='이곳은 카엘 항구라네.','first branch');
+ a(session.select(1,session.revision,session.choices[1].token)&&session.choices.length===2,'return topic hub');
+ a(records.some(r=>r.completed)&&records.some(r=>r.choiceId==='harbor'),'explicit memory callbacks');
+ token=session.choices[1].token;rev=session.revision;service={...service,quote:'q2'};
+ a(session.select(1,rev,token)&&executions===0,'stale service quote not executed');
+ a(session.select(1,session.revision,session.choices[1].token)&&executions===1&&session.text==='구매 완료'&&session.status==='active','service response stays in session');
+ reachable=false;a(session.select(0,session.revision,session.choices[0].token)&&session.status==='closed','reach revalidated');
+ const save={data:{v:1,met:{bran:1},npcStates:{}},write:()=>true},store=createNpcStateStore(save);store.ensure('bran','kael',7);
+ for(let i=0;i<20;i++)a(store.recordTopic('bran',{templateId:'fixture.named.bran',topicId:'fixture.harbor',choiceId:'harbor',tick:i,rememberChoice:true}),'memory write');
+ a(store.get('bran').memory.dialogue.choices.length===16&&store.get('bran').lineI===7,'bounded additive memory');
+ const before=JSON.stringify(store.get('bran'));save.write=()=>false;
+ a(!store.recordTopic('bran',{templateId:'fixture.named.bran',topicId:'fixture.harbor',choiceId:'back',tick:21,rememberChoice:true})&&JSON.stringify(store.get('bran'))===before,'memory write rollback');
+ a(save.data.v===1&&save.data.met.bran===1,'save version and met preserved');
+ const effectTemplate={...template,id:'fixture.effect',nodes:[{id:'ask',type:'choice',choices:[{id:'act',label:'행동',conditions:[],nextNode:'effect'}]},{id:'effect',type:'effect',action:{handlerId:'buy',argsRefs:{npc:{kind:'slot',id:'npc'}}},outcomes:{ok:'ok',fail:'fail',stale:'stale'}},...['ok','fail','stale'].map(id=>({id,type:'speak',pages:[id],next:'hub'})),{id:'hub',type:'end',mode:'topicHub'}],entryNode:'ask'};
+ for(const outcome of ['ok','fail','stale']){
+  let calls=0;const et={...topic,template:effectTemplate};
+  const s=createTopicSession({id:'bran'},'hello',{resolve:()=>({topics:[et],services:[]}),executeEffect:(id,args)=>{calls++;a(id==='buy'&&args.npc==='bran','effect bound slot');return outcome==='ok'?{ok:true}:{ok:false,reason:outcome};}});
+  s.select(0,s.revision,s.choices[0].token);a(calls===0,'topic entry has no effect');
+  const rev=s.revision,token=s.choices[0].token;s.select(0,rev,token);s.select(0,rev,token);
+  a(calls===1&&s.text===outcome,'effect branch and one-shot '+outcome);
+ }
+ const evt={...topic,eventRef:{id:'e',revision:1},facts:{amount:2}};let current=evt;
+ const es=createTopicSession({id:'bran'},'hello',{resolve:()=>({topics:[current],services:[]})});
+ es.select(0,es.revision,es.choices[0].token);current={...evt,eventRef:{id:'e',revision:2}};
+ a(es.advance()&&es.text==='지금은 그 이야기를 계속하기 어려워요.','changed event revision abandons stale graph');
+ return 'PASS: graph runner, same-session UI, stale input/service, effect outcomes, memory rollback';
+}
+console.log(checkGraphRunner());

@@ -42,5 +42,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T3: 등록/화제 resolver 격리 회귀 PASS. 단일 runner 및 기존 UI·서비스 adapter 연결, hold/저장/중복 선택 회귀. T2 전체 CI 미확인."
+  "next": "NPC-003/T3: 코어·실제 게임 UI/서비스 adapter 구현 및 V8 회귀 PASS; 최종 CI/경제·브라우저·hold 검증 확인 후 T4 진행. PARTIAL."
 }

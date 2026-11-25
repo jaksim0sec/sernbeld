@@ -46798,7 +46798,7 @@ import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createItemRuntime, extendItemDefinitions} from './src/core/shared-items.js';
 import {createRegionLifecycle} from './src/core/region-lifecycle.js';
-import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession} from './src/core/npc-dialogue.js';
+import {createNpcStateStore,selectNpcLine,npcLinePool,runNpcAction,createDialogueSession,createTopicSession} from './src/core/npc-dialogue.js';
 import {validateSkill, compileSkill} from './src/core/skill-engine.js';
 import {createSkillLibrary} from './src/core/skill-library.js';
 import {createSkillWorkbench} from './src/ui/skill-workbench.js';
@@ -51348,11 +51348,12 @@ var GameUI = class {
     $2("speech").hidden = true;
     if (this.prompt && !this.prompt.hidden) this.prompt.focus({preventScroll:true});
   }
-  say(def, line, options = []) {
+  say(def, line, options = [], graphSession = null) {
+    if(this.speechCapture?.id===def.id){this.speechCapture.text=line;return;}
     const sp=$2("speech"),box3=$2("speechOpts"),dismiss=$2("speechDismiss"),nextButton=$2("speechNext");
     this.speechFinishTyping?.();
     this.speechSession?.close();
-    const session=createDialogueSession(def,line,options);
+    const session=graphSession??createDialogueSession(def,line,options);
     this.speechSession=session;
     this.activeSpeaker=session.speakerId;
     $2("speechName").textContent=def.name;
@@ -51388,12 +51389,18 @@ var GameUI = class {
         frame=requestAnimationFrame(step);
       }
       nextButton.hidden=!session.canAdvance;
+      const revision=session.revision;
+      nextButton.onclick=()=>{
+        if(this.speechSession!==session||sp.hidden||!session.advance(revision))return;
+        if(session.status==='closed')this.closeSpeech();else render();
+      };
       box3.replaceChildren(...session.choices.map((o,index)=>{
         const b=el("button","interaction-token");b.type="button";
         b.append(this.interactionIcon(o.kind,o.itemId));
         const label=el("span","what");label.textContent=o.label;b.append(label);
         b.addEventListener("click",()=>{
-          if(this.speechSession!==session||sp.hidden||!session.select(index))return;
+          if(this.speechSession!==session||sp.hidden||!session.select(index,revision,o.token))return;
+          if(session.graph){if(session.status==='closed')this.closeSpeech();else render();return;}
           this.closeSpeech();
           options[index].act?.();
         });
@@ -51401,9 +51408,6 @@ var GameUI = class {
       }),dismiss);
       box3.scrollTop=0;
       (session.canAdvance?nextButton:box3.firstElementChild??dismiss).focus({preventScroll:true});
-    };
-    nextButton.onclick=()=>{
-      if(this.speechSession===session&&!sp.hidden&&session.advance())render();
     };
     dismiss.onclick=()=>{if(this.speechSession===session)this.closeSpeech();};
     sp.hidden=false;
@@ -51820,6 +51824,7 @@ function townsfolk() {
       title: { vendor: "\uC0C1\uC778", docker: "\uBD80\uB450 \uC77C\uAFBC", folk: "\uC8FC\uBBFC", kid: "\uC544\uC774", guard: "\uACBD\uBE44\uBCD1" }[job],
       scale: J.scale ?? 0.94 + r() * 0.1,
       role: job === "vendor" ? "vendor" : void 0,
+      dialogueRole:job,
       day: J.day(stall2),
       lines: { day: J.lines, night: ["\uC774\uC81C \uB4E4\uC5B4\uAC00 \uBD10\uC57C\uC9C0."] },
       minor: true
@@ -52032,8 +52037,8 @@ var Townsfolk = class {
   talk(n,player) {
     if(!this.canReach(n,player))return false;
     const met=Save.data.met??(Save.data.met={});
-    const line=selectNpcLine(n.def,{met:!!met[n.def.id],cursor:n.lineI,hour:this.hour??12,custom:this.lineFor?.(n.def)});
-    if(!line||this.living?.beginTalk(n.def.id)===false)return false;
+    const line=selectNpcLine(n.def,{met:!!met[n.def.id],cursor:n.lineI,hour:this.hour??12,custom:this.lineFor?.(n.def)})??{text:'안녕하세요.',first:false,nextCursor:n.lineI};
+    if(this.living?.beginTalk(n.def.id)===false)return false;
     const groupLine=this.living?.participationLine?.(n.def.id);
     if(groupLine){n.talkT=5;if(n.ch)n.ch.talk=2.4;this.onSay?.(n.def,groupLine);return true;}
     if(line.first)met[n.def.id]=1;
@@ -52213,6 +52218,20 @@ var Society = class {
   }
   options(def) {
     return this.choices(def).map(choice=>({...choice,act:()=>this.executeChoice(def,choice)}));
+  }
+  topicService(def,choice) {
+    const capture={id:def.id,text:undefined},prior=this.ui.speechCapture;
+    this.ui.speechCapture=capture;
+    try{
+      const result=this.executeChoice(def,choice);
+      return {...result,text:capture.text,close:result.reason==='unreachable'||result.ok&&capture.text===undefined};
+    }finally{this.ui.speechCapture=prior;}
+  }
+  topicEffect(def,handlerId,args) {
+    if(['guild.board','inn.sleep'].includes(handlerId)||Object.keys(args).some(k=>!['npc','itemId'].includes(k))||args.npc!==undefined&&args.npc!==def.id)return {ok:false,reason:'stale'};
+    const choices=this.choices(def).filter(c=>c.id===handlerId&&(args.itemId===undefined||c.itemId===args.itemId));
+    if(choices.length!==1)return {ok:false,reason:'stale'};
+    return this.topicService(def,choices[0]);
   }
   executeChoice(def,choice) {
     let response=null;
@@ -53406,7 +53425,20 @@ async function boot() {
     return d<.05 || maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
   };
   folk.lineFor = (def) => society.line(def);
-  folk.onSay = (def, line) => ui.say(def, line, society.options(def));
+  folk.onSay = (def, line) => {
+    if(!folk.living?.resolveTopics){ui.say(def,line,society.options(def));return;}
+    const resident=folk.list.find(n=>n.def.id===def.id);
+    const readContext=()=>{
+      const state=Save.data.npcStates?.[def.id],memory=state?.memory?.dialogue??{},services=society.choices(def);
+      return folk.living.topicContext(def.id,{activity:resident?.entry?.[2]??state?.activity??'idle',cursor:resident?.lineI??0,
+        services,actionIds:[...new Set(services.map(s=>s.id))],choiceHistory:memory.choices??[],topicIds:memory.topics??[],
+        lastTopicTicks:memory.lastTopicTicks??{},lastTemplateId:memory.lastTemplateId});
+    };
+    const session=createTopicSession(def,line,{readContext,resolve:(context,options)=>folk.living.resolveTopics(def.id,context,options),
+      reachable:()=>society.canInteract(def),executeService:choice=>society.topicService(def,choice),executeEffect:(id,args)=>society.topicEffect(def,id,args),
+      remember:record=>NpcState.recordTopic(def.id,record)});
+    ui.say(def,line,[],session);
+  };
   folk.state=NpcState; folk.now=()=>({day:clock.day,hour:clock.hour});
   society.state=NpcState;
   society.canInteract=def=>WorldRegions.isActive(region.id)&&folk.canReach(folk.list.find(n=>n.def.id===def.id),player);
@@ -53444,7 +53476,7 @@ async function boot() {
       return d<.05||maktwoWorldRay(from,{x:dx/d,y:dy/d,z:dz/d},d)>=d-.04;
   };
   const living=createLivingWorldRuntime({save:Save,getDefinitions:()=>ITEMS,regionId:region.id,clock,
-    residents:folk.list.map(n=>({id:n.def.id,role:n.def.role,position:{x:n.x,y:n.y,z:n.z}})),
+    residents:folk.list.map(n=>({id:n.def.id,role:n.def.role,dialogueRole:n.def.dialogueRole,position:{x:n.x,y:n.y,z:n.z}})),
     places:[...new Set(['home',...Object.keys(region.places)])],content:livingWorldContent,
     routeFor({npcId,from,placeId,metersPerTick}){
       const n=residentById.get(npcId),p=placeId==='home'?n?.home:region.places[placeId];
@@ -53786,7 +53818,7 @@ async function boot() {
         }
       } else if (!fullMap.isOpen() && code === "KeyI") ui.toggleBag();
     }
-    if(ui.dialogueOpen()&&!WorldRegions.isActive(region.id))ui.closeSpeech();
+    if(ui.dialogueOpen()&&(!WorldRegions.isActive(region.id)||ui.speechSession?.graph&&!society.canInteract({id:ui.activeSpeaker})))ui.closeSpeech();
     clock.update(dt);
     if(living.ok)living.update(ui.activeSpeaker);
     folk.hour = clock.hour;
