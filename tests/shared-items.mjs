@@ -91,3 +91,46 @@ function runTransferOperationTests(){
  return 14;
 }
 console.log('PASS shared item transfer operations: '+runTransferOperationTests()+' checks');
+
+function runProductionTests(){
+ const a=(v,m)=>{if(!v)throw Error(m)};
+ const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2},food:{kind:'material',rarity:'common',name:'food',value:4,category:'food'}});
+ const save={data:{v:1,npcStates:{a:{needs:{hunger:80},lineI:2}}},write(){return true}};
+ const events=[],s=createItemRuntime(save,()=>defs,{emit:(...args)=>events.push(args)}),actorId='npc:a';
+ s.initialize();s.registerActor(actorId);s.createFor(actorId,'flower',2,40);s.createFor(actorId,'flower',2,80);
+ const plan=s.planSupply({actorId,selector:{definitionId:'flower'},quantity:3});
+ const allocations=plan.allocations;
+ const bindings=[{inputIndex:0,recordId:allocations[0].recordId,quantity:2},{inputIndex:1,recordId:allocations[1].recordId,quantity:1}];
+ const prod={operationId:'make:1',actorId,kind:'produce',payload:{recipeId:'test:recipe',allocations,inputBindings:bindings,seed:5,tick:2}};
+ a(s.commitOperation(prod).reason==='unsupported','no recipe, no production');
+ a(!s.registerRecipe('test:invalid',{inputs:[{definitionId:'flower',quantity:0}],outputs:[{definitionId:'food',quantity:1}],qualityPolicy:()=>80,validate:()=>true}).ok,'invalid recipe registration');
+ a(s.registerRecipe('test:recipe',{inputs:[{definitionId:'flower',quantity:2},{definitionId:'flower',quantity:1,minQuality:70}],outputs:[{definitionId:'food',quantity:1}],qualityPolicy:()=>60,validate:(_q,d)=>d.npcStates.a.lineI===2}).ok,'recipe registration');
+ a(s.commitOperation({...prod,payload:{...prod.payload,inputBindings:[...bindings,{...bindings[0]}]}}).reason==='input_mismatch','duplicate input rejected');
+ a(s.commitOperation({...prod,payload:{...prod.payload,inputBindings:[{...bindings[0],inputIndex:1},{...bindings[1],inputIndex:0}]}}).reason==='input_mismatch','wrong ingredient quality rejected');
+ a(s.reserve({operationId:'make:hold',actorId,allocations,expiresAt:4}).ok,'reserve ingredients');
+ const reserved={...prod,payload:{...prod.payload,reservationId:'make:hold'}};
+ const before=JSON.stringify(save.data),n=events.length;
+ a(s.canExecute(reserved).ok&&JSON.stringify(save.data)===before,'pure production check');
+ save.write=()=>{save.data.npcStates.a.lineI=99;throw Error('failed')};
+ a(s.commitOperation(reserved).reason==='save_failed'&&JSON.stringify(save.data)===before&&events.length===n,'production atomic rollback');
+ save.write=()=>true;
+ const receipt=s.commitOperation(reserved);
+ a(receipt.ok&&s.count('flower',actorId)===1&&s.count('food',actorId)===1&&s.snapshot().reservations.length===0,'production atomically completes');
+ a(s.holdingsFor(actorId).find(x=>x.record.definitionId==='food').record.quality===60,'quality policy');
+ const after=JSON.stringify(save.data);
+ a(JSON.stringify(s.commitOperation(reserved))===JSON.stringify(receipt)&&JSON.stringify(save.data)===after,'production idempotent');
+ const foodPlan=s.planSupply({actorId,selector:{definitionId:'food'},quantity:1});
+ const meal={operationId:'meal:1',actorId,kind:'consume',payload:{policyId:'test:meal',allocations:foodPlan.allocations}};
+ a(s.commitOperation(meal).reason==='unsupported','no consumption effect without policy');
+ a(s.registerConsumptionPolicy('test:meal',{input:{definitionId:'food',quantity:1},effect:{needId:'hunger',delta:-35,min:0,max:100},validate:()=>true}).ok,'consumption registration');
+ const mealBefore=JSON.stringify(save.data),mealEvents=events.length;
+ save.write=()=>false;
+ a(s.commitOperation(meal).reason==='save_failed'&&JSON.stringify(save.data)===mealBefore&&events.length===mealEvents,'food and need rollback together');
+ save.write=()=>true;
+ const mealResult=s.commitOperation(meal);
+ a(mealResult.ok&&s.count('food',actorId)===0&&save.data.npcStates.a.needs.hunger===45&&save.data.npcStates.a.lineI===2,'real consumption and need effect');
+ const restored=createItemRuntime({data:JSON.parse(JSON.stringify(save.data)),write(){throw Error('replay must not save')}},()=>defs);
+ a(JSON.stringify(restored.commitOperation(meal))===JSON.stringify(mealResult),'consumption replay after reload');
+ return 16;
+}
+console.log('PASS shared item production and consumption: '+runProductionTests()+' checks');

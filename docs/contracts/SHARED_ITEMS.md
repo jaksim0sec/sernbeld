@@ -21,3 +21,10 @@
 - `registerTransferPolicy(id,validatePolicy)`는 trusted JS 코드의 검증기를 등록한다. 미등록 정책은 unsupported. 정책은 command/Save.data의 복제본만 전달받으며 순수 검증이어야 한다. 실제 거리·영업·관계 정책과 등록 호출은 런타임 연결 후속이다.
 - `canExecute(command)`는 효과 없이 검증, `commitOperation({operationId,kind:'transfer',actorId,payload:{recipientId,allocations,policyId,reservationId?,tick?}})`는 소유자의 복수 lot/unique 제공을 단일 저장 및 영수증으로 처리한다. 예약 사용 시 정확한 예약 할당과 유효 tick 필요. 미예약 제공은 fingerprint 및 가용량 재검증. 지갑 보존, offer 참조 정리, unique ID/속성 보존, 동일 ID 재실행 및 재로드 멱등성. 기존 trade와 동일 transactions ID namespace 사용. 미등록 정책/다른 kind는 unsupported. 생산/소비/거래/요청의 공통 operation 핸들러 및 여러 도메인 draft 효과는 후속.
 - 원본 12 시나리오, 공급/예약/복구 14 checks, 복수 실물 제공/영수증 14 checks V8 격리 실행 PASS. 전체 Node/브라우저 및 실제 게임 연결 NOT RUN.
+
+### T1 소비·생산 operation
+
+- `registerConsumptionPolicy(id,{input,effect,validate})`: 명시적인 단기 lot selector, 필요도 효과와 trusted JS 조건 검증기를 등록한다. `effect={needId,delta,min,max}`는 기존 NPC의 초기화된 숫자형 `npcStates[id].needs[needId]`만 변경한다. ingredient planned capability만으로는 소비할 수 없다. `commitOperation({operationId,actorId,kind:'consume',payload:{policyId,allocations,reservationId?,tick?}})`는 실제 재고와 필요도 변경을 하나의 저장 경계에서 확정한다.
+- `registerRecipe(id,{inputs,outputs,qualityPolicy,validate})`: 입력은 수량·definitionId/태그/category·minQuality, 출력은 definitionId/quantity. 장소/도구/능력 조건은 trusted guard가 확인하고 품질은 등록된 함수가 결정한다. `kind:'produce'` payload의 recipeId, allocations, inputBindings(입력 슬롯별 recordId/quantity), seed 및 선택 예약/tick 사용. 여러 입력 슬롯이 같은 lot를 사용할 때 합산 검증, 불필요한 입력/잘못된 품질/미등록 출력 거부. 산출물은 실제 도감 기준이며 임의 caller 출력은 사용하지 않는다. 예약 해제·재료 소모·산출물·영수증 원자 저장.
+- 등록/검증 함수는 신뢰된 코드 전용으로 순수하고 결정론적이어야 한다. 실제 정책·레시피는 추가하지 않았다. 필요도 상태 초기화, scheduler, 도구/장소 예약, 자동 만료, 시장 실행 및 종합 등록기 연결은 후속.
+- V8 원본 12 시나리오 + 추가 44 checks PASS. Node 전체·카엘·브라우저·PWA/인프라 NOT RUN. 
