@@ -1,7 +1,7 @@
 {
   "id": "NPC-003",
-  "status": "planned",
-  "baseline": "ab10c9a223d45becfce0629a47f28ee2fd1a0b83",
+  "status": "in_progress",
+  "baseline": "a2299baa692ec2c70b0d90ad8a702b269b4b2f86",
   "detail": "docs/tasks/active/NPC-003.md",
   "scope": [
     "src/core/npc-dialogue.js",
@@ -25,7 +25,10 @@
     "docs/contracts/NPC_DIALOGUE.md",
     "docs/contracts/LIVING_WORLD.md",
     "docs/workflows/LIVING_WORLD_CONTENT.md",
-    "docs/core/CURRENT_STATE.md"
+    "docs/core/CURRENT_STATE.md",
+    "src/core/npc-topic.js",
+    "tests/npc-topic.mjs",
+    "tests/fixtures/npc-003-topics.json"
   ],
   "contracts": [
     "docs/contracts/NPC_DIALOGUE.md",
@@ -39,5 +42,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T1: 최신 main에서 대화 흐름 재현 및 통합 계약 확정. TODO 대기, WORLD-001/PERF-001 등 점유 조정 전 구현 금지."
+  "next": "NPC-003/T2: T1 계약/fixture 및 점유 인계 완료, 공용 등록·검증·topic resolver 구현과 단위 회귀. 전체 Node/브라우저 검증은 미실행."
 }

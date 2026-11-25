@@ -17,4 +17,4 @@
 | 아이템·스킬·저장 | [코어](../../src/core/), [게임 진입](../../src/gameplay/gameplay.part.js), [산출물 계약](../contracts/DELIVERABLES.md) | 등록·저장 API와 런타임 호출 경로를 각각 확인 |
 | 빌드·배포 | [검증·통합](../validation/VALIDATION_POLICY.md), [PWA](../PWA.md) | 배포된 SHA, 검증한 SHA, 작업 HEAD를 구분 |
 
-| 생활 세계 인프라 | [계약](../contracts/LIVING_WORLD.md), [작업 기록](../tasks/active/WORLD-001.md) | 공용 경제·등록·스케줄러·논리 이동·사건·담화 LOD·필요 기반 요청/친화도 및 직접/그룹 대화 연결; 카엘 상인 3명 실제 납품 의뢰와 상인/부두 일꾼 2~4인 담화 등록; 기존 일과 유지. [콘텐츠 작성](../workflows/LIVING_WORLD_CONTENT.md), 통합 fixture 및 CI 등록. 최신 main 59759df CI의 Chromium/PWA 검증 PASS(기존 지도 터치 유예); 관리형 정책의 실브라우저 fixture·30분 및 실기기 검증 미완료; 신규 생산 콘텐츠의 실게임 검증도 별도 |
+| 생활 세계 인프라 | [계약](../contracts/LIVING_WORLD.md), [작업 기록](../tasks/archive/WORLD-001.md) | 공용 경제·등록·스케줄러·논리 이동·사건·담화 LOD·필요 기반 요청/친화도 및 직접/그룹 대화 연결; 카엘 상인 3명 실제 납품 의뢰와 상인/부두 일꾼 2~4인 담화 등록; 기존 일과 유지. [콘텐츠 작성](../workflows/LIVING_WORLD_CONTENT.md), 통합 fixture 및 CI 등록. 최신 main 59759df CI의 Chromium/PWA 검증 PASS(기존 지도 터치 유예); 관리형 정책의 실브라우저 fixture·30분 및 실기기 검증 미완료; 신규 생산 콘텐츠의 실게임 검증도 별도; 베타 구현 종결 및 점유 해제, 잔여 검증 TODO 유지 |

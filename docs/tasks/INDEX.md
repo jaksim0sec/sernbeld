@@ -32,7 +32,7 @@ TRACE의 작업 주소는 `AREA-NNN` 또는 `AREA-NNN/Tn`이다. 작업 ID는 �
 
 [공용 아이템/NPC 경제 1차](active/ITEM-001.md)
 
-[생활 세계 베타 인프라](active/WORLD-001.md)
+[생활 세계 베타 인프라](archive/WORLD-001.md)
 
 [기본 셔츠 품질 회귀](active/GARMENT-001.md)
 

@@ -1,8 +1,8 @@
 {
   "id": "WORLD-001",
-  "status": "in_progress",
+  "status": "done",
   "baseline": "ce03b4b73ed5573d528fcf5daf074715be1a6429",
-  "detail": "docs/tasks/active/WORLD-001.md",
+  "detail": "docs/tasks/archive/WORLD-001.md",
   "scope": [
     "src/core/living-world-registry.js",
     "src/core/living-world-state.js",
@@ -43,5 +43,5 @@
   "dependencies": [
     "ITEM-001"
   ],
-  "next": "T8 전용 Actions smoke/30분 soak 결과 확인, 실패 시 원인 수정. 기존 전체 CI 및 별도 실기기 성능/전체 UI·사건·그룹/고빈도 7일 검증 기준 유지. PARTIAL."
+  "next": "구현 종결·점유 해제(사용자 승인). T8 검증 PARTIAL; smoke/30분 soak·실카엘 콘텐츠·사건/그룹·고빈도 7일·실기기 잔여는 docs/core/TODO.md에서 추적. NPC-003에 순차 인계."
 }

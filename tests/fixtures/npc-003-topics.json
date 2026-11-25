@@ -1,0 +1,325 @@
+{
+  "description": "NPC-003 T1 synthetic fixtures, not production content. T2 registration/resolver and T3 runner expectations.",
+  "region": "sernbeld",
+  "templates": [
+    {
+      "id": "fixture.named.bran",
+      "version": 1,
+      "source": "named",
+      "topicId": "fixture.harbor",
+      "priority": 10,
+      "eligibility": {
+        "npcIds": [
+          "bran"
+        ],
+        "conditions": []
+      },
+      "slots": [
+        {
+          "id": "npc",
+          "kind": "npc"
+        },
+        {
+          "id": "player",
+          "kind": "player"
+        }
+      ],
+      "entryNode": "intro",
+      "nodes": [
+        {
+          "id": "intro",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "첫 인사",
+            "항구에 온 걸 환영하네."
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "type": "choice",
+          "choices": [
+            {
+              "id": "harbor",
+              "label": "항구에 대해",
+              "conditions": [],
+              "nextNode": "answer"
+            },
+            {
+              "id": "back",
+              "label": "다른 이야기",
+              "conditions": [],
+              "nextNode": "hub"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "이곳은 카엘 항구라네."
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "hub",
+          "type": "end",
+          "mode": "topicHub"
+        }
+      ]
+    },
+    {
+      "id": "fixture.personal.docker",
+      "version": 1,
+      "source": "personal",
+      "topicId": "fixture.harbor",
+      "priority": 5,
+      "eligibility": {
+        "roles": [
+          "docker"
+        ],
+        "conditions": []
+      },
+      "slots": [
+        {
+          "id": "npc",
+          "kind": "npc"
+        },
+        {
+          "id": "player",
+          "kind": "player"
+        }
+      ],
+      "entryNode": "intro",
+      "nodes": [
+        {
+          "id": "intro",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "오늘 일은 좀 바쁘네."
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "type": "choice",
+          "choices": [
+            {
+              "id": "work",
+              "label": "일은 어때요?",
+              "conditions": [],
+              "nextNode": "answer"
+            },
+            {
+              "id": "back",
+              "label": "다른 이야기",
+              "conditions": [],
+              "nextNode": "hub"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "짐을 정리하고 있어."
+          ],
+          "next": "hub"
+        },
+        {
+          "id": "hub",
+          "type": "end",
+          "mode": "topicHub"
+        }
+      ]
+    },
+    {
+      "id": "fixture.personal.common",
+      "version": 1,
+      "source": "personal",
+      "topicId": "fixture.harbor",
+      "priority": 0,
+      "eligibility": {
+        "regionIds": [
+          "sernbeld"
+        ],
+        "conditions": []
+      },
+      "slots": [
+        {
+          "id": "npc",
+          "kind": "npc"
+        },
+        {
+          "id": "player",
+          "kind": "player"
+        }
+      ],
+      "entryNode": "intro",
+      "nodes": [
+        {
+          "id": "intro",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "안녕하세요."
+          ],
+          "next": "hub"
+        },
+        {
+          "id": "hub",
+          "type": "end",
+          "mode": "topicHub"
+        }
+      ]
+    },
+    {
+      "id": "fixture.event.supply",
+      "version": 1,
+      "source": "event",
+      "topicId": "fixture.supply",
+      "priority": 5,
+      "eligibility": {
+        "regionIds": [
+          "sernbeld"
+        ],
+        "conditions": []
+      },
+      "slots": [
+        {
+          "id": "npc",
+          "kind": "npc"
+        },
+        {
+          "id": "player",
+          "kind": "player"
+        }
+      ],
+      "eventBinding": {
+        "typeId": "fixture.shortage",
+        "factRefs": [
+          {
+            "alias": "amount",
+            "slotId": "npc",
+            "factKey": "amount"
+          }
+        ]
+      },
+      "entryNode": "intro",
+      "nodes": [
+        {
+          "id": "intro",
+          "type": "speak",
+          "speakerSlot": "npc",
+          "pages": [
+            "물건이 {amount}개 부족해요."
+          ],
+          "next": "hub"
+        },
+        {
+          "id": "hub",
+          "type": "end",
+          "mode": "topicHub"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "named_priority",
+      "npcId": "bran",
+      "role": null,
+      "expected": [
+        "fixture.named.bran"
+      ]
+    },
+    {
+      "id": "role_fallback",
+      "npcId": "docker0",
+      "role": "docker",
+      "expected": [
+        "fixture.personal.docker"
+      ]
+    },
+    {
+      "id": "region_fallback",
+      "npcId": "folk0",
+      "role": "folk",
+      "expected": [
+        "fixture.personal.common"
+      ]
+    },
+    {
+      "id": "event_independent",
+      "npcId": "docker0",
+      "role": "docker",
+      "event": {
+        "id": "fixture.event.1",
+        "typeId": "fixture.shortage",
+        "revision": 3,
+        "state": "active",
+        "facts": {
+          "amount": 2
+        }
+      },
+      "expected": [
+        "fixture.personal.docker",
+        "fixture.event.supply"
+      ]
+    },
+    {
+      "id": "event_unknown_fact",
+      "npcId": "docker0",
+      "role": "docker",
+      "event": {
+        "id": "fixture.event.1",
+        "typeId": "fixture.shortage",
+        "revision": 3,
+        "state": "active",
+        "facts": {}
+      },
+      "expected": [
+        "fixture.personal.docker"
+      ]
+    },
+    {
+      "id": "event_resolved",
+      "npcId": "docker0",
+      "role": "docker",
+      "event": {
+        "id": "fixture.event.1",
+        "typeId": "fixture.shortage",
+        "revision": 4,
+        "state": "resolved",
+        "facts": {
+          "amount": 2
+        }
+      },
+      "expected": [
+        "fixture.personal.docker"
+      ]
+    }
+  ],
+  "rejectionCases": [
+    "duplicate template id",
+    "unknown node reference",
+    "automatic speak cycle",
+    "missing exit from user choice loop",
+    "unknown condition",
+    "unregistered event type or fact",
+    "placeholder owned by wrong speaker",
+    "unknown effect handler"
+  ],
+  "regressionCases": [
+    "missing personal line must not block reachable group or service",
+    "nonterminal choice advances without closing UI or releasing hold",
+    "stale choice token cannot run effect",
+    "current ambient turn and offset preserved when joining",
+    "legacy cursor and first greeting preserved",
+    "no effect on ordinary speech or ambient playback"
+  ]
+}
