@@ -58,7 +58,9 @@ for(const [eye,legacy] of [['reference-squint','smiling'],['reference-closed','c
  const row=7,centre=48*row*3;
  const thickness=Math.abs(mesh.base[centre+1]-mesh.base[centre+6*3+1]);
  assert(thickness>.028&&thickness<.034,'Closed-eye stroke must use the new set thickness');
- const old=factory.build(normalizeStudioCharacter({eye:legacy})).features.find(f=>f.extra.eyeStyle===legacy);
+ assert.equal(normalizeStudioCharacter({eye:legacy}).eye,eye,'Legacy closed-eye ID must migrate');
+ // Bypass normalization only for the original mesh comparison.
+ const old=factory.build({...profile,eye:legacy}).features.find(f=>f.extra.eyeStyle===legacy);
  assert.notEqual(mesh.base.length,old.base.length,'New eyes must not reuse the old mesh');
 }
 for(const body of ['male','female']){
@@ -300,7 +302,7 @@ for(const body of ['male','female']){
   assert(Math.abs(total-1)<.01,'Packed skinning weights corrupted: '+total);
  }
  console.log('PASS packed character buffers',body,JSON.stringify({gpuBytes,unpackedGpuBytes,ratio:gpuBytes/unpackedGpuBytes}));
- assert(actor.mesh.userData.studioFeatures.some(f=>f.eyeStyle==='neutral'&&f.iris));
+ assert(actor.mesh.userData.studioFeatures.some(f=>f.eyeStyle==='reference-basic'&&f.iris));
  const count=g.index.count;actor.setLOD(1);assert(g.index.count<count*.5,'Distance LOD must reduce actual triangles');actor.setLOD(0);
  actor.setFirst(true);
  assert(g.index.count>0&&g.index.count<count*.8,'First-person mode must cull hidden body triangles');
@@ -366,3 +368,25 @@ for(const body of ['male','female']){
 }
 const def={id:'bran',name:'브란',title:'항만 관리인'};
 assert.deepEqual(resolveNpcAppearance(def),resolveNpcAppearance(def));
+const oldEyes={neutral:'reference-basic',wide:'reference-round',narrow:'reference-slit',round:'reference-round',almond:'reference-flat',sleepy:'reference-half',sharp:'reference-sharp',droop:'reference-droop',closed:'reference-closed',smiling:'reference-squint'};
+for(const body of ['male','female']){
+ assert.equal(normalizeStudioCharacter({body}).eye,'reference-basic');
+ assert.equal(normalizeStudioCharacter({body,eye:'invalid'}).eye,'reference-basic');
+ for(const [oldEye,newEye] of Object.entries(oldEyes)){
+  const prior={body,eye:oldEye,brow:'angled',iris:'#9e71a4',glasses:'round'};
+  const migrated=normalizeStudioCharacter(prior);
+  assert.equal(migrated.eye,newEye);
+  assert.deepEqual(migrated,normalizeStudioCharacter({...prior,eye:newEye}));
+  assert.deepEqual(migrated,normalizeStudioCharacter(migrated));
+ }
+}
+const npcEyes=new Set();
+for(let i=0;i<100;i++){
+ const npc={id:'eye-regression-'+i,name:'주민',title:'주민'};
+ const profile=resolveNpcAppearance(npc).character;
+ npcEyes.add(profile.eye);
+ assert(Object.values(oldEyes).slice(0,8).includes(profile.eye),'NPC selected legacy or closed eyes');
+ assert.deepEqual(resolveNpcAppearance(npc).character,profile);
+}
+assert.equal(npcEyes.size,7,'NPC open-eye variety regressed');
+console.log('PASS canonical eye defaults, legacy migration and seeded NPC variety');

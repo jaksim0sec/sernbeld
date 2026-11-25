@@ -13,7 +13,19 @@ export const PALETTES = Object.freeze({
  ivory:[0.969,0.856,0.762],warm:[0.944,0.774,0.641],
  tan:[0.752,0.571,0.441],deep:[0.608,0.442,0.355]
 });
-const EYES=['neutral','wide','narrow','round','almond','sleepy','sharp','droop','closed','smiling',...Object.keys(REFERENCE_EYES)];
+// Legacy IDs are accepted at input boundaries, but profiles always use the new meshes.
+const LEGACY_EYES=Object.freeze({
+ neutral:'reference-basic',wide:'reference-round',narrow:'reference-slit',
+ round:'reference-round',almond:'reference-flat',sleepy:'reference-half',
+ sharp:'reference-sharp',droop:'reference-droop',closed:'reference-closed',
+ smiling:'reference-squint'
+});
+export function normalizeEyeStyle(eye,fallback='reference-basic'){
+ if(Object.hasOwn(REFERENCE_EYES,eye))return eye;
+ return Object.hasOwn(LEGACY_EYES,eye)?LEGACY_EYES[eye]:fallback;
+}
+// Keep the original seeded eight-slot distribution and all subsequent RNG draws.
+const NPC_EYES=Object.freeze(['neutral','wide','narrow','round','almond','sleepy','sharp','droop'].map(eye=>LEGACY_EYES[eye]));
 const BROWS=['soft','straight','angled','thick','thin','worried','raised','short'];
 const MOUTHS=['closed','smile','parted','frown','smirk','cat','small','surprised','grin'];
 const GLASSES=['none','round','square','biground'];
@@ -44,7 +56,7 @@ export function normalizeStudioCharacter(data={}) {
   FACE_KEYS.map(key=>defaultFace[key]??0);
  const pick=(key,allowed,defaultValue)=>allowed.includes(source[key])?source[key]:defaultValue;
  return {
-  body,eye:pick('eye',EYES,'neutral'),brow:pick('brow',BROWS,'soft'),
+  body,eye:normalizeEyeStyle(source.eye),brow:pick('brow',BROWS,'soft'),
   mouth:pick('mouth',MOUTHS,'smile'),skin:pick('skin',Object.keys(PALETTES),'peach'),
   iris:/^#[0-9a-f]{6}$/i.test(source.iris||'')?source.iris:'#775e64',
   glasses:pick('glasses',GLASSES,'none'),
@@ -61,7 +73,7 @@ export function resolveNpcAppearance(def) {
  // Appearance is stable across sessions. Role/title influences the seed, never imposes a gender.
  const values=FACE_KEYS.map((_,i)=>Math.round((rnd()*2-1)*((i===27||i===25)?0.48:0.65)*100)/100);
  const skin=Object.keys(PALETTES)[Math.floor(rnd()*6)];
- const eyes=EYES[Math.floor(rnd()*8)],brow=BROWS[Math.floor(rnd()*BROWS.length)];
+ const eyes=NPC_EYES[Math.floor(rnd()*NPC_EYES.length)],brow=BROWS[Math.floor(rnd()*BROWS.length)];
  return {
   id,name,title,gender,
   character:normalizeStudioCharacter({

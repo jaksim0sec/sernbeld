@@ -48,6 +48,7 @@
 import {loadStudioBody} from "./studio-source.js";
 import {attentionRotations} from "./attention-pose.js";
 import {REFERENCE_EYES,makeReferenceEyes} from "./reference-eyes.js";
+import {normalizeEyeStyle} from "./appearance.js";
 const studioSource=await loadStudioBody();
 "use strict";
 const groups = {
@@ -287,7 +288,7 @@ const source=studioSource;
 const HEIGHT=1428,UNIT=32*HEIGHT;
 const identity=[1,0,0,0,1,0,0,0,1],origin=[0,0,0];
 const names={
- eye:{...REFERENCE_EYES,neutral:'기본',wide:'또렷한 눈',narrow:'가느다란 눈',round:'둥근 눈',almond:'아몬드형',sleepy:'반쯤 감은 눈',sharp:'날카로운 눈',droop:'처진 눈',closed:'감은 눈',smiling:'실눈 · 상하반전'},
+ eye:{...REFERENCE_EYES},
  brow:{soft:'완만한 눈썹',straight:'일자 눈썹',angled:'각진 눈썹',thick:'굵은 눈썹',thin:'가는 눈썹',worried:'처진 눈썹',raised:'둥근 아치',short:'짧은 눈썹'},
  mouth:{closed:'다문 입',smile:'미소',parted:'살짝 벌림',frown:'시무룩한 입',smirk:'한쪽 미소',cat:'고양이 입',small:'작은 입',surprised:'놀란 입',grin:'활짝 웃는 입'}
 };
@@ -301,7 +302,7 @@ const presetFaces={
  round:{label:'부드러운',values:{headWidth:.18,cheek:.24,jawWidth:.18,chinY:-.22}},
  angular:{label:'각진',values:{jawWidth:.32,chinWidth:.27,cheek:-.12,chinY:.05}}
 };
-const defaults=()=>({body:'male',eye:'neutral',brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(c=>presetFaces.slim.values[c.key]??0),pose:{}});
+const defaults=()=>({body:'male',eye:normalizeEyeStyle(),brow:'soft',mouth:'smile',skin:'peach',iris:'#9e71a4',glasses:'none',moustache:'none',blush:'none',values:controls.map(c=>presetFaces.slim.values[c.key]??0),pose:{}});
 let state=defaults();
 let tab='face',mode='basic',focus=true,part='outline',plane='shape';
 let yaw=0,pitch=0,zoom=1,view='front',pending=false,geometryDirty=true,colorDirty=true;
@@ -336,7 +337,7 @@ function persist(){
 }
 function validate(value){
  if(!value||!['male','female'].includes(value.body))throw Error('체형 정보를 확인해 줘.');
- value={glasses:'none',moustache:'none',blush:'none',...value};
+ value={glasses:'none',moustache:'none',blush:'none',...value,eye:normalizeEyeStyle(value.eye,null)};
  for(const key of ['eye','brow','mouth','moustache','blush','glasses'])if(!Object.hasOwn(names[key],value[key]))throw Error('지원하지 않는 얼굴 모양이야.');
  if(!source.palettes.some(p=>p.id===value.skin)||!/^#[0-9a-f]{6}$/i.test(value.iris))throw Error('색상 정보를 확인해 줘.');
  if(!Array.isArray(value.values)||value.values.length!==controls.length||value.values.some(v=>!Number.isFinite(v)||Math.abs(v)>1))throw Error('얼굴형 정보를 확인해 줘.');
@@ -681,6 +682,7 @@ function setBody(body){
  renderPanel();persist();schedule();
 }
 function setStyle(kind,value){
+ if(kind==='eye'){value=normalizeEyeStyle(value,null);if(!value)throw Error('지원하지 않는 눈매야.');}
  if(state[kind]===value)return;remember();state[kind]=value;
  markDirty(false);renderPanel();
 }

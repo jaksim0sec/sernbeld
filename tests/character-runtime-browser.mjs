@@ -34,9 +34,9 @@ try{
     const featureError=ref.features.reduce((max,f,i)=>{
      for(let j=0;j<f.positions.length;j++)max=Math.max(max,Math.abs(f.positions[j]-actual.features[i].positions[j]));return max;
     },0);
-    return {error,featureError,features:actual.features.length};
+    return {error,featureError,features:actual.features.length,eye:p.eye};
    });
-   assert(comparison.error<1e-7&&comparison.featureError<1e-7,'Game geometry differs from original editor: '+JSON.stringify(comparison));
+   assert(comparison.eye==='reference-round'&&comparison.error<1e-7&&comparison.featureError<1e-7,'Game geometry differs from original editor: '+JSON.stringify(comparison));
    await iframe.getByRole('button',{name:'적용하기',exact:true}).click();
    await page.waitForFunction(()=>!__dev.avatars.isOpen);
    for(let i=0;i<5&&await page.locator('#intro').isVisible();i++)await page.locator('#intro').click();
@@ -61,7 +61,7 @@ try{
     d.frame();
     const projectedBody=[0,1.76].map(y=>d.player.pos.clone().add(new T.Vector3(0,y,0)).project(d.camera).toArray());
     const root=a.bodyRoot,before=d.camera.position.toArray(),q=d.camera.quaternion.toArray();
-    const npc=d.folk.list.map(n=>{const ch=d.folk.ensureActor(n);return {id:n.def.id,gender:n.def.gender,body:ch.profile.body,vertices:ch.mesh.geometry.attributes.position.count,features:ch.mesh.userData.studioFeatures.length,values:ch.profile.values};});
+    const npc=d.folk.list.map(n=>{const ch=d.folk.ensureActor(n);return {id:n.def.id,gender:n.def.gender,body:ch.profile.body,vertices:ch.mesh.geometry.attributes.position.count,features:ch.mesh.userData.studioFeatures.length,eye:ch.profile.eye,eyeParts:ch.mesh.userData.studioFeatures.filter(f=>f.eyeStyle===ch.profile.eye).length,legacyEye:ch.mesh.userData.studioFeatures.some(f=>f.eyeStyle&&!f.eyeStyle.startsWith('reference-')),faceParts:['nose','ear','brow','mouth'].every(part=>ch.mesh.userData.studioFeatures.some(f=>f.feature===part)),values:ch.profile.values};});
     const equipped=d.inventory.equipped('right');
     if(equipped?.definitionId!=='apprentice_sword')throw Error('Default item not equipped in canonical ledger');
     const grip=a.handWeapons.right;
@@ -111,11 +111,11 @@ try{
     return{comparison:undefined,npc,profile:a.profile,created:d.Save.data.characterCreated,before,q,projectedBody,visibleArms,wrist,poses,idleTip,bladeRise,gripError,thirdGripClearance,firstGripClearance,firstIdle,firstAttack,firstArmOnly,rootPosition:root.position.toArray(),playerPosition:d.player.pos.toArray(),calls:d.renderer.info.render.calls};
    });
    await writeFile(`${root}/${label}-metrics.json`,JSON.stringify({...stats,comparison,errors},null,2));
-   assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='round'&&stats.profile.glasses==='round');
+   assert(stats.created&&stats.profile.body==='female'&&stats.profile.eye==='reference-round'&&stats.profile.glasses==='round');
    // The approved Kael population was doubled from 25 to 50; verify count and geometry independently.
    assert.equal(stats.npc.length,50,'Kael must retain its 50 registered residents');
    assert.equal(new Set(stats.npc.map(n=>n.id)).size,stats.npc.length,'NPC IDs must be unique');
-   const invalidNpcGeometry=stats.npc.filter(n=>!(n.body===n.gender&&n.features>=10&&n.vertices>20000&&n.vertices<120000));
+   const invalidNpcGeometry=stats.npc.filter(n=>!(n.body===n.gender&&n.eye.startsWith('reference-')&&n.eyeParts===2&&!n.legacyEye&&n.faceParts&&n.vertices>20000&&n.vertices<120000));
    assert.deepEqual(invalidNpcGeometry.map(({id,gender,body,features,vertices})=>({id,gender,body,features,vertices})),[],'NPCs must use optimized studio body/face');
    assert(stats.gripError<.0001,'Sword handle misses actual palm: '+stats.gripError);
    for(const [mode,d] of Object.entries({third:stats.thirdGripClearance,first:stats.firstGripClearance})){
@@ -152,7 +152,7 @@ try{
    assert.deepEqual(errors,[],'Browser rendering errors');
    await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!!window.__dev,{timeout:180000});
    const reload=await page.evaluate(()=>({open:__dev.avatars.isOpen,profile:__dev.avatars.profile}));
-   assert(!reload.open&&reload.profile.body==='female'&&reload.profile.glasses==='round','Character was not restored on reload');
+   assert(!reload.open&&reload.profile.body==='female'&&reload.profile.eye==='reference-round'&&reload.profile.glasses==='round','Character was not restored on reload');
    console.log('PASS',label,JSON.stringify({geometry:comparison,grip:stats.gripError,NPCs:stats.npc.length,calls:stats.calls}));
   }catch(e){await page.screenshot({path:`${root}/${label}-failure.png`}).catch(()=>{});throw e;}
   finally{await context.close();}
