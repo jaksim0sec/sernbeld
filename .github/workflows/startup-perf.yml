@@ -1,0 +1,28 @@
+name: Startup performance evidence
+on:
+  push:
+    branches: [main]
+    paths: ['tests/startup-perf.mjs', '.github/workflows/startup-perf.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/check-infra.mjs
+      - run: node --check tests/startup-perf.mjs
+      - run: npm install --no-save --no-package-lock playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/startup-perf.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: startup-perf-evidence
+          path: test-results/startup-perf/
+          if-no-files-found: ignore
