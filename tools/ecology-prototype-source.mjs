@@ -125,7 +125,8 @@ function buildGlb(d){
  const V=(x,y,z)=>[x,y,z],add=(a,b)=>a.map((v,i)=>v+b[i]),sub=(a,b)=>a.map((v,i)=>v-b[i]),mul=(a,s)=>a.map(v=>v*s),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>mul(a,1/(Math.hypot(...a)||1));
  let state=d.seed;const rand=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};
  const groups=[[],[],[],[]],h=d.height,w=d.spread,TAU=Math.PI*2;
- function tri(g,a,b,c){const n=unit(cross(sub(b,a),sub(c,a)));if(Math.hypot(...n)<.5)return;for(const p of [a,b,c])groups[g].push(...p,...n);}
+ // Snap positions to 10 nm before computing face normals. Reject zero-area or numerical slivers before normalization.
+ function tri(g,a,b,c){const snap=p=>p.map(v=>Math.round(v*1e8));const A=snap(a),B=snap(b),C=snap(c),q=cross(sub(B,A),sub(C,A)),length=Math.sqrt(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]);if(length<100)return;const n=q.map(v=>Math.round(v/length*1e7)/1e7);for(const p of [A,B,C])groups[g].push(...p.map(v=>v/1e8),...n);}
  function quad(g,a,b,c,e){tri(g,a,b,c);tri(g,a,c,e);}
  function tube(g,points,radii,sides=7){const rings=points.map((p,j)=>{const dir=unit(sub(points[Math.min(j+1,points.length-1)],points[Math.max(j-1,0)])),u=unit(cross(dir,Math.abs(dir[1])>.9?V(1,0,0):V(0,1,0))),v=cross(dir,u);return Array.from({length:sides},(_,i)=>add(p,add(mul(u,Math.cos(i*TAU/sides)*radii[j]),mul(v,Math.sin(i*TAU/sides)*radii[j]))));});for(let j=0;j<rings.length-1;j++)for(let i=0;i<sides;i++)quad(g,rings[j][i],rings[j][(i+1)%sides],rings[j+1][(i+1)%sides],rings[j+1][i]);for(let i=0;i<sides;i++){tri(g,points[0],rings[0][(i+1)%sides],rings[0][i]);tri(g,points.at(-1),rings.at(-1)[i],rings.at(-1)[(i+1)%sides]);}}
  function leaf(g,origin,angle,len,width,rise=.2,serrated=false){const dir=V(Math.cos(angle),0,Math.sin(angle)),side=V(-dir[2],0,dir[0]),rows=[];for(let j=0;j<=8;j++){const t=j/8,c=add(origin,add(mul(dir,len*t),V(0,len*(rise*t+.19*Math.sin(Math.PI*t)),0))),ww=width*Math.pow(Math.sin(Math.PI*t),.8)*(serrated&&j%2===0?.65:1);rows.push([add(c,mul(side,-ww)),add(c,V(0,width*.17*Math.sin(Math.PI*t),0)),add(c,mul(side,ww))]);}for(let j=0;j<8;j++){quad(g,rows[j][0],rows[j+1][0],rows[j+1][1],rows[j][1]);quad(g,rows[j][1],rows[j+1][1],rows[j+1][2],rows[j][2]);}}
@@ -140,7 +141,7 @@ function buildGlb(d){
  else if(d.kind==="fern"){for(let k=0;k<7;k++){const a=k*TAU/7,dir=V(Math.cos(a),0,Math.sin(a)),p=[];for(let j=0;j<=8;j++){const t=j/8;p.push(add(mul(dir,w*.48*t),V(0,h*(Math.sin(t*Math.PI*.68)*.85),0)));}tube(1,p,p.map((_,i)=>.006*(1-i/10)),5);for(let j=1;j<8;j++){const width=w*.20*Math.sin(Math.PI*j/8);leaf(0,p[j],a+1.0,width,w*.024,.05,true);leaf(0,p[j],a-1.0,width,w*.024,.05,true);}leaf(3,p[7],a,w*.12,w*.018,.10);}}
  else if(d.kind==="mushroom"){for(let k=0;k<4;k++){const a=k*TAU/4,r=w*(k===0?0:.23),x=Math.cos(a)*r,z=Math.sin(a)*r,H=h*(k===0?1:.57+rand()*.2),c=V(x,H*.75,z);tube(1,[V(x,0,z),V(x+.005,H*.45,z),c],[H*.075,H*.055,H*.044],10);radial(2,c,H*.42,H*.19,H*.42,18,8,.12);radial(3,add(c,V(0,-H*.07,0)),H*.34,H*.035,H*.34,18,4,.08);}}
  else if(d.kind==="sawgrass"){for(let k=0;k<12;k++){const a=k*TAU/12+rand()*.2,r=w*.06*rand();leaf(k%4===0?3:0,V(Math.cos(a)*r,.005,Math.sin(a)*r),a,w*(.34+rand()*.24),w*.044,1.1,true);}}
- const srgb=s=>{const x=parseInt(s,16)/255;return x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4);};
+ const srgb=s=>{const x=parseInt(s,16)/255;return Math.round((x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4))*1e12)/1e12;};
  const rgb=hex=>[srgb(hex.slice(1,3)),srgb(hex.slice(3,5)),srgb(hex.slice(5,7)),1];
  const colors=[d.leaf,d.stem,d.accent,d.kind==="mushroom"?"#D4B79A":d.kind==="creeper"||d.kind==="bells"?"#F2D59A":d.accent];
  const chunks=[],views=[],accessors=[],primitives=[],materials=[];let offset=0,triangles=0;const bounds=[ [Infinity,Infinity,Infinity],[-Infinity,-Infinity,-Infinity] ];
@@ -155,7 +156,7 @@ function buildGlb(d){
 function inspectGlb(bytes){
  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);if(v.getUint32(0,true)!==0x46546c67||v.getUint32(4,true)!==2||v.getUint32(8,true)!==bytes.length)throw Error("invalid GLB");
  const size=v.getUint32(12,true),j=JSON.parse(Array.from(bytes.slice(20,20+size),x=>String.fromCharCode(x)).join(""));const start=28+size;if(v.getUint32(20+size,true)!==bytes.length-start||v.getUint32(24+size,true)!==0x004e4942)throw Error("invalid binary chunk");
- let triangles=0;for(const primitive of j.meshes[0].primitives){const a=j.accessors[primitive.attributes.POSITION],b=j.bufferViews[a.bufferView];if(a.count%3||a.count<=0||b.byteOffset+b.byteLength>j.buffers[0].byteLength)throw Error("invalid accessor");for(let i=0;i<a.count;i++){for(let k=0;k<6;k++)if(!Number.isFinite(v.getFloat32(start+b.byteOffset+i*24+k*4,true)))throw Error("non-finite geometry");}triangles+=a.count/3;}
+ let triangles=0;for(const primitive of j.meshes[0].primitives){const a=j.accessors[primitive.attributes.POSITION],b=j.bufferViews[a.bufferView];if(a.count%3||a.count<=0||b.byteOffset+b.byteLength>j.buffers[0].byteLength)throw Error("invalid accessor");for(let i=0;i<a.count;i++){for(let k=0;k<6;k++)if(!Number.isFinite(v.getFloat32(start+b.byteOffset+i*24+k*4,true)))throw Error("non-finite geometry");}for(let i=0;i<a.count;i+=3){const p=(j,k)=>v.getFloat32(start+b.byteOffset+(i+j)*24+k*4,true),x=[0,1,2].map(k=>p(1,k)-p(0,k)),y=[0,1,2].map(k=>p(2,k)-p(0,k)),n=[x[1]*y[2]-x[2]*y[1],x[2]*y[0]-x[0]*y[2],x[0]*y[1]-x[1]*y[0]];if(Math.hypot(...n)<1e-15)throw Error('degenerate geometry');}triangles+=a.count/3;}
  return triangles;
 }
 export {buildGlb,inspectGlb};

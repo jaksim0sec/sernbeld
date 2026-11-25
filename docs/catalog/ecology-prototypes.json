@@ -25,7 +25,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "해안 모래땅",
-    "triangles": 1638
+    "triangles": 1598
   },
   {
     "id": "ecology.purple-bell",
@@ -53,7 +53,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "길가와 초지",
-    "triangles": 3360
+    "triangles": 3320
   },
   {
     "id": "ecology.roadside-mugwort",
@@ -81,7 +81,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "길뚝",
-    "triangles": 1521
+    "triangles": 1470
   },
   {
     "id": "ecology.round-clover",
@@ -109,7 +109,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "풀밭",
-    "triangles": 2444
+    "triangles": 2352
   },
   {
     "id": "ecology.water-reed",
@@ -137,7 +137,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "습지",
-    "triangles": 2957
+    "triangles": 2848
   },
   {
     "id": "ecology.spring-cattail",
@@ -165,7 +165,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "샘과 물가",
-    "triangles": 1918
+    "triangles": 1840
   },
   {
     "id": "ecology.green-thread-moss",
@@ -193,7 +193,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "그늘진 돌",
-    "triangles": 1628
+    "triangles": 1536
   },
   {
     "id": "ecology.shade-fern",
@@ -221,7 +221,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "그늘",
-    "triangles": 3780
+    "triangles": 3570
   },
   {
     "id": "ecology.wave-cap-mushroom",
@@ -249,7 +249,7 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "축축한 그늘",
-    "triangles": 1778
+    "triangles": 1680
   },
   {
     "id": "ecology.stone-sawgrass",
@@ -277,6 +277,6 @@
     "units": "m",
     "pivot": "ground origin",
     "habitat": "돌 틈",
-    "triangles": 360
+    "triangles": 336
   }
 ]
