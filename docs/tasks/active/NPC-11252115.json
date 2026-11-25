@@ -1,0 +1,31 @@
+{
+  "id": "NPC-11252115",
+  "status": "in_progress",
+  "baseline": "0711d188f135a2960491032c44b3c38b1388466e",
+  "detail": "docs/tasks/active/NPC-11252115.md",
+  "scope": [
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "sw.js",
+    "src/core/living-world-runtime.js",
+    "tests/npc-dialogue.mjs",
+    "tests/npc-dialogue-browser.mjs",
+    "tests/living-world-runtime.mjs",
+    "tests/kael-living-content.mjs",
+    "tests/living-world-browser.mjs",
+    "docs/contracts/LIVING_WORLD.md",
+    "docs/core/CURRENT_STATE.md"
+  ],
+  "contracts": [
+    "docs/contracts/LIVING_WORLD.md",
+    "docs/contracts/NPC_DIALOGUE.md",
+    "docs/contracts/SHARED_ITEMS.md",
+    "docs/validation/VALIDATION_POLICY.md"
+  ],
+  "dependencies": [
+    "NPC-003",
+    "WORLD-001",
+    "ITEM-001"
+  ],
+  "next": "NPC-11252115/T1: icon 오류 재현·원인 확정·수정·검증"
+}
