@@ -97,8 +97,8 @@
 .labels{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:1}
 .labels div{position:absolute;transform:translate(-50%,-100%);max-width:138px;padding:2px 5px;text-align:center;white-space:nowrap;font-size:var(--ui-type-caption);line-height:1.2;color:var(--ui-ink);text-shadow:0 1px 4px rgba(4,17,23,.83)}
 .labels small{display:block;font-size:.58rem;color:var(--ui-accent);opacity:.87}
-.labels .ambient-utterance{position:absolute;left:50%;bottom:calc(100% + .5rem);transform:translateX(-50%);width:max-content;max-width:min(14rem,70vw);padding:.6rem .85rem;background:rgba(22,35,37,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);color:#faf8f0;border-radius:var(--seed-radius-card);font-size:.82rem;font-weight:650;line-height:1.45;white-space:normal;overflow-wrap:anywhere;text-shadow:none;box-shadow:0 .25rem 1rem #14201f33}
-.labels .ambient-utterance::after{content:"";position:absolute;left:50%;bottom:-.35rem;transform:translateX(-50%) rotate(45deg);width:.7rem;height:.7rem;background:rgba(22,35,37,.62);border-radius:2px}
+.labels .ambient-utterance,.labels .npc-dev-status{position:absolute;left:50%;bottom:calc(100% + .5rem);transform:translateX(-50%);width:max-content;max-width:min(14rem,70vw);padding:.6rem .85rem;background:rgba(22,35,37,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);color:#faf8f0;border-radius:var(--seed-radius-card);font-size:.82rem;font-weight:650;line-height:1.45;white-space:normal;overflow-wrap:anywhere;text-shadow:none;box-shadow:0 .25rem 1rem #14201f33}
+.labels .ambient-utterance::after,.labels .npc-dev-status::after{content:"";position:absolute;left:50%;bottom:-.35rem;transform:translateX(-50%) rotate(45deg);width:.7rem;height:.7rem;background:rgba(22,35,37,.62);border-radius:2px}
 @media(max-height:470px) and (orientation:landscape){.speech{gap:.25rem}.speech-body{height:clamp(6rem,28dvh,7rem);padding:.4rem .9rem .45rem}.speech p{font-size:.9rem}.speech .opts{max-height:42dvh}}
 .toasts{position:fixed;z-index:5;left:calc(env(safe-area-inset-left,0px) + var(--ui-edge));top:44%;display:flex;flex-direction:column;gap:var(--ui-space-2);max-width:min(260px,calc(100vw - 24px));pointer-events:none}
 .toast-item{display:flex;align-items:center;gap:var(--ui-space-2);padding:6px 10px 6px 6px;border-radius:var(--ui-radius-card);background:var(--ui-panel-wash);border:1px solid var(--ui-stroke);border-left:2px solid var(--rar,var(--ui-accent));color:var(--ui-ink);box-shadow:var(--ui-shadow-floating);font-size:var(--ui-type-body);animation:ui-reveal 190ms ease-out;transition:opacity 550ms,transform 550ms}
@@ -136,3 +136,7 @@
 
 .speech-next{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.15rem 0 0 auto;flex:none;min-height:var(--seed-touch);padding:var(--seed-button-padding);border:0;border-radius:var(--seed-radius-pill);background:#ffffff12;color:var(--speech-ink);font-size:var(--seed-button-size);font-weight:var(--seed-button-weight);cursor:pointer;transition:background var(--seed-motion-color),transform var(--seed-motion-press)}
 .speech-next[hidden]{display:none}.speech-next svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:var(--seed-icon-stroke);stroke-linecap:round;stroke-linejoin:round}.speech-next:active{transform:scale(var(--seed-press-scale));background:#ffffff24}
+
+/* Temporary NPC development overlay; remove after NPC behavior/conversation work stabilizes. */
+.labels .npc-dev-status{font-size:.7rem;padding:.3rem .55rem;white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none}
+.labels .npc-dev-status[hidden]{display:none}

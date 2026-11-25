@@ -4752,12 +4752,16 @@ var GameUI = class {
         const name=el("span","resident-name"); name.textContent=L.name;
         const title=el("small"); title.textContent=L.title??"";
         const bubble=el("span","ambient-utterance"); bubble.hidden=true;
-        el2.append(bubble,name,title); el2.bubble=bubble;
+        const status=el("span","npc-dev-status"); status.hidden=true;
+        el2.append(bubble,status,name,title); el2.bubble=bubble; el2.status=status;
         box3.append(el2);
         this._labels.set(L.id, el2);
       }
       if (el2.bubble.textContent !== (L.utterance??"")) el2.bubble.textContent=L.utterance??"";
       el2.bubble.hidden=!L.utterance;
+      const statusText=L.utterance?"":L.devStatus??"";
+      if(el2.status.textContent!==statusText)el2.status.textContent=statusText;
+      el2.status.hidden=!statusText;
       el2.style.left = (cx * 0.5 + 0.5) * innerWidth + "px";
       el2.style.top = (-cy * 0.5 + 0.5) * innerHeight + "px";
       el2.style.opacity = String(Math.max(0,Math.min(1, ((L.maxDistance??11) - L.d) / 3)));
@@ -5013,12 +5017,15 @@ var JOBS = {
 var NAMES = ["\uC624\uB80C", "\uD558\uB098", "\uD53C\uD2B8", "\uB8E8\uC0AC", "\uB378", "\uB9C8\uB974\uCF54", "\uBE44\uBE44", "\uC0AC\uC0E4", "\uD1A0\uB9C8", "\uC5D0\uB9B0", "\uB178\uC544", "\uCE74\uC774", "\uB80C", "\uC720\uB9AC", "\uB3C4\uB9B0", "\uD398\uC774", "\uC2E4\uB77C", "\uBCF4\uB974"];
 function townsfolk() {
   const r = mulberry32(31), out2 = [];
-  let k = 0;
-  for (const [job, J] of Object.entries(JOBS)) for (let i = 0; i < J.n; i++) {
+  let k = 0, added = 0;
+  // Additional Kael residents are appended, preserving all original IDs and spawn order.
+  const extraCounts = { docker: 8, folk: 12, guard: 5 };
+  const extraNames = ["라온","미라","다온","에단","리나","유안","세린","로엔","하린","아린","엘로","마린","루엔","나리","소라","이안","카린","레온","리아","아벨","하엘","테오","시온","노엘","엘린"];
+  for (const extra of [false,true]) for (const [job, J] of Object.entries(JOBS)) for (let i = extra ? J.n : 0; i < J.n + (extra ? extraCounts[job] ?? 0 : 0); i++) {
     const stall2 = ["stall_a", "stall_b", "stall_c"][i % 3];
     out2.push({
       id: `${job}${i}`,
-      name: NAMES[k++ % NAMES.length],
+      name: extra ? extraNames[added++] : NAMES[k++ % NAMES.length],
       title: { vendor: "\uC0C1\uC778", docker: "\uBD80\uB450 \uC77C\uAFBC", folk: "\uC8FC\uBBFC", kid: "\uC544\uC774", guard: "\uACBD\uBE44\uBCD1" }[job],
       scale: J.scale ?? 0.94 + r() * 0.1,
       role: job === "vendor" ? "vendor" : void 0,
@@ -5268,6 +5275,10 @@ var Townsfolk = class {
       if (d > maxDistance) continue;
       const label={id:n.def.id,name:n.def.name,title:n.def.title,x:n.x,y:n.y+1.95*(n.def.scale??1),z:n.z,d,maxDistance};
       if(groupLine&&n.ch.group.visible)label.utterance=groupLine.text;
+      // Temporary development observation only; never advances dialogue or simulation.
+      if(allowAmbient&&d<=8&&Math.abs(n.y-player.pos.y)<1.8&&n.ch.group.visible){
+        label.devStatus=n.talkT>0||this.activeSpeaker?.()===n.def.id||this.living?.groupFor(n.def.id)?"대화 중":n.speed>.12||n.path?"이동 중":this.living?.managed(n.def.id)?"활동 중":n.entry?.[2]==="work"?"근무 중":n.entry?.[2]==="wander"?"배회 중":n.entry?.[1]==="home"?"휴식 중":"대기 중";
+      }
       out2.push(label);
       const forward = (-Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
       if (d <= 6 && Math.abs(n.y-player.pos.y)<1.8 && forward>.15 && n.ch.group.visible) nearby.push({n,label});

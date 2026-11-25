@@ -29,5 +29,29 @@
         "evidence": "docs/tasks/archive/NPC-001.md"
       }
     ]
+  },
+  {
+    "id": "world.kael-residents-expansion",
+    "kind": "npc",
+    "title": "카엘 주민 25명 추가 및 개발 상태 표시",
+    "stage": "INTEGRATED",
+    "source": [
+      "docs/contracts/NPC_DIALOGUE.md",
+      "docs/core/TODO.md"
+    ],
+    "runtime": "src/gameplay/gameplay.part.js",
+    "approval": "사용자 요청 인구 2배 및 임시 상태 표시; 신규 역할 분포는 구현 판단",
+    "checks": [
+      {
+        "criterion": "기존 등록 순서 및 ID 보존, 추가 인원 수",
+        "result": "PARTIAL",
+        "evidence": "소스 비교: 기존 루프 선행, 추가 8+12+5; 실제 런타임 미실행"
+      },
+      {
+        "criterion": "실제 상태 표시·동선·모바일 성능",
+        "result": "NOT RUN",
+        "evidence": "docs/core/TODO.md"
+      }
+    ]
   }
 ]
