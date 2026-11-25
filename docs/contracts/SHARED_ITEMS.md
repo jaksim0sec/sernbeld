@@ -8,3 +8,10 @@
 - P09/P10/P03/O03/P15 도감 정의 및 기존 채집 노드의 지형 후보 주변을 이용한 신규 후보 생성. 기존 노드 ID/위치와 장식은 보존. 새 노드는 기존 절차적 메시지를 재사용하는 임시 표현이며 실제 카엘 접근성 및 해당 3D 자산 적용은 확인되지 않았다. 실제 채집 품질 0~100 균등 분포, 수확량은 명세 범위, 기존 picked 키 보존. 기존 지역 저장/노드 재생은 picked를 사용.
 - 기존 가방은 품목별 합산 표시이며 개별 품질/실물 선택 UI는 후속. NPC 스케줄/경제 시뮬레이션·실제 ingredient 처리·일반 분할/병합 API·세부 스킬/조건 레지스트리·멀티스택 수요 탐색·정식 자산/배치·엄격 JSON Schema 일치 미완료.
 - 검증: V8 격리 실행의 12개 시나리오 PASS(마이그레이션, 기존 기념품, 품질, NPC 매매, 재고, 소유, 장착, 저장 재로드, 저장 실패/채집 중복). 실제 ITEMS 추출 후 20개 정의 및 기존 견습검 성능 확인, import 및 import.meta를 정규화한 소스와 번들 문법 컴파일 PASS. 원본 번들의 마지막 gameplay 부분과 원본 소스 일치 확인 후 해당 부분만 동일하게 교체. 전체 checkout DNS 오류로 `node tools/verify.mjs all`, 브라우저, 실제 카엘, PWA 오프라인, 인프라 전체 검증 NOT RUN. 작성자 자체 검토이며 독립 리뷰 미실행.
+
+## T1 후속: 공급 할당, 소유 재고 예약, 저장 복구 (부분 구현)
+
+- `planSupply({actorId,selector,quantity,sourceKinds,constraints})`: 소유 우선, 여러 실물 합산, 품질/등급/레벨/내구 조건, 명시적으로 접근 가능한 상인만 시장 후보로 선택. 읽기 결과의 expected는 실물·holding 정규화 fingerprint. 시장 실행 및 거리/영업 재검증은 후속.
+- `reserve({operationId,actorId,allocations,expiresAt})`, `release(id)`: 현 단계는 소유 재고만 지원. itemEconomy의 선택 필드 reservations에 저장하고 재로드 시 검증. expiresAt는 논리 tick이며 실제 만료 처리는 scheduler 후속; 자동 실시간 만료 없음. 예약된 수량은 기존 trade/take/equip/merge에서 보호한다. 시장 예약·장소 용량·예약 소비·생산·공용 commitOperation은 아직 미구현.
+- 기존 trade/equip/gather 등의 저장 실패에서 Save.data의 모든 JSON root를 복구하도록 공통 경계를 보강. 저장 콜백의 외부 부작용/렌더 논리 상태 보호는 T4에서 별도 검증. 기존 레거시 API의 non-persist 변경은 유지.
+- 검증: 최신 main의 실제 원본 테스트와 추가 공급/예약/복구 테스트를 V8 격리 실행 PASS. 전체 Node/브라우저/카엘/PWA/인프라 검증 NOT RUN(DNS로 checkout 불가). 신규 콘텐츠 없음. 

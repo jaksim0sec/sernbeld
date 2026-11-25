@@ -18,3 +18,39 @@ function runTests(createItemRuntime,extendItemDefinitions){
  return n;
 }
 console.log('PASS shared item runtime: '+runTests(createItemRuntime,extendItemDefinitions)+' scenarios');
+
+function runSupplyTests(){
+ const assert=(condition,message)=>{if(!condition)throw Error(message)};
+ const defs=extendItemDefinitions({flower:{kind:'material',rarity:'common',name:'flower',value:2}});
+ const save={data:{v:1,npcStates:{a:{lineI:7}},regionEntities:{old:true}},write(){return true}};
+ const events=[];const s=createItemRuntime(save,()=>defs,{emit:(...args)=>events.push(args)});
+ s.initialize();s.registerActor('npc:a','npc',20);s.seedMerchant('npc:vendor','vendor');
+ s.add('flower',2,40);s.add('flower',2,70);s.add('flower',1,80);
+ const plan=s.planSupply({actorId:s.player,selector:{definitionId:'flower',minQuality:60},quantity:3});
+ assert(plan.ok&&plan.allocations.length===2&&plan.allocations.reduce((n,a)=>n+a.quantity,0)===3,'multi-lot supply');
+ assert(!s.planSupply({actorId:s.player,selector:{definitionId:'flower',minQuality:60},quantity:4}).ok,'quality shortage');
+ const reservation={operationId:'lock:1',actorId:s.player,allocations:plan.allocations,expiresAt:20};
+ assert(s.reserve(reservation).ok&&s.reserve(reservation).ok,'reservation idempotency');
+ assert(!s.reserve({...reservation,expiresAt:21}).ok,'reservation conflict');
+ assert(!s.take('flower',3),'reserved quantity protected from take');
+ const sale={requestId:'sale:1',actorId:s.player,counterpartyId:'npc:vendor',action:'sell',itemRecordId:plan.allocations[0].recordId,quantity:1,expectedUnitPrice:2};
+ assert(s.trade(sale).reason==='reserved','reserved quantity protected from trade');
+ s.add('flower',1,70);
+ assert(s.holdingsFor(s.player).filter(x=>x.record.quality===70).length===2,'reserved identity preserved from merge');
+ const reloaded=createItemRuntime({data:JSON.parse(JSON.stringify(save.data)),write(){return true}},()=>defs);
+ assert(!reloaded.trade(sale).ok,'reservation survives reload');
+ assert(s.release('lock:1').ok&&s.trade(sale).ok,'release permits trade');
+ const before=JSON.stringify(save.data),count=events.length;
+ save.write=()=>{save.data.npcStates.a.lineI=999;save.data.regionEntities.new=true;save.data.newRoot=1;return false};
+ assert(s.sellDefinition('npc:vendor','flower').reason==='save_failed','failed save');
+ assert(JSON.stringify(save.data)===before&&events.length===count,'rollback all save roots and notifications');
+ save.write=()=>{save.data.npcStates.a.lineI=100;throw Error('storage')};
+ assert(s.gather('herb:2','flower',1,40,1000,100).reason==='save_failed','failed gather');
+ assert(JSON.stringify(save.data)===before&&events.length===count,'gather rollback all roots');
+ save.write=()=>true;
+ const market=s.planSupply({actorId:'npc:a',selector:{definitionId:'flower'},quantity:1,sourceKinds:['market'],constraints:{accessibleMerchantIds:['npc:vendor']}});
+ assert(market.ok&&market.allocations[0].source==='market','market planning');
+ assert(!s.planSupply({actorId:'npc:a',selector:{definitionId:'flower'},quantity:1,sourceKinds:['market']}).ok,'market access explicit');
+ return 14;
+}
+console.log('PASS shared item supply and rollback: '+runSupplyTests()+' checks');
