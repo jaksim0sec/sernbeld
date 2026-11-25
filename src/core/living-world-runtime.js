@@ -1,4 +1,4 @@
-import {createTopicResolver} from './npc-topic.js';
+import {createTopicResolver,graphGroupTopic} from './npc-topic.js';
 import {createLivingWorldRegistry} from './living-world-registry.js';
 import {createLivingWorldState} from './living-world-state.js';
 import {createNpcScheduler} from './npc-scheduler.js';
@@ -99,15 +99,19 @@ export function createLivingWorldRuntime({save,getDefinitions,regionId,residents
   return {...context,npcId:id,regionId,role:n.dialogueRole??n.role??profile.roleId,tags:[...new Set([...(profile.tags??[]),...(n.dialogueRole?[n.dialogueRole]:[])])],met:!!save.data.met?.[id],affinity:state?.relationships?.player?.affinity??0,knownEvents:lastResult.ok&&!pending?society.knownEvents(save.data,id):[],now:gameClockTick(clock)??0};
  }
  return {ok:true,managed:id=>managed.has(id),update,canTalk,beginTalk,topicContext,
-  resolveTopics:(id,context={},options={})=>{const x=topicContext(id,context);return x?topics.resolve(x,options):{topics:[],services:[]};},
+  resolveTopics:(id,context={},options={})=>{const x=topicContext(id,context);if(!x)return {topics:[],services:[]};
+   const result=topics.resolve(x,options),group=participationContext(id),graph=graphGroupTopic(registry,group,npcId=>society.knownEvents(save.data,npcId),x);
+   if(graph&&(!options.onlyTemplateId||options.onlyTemplateId===graph.template.id)&&(options.ignoreCooldown||!graph.template.cooldown||!Object.hasOwn(x.lastTopicTicks??{},graph.template.id)||x.now-x.lastTopicTicks[graph.template.id]>=graph.template.cooldown))result.topics.push(graph);
+   return result;},
   position:id=>managed.has(id)?scheduler.logicalPosition(id):null,
   conversationsEnabled:conversation.enabled,groupFor:conversation.groupFor,leaveGroup:conversation.leaveNpc,clearGroups:conversation.clear,
-  updateConversations:args=>conversation.update({...args,regionId}),
+  updateConversations:args=>conversation.update({...args,regionId,npcs:(args.npcs??[]).map(n=>({...n,role:known.get(n.id)?.dialogueRole??known.get(n.id)?.role??registry.get('profiles',n.id)?.roleId}))}),
   requestChoices:id=>lastResult.ok&&!pending?scheduler.requestChoices(id):[],
   executeRequest:(id,choice)=>lastResult.ok&&!pending&&canTalk(id)?scheduler.executeRequest(id,choice):fail('stale'),
   participationChoices:id=>{const group=participationContext(id);return group?scheduler.participationChoices(group):[]},
   executeParticipation:(id,choice)=>{const group=participationContext(id);return group?scheduler.executeParticipation(group,choice):fail('stale')},
-  participationLine:id=>participationContext(id)?.materialized.turns.find(t=>t.npcId===id)?.text??null,
+  participationTurn:id=>participationContext(id)?.currentTurn??null,
+  participationLine:id=>participationContext(id)?.currentTurn?.text??null,
   knownEvents:(id,options)=>society.knownEvents(save.data,id,options),
   shareKnowledge:command=>lastResult.ok&&!pending?scheduler.shareKnowledge(command):fail('stale'),
   snapshot:()=>({state:copy(save.data.livingWorld),managed:[...managed],lastResult:copy(lastResult),conversations:conversation.snapshot()})};

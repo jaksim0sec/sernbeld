@@ -182,3 +182,37 @@ export function legacyLineGraph(line){
  const pages=(Array.isArray(line)?line:[line]).filter(text);
  return {entryNode:'intro',nodes:[{id:'intro',type:'speak',speakerSlot:'npc',pages:pages.length?pages:['안녕하세요.'],next:'hub'},{id:'hub',type:'end',mode:'topicHub'}]};
 }
+
+// Ambient graphs reuse the legacy formation/hold pipeline; no second group manager.
+export function ambientTemplate(t,registry){
+ if(!isTopicGraph(t))return t;
+ if(!t.ambientPath?.length)return null;
+ return {id:t.id,regionIds:t.eligibility.regionIds??registry.get('eventTypes',t.eventBinding.typeId)?.regionIds??[],slots:t.slots.filter(s=>s.kind==='npc').map(s=>({...s,tags:s.tags??[]})),eventTypeId:t.eventBinding.typeId,factRefs:t.eventBinding.factRefs.map(r=>({...r,key:r.alias})),turns:t.ambientPath,participationIds:[],graph:t};
+}
+// Each referenced fact must still belong to its bound speaker, not merely the anchor.
+export function groupFacts(t,binding,eventId,revision,knownEvents){
+ const facts=Object.create(null),events=new Map();
+ for(const id of Object.values(binding)){
+  if(id==='player')continue;
+  const e=knownEvents(id).find(e=>e.id===eventId&&e.typeId===t.eventBinding.typeId&&e.revision===revision&&e.state==='active');
+  if(e)events.set(id,e);
+ }
+ if(!events.size)return null;
+ for(const r of t.eventBinding.factRefs){
+  const e=events.get(binding[r.slotId]);
+  if(!own(e?.facts,r.factKey)||!primitive(e.facts[r.factKey]))return null;
+  facts[r.alias]=e.facts[r.factKey];
+ }
+ return copy(facts);
+}
+export function graphGroupTopic(registry,group,knownEvents,x){
+ const m=group?.materialized,t=registry.get('conversationTemplates',m?.templateId);
+ if(!t||!isTopicGraph(t)||!t.ambientPath||!m.eventId||group.anchorId!==x.npcId||group.regionId!==x.regionId)return null;
+ const e=t.eligibility;
+ if(!match(e.npcIds,x.npcId)||!match(e.roles,x.role)||!match(e.regionIds,x.regionId)||!all(e.tags,x.tags))return null;
+ const facts=groupFacts(t,m.binding,m.eventId,m.revision,knownEvents);
+ if(!facts||JSON.stringify(facts)!==JSON.stringify(m.facts))return null;
+ const event={id:m.eventId,revision:m.revision,state:'active',typeId:t.eventBinding.typeId};
+ if(!topicConditionsPass(e.conditions,{...x,event,facts,choiceIds:[...(x.choiceIds??[]),...(x.choiceHistory??[]).filter(c=>c.templateId===t.id).map(c=>c.choiceId)]}))return null;
+ return {template:t,topicId:t.topicId,source:t.source,eventRef:{id:m.eventId,revision:m.revision},groupId:group.id,facts,slotBinding:{...m.binding,[t.slots.find(s=>s.kind==='player').id]:'player'}};
+}

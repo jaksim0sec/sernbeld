@@ -28,7 +28,8 @@
     "docs/core/CURRENT_STATE.md",
     "src/core/npc-topic.js",
     "tests/npc-topic.mjs",
-    "tests/fixtures/npc-003-topics.json"
+    "tests/fixtures/npc-003-topics.json",
+    "tests/npc-group-topic.mjs"
   ],
   "contracts": [
     "docs/contracts/NPC_DIALOGUE.md",
@@ -42,5 +43,5 @@
     "WORLD-001",
     "ITEM-001"
   ],
-  "next": "NPC-003/T3: 코어·실제 게임 UI/서비스 adapter 구현 및 V8 회귀 PASS; 최종 CI/경제·브라우저·hold 검증 확인 후 T4 진행. PARTIAL."
+  "next": "NPC-003/T4 PARTIAL: graph ambient/현재 turn/그룹 화제 및 사실·revision 재검증 구현; 실제 UI 화자 표시·effect/경제 통합 및 CI 확인 필요."
 }

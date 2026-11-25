@@ -29,3 +29,6 @@ NPC 행동·담화 개발 기간에만 가까운(8m 이내) 가시 모델의 이
 
 ## 참여 그래프 러너 (NPC-003/T3)
 `createTopicSession`은 anchor ID, 페이지, revision, 그래프 선택·화제 hub를 유지하고 기존 GameUI.say 렌더에 연결한다. graph 선택은 같은 세션에서 렌더만 갱신, 기존 외부 선형 say API는 호환 유지. 서비스 descriptor는 기존 Society.executeChoice의 quote/접근 조건을 검증하며 응답만 캡처한다. 실제 종료/지역·거리 이탈 시 anchor 해제, runtime의 기존 hold/resume 경로 재사용. 그래프 기억은 NPC state memory.dialogue에 policy 기반 16건 이하로 가산하며 저장 실패 롤백, 기존 버전과 cursor/met 유지. 사건/그룹 다인 경로는 T4 후속; 실제 브라우저/통합 검증은 미확정.
+
+## 사건 그룹 그래프 (NPC-003/T4 코어)
+ambientPath가 등록된 사건 그래프는 기존 L2/L3 그룹 formation/hold를 재사용한다. 실제 joined group의 cursor, offset, currentTurn과 그룹 ID를 유지한다. 각 발화 슬롯의 active 사건·revision·사실을 재확인하고 실제 joined group에서만 해당 graph topic을 노출한다. 세션 currentSpeakerId는 발화 슬롯의 실제 NPC ID, speakerId는 기존 anchor hold ID. 실제 UI 표시 및 효과/경제 통합 검증은 후속 잔여다.

@@ -1,4 +1,4 @@
-import {isTopicGraph} from './npc-topic.js';
+import {isTopicGraph,ambientTemplate,groupFacts,topicConditionsPass} from './npc-topic.js';
 // Presentation-only NPC groups. Nothing in this module changes economy or knowledge.
 const copy=v=>JSON.parse(JSON.stringify(v));
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
@@ -11,7 +11,7 @@ function matchSlots(slots,members){
   if(i===slots.length){matches.push({...binding});return}
   const s=slots[i];
   for(const n of members){
-   if(used.has(n.id)||!all(n.tags,s.tags))continue;
+   if(used.has(n.id)||!all(n.tags,s.tags)||s.role&&s.role!==n.role)continue;
    used.add(n.id);binding[s.id]=n.id;
    match(i+1);
    used.delete(n.id);delete binding[s.id];
@@ -26,7 +26,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
  const groups=new Map(),owner=new Map(),cooldown=new Map();
  let next=1,lastTime=-Infinity,nextScan=0,region=null,stats={scans:0,pairs:0,materializations:0};
  const eligible=n=>n&&typeof n.id==='string'&&point(n)&&n.stationary===true&&n.available!==false&&!n.hidden&&Array.isArray(n.tags)&&n.tags.length>0;
- const templates=()=>registry.list('conversationTemplates').filter(t=>!isTopicGraph(t)).sort((a,b)=>cmp(a.id,b.id));
+ const templates=()=>registry.list('conversationTemplates').map(t=>ambientTemplate(t,registry)).filter(Boolean).sort((a,b)=>Number(!!b.graph)-Number(!!a.graph)||cmp(a.id,b.id));
  const closest=(g,byId,player)=>Math.min(...g.npcIds.map(id=>dist(byId.get(id),player)));
  function end(g,now){
   groups.delete(g.id);
@@ -56,10 +56,18 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
      for(const n of members){const e=events.get(n.id).find(e=>e.id===eventId);if(e)selected.set(n.id,e)}
      if(!selected.size||new Set([...selected.values()].map(e=>e.revision)).size!==1)continue;
     }
-    const facts={};let valid=true;
+    let facts={};let valid=true;
     for(const r of refs){const e=selected.get(binding[r.slotId]);if(!e||!Object.hasOwn(e.facts,r.factKey)){valid=false;break}facts[r.key]=String(e.facts[r.factKey])}
     if(!valid)continue;
-    g.materialized={templateId:t.id,binding,eventId,revision:eventId===null?null:[...selected.values()][0].revision,turns:t.turns.map(l=>({npcId:binding[l.slotId],duration:l.duration,text:l.text.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,(_,k)=>facts[k])})),participationIds:t.participationIds??[]};
+    if(t.graph){
+     const revision=eventId===null?null:[...selected.values()][0].revision;
+     facts=groupFacts(t.graph,binding,eventId,revision,knownEvents);
+     if(!facts)continue;
+     const e=t.graph.eligibility;
+     // Ambient eligibility uses only available member context. Unknown conditions fail closed.
+     if(!members.some(n=>(!e.npcIds||e.npcIds.includes(n.id))&&(!e.roles||e.roles.includes(n.role))&&(!e.tags||all(n.tags,e.tags))&&topicConditionsPass(e.conditions,{...n,role:n.role,event:{id:eventId,revision,state:'active'},facts})))continue;
+    }
+    g.materialized={templateId:t.id,binding,eventId,revision:eventId===null?null:[...selected.values()][0].revision,turns:t.turns.map(l=>({npcId:binding[l.slotId],duration:l.duration,text:l.text.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,(_,k)=>facts[k])})),participationIds:t.participationIds??[],...(t.graph?{facts,graph:true}:{})};
     return;
    }
   }
@@ -68,6 +76,7 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
  function stillValid(g){
   const m=g.materialized;if(!m?.eventId)return true;
   const t=registry.get('conversationTemplates',m.templateId);
+  if(isTopicGraph(t)){const facts=groupFacts(t,m.binding,m.eventId,m.revision,knownEvents);return !!facts&&JSON.stringify(facts)===JSON.stringify(m.facts);}
   const required=new Set((t?.factRefs??[]).map(r=>m.binding[r.slotId]));
   if(!required.size)return g.npcIds.some(id=>knownEvents(id).some(e=>e.id===m.eventId&&e.revision===m.revision&&e.state==='active'));
   return [...required].every(id=>knownEvents(id).some(e=>e.id===m.eventId&&e.revision===m.revision&&e.state==='active'));
@@ -137,13 +146,13 @@ export function createNpcConversations({registry,knownEvents=()=>[],canPair=()=>
   return out;
  }
  function leaveNpc(id){const g=groups.get(owner.get(id));if(g)end(g,lastTime)}
- function participationFor(id){const g=groups.get(owner.get(id));return g&&g.lod===3&&g.materialized?.participationIds.length&&lastTime<g.endAt&&stillValid(g)?copy({...g,anchorId:id}):null}
+ function participationFor(id){const g=groups.get(owner.get(id));return g&&g.lod===3&&(g.materialized?.graph||g.materialized?.participationIds.length)&&lastTime<g.endAt&&stillValid(g)?(()=>{let offset=lastTime-g.formedAt;const cursor=g.materialized.turns.findIndex(t=>{if(offset<t.duration)return true;offset-=t.duration;return false});if(cursor<0)return null;return copy({...g,anchorId:id,cursor,offset,currentTurn:g.materialized.turns[cursor]})})():null}
  return {update,clear,leaveNpc,participationFor,groupFor:id=>owner.get(id)??null,snapshot:()=>({groups:copy([...groups.values()]),stats:{...stats}})};
 }
 
 // Ephemeral group ownership uses the authoritative action scheduler for managed residents.
 export function createConversationBridge({registry,scheduler,readState,managed,knownEvents,canPair,settled,playerHeld=()=>false}){
- const locks=new Map(),enabled=registry.list('conversationTemplates').some(t=>!isTopicGraph(t));
+ const locks=new Map(),enabled=registry.list('conversationTemplates').some(t=>!!ambientTemplate(t,registry));
  let joined=null;
  const action=id=>readState().npcStates?.[id]?.currentAction;
  const isTraveling=id=>readState().livingWorld?.scheduler?.some(j=>j.npcId===id&&j.status==='running'&&j.plan?.route);
@@ -206,7 +215,7 @@ export function createConversationBridge({registry,scheduler,readState,managed,k
    if(!enabled)return [];
    if(!args.active)leaveJoined();
    if(!args.active||args.suppressed||!settled())return core.update({...args,npcs:[],suppressed:true});
-   return core.update({...args,npcs:args.npcs.map(n=>({...n,tags:registry.get('profiles',n.id)?.tags??[],available:n.available!==false&&available(n.id)}))});
+   return core.update({...args,npcs:args.npcs.map(n=>({...n,tags:registry.get('profiles',n.id)?.tags??[],role:n.role??registry.get('profiles',n.id)?.roleId??null,available:n.available!==false&&available(n.id)}))});
   },
   snapshot:core.snapshot
  };

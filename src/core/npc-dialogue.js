@@ -110,15 +110,15 @@ export function createDialogueSession(def,line,options=[]) {
 export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({topics:[],services:[]}),reachable=()=>true,executeService=()=>({ok:false}),executeEffect=()=>({ok:false,reason:'stale'}),remember=()=>true}={}){
  const pagesOf=v=>{const a=(Array.isArray(v)?v:[v]).filter(s=>typeof s==='string'&&s.length);return a.length?a:['안녕하세요.'];};
  const serviceKey=s=>JSON.stringify([s.id,s.itemId??null,s.revision??null,s.quote??null,s.allocations??null]);
- const topicKey=t=>JSON.stringify([t.template.id,t.eventRef?.id??null,t.eventRef?.revision??null]);
+ const topicKey=t=>JSON.stringify([t.template.id,t.eventRef?.id??null,t.eventRef?.revision??null,t.groupId??null]);
  let status='active',revision=0,pages=pagesOf(line),page=0,phase='hub',selected=null,node=null,nextNode=null;
- let choiceHistory=[],topicIds=[],lastTemplateId=null;
+ let choiceHistory=[],topicIds=[],lastTemplateId=null,currentSpeakerId=def.id;
  const context=()=>{const x=readContext()??{};return {...x,choiceHistory:[...(x.choiceHistory??[]),...choiceHistory],topicIds:[...(x.topicIds??[]),...topicIds],lastTemplateId:lastTemplateId??x.lastTemplateId};};
  const findNode=k=>selected?.template.nodes.find(n=>n.id===k);
  const safeReach=()=>{try{return reachable()===true;}catch{return false;}};
  function close(){if(status==='active'){status='closed';revision++;selected=null;}}
  function show(v){pages=pagesOf(v);page=0;}
- function hub(v){selected=null;node=null;nextNode=null;phase='hub';if(v!==undefined)show(v);}
+ function hub(v){selected=null;node=null;nextNode=null;phase='hub';if(v!==undefined){currentSpeakerId=def.id;show(v);}}
  function live(){
   if(!safeReach()){close();return false;}
   if(!selected)return true;
@@ -144,6 +144,7 @@ export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({
    if(!n){hub('대화를 계속할 수 없어요.');return;}
    node=n;
    if(n.type==='speak'){
+    currentSpeakerId=selected.slotBinding[n.speakerSlot]??def.id;
     show(n.pages.map(s=>s.replace(/\{([a-z][a-z0-9_.:-]*)\}/g,(_,key)=>String(selected.facts[key]??''))));
     phase='speak';nextNode=n.next;prepareLast();return;
    }
@@ -174,7 +175,7 @@ export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({
  }
  return {
   graph:true,speakerId:def.id,participantId:'player',
-  get status(){return status;},get revision(){return revision;},get text(){return pages[page];},
+  get status(){return status;},get revision(){return revision;},get text(){return pages[page];},get currentSpeakerId(){return currentSpeakerId;},
   get pageIndex(){return page;},get pageCount(){return pages.length;},
   get canAdvance(){return status==='active'&&(page+1<pages.length||phase==='speak');},
   get choices(){return descriptors().map(({target,topic,service,...v})=>v);},

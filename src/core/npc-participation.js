@@ -1,3 +1,4 @@
+import {isTopicGraph,ambientTemplate,groupFacts} from './npc-topic.js';
 // Explicit participation uses the same authoritative request, event and relation state.
 const fail=reason=>({ok:false,reason});
 const safe=n=>Number.isSafeInteger(n)&&n>=0;
@@ -16,7 +17,7 @@ export function applyNpcRelation(data,registry,npcId,policyId){
 }
 export function createNpcParticipation(registry,society,requests){
  function valid(data,group){
-  const m=group?.materialized,t=registry.get('conversationTemplates',m?.templateId);
+  const m=group?.materialized,definition=registry.get('conversationTemplates',m?.templateId),t=definition&&ambientTemplate(definition,registry);
   if(!t||!Array.isArray(group.npcIds)||!t.regionIds.includes(group.regionId)||!group.npcIds.includes(group.anchorId)||group.npcIds.length!==t.slots.length||new Set(group.npcIds).size!==group.npcIds.length||!m.binding)return false;
   const ids=t.slots.map(s=>m.binding[s.id]);
   if(new Set(ids).size!==ids.length||ids.some(id=>!group.npcIds.includes(id)||!data.npcStates?.[id]||registry.get('profiles',id)?.regionId!==group.regionId))return false;
@@ -24,6 +25,7 @@ export function createNpcParticipation(registry,society,requests){
    const e=data.livingWorld.events.find(e=>e.id===m.eventId);
    if(!e||e.typeId!==t.eventTypeId||e.regionId!==group.regionId||e.state!=='active'||e.revision!==m.revision)return false;
   }else if(m.eventId!==null)return false;
+  if(isTopicGraph(definition)){const facts=groupFacts(definition,m.binding,m.eventId,m.revision,id=>society.knownEvents(data,id));if(!facts||JSON.stringify(facts)!==JSON.stringify(m.facts))return false;}
   return true;
  }
  function choices(data,items,group){

@@ -1,3 +1,4 @@
+import './npc-group-topic.mjs';
 import './npc-topic.mjs';
 import {createLivingWorldRegistry} from '../src/core/living-world-registry.js';
 import {createNpcConversations,createConversationBridge} from '../src/core/npc-conversation.js';
