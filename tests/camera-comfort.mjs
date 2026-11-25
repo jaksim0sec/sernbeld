@@ -38,3 +38,58 @@ console.log('PASS camera comfort:',JSON.stringify(regression(smoothCameraHeight,
  if(recovered.fallback||Math.abs(recovered.yaw-result.yaw)>.6)throw Error('Traversal camera snapped when clearance returned');
  console.log('PASS traversal camera: blocked orbit, lateral corridor, gradual recovery');
 }
+
+{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../src/gameplay/gameplay.part.js',import.meta.url),'utf8');
+ const followSource=source.slice(source.indexOf('var MovementCameraFollow ='),source.indexOf('var CameraRig ='));
+ const MovementCameraFollow=new Function(followSource+';return MovementCameraFollow;')();
+ (function(MovementCameraFollow){
+ const check=(ok,msg)=>{if(!ok)throw Error(msg);};
+ const angle=(x)=>Math.atan2(Math.sin(x),Math.cos(x));
+ function fixture(){
+  const p={mode:"walk",yaw:0,teleportId:1,onGround:true,vel:{x:0,z:0}};
+  const follow=new MovementCameraFollow();
+  let x=0,y=1,looking=false;
+  const input={move:()=>({x,y,mag:Math.hypot(x,y)}),isLooking:()=>looking};
+  const step=(dt=1/60,manual=false,enabled=true)=>{
+   follow.prepare(p,input,manual,enabled);
+   const basis=p.moveBasisYaw??p.yaw;
+   p.vel.x=-Math.sin(basis)*y+Math.cos(basis)*x;
+   p.vel.z=-Math.cos(basis)*y-Math.sin(basis)*x;
+   if(enabled)follow.update(dt,p);
+  };
+  return {p,follow,step,move:(a,b)=>{x=a;y=b;},look:v=>looking=v};
+ }
+ for(const fps of [30,60,120]){
+  const f=fixture();f.step(1/fps);f.move(0,-1);
+  let max=0;
+  for(let i=0;i<fps*2;i++){
+   const before=f.p.yaw;f.step(1/fps);max=Math.max(max,Math.abs(f.p.yaw-before));
+   check(Math.abs(f.p.vel.x)<1e-8&&f.p.vel.z>.999,"Auto camera bent the held movement vector");
+  }
+  check(Math.abs(angle(f.p.yaw-Math.PI))<.04,"180 degree reversal did not recenter at "+fps+" fps");
+  check(max<=3.2/fps+1e-8,"Camera snapped during reversal");
+  f.move(0,0);f.step();check(f.p.moveBasisYaw===null,"Movement basis not released at idle");
+  f.move(0,1);f.step();check(f.p.vel.z>.99,"New forward input does not follow recentered camera");
+ }
+ const manual=fixture();manual.move(0,-1);manual.look(true);
+ for(let i=0;i<90;i++)manual.step();
+ check(manual.p.yaw===0,"Automatic rotation fought the held look gesture");
+ manual.look(false);
+ for(let i=0;i<90;i++)manual.step();
+ check(manual.p.yaw===0,"Automatic rotation undid deliberate look in same segment");
+ manual.move(0,1);manual.step();manual.move(0,-1);
+ for(let i=0;i<120;i++)manual.step();
+ check(Math.abs(angle(manual.p.yaw-Math.PI))<.04,"New direction failed to release manual suppression");
+ const side=fixture();side.move(1,0);
+ for(let i=0;i<90;i++)side.step();
+ check(side.p.yaw===0,"Ordinary strafe unexpectedly rotated camera");
+ const disabled=fixture();disabled.move(0,-1);
+ for(let i=0;i<90;i++)disabled.step(1/60,false,false);
+ check(disabled.p.yaw===0&&disabled.p.moveBasisYaw===null,"First person or disabled mode modified camera");
+ const cut=fixture();cut.move(0,-1);for(let i=0;i<20;i++)cut.step();
+ cut.p.traversal={};cut.step();check(cut.p.moveBasisYaw===null,"Traversal retained walking basis");
+ console.log('PASS movement camera: reversal 30/60/120fps, straight movement, manual drag, direction change, strafe, disabled and traversal');
+ })(MovementCameraFollow);
+}

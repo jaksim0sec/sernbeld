@@ -2805,6 +2805,7 @@ var Input = class {
     this.toggles = [];
     this.touchActive = false;
     const touches = /* @__PURE__ */ new Map();
+    this.isLooking=()=>[...touches.values()].some(t=>t.kind==="look"&&t.travel>2);
     addEventListener("keydown", (e) => {
       if (e.repeat || (document.getElementById("speech")?.hidden === false && e.code !== "Escape")) return;
       this.keys.add(e.code);
@@ -2866,6 +2867,7 @@ var Input = class {
     };
     canvas2.addEventListener("pointerup", end);
     canvas2.addEventListener("pointercancel", end);
+    canvas2.addEventListener("lostpointercapture", end);
     jumpEl?.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       this.jumpQueued = true;
@@ -3190,6 +3192,7 @@ var Player = class {
     const { dx, dy } = input.consumeLook();
     this.yaw -= dx;
     this.pitch = clamp2(this.pitch - dy, -1.53, 1.53);
+    return Math.abs(dx)+Math.abs(dy)>1e-6;
   }
   update(dt, input) {
     if (this.mode === "fly") this.fly(dt, input);
@@ -3207,7 +3210,8 @@ var Player = class {
       this.pos.set(safe.x,safe.y,safe.z);this.vel.y=0;this.onGround=true;this.swimming=false;
       this.previousPos.copy(this.pos);
     }
-    const mv=input.move(),sy=Math.sin(this.yaw),cy=Math.cos(this.yaw);
+    const movementYaw=this.traversal?this.yaw:(this.moveBasisYaw??this.yaw);
+    const mv=input.move(),sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
     if(this.traversal){this.advanceTraversal(dt,dx,dz,jump);return;}
@@ -3446,6 +3450,49 @@ var Player = class {
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
     this.traversal=this.renderTraversal=null;
     this.moveHeading=null;this.resetInterpolation();this.teleportId++;
+  }
+};
+// Third-person recentering is an input-segment operation. Freeze the movement
+// basis while auto-turning so holding back/side does not steer in a circle.
+var MovementCameraFollow = class {
+  constructor(){this.reset();}
+  reset(p){
+    if(p)p.moveBasisYaw=null;
+    this.teleportId=null;this.inputAngle=null;this.manual=false;this.turning=false;
+  }
+  prepare(p,input,manualLook,enabled){
+    if(!enabled||p.mode!=="walk"||p.traversal||p.swimming){this.reset(p);return;}
+    if(this.teleportId!==p.teleportId){this.reset(p);this.teleportId=p.teleportId;}
+    const mv=input.move();
+    if(mv.mag<.18){this.reset(p);return;}
+    const angle=Math.atan2(mv.x,mv.y);
+    const difference=this.inputAngle===null?Infinity:Math.abs(Math.atan2(Math.sin(angle-this.inputAngle),Math.cos(angle-this.inputAngle)));
+    if(difference>Math.PI/6){
+      this.inputAngle=angle;this.manual=false;this.turning=false;p.moveBasisYaw=p.yaw;
+    }
+    if(manualLook||input.isLooking?.()){
+      // Respect intentional drag for the rest of this movement segment,
+      // not for all future movement. Manual look remains camera-relative.
+      this.manual=true;this.turning=false;p.moveBasisYaw=p.yaw;
+    }
+    p.moveBasisYaw??=p.yaw;
+    this.desiredX=-Math.sin(p.moveBasisYaw)*mv.y+Math.cos(p.moveBasisYaw)*mv.x;
+    this.desiredZ=-Math.cos(p.moveBasisYaw)*mv.y-Math.sin(p.moveBasisYaw)*mv.x;
+  }
+  update(dt,p){
+    if(p.traversal||p.swimming||p.mode!=="walk"){this.reset(p);return;}
+    if(this.inputAngle===null||this.manual||!p.onGround)return;
+    const speed=Math.hypot(p.vel.x,p.vel.z),wish=Math.hypot(this.desiredX,this.desiredZ);
+    if(speed<.35||wish<.18)return;
+    // Do not chase the old velocity during a reversal or a wall slide.
+    if((p.vel.x*this.desiredX+p.vel.z*this.desiredZ)/(speed*wish)<.75)return;
+    const target=Math.atan2(-p.vel.x,-p.vel.z);
+    const error=Math.atan2(Math.sin(target-p.yaw),Math.cos(target-p.yaw));
+    if(!this.turning&&Math.abs(error)>100*Math.PI/180)this.turning=true;
+    if(!this.turning)return;
+    if(Math.abs(error)<.02){this.turning=false;return;}
+    const step=Math.min(Math.abs(error)*(1-Math.exp(-6*dt)),3.2*dt);
+    p.yaw+=Math.sign(error)*step;
   }
 };
 var CameraRig = class {
@@ -6192,6 +6239,7 @@ async function boot() {
   const player = new Player();
   const miniMap = new Minimap(document.getElementById("miniMap"), region);
   const rig = new CameraRig(camera);
+  const movementCamera = new MovementCameraFollow();
   const ui = new GameUI();
   const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
   const teleport = (t) => {
@@ -6529,6 +6577,7 @@ async function boot() {
     last = now;
     const t = now / 1e3;
     if (avatars.isOpen) {
+      movementCamera.reset(player);
       ui.setStamina(player, camera, false, false);
       input.keys.clear(); input.stick.x = input.stick.y = 0;
       input.consumeLook(); input.consumeAttack(); input.consumeToggles(); input.jumpQueued = false;
@@ -6573,6 +6622,7 @@ async function boot() {
     clock.update(dt);
     folk.hour = clock.hour;
     if (fullMap.isOpen() || !ui.travel.hidden || ui.dialogueOpen()) {
+      movementCamera.reset(player);
       input.keys.clear();
       input.stick.x = input.stick.y = 0;
       input.consumeLook();
@@ -6582,8 +6632,11 @@ async function boot() {
       const editingSkill = skillWorkbench.isOpen();
       if (editingSkill) clearEditorInput();
       if (!editingSkill && input.consumeAttack() && ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden) combat.attack();
-      player.look(input);
+      const manualLook=player.look(input);
+      const autoCameraAllowed=avatars.mode==="third"&&!editingSkill&&!combat.swing&&!combat.downed&&ui.bag.hidden&&ui.boardP.hidden&&$("intro").hidden;
+      movementCamera.prepare(player,input,manualLook,autoCameraAllowed);
       player.advance(dt,input,WorldRegions.isActive(region.id)?folk.playerContacts(player):[]);
+      if(autoCameraAllowed)movementCamera.update(dt,player);
     }
     cutstoneBridge.update(player.pos.x, player.pos.z, now);
     miniMap.update(player, now);
