@@ -22,6 +22,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Physics registry and live wiring contracts
+        run: |
+          node tests/world-collision.mjs
+          node tests/world-collision-legacy.mjs
+          node tests/world-collision-surfaces.mjs
+          node tests/world-collision-runtime.mjs
       - run: node tools/verify.mjs build core clothing world
 
   browser:
