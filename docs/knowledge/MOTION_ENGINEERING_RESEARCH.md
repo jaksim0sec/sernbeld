@@ -199,7 +199,7 @@ null은 아직 정해지지 않은 초안 값이며 실행용 schema에서는 �
 | T7 | D10 이벤트/생명주기 기록, 성능/저장 격리 | 후속 |
 | T8 | 전체 manifest 및 생산 사례, 권한·승인·재사용·비용 기록 | 후속 |
 
-첫 착수에서는 D01~D05/D09의 최소 수집기를 기존 lab과 테스트에 붙이고, 실제 원본 데이터 읽기/fixture 측정이 성공할 때까지 캐릭터 크기·관절 한계·계단 임계치를 임의 확정하지 않는다. 직접 검증은 `node tests/player-physics.mjs`, `node tests/world-playability.mjs --no-browser`, 필요한 Chromium/리그 검사로 시작; 기존 작업 점유 조정 후 수행한다.
+첫 착수에서는 기존 코드 상수와 대표 fixture를 사용해 공용 등록·표면 구현을 시작하고 D01~D05/D09 최소 수집기를 필요한 변경과 병행해 추가한다. 전수 데이터 완성은 착수 조건이 아니다. 실제 원본 데이터 읽기/fixture 측정 전에는 캐릭터 크기·관절 한계·계단 임계치를 임의 확정하지 않고 기존값을 유지한다. 미확보 자료는 해당 의존 검증만 제한하며, [실행 명세의 계측 진행 규칙](WORLD_SURFACE_REFACTOR_PLAN.md#계측은-구현의-보조-수단이며-독립-착수-게이트가-아니다-사용자-확정)을 따른다. 직접 검증은 `node tests/player-physics.mjs`, `node tests/world-playability.mjs --no-browser`, 필요한 Chromium/리그 검사로 시작; 기존 작업 점유 조정 후 수행한다.
 
 ## 8. 문서 검증과 미확인 범위
 

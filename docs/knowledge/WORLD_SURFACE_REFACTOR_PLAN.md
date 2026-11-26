@@ -156,7 +156,16 @@ swim: sea/river/pool을 공통 water volume에 등록. 수면 높이는 volume �
 
 ## 7. 실행 순서 (T1 내부, 독립 T 추가 아님)
 
-A. 착수 조건: 최신 main/AGENTS/점유 확인. MOVEMENT-002·NPC-11252115 및 관련 공유 경로를 조정. 기존 test를 먼저 실행하고 SHA/seed/device/baseline 저장. 원격 커넥터만이면 구현/실행 불가 상태를 명시. 실제 rig D01 측량과 lab/카엘 등록 D02/D03, D04/D05/D09 trace. 기존 두 녹화의 장면은 재현 후보이고 입력 데이터 미확보를 기록.
+### 계측은 구현의 보조 수단이며 독립 착수 게이트가 아니다 (사용자 확정)
+
+- A는 최소 기준 확보이며, 전수 계측을 끝내는 단계가 아니다. 최신 main/점유 조정 후 현행 코드 상수와 대표 fixture, 직접 관련 테스트를 기준으로 B의 공용 등록/검증 구현을 바로 시작한다. 실측치가 없으면 기존값을 LEGACY/CODE로 표시하고 임의 튜닝 없이 유지한다.
+- 착수 시 기존 직접 테스트 1회 및 대표 장면 재현을 시도한다. 환경 문제로 실패하면 원인·명령·영향 범위를 남기고, 환경 복구를 위한 짧은 재시도 1회까지만 허용한다. 측정값을 얻기 위해 같은 실패를 반복하지 않는다. 실제 기능 결함의 수정·회귀는 이 제한과 별개다.
+- 계측기는 구현에 필요한 최소 항목부터 붙인다: 등록 ID/shape/transform, 접촉 surface/normal/angle, root/state. 해당 변경 검증에 필요한 데이터만 추가하며 전체 데이터셋 완성, 정교한 시각화, 50 NPC 벤치마크, 30분 실행, 모든 모델 실측을 B~E 착수 전 요구하지 않는다.
+- B~E 각 체크포인트는 변경 범위의 직접 테스트를 통과하면 독립 진행 가능. D01 실측이 없으면 기존 profile로 registry/표면/기하/등록 테스트 진행; 실제 rig별 치수 확정 및 IK 도달성은 해당 실측이 확보되어야 한다. D09 성능 baseline 미확보는 구조 구현을 막지 않되 성능 개선/통과 주장 및 최종 성능 승인은 보류한다. 브라우저 접근 불가도 순수 등록/질의 구현을 막지 않는다.
+- 미확보 항목은 동일 작업 기록에 항목/상태(NOT RUN 또는 BLOCKED)/원인/영향/필수 검증 시점/재개 조건을 남긴다. 직접 실패한 변경 기능, unsafe registration, 기존 동작 퇴화, 불명확한 권위 계약은 실제 의존 구간을 막는다. 무관한 검증 대기만으로 다음 체크포인트나 독립 T를 막지 않는다. 접근 불가로 직접 검증 못 한 코드는 PASS/완료 처리하지 않으며, 실제 검증이 필요한 통합 전환은 기존 경로를 유지한다.
+- 전체 T1을 계측만으로 완료할 수 없다. B~E의 실제 공용화 산출 및 직접 회귀가 필수다. 상위 최종 실기기·실게임·리그·성능 게이트는 삭제하지 않고 기존 작업의 필수 검증을 TODO로 떠넘기지 않는다. 계측 완성 자체를 새로운 T로 분리하지 않는다.
+
+A. 최소 기준 확보(구현과 병행): 최신 main/AGENTS/점유 확인. MOVEMENT-002·NPC-11252115 관련 경로 조정. 기존 코드 상수·대표 fixture 및 실행 가능한 직접 테스트를 기준으로 B 착수. D01~D05/D09는 B~E에서 실제 필요에 맞춰 점진 확보. 환경 한계와 두 녹화의 입력 미확보를 기록하고 해당 데이터가 필요한 변경만 보류한다.
 
 B. 공용 registry/shape contract: src/core/world-collision.js 후보와 tests/world-collision.mjs(신규)는 작업 scope 갱신 후 사용. 문서/테스트 먼저 작성, identity/transform/metadata/filter/region/removal/revision/중복/invalid 입력 통과. 기존 addBox/addCyl/addRoof wrapper를 통해 전 등록을 기록하되 기존 판정 결과는 동일. 공용 인터페이스 뒤에 legacy backend 연결. 덤프는 dev flag에서만; render 경로 미변경.
 
@@ -199,7 +208,7 @@ E. 소비자 연결·통합: Player floor/contact/ceiling/traversal/IK, NPC nav,
 
 수치 초기 gate 제안: analytical fixture point 오차 ≤.002m 및 normal 각 오차 ≤.1°(실제 mesh는 proxy 측량 오차 별도), 경계 관통 ≤.01m 목표/최대 깊이와 지속 tick 기록, 알려진 legacy 오차는 baseline으로 분리하고 악화 불허. 50° 판정은 double precision과 contact skin 오차를 구분. 임계각 hysteresis/snap 폭/발판 최소폭은 실측 후 기준 확정. 허용치 변경 근거 필수. 시각 및 물리 비교는 별도; 녹화의 드르륵거림 해결 선언은 T3~T6 연속성 검증 후.
 
-직접 검증: node tests/world-collision.mjs(추가 후), node tests/player-physics.mjs, node tests/world-playability.mjs --no-browser, node tests/world-performance.mjs, lab/카엘 Chromium 대표 W01~W10 캡처; NPC 관련 직접 회귀. 기존 verify.mjs 실행 옵션은 최신 코드에서 확인. 전체 CI/실기기 최종 게이트는 상위 계획의 요구를 유지. 개발 단계는 코드·계약·trace·테스트 통과 근거와 main SHA 확인으로 닫는다. 실제 T1 완결에는 실측 및 기존 행동 보존 직접 검증이 필요하다.
+직접 검증: node tests/world-collision.mjs(추가 후), node tests/player-physics.mjs, node tests/world-playability.mjs --no-browser, node tests/world-performance.mjs, lab/카엘 Chromium 대표 W01~W10 캡처; NPC 관련 직접 회귀. 기존 verify.mjs 실행 옵션은 최신 코드에서 확인. 전체 CI/실기기 최종 게이트는 상위 계획의 요구를 유지. 개발 단계는 코드·계약·trace·테스트 통과 근거와 main SHA 확인으로 닫는다. 실제 T1 완결에는 B~E 구현과 해당 변경의 직접 회귀가 필요하다. 실측 미확보 항목은 위 진행 규칙에 따라 의존 범위 및 최종 필수 게이트에 연결하며, 독립 구현을 차단하지 않는다.
 
 ## 10. 계측과 실패 분석
 
