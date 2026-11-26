@@ -1,26 +1,11 @@
 {
   "id": "MOTION-11261538",
-  "status": "planned",
+  "status": "in_progress",
   "baseline": "04b799d6d584359262a1c9ee18e934c1799e3ac8",
   "detail": "docs/tasks/active/MOTION-11261538.md",
   "scope": [
-    "src/world/region.part.js",
-    "src/render/world-render.part.js",
-    "src/gameplay/gameplay.part.js",
-    "src/core/npc-movement.js",
-    "src/entities/character/studio-integration.js",
-    "src/entities/character/avatar-motion.js",
-    "src/entities/character/schoolyard-motion.js",
-    "src/entities/character/studio-model.js",
-    "tests/player-physics.mjs",
-    "tests/world-playability.mjs",
-    "tests/camera-comfort.mjs",
-    "tests/studio-model.mjs",
-    "tests/schoolyard-motion.mjs",
-    "tests/schoolyard-ik.mjs",
-    "tests/world-performance.mjs",
-    "game.js",
-    "sw.js",
+    "src/core/world-collision.js",
+    "tests/world-collision.mjs",
     "docs/contracts/MOTION_INTERACTION.md",
     "docs/tasks/active/MOTION-11261538.md",
     "docs/tasks/active/MOTION-11261538.json"
@@ -36,5 +21,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: 최신 main/점유 조정 및 최소 기준 확인 후 공용 등록·표면 구현 착수; 실측 병행, 의존 검증만 제한."
+  "next": "MOTION-11261538/T1: B 독립 기반 구현됨; 공유 점유 조정 후 기존 static grid/backend 연결, C 표면·D 등록·E 소비자 이관 및 직접 검증."
 }
