@@ -39,7 +39,9 @@ const water=bridge.water({contains:(x,z)=>x>20&&x<30&&Math.abs(z)<3,surfaceAt:()
 assert.equal(bridge.debugSnapshot().counts.water,1);
 assert(bridge.get(water.id)?.shapes[0].policy.water,'water is a non-solid volume');
 assert.equal(bridge.overlap([25,-2,0],profile).length,0,'water is never blocking');
-bridge.terrain({heights:new Float64Array([0,1,2,1,2,3,2,3,4]),gridN:3,cell:2,half:2});
-assert(bridge.support([1,2,1],profile,{maxRise:0})?.point,'heightfield registered');
+const terrainHandle=bridge.terrain({heights:new Float64Array([0,1,2,1,2,3,2,3,4]),gridN:3,cell:2,half:2});
+const terrainHit=bridge.support([-1.5,.5,-1.5],profile,{maxRise:.05});
+assert.equal(terrainHit?.instanceId,terrainHandle.id,'heightfield wins the measured surface query');
+assert(Math.abs(terrainHit.point[1]-.5)<1e-8,'heightfield exact triangle');
 assert(bridge.debugSnapshot().registered>=7,'live objects and surfaces registered');
 console.log('PASS: runtime static, roof, terrain, water, active region and model-independent registration');
