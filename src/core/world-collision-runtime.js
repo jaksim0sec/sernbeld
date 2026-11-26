@@ -67,10 +67,28 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function overlap(root,profile,{region=regionId}={}){
   return registry.overlapBody({root,profile},{regionId:region,purpose:"block"});
  }
+ // Authoritative compatibility consumer for the existing capsule solver.
+ // It uses normalized SurfaceContact but returns the legacy objects unchanged.
+ // The existing cached candidate order must be retained for corner response.
+ function contacts(x,z,y,nearby=[],radius=.35,solids=null,height=1.72){
+  const candidates=solids??[...query(x,z,radius)];
+  const hits=registry.overlapBody({root:[x,y,z],profile:{radius,height},candidates},{regionId,purpose:"block"});
+  const found=new Map(),out=[];
+  for(const h of hits){
+   const collider=records.get(h.instanceId);
+   if(collider)found.set(collider,{nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider});
+  }
+  for(const collider of candidates){const c=found.get(collider);if(c)out.push(c);}
+  for(const collider of nearby){
+   if(collider.top<=y+.002||collider.bot>=y+height-.002)continue;
+   const c=playerContact(collider,x,z,radius);if(c)out.push(c);
+  }
+  return out;
+ }
  function remove(id){
   const h=handles.get(id);if(!h)return false;
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,stair,water,support,overlap,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,stair,water,support,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }
