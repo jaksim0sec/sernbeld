@@ -4029,6 +4029,9 @@ var WorldEntities = createEntityRegistry();
 var Inventory = createItemRuntime(Save, () => ITEMS, GameEvents);
 var SkillLibrary = createSkillLibrary(Save, GameEvents);
 var WorldRegions = createRegionLifecycle({registry: WorldEntities, save: Save, events: GameEvents});
+GameEvents.on('region.suspended',({region})=>WorldCollision?.suspendRegion(region));
+GameEvents.on('region.activated',({region})=>WorldCollision?.resumeRegion(region));
+GameEvents.on('region.unmounted',({region})=>WorldCollision?.suspendRegion(region));
 var NpcState = createNpcStateStore(Save);
 Save.beforeWrite = () => WorldRegions.checkpointActive();
 var DISCOVER_R = 7;
@@ -6918,7 +6921,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     ui.setStamina(player,camera,avatars.mode==="third"&&avatars.bodyRoot.visible,ui.travel.hidden);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev={motionLab:true,scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
+  window.__dev={motionLab:true,collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}},scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
 }
 async function boot() {
   const canvas2 = document.getElementById("view");
@@ -7534,7 +7537,7 @@ async function boot() {
     ui.setLabels(regionActive ? folk.labels(camera, player,t,ambientAllowed,groupLines) : [], camera);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev = { playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, livingWorld: living.ok?{snapshot:living.snapshot}: {status:living}, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
+  window.__dev = { collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}}, playerTerrain, playerFloor, playerFootSurface, playerContacts, maktwoWorldRay, stairs:STAIRS, stairBounds:[STAIR_MIN_V,STAIR_MAX_V], graphics: {set: applyGraphics, get: () => graphicsKey(Save.data.settings.graphics), presets: GRAPHICS}, terrain, grass, rocks, gatherables, avatars,characterTypes,studioFactory, cutstoneBridge, fullMap, miniMap, collidersAt, groundAt, occupiedAt, renderer, scene, camera, player, input, rig, World, teleport, region, entities: WorldEntities, regions: WorldRegions, events: GameEvents, npcState: NpcState, livingWorld: living.ok?{snapshot:living.snapshot}: {status:living}, inventory: Inventory, skills: {validate:validateSkill, compile:compileSkill, library:SkillLibrary}, forest, veg, nodes, explore, ui, Save, clock, folk, society, Guild, combat, frame: () => tick(performance.now()) };
 }
 boot().catch((e) => {
   console.error(e);
