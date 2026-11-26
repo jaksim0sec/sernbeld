@@ -1,4 +1,4 @@
-// HAIR-11260710/T1: selected Flow v1 front specimen. Side/back not yet authored.
+// HAIR-11260710/T1: Flow v1 with local carved edge detail. Side/back not authored.
 export const flowParts=[
   {
     "version": 1,
@@ -218,7 +218,90 @@ export const flowParts=[
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "tipCut": 3.8,
-        "role": "left dominant sweep"
+        "role": "left dominant sweep",
+        "detail": {
+          "start": 0.43,
+          "hem": [
+            [
+              -1,
+              0.9
+            ],
+            [
+              -0.78,
+              0.96
+            ],
+            [
+              -0.57,
+              0.79
+            ],
+            [
+              -0.37,
+              0.94
+            ],
+            [
+              -0.1,
+              1
+            ],
+            [
+              0.14,
+              0.98
+            ],
+            [
+              0.37,
+              0.87
+            ],
+            [
+              0.55,
+              0.96
+            ],
+            [
+              0.76,
+              0.89
+            ],
+            [
+              1,
+              0.83
+            ]
+          ],
+          "grooves": [
+            {
+              "u": -0.48,
+              "start": 0.36,
+              "drift": -0.14,
+              "width": 0.1,
+              "depth": 0.00095
+            },
+            {
+              "u": 0.34,
+              "start": 0.54,
+              "drift": 0.13,
+              "width": 0.08,
+              "depth": 0.00075
+            }
+          ],
+          "bend": [
+            [
+              -1,
+              -2.8
+            ],
+            [
+              -0.57,
+              -0.8
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0.55,
+              2.2
+            ],
+            [
+              1,
+              3.1
+            ]
+          ]
+        }
       },
       {
         "rootAnchor": {
@@ -288,7 +371,97 @@ export const flowParts=[
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "tipCut": 1.6,
-        "role": "central dominant inward curl"
+        "role": "central dominant inward curl",
+        "detail": {
+          "start": 0.47,
+          "hem": [
+            [
+              -1,
+              0.89
+            ],
+            [
+              -0.76,
+              0.98
+            ],
+            [
+              -0.52,
+              0.83
+            ],
+            [
+              -0.29,
+              0.94
+            ],
+            [
+              0.02,
+              0.96
+            ],
+            [
+              0.27,
+              0.76
+            ],
+            [
+              0.5,
+              0.89
+            ],
+            [
+              0.71,
+              1
+            ],
+            [
+              0.91,
+              0.92
+            ],
+            [
+              1,
+              0.88
+            ]
+          ],
+          "grooves": [
+            {
+              "u": -0.36,
+              "start": 0.29,
+              "drift": 0.15,
+              "width": 0.1,
+              "depth": 0.001
+            },
+            {
+              "u": 0.28,
+              "start": 0.48,
+              "drift": -0.12,
+              "width": 0.085,
+              "depth": 0.0011
+            },
+            {
+              "u": 0.68,
+              "start": 0.65,
+              "drift": 0.08,
+              "width": 0.07,
+              "depth": 0.0007
+            }
+          ],
+          "bend": [
+            [
+              -1,
+              -3.2
+            ],
+            [
+              -0.52,
+              -1.4
+            ],
+            [
+              0,
+              -0.7
+            ],
+            [
+              0.5,
+              1.2
+            ],
+            [
+              1,
+              2.3
+            ]
+          ]
+        }
       },
       {
         "rootAnchor": {
@@ -352,7 +525,67 @@ export const flowParts=[
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "tipCut": 3.2,
-        "role": "right supporting divergent"
+        "role": "right supporting divergent",
+        "detail": {
+          "start": 0.57,
+          "hem": [
+            [
+              -1,
+              0.9
+            ],
+            [
+              -0.7,
+              0.97
+            ],
+            [
+              -0.4,
+              0.79
+            ],
+            [
+              -0.09,
+              0.95
+            ],
+            [
+              0.28,
+              1
+            ],
+            [
+              0.6,
+              0.96
+            ],
+            [
+              1,
+              0.86
+            ]
+          ],
+          "grooves": [
+            {
+              "u": -0.35,
+              "start": 0.41,
+              "drift": 0.18,
+              "width": 0.095,
+              "depth": 0.0008
+            }
+          ],
+          "bend": [
+            [
+              -1,
+              -2.6
+            ],
+            [
+              -0.4,
+              -1
+            ],
+            [
+              0.3,
+              0.6
+            ],
+            [
+              1,
+              2
+            ]
+          ]
+        }
       },
       {
         "rootAnchor": {
@@ -416,7 +649,63 @@ export const flowParts=[
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "tipCut": 1.5,
-        "role": "right boundary outward"
+        "role": "right boundary outward",
+        "detail": {
+          "start": 0.62,
+          "hem": [
+            [
+              -1,
+              0.88
+            ],
+            [
+              -0.67,
+              0.94
+            ],
+            [
+              -0.4,
+              0.83
+            ],
+            [
+              -0.1,
+              0.99
+            ],
+            [
+              0.24,
+              1
+            ],
+            [
+              0.55,
+              0.94
+            ],
+            [
+              1,
+              0.91
+            ]
+          ],
+          "grooves": [
+            {
+              "u": -0.38,
+              "start": 0.46,
+              "drift": -0.1,
+              "width": 0.1,
+              "depth": 0.0007
+            }
+          ],
+          "bend": [
+            [
+              -1,
+              -1.6
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1.8
+            ]
+          ]
+        }
       },
       {
         "rootAnchor": {

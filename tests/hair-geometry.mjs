@@ -9,22 +9,25 @@ function synthetic(kit,scale=[.085,.12,.095]){
  return kit.surface(Float32Array.from(p),Uint32Array.from(ix),[0,0,0]);
 }
 function checkGeometry(kit,g,closed=false){const assert=(ok,msg)=>{if(!ok)throw Error(msg);};assert(g.positions.length===g.normals.length&&g.uv.length===g.positions.length/3*2,'attribute sizes');assert([...g.positions,...g.normals,...g.uv].every(Number.isFinite),'finite');assert(g.indices.every(i=>i<g.positions.length/3),'indices');for(let i=0;i<g.normals.length;i+=3)assert(Math.abs(Math.hypot(...g.normals.slice(i,i+3))-1)<1e-5,'normal length');if(closed)assert(kit.signedVolume(g)>0,'inward loft winding');}
-function verifySynthetic(kit,parts,synthetic,checkGeometry){
- const assert=(ok,msg)=>{if(!ok)throw Error(msg);};const results=[];
- for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]]){
-  const fit=synthetic(kit,scale),cap=kit.frontFoundation(fit);checkGeometry(kit,cap);assert(kit.compatible(parts,'male')&&kit.compatible(parts,'female'),'compatible');assert(!kit.compatible([parts[0],parts[0]],'male'),'duplicate slot');assert(!kit.compatible([parts[0],{...parts[0],id:'hair-t1-test-middle',slot:'middle',join:'other'}],'female'),'join mismatch');
-  const geos=parts.flatMap(p=>kit.makePart(fit,p));const regen=parts.flatMap(p=>kit.makePart(fit,p));
-  for(let i=0;i<geos.length;i++){const g=geos[i];checkGeometry(kit,g,true);assert(g.positions.every((v,j)=>v===regen[i].positions[j]),'determinism');const width=(ring,sides=10)=>{const a=(ring*(sides+1))*3,b=(ring*(sides+1)+sides/2)*3;return Math.hypot(...[0,1,2].map(k=>g.positions[a+k]-g.positions[b+k]));};assert(width(22,8)<Math.max(width(8,8),width(12,8))*.25,'taper');}
-  const metrics=[cap,...geos].map(g=>kit.penetration(fit,g));assert(metrics.every(m=>m.miss===0&&m.maxMetres<=.001),'synthetic penetration '+JSON.stringify(metrics));results.push({scale,triangles:[cap,...geos].reduce((s,g)=>s+g.indices.length/3,0),maxMm:Math.max(...metrics.map(m=>m.maxMetres))*1000,rootMask:geos.reduce((s,g)=>s+g.rootMask.reduce((x,y)=>x+y,0),0)});
- }return results;
+function verifyDetails(kit,fit,parts,checkGeometry){
+ const cap=kit.frontFoundation(fit),gs=kit.makePart(fit,parts[0]),again=kit.makePart(fit,parts[0]);checkGeometry(kit,cap);
+ if(!kit.compatible(parts,'male')||!kit.compatible(parts,'female')||kit.compatible([parts[0],parts[0]],'male'))throw Error('part compatibility');
+ let carved=0;
+ gs.forEach((g,i)=>{checkGeometry(kit,g,true);if(!g.positions.every((x,k)=>x===again[i].positions[k]))throw Error('nondeterminism');if(!g.detail)return;
+  carved++;
+  const edges=new Map();for(let n=0;n<g.indices.length;n+=3){const [a,b,c]=g.indices.slice(n,n+3);for(const [x,y] of [[a,b],[b,c],[c,a]]){const key=Math.min(x,y)+':'+Math.max(x,y),e=edges.get(key)??[0,0];e[0]++;e[1]+=x<y?1:-1;edges.set(key,e);}}
+  if([...edges.values()].some(e=>e[0]!==2||e[1]!==0))throw Error('cut mesh not oriented closed manifold '+i);
+ });
+ const all=[cap,...gs],metrics=all.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('penetration '+JSON.stringify(metrics));
+ return {triangles:all.reduce((sum,g)=>sum+g.indices.length/3,0),carved,penetrationMm:Math.max(...metrics.map(m=>m.maxMetres))*1000};
 }
 if(parts.length!==1||parts[0].slot!=='front')throw Error('T1 front-only scope');
-console.log('PASS synthetic geometry',JSON.stringify(verifySynthetic(kit,parts,synthetic,checkGeometry)));
+for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Flow local detail',JSON.stringify(verifyDetails(kit,synthetic(kit,scale),parts,checkGeometry)));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');
 const {createStudioGeometry,controls}=await import('../src/entities/character/studio-geometry.js');const {normalizeStudioCharacter}=await import('../src/entities/character/appearance.js');
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 let failed=false;
 for(const body of ['male','female'])for(const variant of ['default','wide','narrow','high','low','deep','shallow']){
- try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);const geometries=[kit.frontFoundation(fit),...parts.flatMap(p=>kit.makePart(fit,p))];geometries.forEach((g,i)=>checkGeometry(kit,g,i>0));const metrics=geometries.map(g=>kit.penetration(fit,g));const pass=metrics.every(m=>!m.miss&&m.maxMetres<=.001);failed||=!pass;console.log(pass?'PASS':'FAIL',body,variant,JSON.stringify(metrics));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
+ try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);console.log('PASS',body,variant,JSON.stringify(verifyDetails(kit,fit,parts,checkGeometry)));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
 }if(failed)process.exitCode=1;

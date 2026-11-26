@@ -120,7 +120,54 @@ function createHairKit(){
   for(const end of [0,1]){const start=end?segments*stride:0,center=p.length/3,avg=[0,0,0];for(let k=0;k<sides;k++)for(let a=0;a<3;a++)avg[a]+=p[(start+k)*3+a]/sides;p.push(...avg);uv.push(.5,end);root.push(end?0:1);for(let k=0;k<sides;k++)if(end)ix.push(center,start+k+1,start+k);else ix.push(center,start+k,start+k+1);}
   let result=mesh(p,uv,ix,seams,root);if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,uv,ix,seams,root);}return result;
  }
- function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
+ // Detail pass on the existing parent lock: carve its terminal envelope and
+ // longitudinal relief in its own surface coordinates; do not add leaf meshes.
+ function detailedRibbon(fit,c){
+  const d=c.detail,rows=32,cols=28;
+  const p=[],uv=[],ix=[],root=[],outer=[],inner=[];
+  const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  const sample=(keys,u)=>{let i=1;while(i<keys.length-1&&u>keys[i][0])i++;const a=keys[i-1],b=keys[i];return lerp(a[1],b[1],smooth((u-a[0])/(b[0]-a[0])));};
+  function addVertex(u,q,side){
+   const end=sample(d.hem,u),tail=smooth((q-d.start)/(1-d.start)),t=q-(1-end)*tail;
+   const [theta,phi,clearance]=cat(c.controlPoints,t),width=profile(c.angularWidth,t),depth=profile(c.depthProfile,t);
+   const angle=phi+u*width/2+sample(d.bend,u)*tail;
+   const polar=Math.max(1,theta+u*c.sweep*Math.sin(Math.PI*t)-(c.tipCut??0)*Math.abs(u)*Math.max(0,(t-.7)/.3)**2);
+   const limit=c.surfaceLimit??112,at=Math.min(polar,limit),anchor=fit.anchor(at,angle,0);
+   const extension=Math.max(0,polar-limit)*Math.PI/180*fit.radius(direction(at,angle));
+   const round=Math.sqrt(Math.max(0,1-u*u));
+   let relief=0;
+   if(side>0)for(const groove of d.grooves){
+    const center=groove.u+groove.drift*(1-q),fade=smooth((q-groove.start)/.20);
+    relief+=groove.depth*fade*Math.exp(-Math.pow((u-center)/groove.width,2))*round;
+   }
+   // Preserve the root volume and make the cut ends thinner, not blunt slabs.
+   const thinning=1-.64*smooth((q-.80)/.20);
+   const radial=clearance+side*round*depth/2*thinning-relief;
+   const point=add(anchor.position,mul(anchor.normal,radial));point[1]-=extension;
+   const id=p.length/3;p.push(...point);uv.push(side>0?Math.acos(u)/(2*Math.PI):1-Math.acos(u)/(2*Math.PI),t);root.push(q===0?1:0);return id;
+  }
+  for(let i=0;i<=rows;i++){
+   const q=i/rows,a=[],b=[];
+   for(let k=0;k<=cols;k++){const u=2*k/cols-1,id=addVertex(u,q,1);a.push(id);b.push(k===0||k===cols?id:addVertex(u,q,-1));}
+   outer.push(a);inner.push(b);
+   if(i)for(let k=0;k<cols;k++){
+    const A=outer[i-1],B=a,C=inner[i-1],D=b;
+    ix.push(A[k],B[k],A[k+1],A[k+1],B[k],B[k+1],C[k],C[k+1],D[k],C[k+1],D[k+1],D[k]);
+   }
+  }
+  // Weld lateral edges and close root/end. At the corner one triangle collapses
+  // topologically (shared index), so emit only three-distinct-index faces.
+  function tri(a,b,c){if(a!==b&&b!==c&&a!==c)ix.push(a,b,c);}
+  for(let k=0;k<cols;k++){
+   const A=outer[0],B=inner[0],C=outer[rows],D=inner[rows];
+   tri(A[k],A[k+1],B[k]);tri(A[k+1],B[k+1],B[k]);
+   tri(C[k],D[k],C[k+1]);tri(C[k+1],D[k],D[k+1]);
+  }
+  let result=mesh(p,uv,ix,[],root);
+  if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,uv,ix,[],root);}
+  result.detail={rows,cols,trim:d.hem.map(([u,end])=>({u,end}))};return result;
+ }
+ function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.detail)return detailedRibbon(fit,c);if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
  return {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};

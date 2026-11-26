@@ -9,3 +9,6 @@ Head-local metres, Y up, +Z front. Studio body remains read-only; `studioHead(fa
 
 ### Flow v1
 Eight authored locks (six main and two subordinate), varied path, width and end direction. The frontal root panel and ribbon generator remain unchanged. Full scalp guide optional/off. Unfinished side/rear deliberately exposed. Other comparison specimens removed from active sources; historical commits retain them. This selection does not establish final art approval.
+
+### Local detail pass
+Selected Flow locks support optional detail. Hem keys are lateral coordinate (-1..1) and normalized retained length; start is the beginning of the local deformation; grooves are longitudinal surface relief; bend is a terminal angular offset. No extra independent leaf is created. Unmodified locks use the original ribbon. The detail mesh is closed with welded edges; actual aesthetic approval remains separate.
