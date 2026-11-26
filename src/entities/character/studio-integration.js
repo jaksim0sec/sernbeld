@@ -6,6 +6,15 @@ const phase=(from,to,t)=>{
  return fraction*fraction*(3-2*fraction);
 };
 
+// Grounded avatar root smoothing is independent of collision feet and camera Y.
+// Keep the residual within the existing foot IK reach; reset across airborne
+// movement, traversal, teleport and view changes rather than blending a fall.
+export function smoothBodyHeight(previous,target,dt,grounded){
+ if(!grounded||!Number.isFinite(previous))return target;
+ const next=target+(previous-target)*Math.exp(-Math.max(0,dt)*16);
+ return Math.max(target-.24,Math.min(target+.24,next));
+}
+
 // Presentation-only camera math. No physics or animated bone writes.
 export function smoothCameraHeight(previous,target,dt,grounded){
  if(!Number.isFinite(previous))return target;
@@ -90,7 +99,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,footOffset=0,gaitSpeed=0,slideWeight=0,lastSlide=null;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyGrounded=false,footOffset=0,gaitSpeed=0,slideWeight=0,lastSlide=null;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
  dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
@@ -163,7 +172,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
   for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;cameraCut=null;return;}
+  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const cameraReset=cameraCut!==player.teleportId;
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
@@ -171,11 +180,15 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const aimYaw=player.yaw+Math.PI;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   footOffset=gaitSpeed=0;
+   footOffset=gaitSpeed=0;bodyY=null;bodyGrounded=false;
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
-  if(bodyCut!==player.teleportId){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
+  const bodyReset=bodyCut!==player.teleportId;
+  if(bodyReset){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
+  const grounded=!firstPerson&&player.onGround&&!player.swimming;
+  bodyY=smoothBodyHeight(bodyReset||!bodyGrounded?null:bodyY,renderPos.y,dt,grounded);
+  bodyGrounded=grounded;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   gaitSpeed+=(speed-gaitSpeed)*(1-Math.exp(-dt*12));
   let turnRate=0,turnStep=0;
@@ -189,7 +202,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    turnRate=turnStep/Math.max(.001,dt);
   }
   if(!firstPerson){
-   actor.group.position.copy(renderPos);
+   actor.group.position.copy(renderPos);actor.group.position.y=bodyY;
    actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
   }
   animatePlayer(actor,dt,t,player,pose,equipped,{
@@ -262,7 +275,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    actor.group.position.copy(camera.position).sub(displacement.copy(eye).applyQuaternion(actor.group.quaternion));
   }else{
    headCut=null;lastHeadMode=null;headRoll=0;
-   actor.group.position.copy(renderPos);actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
+   actor.group.position.copy(renderPos);actor.group.position.y=bodyY;actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
    let desired=0;
    if(player.onGround&&!player.swimming){
     let best=-Infinity;
@@ -275,7 +288,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    }
    footOffset=actor._combatStance||!player.onGround||player.swimming?0:footOffset+(desired-footOffset)*(1-Math.exp(-dt*24));
    actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
-   if(player.onGround&&!player.swimming&&!actor._combatStance&&groundSurface)fitFeet(actor,renderPos,ankleRest,dt);
+   if(player.onGround&&!player.swimming&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt);
   }
   // Sliding down a steep face: crouched, feet planted on the slope, arms
   // out for balance. Eased in and out over the regular airborne pose.
@@ -522,7 +535,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const base={feet,aimY:cameraY??feet.y,yaw,pitch,near:camera.near??.2,
    fov:camera.fov??65,aspect:camera.aspect||1,height,previous:boom,reset,dt,worldRay};
   const result=traversal?solveTraversalCamera({...base,bodyFeet:actor.group.position,
-   aimY:actor.group.position.y-.28,surface:traversal.action.surface,previousView:traversalView}):solveThirdBoom(base);
+   aimY:actor.group.position.y-.28,surface:traversal.action.surface,previousView:traversalView}):solveThirdBoom({...base,bodyFeet:actor.group.position});
   traversalView=traversal&&!result.fallback?{yaw:result.yaw,pitch:result.pitch}:null;
   boom=result.boom;cut=player.teleportId;lastMode=mode;
   if(result.fallback){
