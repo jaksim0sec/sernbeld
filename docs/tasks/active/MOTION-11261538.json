@@ -11,7 +11,14 @@
     "docs/tasks/active/MOTION-11261538.json",
     "src/core/world-collision-legacy.js",
     "tests/world-collision-legacy.mjs",
-    "tests/world-collision-surfaces.mjs"
+    "tests/world-collision-surfaces.mjs",
+    "src/core/world-collision-runtime.js",
+    "tests/world-collision-runtime.mjs",
+    "src/render/world-render.part.js",
+    "src/gameplay/gameplay.part.js",
+    "game.js",
+    "sw.js",
+    ".github/workflows/main-validation.yml"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -24,5 +31,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: 공유 경로 순차 이관 승인 후 기존 grid 등록 훅/실제 runtime 및 surface/consumer 연결, 직접 회귀와 번들 검증. 독립 참조 구현 확장 중단."
+  "next": "MOTION-11261538/T1: shared runtime bridge wired; directly validate Node collision suite, player physics, world playability, lab/Kael Chromium and ownership; complete consumer migration and W01-W12 before T1 closure."
 }
