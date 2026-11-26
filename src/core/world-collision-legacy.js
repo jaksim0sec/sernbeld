@@ -78,6 +78,18 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
    }
    return best;
   },
+  sampleCeiling(args,filter,resolve){
+   const profile=getProfile(args),[x,y,z]=args.root,stop=args.targetY;
+   if(!Number.isFinite(stop)||stop<y)throw new TypeError("invalid ceiling movement");
+   let best=null,limit=stop;
+   for(const {record:o,data} of candidates(x,z,profile.radius,resolve,args.candidates??null)){
+    if(o.bot<y+profile.height-skin||o.bot>limit+profile.height||!playerContact(o,x,z,profile.radius))continue;
+    const point=pointOnTop(o,x,z);point[1]=o.bot;
+    const hit=contact(data,"underside",point,[0,-1,0],[0,-1,0],o.bot-(y+profile.height));
+    best=hit;limit=o.bot-profile.height-skin;
+   }
+   return best;
+  },
   sampleWater(args,filter,resolve){
    getProfile(args,true);
    const [x,,z]=args.root;let best=null;
