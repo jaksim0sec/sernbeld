@@ -21,14 +21,14 @@ const white=rgb('fff7f5');
 
 // Frontmost triangle on the same undeformed face used by the editor.
 // Bin by x so generating the eight eye pairs doesn't scan the whole head.
-function depthSampler(positions,indices){
+export function depthSampler(positions,indices,minY=-.38,maxY=-.09,strict=true){
  const bin=x=>Math.floor(x*100);
  const buckets=new Map();
  for(let i=0;i<indices.length;i+=3){
   const [a,b,c]=[indices[i]*3,indices[i+1]*3,indices[i+2]*3];
   const x=positions[a],y=positions[a+1],z=positions[a+2];
   const dx=positions[b]-x,dy=positions[b+1]-y,ex=positions[c]-x,ey=positions[c+1]-y;
-  if(Math.min(y,y+dy,y+ey)>-.09||Math.max(y,y+dy,y+ey)<-.38)continue;
+  if(Math.min(y,y+dy,y+ey)>maxY||Math.max(y,y+dy,y+ey)<minY)continue;
   const det=dx*ey-dy*ex;
   if(det<=1e-9)continue;
   const tri={x,y,z,dx,dy,ex,ey,det,dz:positions[b+2]-z,ez:positions[c+2]-z};
@@ -44,7 +44,7 @@ function depthSampler(positions,indices){
    const u=(px*t.ey-py*t.ex)/t.det,v=(t.dx*py-t.dy*px)/t.det;
    if(u>=-1e-5&&v>=-1e-5&&u+v<=1.00001)z=Math.max(z,t.z+u*t.dz+v*t.ez);
   }
-  if(!Number.isFinite(z))throw new Error('Eye contour lies outside the fitted face');
+  if(strict&&!Number.isFinite(z))throw new Error('Eye contour lies outside the fitted face');
   return z;
  };
 }
@@ -92,12 +92,24 @@ export function makeReferenceEyes(surface,triangles,legacyFeatures=[]){
   const style='reference-'+measured.id,closed=measured.id==='smile';
   const sclera=makeMesh(style,'sclera',depth),lid=makeMesh(style,'lid',depth);
   const count=measured.width-1;
+  const crease=makeMesh(style,'crease',depth);
   // The left eye in the sheet runs outer corner -> inner corner.
   // The model's positive-X contour runs inner corner -> outer corner.
   function column(t){
    return measured.columns[Math.round((1-t)*count)];
   }
+  // A short upper-lid fold on the inner half, separate from the eyebrow.
+  // Interpolate the endpoints instead of following the pixel stair-steps.
+  const t0=.10,t1=.48;
+  const topAt=t=>(measured.topOffset-column(t)[0])/count;
+  const y0=topAt(t0)+.18,y1=topAt(t1)+.13;
   for(const side of [-1,1]){
+   if(!closed)crease.strip(side,24,2,.006,(u,q)=>{
+    const t=t0+(t1-t0)*u;
+    const y=y0*(1-u)+y1*u+.038*4*u*(1-u);
+    const thickness=.018*Math.pow(Math.max(0,Math.sin(Math.PI*u)),.7);
+    return [t,y+(.5-q)*thickness,white];
+   });
    if(!closed)sclera.strip(side,count,4,.006,(t,q)=>{
     const [top,,bottom]=column(t);
     const y=top+(bottom-top)*q;
@@ -113,7 +125,7 @@ export function makeReferenceEyes(surface,triangles,legacyFeatures=[]){
     return [t,(measured.topOffset-y)/count,linearRGB(color),tint];
    });
   }
-  return (closed?[lid]:[sclera,lid]).map(mesh=>mesh.finish());
+  return (closed?[lid]:[sclera,lid,crease]).map(mesh=>mesh.finish());
  });
  // Recover only the centre curve from the old closed-eye parts. Build a new
  // stroke with the width, depth and ink of the reference set.

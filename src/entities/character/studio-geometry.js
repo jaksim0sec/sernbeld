@@ -1,4 +1,4 @@
-import { makeReferenceEyes } from './reference-eyes.js';
+import { makeReferenceEyes, depthSampler } from './reference-eyes.js';
 
 // Extracted from the supplied neck-seam-fixed Character Studio. Geometry and morph limits are unchanged.
 const groups = {
@@ -276,12 +276,27 @@ function accessor(id){
  if(v.byteStride)throw Error('압축된 정점 배열을 읽을 수 없어.');
  return new Type(bytes.buffer,binOffset+(v.byteOffset||0)+(a.byteOffset||0),a.count*columns).slice();
 }
-const anchors=source.bodies.female.face.anchors;
+const referenceFace=source.bodies.female.face;
+const anchors=referenceFace.anchors;
+const referencePositions=unpack(referenceFace.positions,Float32Array);
+const referenceTriangles=unpack(referenceFace.triangles,Uint16Array);
+const noseDepth=depthSampler(referencePositions,referenceTriangles,-.9,.1,false);
 const featureObjects=faceDocument.meshes.flatMap((mesh,meshIndex)=>mesh.extras.eyeStyle==='common'?[]:mesh.primitives.map((primitive,primitiveIndex)=>{
  const base=accessor(primitive.attributes.POSITION),normals=accessor(primitive.attributes.NORMAL),indices=accessor(primitive.indices);
  const material=faceDocument.materials[primitive.material],extra=mesh.extras;
- // Nose accent: adjust transverse stroke width only. Keep its Y/Z endpoints unchanged.
- if(extra.feature==='nose')for(let k=0;k<base.length;k+=3)base[k]*=1.12;
+ // Shorten the nose ink about its own centre, retaining its existing width.
+ // Preserve the original offset from the face while moving the vertices.
+ if(extra.feature==='nose'){
+  let low=Infinity,high=-Infinity;
+  for(let k=1;k<base.length;k+=3){low=Math.min(low,base[k]);high=Math.max(high,base[k]);}
+  const centre=(low+high)*.5;
+  for(let k=0;k<base.length;k+=3){
+   const x=base[k],y=base[k+1],nx=x*1.12,ny=centre+(y-centre)*.65;
+   const before=noseDepth(x,y),after=noseDepth(nx,ny);
+   base[k]=nx;base[k+1]=ny;
+   if(Number.isFinite(before)&&Number.isFinite(after))base[k+2]+=after-before;
+  }
+ }
  const colors=primitive.attributes.COLOR_0===undefined?null:accessor(primitive.attributes.COLOR_0);
  return {name:mesh.name,key:meshIndex+':'+primitiveIndex,extra,material,base,baseNormals:normals,fields:null,
   edited:base.slice(),localNormals:normals.slice(),positions:new Float32Array(base.length),normals:new Float32Array(base.length),
@@ -289,8 +304,7 @@ const featureObjects=faceDocument.meshes.flatMap((mesh,meshIndex)=>mesh.extras.e
   jointIds:new Uint8Array(base.length/3*4),weights:Uint8Array.from({length:base.length/3*4},(_,i)=>i%4===0?255:0),
   skins:['head'],gpu:null};
 }));
-const referenceFace=source.bodies.female.face;
-featureObjects.push(...makeReferenceEyes(unpack(referenceFace.positions,Float32Array),unpack(referenceFace.triangles,Uint16Array),featureObjects));
+featureObjects.push(...makeReferenceEyes(referencePositions,referenceTriangles,featureObjects));
 function visible(object){
  const e=object.extra;
  if(e.feature==='nose'||e.feature==='ear')return true;
@@ -355,8 +369,8 @@ function updateGeometry(){
 function updateColors(){
  for(const object of featureObjects.filter(visible)){
   if(object.extra.iris)object.colors=tintIris(object);
-  if(object.extra.softInk){
-   const skin=linear(palette().light),ink=linear('#8C6D64'),strength=object.extra.feature==='nose'?.23:.23,color=skin.map((v,i)=>v*(1-strength)+ink[i]*strength);
+  if(object.extra.softInk||object.extra.feature==='nose'){
+   const skin=linear(palette().light),ink=linear('#8C6D64'),strength=object.extra.feature==='nose'?.45:object.extra.eyeLayer==='crease'?.32:.23,color=skin.map((v,i)=>v*(1-strength)+ink[i]*strength);
    object.colors=new Float32Array(object.base.length);
    for(let i=0;i<object.colors.length;i+=3)object.colors.set(color,i);
   }

@@ -74,9 +74,22 @@ for(const body of ['male','female']){
   assert.deepEqual(Buffer.from(mesh.worldPositions.buffer),originalFace,'An eye preset changed the base face');
   const eyes=features.filter(f=>f.extra.eyeStyle===eye);
   const iris=eyes.find(f=>f.extra.iris);
-  if(name==='smile')assert(!iris,'Smiling closed eyes have no iris');
+  const crease=eyes.find(f=>f.extra.eyeLayer==='crease');
+  if(name==='smile'){
+   assert(!iris,'Smiling closed eyes have no iris');
+   assert(!crease,'Closed smiling eyes must not have an open-eye fold');
+  }
   else {
    assert(iris?.indices.length>0,'Open eyes must have an iris');
+   assert(crease?.indices.length>0&&crease.extra.softInk&&!crease.extra.iris,'Open eyes need a separate skin-toned eyelid fold');
+   const foldX=crease.base.filter((_,i)=>i%3===0);
+   assert(foldX.some(x=>x<0)&&foldX.some(x=>x>0),'Eyelid folds must be bilateral');
+   const positive=foldX.filter(x=>x>0);
+   assert(Math.max(...positive)-Math.min(...positive)<.10,'Eyelid fold must stay short');
+   const creaseColor=crease.colors.slice();
+   factory.build({...profile,iris:'#f04040'});
+   assert.deepEqual(crease.colors,creaseColor,'Iris selection recoloured eyelid fold');
+   factory.build(profile);
    const sclera=eyes.find(f=>f.extra.eyeLayer==='sclera');
    const ys=sclera.base.filter((_,i)=>i%3===1);
    heights[name]=Math.max(...ys)-Math.min(...ys);
