@@ -1,4 +1,4 @@
-// HAIR-11260710: preserved Flow Detail 7 front, independent middle/back bob study.
+// HAIR-11260710: preserved Flow Detail 7 front; layered side/rear study.
 export const flowParts=[
   {
     "version": 1,
@@ -966,44 +966,44 @@ export const flowParts=[
     "physics": "fixed-t1",
     "clumps": [
       {
-        "role": "left temple framing",
+        "role": "left temple short sideburn",
         "rootAnchor": {
-          "theta": 24,
-          "phi": -69
+          "theta": 36,
+          "phi": -66
         },
         "controlPoints": [
           [
-            24,
-            -69,
-            0.005
-          ],
-          [
-            45,
-            -74,
-            0.011
-          ],
-          [
-            68,
-            -74,
-            0.016
-          ],
-          [
-            91,
-            -69,
-            0.018
-          ],
-          [
-            123,
+            36,
             -66,
-            0.014
+            0.007
+          ],
+          [
+            55,
+            -71,
+            0.012
+          ],
+          [
+            76,
+            -72,
+            0.013
+          ],
+          [
+            96,
+            -70,
+            0.01
+          ],
+          [
+            114,
+            -67,
+            0.007
           ]
         ],
         "angularWidth": [
+          15,
+          20,
           19,
-          27,
-          29,
-          23,
-          1.4
+          13,
+          1.5
         ],
         "widthProfile": [
           0.02,
@@ -1012,10 +1012,10 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.0015,
-          0.0038,
-          0.0048,
-          0.0036,
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
           0.0006
         ],
         "twistProfile": [
@@ -1024,113 +1024,49 @@ export const flowParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": 2,
-        "tipCut": 2.2,
-        "surfaceLimit": 90,
+        "sweep": 1.3,
+        "tipCut": 1.8,
+        "surfaceLimit": 92,
         "physicsProfile": "fixed-t1"
       },
       {
-        "role": "left upper ear sweep",
+        "role": "left swept upper transition",
         "rootAnchor": {
-          "theta": 18,
-          "phi": -93
+          "theta": 22,
+          "phi": -79
         },
         "controlPoints": [
           [
-            18,
-            -93,
-            0.005
-          ],
-          [
-            38,
-            -94,
-            0.01
-          ],
-          [
-            57,
-            -95,
-            0.015
-          ],
-          [
-            79,
-            -98,
-            0.018
-          ],
-          [
-            108,
-            -108,
-            0.015
-          ]
-        ],
-        "angularWidth": [
-          30,
-          36,
-          38,
-          32,
-          2
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.004,
-          0.0052,
-          0.004,
-          0.0007
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -4,
-        "tipCut": 2,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
-      },
-      {
-        "role": "left behind ear nape",
-        "rootAnchor": {
-          "theta": 38,
-          "phi": -110
-        },
-        "controlPoints": [
-          [
-            38,
-            -110,
+            22,
+            -79,
             0.006
           ],
           [
+            42,
+            -84,
+            0.011
+          ],
+          [
             62,
-            -118,
-            0.012
+            -95,
+            0.014
           ],
           [
-            83,
+            77,
+            -109,
+            0.013
+          ],
+          [
+            93,
             -122,
-            0.016
-          ],
-          [
-            105,
-            -121,
-            0.016
-          ],
-          [
-            121,
-            -110,
-            0.012
+            0.009
           ]
         ],
         "angularWidth": [
-          25,
+          22,
+          33,
+          37,
           30,
-          29,
-          20,
           2
         ],
         "widthProfile": [
@@ -1140,74 +1076,10 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.002,
-          0.004,
-          0.005,
-          0.003,
-          0.0007
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": 2,
-        "tipCut": 2.6,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
-      },
-      {
-        "role": "right temple framing",
-        "rootAnchor": {
-          "theta": 27,
-          "phi": 72
-        },
-        "controlPoints": [
-          [
-            27,
-            72,
-            0.005
-          ],
-          [
-            45,
-            76,
-            0.011
-          ],
-          [
-            66,
-            77,
-            0.016
-          ],
-          [
-            88,
-            72,
-            0.018
-          ],
-          [
-            119,
-            67,
-            0.014
-          ]
-        ],
-        "angularWidth": [
-          20,
-          28,
-          29,
-          22,
-          1.6
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0038,
-          0.0045,
-          0.0034,
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
           0.0006
         ],
         "twistProfile": [
@@ -1217,49 +1089,49 @@ export const flowParts=[
         "crossSection": "lens",
         "grooves": 2,
         "sweep": -2,
-        "tipCut": 1.5,
-        "surfaceLimit": 90,
+        "tipCut": 1.6,
+        "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
       {
-        "role": "right upper ear sweep",
+        "role": "left shorter over-ear layer",
         "rootAnchor": {
-          "theta": 16,
-          "phi": 92
+          "theta": 53,
+          "phi": -77
         },
         "controlPoints": [
           [
-            16,
-            92,
-            0.005
+            53,
+            -77,
+            0.008
           ],
           [
-            36,
-            97,
-            0.01
+            67,
+            -83,
+            0.013
           ],
           [
-            58,
-            98,
-            0.015
-          ],
-          [
-            79,
-            101,
-            0.018
-          ],
-          [
-            106,
-            111,
+            80,
+            -92,
             0.014
+          ],
+          [
+            90,
+            -103,
+            0.012
+          ],
+          [
+            101,
+            -111,
+            0.008
           ]
         ],
         "angularWidth": [
-          29,
-          35,
-          37,
-          30,
-          1.7
+          13,
+          25,
+          27,
+          21,
+          1.5
         ],
         "widthProfile": [
           0.02,
@@ -1268,11 +1140,11 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.0015,
-          0.004,
-          0.005,
-          0.004,
-          0.0007
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
         ],
         "twistProfile": [
           0,
@@ -1280,48 +1152,304 @@ export const flowParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": 3,
-        "tipCut": 2.6,
+        "sweep": -1,
+        "tipCut": 1.3,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
       {
-        "role": "right behind ear nape",
+        "role": "left rear ear transition",
         "rootAnchor": {
-          "theta": 35,
-          "phi": 112
+          "theta": 61,
+          "phi": -111
         },
         "controlPoints": [
           [
-            35,
-            112,
-            0.006
-          ],
-          [
             61,
-            118,
-            0.012
+            -111,
+            0.009
           ],
           [
-            82,
-            125,
-            0.016
+            76,
+            -115,
+            0.014
           ],
           [
-            106,
+            95,
+            -120,
+            0.014
+          ],
+          [
+            108,
+            -119,
+            0.01
+          ],
+          [
             123,
-            0.016
-          ],
-          [
-            118,
-            113,
-            0.012
+            -111,
+            0.008
           ]
         ],
         "angularWidth": [
-          26,
+          19,
+          25,
+          27,
+          19,
+          1.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 1,
+        "tipCut": 1.8,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right temple short sideburn",
+        "rootAnchor": {
+          "theta": 38,
+          "phi": 67
+        },
+        "controlPoints": [
+          [
+            38,
+            67,
+            0.007
+          ],
+          [
+            57,
+            71,
+            0.012
+          ],
+          [
+            76,
+            73,
+            0.013
+          ],
+          [
+            94,
+            70,
+            0.01
+          ],
+          [
+            111,
+            68,
+            0.007
+          ]
+        ],
+        "angularWidth": [
+          15,
+          21,
+          19,
+          12,
+          1.4
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -1.3,
+        "tipCut": 1.5,
+        "surfaceLimit": 92,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right swept upper transition",
+        "rootAnchor": {
+          "theta": 24,
+          "phi": 79
+        },
+        "controlPoints": [
+          [
+            24,
+            79,
+            0.006
+          ],
+          [
+            44,
+            85,
+            0.011
+          ],
+          [
+            61,
+            94,
+            0.014
+          ],
+          [
+            78,
+            108,
+            0.013
+          ],
+          [
+            96,
+            121,
+            0.009
+          ]
+        ],
+        "angularWidth": [
+          23,
+          33,
+          36,
           30,
+          2
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 2,
+        "tipCut": 1.7,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right shorter over-ear layer",
+        "rootAnchor": {
+          "theta": 50,
+          "phi": 78
+        },
+        "controlPoints": [
+          [
+            50,
+            78,
+            0.008
+          ],
+          [
+            65,
+            84,
+            0.013
+          ],
+          [
+            81,
+            94,
+            0.014
+          ],
+          [
+            91,
+            105,
+            0.012
+          ],
+          [
+            103,
+            112,
+            0.008
+          ]
+        ],
+        "angularWidth": [
+          14,
+          24,
           28,
+          20,
+          1.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 1,
+        "tipCut": 1.5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right rear ear transition",
+        "rootAnchor": {
+          "theta": 62,
+          "phi": 111
+        },
+        "controlPoints": [
+          [
+            62,
+            111,
+            0.009
+          ],
+          [
+            77,
+            116,
+            0.014
+          ],
+          [
+            94,
+            121,
+            0.014
+          ],
+          [
+            107,
+            119,
+            0.01
+          ],
+          [
+            121,
+            112,
+            0.008
+          ]
+        ],
+        "angularWidth": [
+          19,
+          25,
+          26,
           18,
           1.5
         ],
@@ -1332,11 +1460,11 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.002,
-          0.004,
-          0.005,
-          0.003,
-          0.0007
+          0.001,
+          0.0025,
+          0.0032,
+          0.0025,
+          0.0006
         ],
         "twistProfile": [
           0,
@@ -1344,8 +1472,8 @@ export const flowParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -2,
-        "tipCut": 1.7,
+        "sweep": -1,
+        "tipCut": 1.4,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       }
@@ -1353,57 +1481,120 @@ export const flowParts=[
     "foundation": [
       [
         [
-          -124,
-          106
+          -132,
+          114
         ],
         [
-          -112,
-          99
+          -120,
+          111
         ],
         [
-          -97,
-          88
+          -110,
+          104
         ],
         [
-          -85,
+          -100,
+          96
+        ],
+        [
+          -93,
           94
         ],
         [
-          -76,
-          100
+          -86,
+          97
         ],
         [
-          -68,
-          92
+          -79,
+          104
+        ],
+        [
+          -72,
+          111
+        ],
+        [
+          -65,
+          106
+        ],
+        [
+          -59,
+          94
         ]
       ],
       [
         [
-          68,
-          92
+          59,
+          94
         ],
         [
-          76,
-          100
+          65,
+          105
         ],
         [
-          85,
-          95
+          72,
+          110
         ],
         [
-          97,
-          89
+          79,
+          104
         ],
         [
-          112,
-          100
+          86,
+          97
         ],
         [
-          124,
-          106
+          93,
+          94
+        ],
+        [
+          100,
+          96
+        ],
+        [
+          110,
+          104
+        ],
+        [
+          120,
+          111
+        ],
+        [
+          132,
+          114
         ]
       ]
-    ]
+    ],
+    "sculpt": {
+      "profile": [
+        0.0035,
+        0.009,
+        0.012,
+        0.01,
+        0.005
+      ],
+      "flow": 8,
+      "grooves": [
+        {
+          "u": 0.24,
+          "drift": 0.13,
+          "start": 0.24,
+          "depth": 0.001
+        },
+        {
+          "u": 0.49,
+          "drift": 0.15,
+          "start": 0.43,
+          "depth": 0.0008
+        },
+        {
+          "u": 0.78,
+          "drift": 0.09,
+          "start": 0.57,
+          "depth": 0.0009
+        }
+      ],
+      "hemDetail": 0.85
+    }
   },
   {
     "version": 1,
@@ -1422,191 +1613,49 @@ export const flowParts=[
     "physics": "fixed-t1",
     "clumps": [
       {
-        "role": "left rear shoulder of silhouette",
+        "role": "rear left diagonal connecting layer",
         "rootAnchor": {
-          "theta": 25,
-          "phi": 121
+          "theta": 34,
+          "phi": 120
         },
         "controlPoints": [
           [
-            25,
-            121,
-            0.006
+            34,
+            120,
+            0.009
           ],
           [
-            47,
-            130,
-            0.012
-          ],
-          [
-            71,
-            133,
-            0.019
-          ],
-          [
-            95,
-            135,
-            0.021
-          ],
-          [
-            118,
-            127,
-            0.018
-          ],
-          [
-            131,
-            121,
+            49,
+            132,
             0.014
-          ]
-        ],
-        "angularWidth": [
-          24,
-          30,
-          34,
-          31,
-          20,
-          1.8
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.002,
-          0.005,
-          0.007,
-          0.006,
-          0.003,
-          0.0007
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -3,
-        "tipCut": 2.6,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
-      },
-      {
-        "role": "right rear shoulder of silhouette",
-        "rootAnchor": {
-          "theta": 23,
-          "phi": 239
-        },
-        "controlPoints": [
-          [
-            23,
-            239,
-            0.006
           ],
           [
-            45,
-            231,
-            0.012
-          ],
-          [
-            70,
-            228,
-            0.018
-          ],
-          [
-            94,
-            229,
+            69,
+            142,
             0.021
+          ],
+          [
+            92,
+            143,
+            0.022
           ],
           [
             116,
-            232,
-            0.018
+            135,
+            0.016
           ],
           [
-            128,
-            238,
-            0.014
+            125,
+            129,
+            0.009
           ]
         ],
         "angularWidth": [
-          25,
-          31,
-          34,
-          29,
-          19,
-          1.7
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.002,
-          0.005,
-          0.0065,
-          0.005,
-          0.003,
-          0.0007
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": 3,
-        "tipCut": 1.9,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
-      },
-      {
-        "role": "rear right broad sweep",
-        "rootAnchor": {
-          "theta": 13,
-          "phi": 148
-        },
-        "controlPoints": [
-          [
-            13,
-            148,
-            0.005
-          ],
-          [
-            34,
-            147,
-            0.012
-          ],
-          [
-            58,
-            151,
-            0.019
-          ],
-          [
-            83,
-            156,
-            0.024
-          ],
-          [
-            108,
-            160,
-            0.021
-          ],
-          [
-            133,
-            152,
-            0.015
-          ]
-        ],
-        "angularWidth": [
+          22,
           33,
           38,
-          39,
-          36,
-          26,
+          35,
+          22,
           2.3
         ],
         "widthProfile": [
@@ -1616,12 +1665,12 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.002,
-          0.005,
-          0.007,
-          0.006,
+          0.0015,
+          0.003,
           0.004,
-          0.0007
+          0.004,
+          0.003,
+          0.0006
         ],
         "twistProfile": [
           0,
@@ -1629,56 +1678,56 @@ export const flowParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -3,
-        "tipCut": 2.7,
+        "sweep": -2,
+        "tipCut": 1.8,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
       {
-        "role": "rear central broad sweep",
+        "role": "rear right diagonal connecting layer",
         "rootAnchor": {
-          "theta": 9,
-          "phi": 180
+          "theta": 32,
+          "phi": 240
         },
         "controlPoints": [
           [
-            9,
-            180,
-            0.005
+            32,
+            240,
+            0.009
           ],
           [
-            30,
-            180,
-            0.012
+            49,
+            229,
+            0.014
           ],
           [
-            54,
-            177,
-            0.02
+            69,
+            220,
+            0.021
           ],
           [
-            80,
-            177,
-            0.025
-          ],
-          [
-            107,
-            181,
+            91,
+            218,
             0.022
           ],
           [
-            136,
-            188,
-            0.016
+            113,
+            224,
+            0.015
+          ],
+          [
+            123,
+            232,
+            0.009
           ]
         ],
         "angularWidth": [
+          23,
+          32,
           37,
-          42,
-          42,
-          39,
-          27,
-          2.5
+          35,
+          22,
+          2.2
         ],
         "widthProfile": [
           0.02,
@@ -1687,12 +1736,12 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.002,
-          0.005,
-          0.0075,
-          0.006,
+          0.0015,
+          0.003,
           0.004,
-          0.0008
+          0.004,
+          0.003,
+          0.0006
         ],
         "twistProfile": [
           0,
@@ -1701,131 +1750,252 @@ export const flowParts=[
         "crossSection": "lens",
         "grooves": 2,
         "sweep": 2,
-        "tipCut": 3.2,
+        "tipCut": 1.5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "rear upper crown sweep",
+        "rootAnchor": {
+          "theta": 10,
+          "phi": 167
+        },
+        "controlPoints": [
+          [
+            10,
+            167,
+            0.006
+          ],
+          [
+            32,
+            161,
+            0.011
+          ],
+          [
+            54,
+            167,
+            0.018
+          ],
+          [
+            76,
+            176,
+            0.023
+          ],
+          [
+            98,
+            183,
+            0.021
+          ],
+          [
+            114,
+            187,
+            0.013
+          ]
+        ],
+        "angularWidth": [
+          36,
+          48,
+          52,
+          46,
+          30,
+          2.4
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.003,
+          0.0045,
+          0.004,
+          0.003,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 2,
+        "tipCut": 1.5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "rear lower central layer",
+        "rootAnchor": {
+          "theta": 53,
+          "phi": 173
+        },
+        "controlPoints": [
+          [
+            53,
+            173,
+            0.013
+          ],
+          [
+            74,
+            172,
+            0.02
+          ],
+          [
+            94,
+            175,
+            0.023
+          ],
+          [
+            113,
+            181,
+            0.018
+          ],
+          [
+            128,
+            184,
+            0.009
+          ]
+        ],
+        "angularWidth": [
+          38,
+          48,
+          48,
+          35,
+          2.1
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.003,
+          0.0045,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -2,
+        "tipCut": 1.6,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "detail": {
           "rows": 18,
-          "cols": 14,
-          "start": 0.58,
+          "cols": 16,
+          "start": 0.66,
           "hem": [
             [
               -1,
-              0.92
+              0.93
             ],
             [
-              -0.72,
+              -0.68,
               0.98
             ],
             [
-              -0.48,
-              0.85
+              -0.42,
+              0.9
             ],
             [
-              -0.22,
-              0.97
-            ],
-            [
-              0.12,
+              -0.15,
               1
             ],
             [
-              0.4,
-              0.88
+              0.15,
+              0.95
             ],
             [
-              0.66,
-              0.96
+              0.44,
+              0.89
+            ],
+            [
+              0.68,
+              0.97
             ],
             [
               1,
-              0.9
+              0.92
             ]
           ],
           "grooves": [
             {
-              "u": -0.46,
-              "start": 0.33,
-              "width": 0.095,
-              "depth": 0.00085,
-              "drift": 0.13
+              "u": -0.4,
+              "start": 0.4,
+              "width": 0.1,
+              "depth": 0.0008,
+              "drift": 0.08
             },
             {
-              "u": 0.38,
-              "start": 0.53,
-              "width": 0.09,
+              "u": 0.45,
+              "start": 0.56,
+              "width": 0.1,
               "depth": 0.0007,
-              "drift": -0.09
+              "drift": -0.08
             }
           ],
           "bend": [
             [
               -1,
-              -2.5
-            ],
-            [
-              -0.5,
-              -1
+              -1.5
             ],
             [
               0,
               0
             ],
             [
-              0.5,
-              1.5
-            ],
-            [
               1,
-              2.2
+              1.8
             ]
           ]
         }
       },
       {
-        "role": "rear left broad sweep",
+        "role": "rear lower left layer",
         "rootAnchor": {
-          "theta": 15,
-          "phi": 212
+          "theta": 72,
+          "phi": 148
         },
         "controlPoints": [
           [
-            15,
-            212,
-            0.005
+            72,
+            148,
+            0.015
           ],
           [
-            35,
-            212,
-            0.012
-          ],
-          [
-            59,
-            210,
-            0.019
-          ],
-          [
-            83,
-            206,
-            0.024
-          ],
-          [
-            108,
-            204,
+            89,
+            151,
             0.021
           ],
           [
-            132,
-            211,
-            0.015
+            106,
+            155,
+            0.02
+          ],
+          [
+            119,
+            160,
+            0.014
+          ],
+          [
+            126,
+            163,
+            0.008
           ]
         ],
         "angularWidth": [
-          32,
-          38,
-          39,
-          35,
-          24,
+          25,
+          30,
+          31,
+          23,
           2
         ],
         "widthProfile": [
@@ -1835,12 +2005,11 @@ export const flowParts=[
           0.002
         ],
         "depthProfile": [
-          0.002,
-          0.005,
-          0.007,
-          0.006,
-          0.0035,
-          0.0007
+          0.0015,
+          0.003,
+          0.004,
+          0.003,
+          0.0006
         ],
         "twistProfile": [
           0,
@@ -1848,8 +2017,72 @@ export const flowParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": 3,
-        "tipCut": 2,
+        "sweep": 1,
+        "tipCut": 1.5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "rear lower right layer",
+        "rootAnchor": {
+          "theta": 70,
+          "phi": 212
+        },
+        "controlPoints": [
+          [
+            70,
+            212,
+            0.015
+          ],
+          [
+            89,
+            210,
+            0.021
+          ],
+          [
+            105,
+            207,
+            0.02
+          ],
+          [
+            117,
+            205,
+            0.014
+          ],
+          [
+            124,
+            202,
+            0.008
+          ]
+        ],
+        "angularWidth": [
+          26,
+          31,
+          31,
+          23,
+          2
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.003,
+          0.004,
+          0.003,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -1,
+        "tipCut": 1.7,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       }
@@ -1857,30 +2090,79 @@ export const flowParts=[
     "foundation": [
       [
         [
-          118,
-          103
+          122,
+          110
         ],
         [
-          140,
-          113
+          134,
+          117
         ],
         [
-          165,
-          118
+          148,
+          122
         ],
         [
-          190,
-          119
+          164,
+          125
         ],
         [
-          215,
-          116
+          178,
+          127
         ],
         [
-          242,
-          103
+          192,
+          126
+        ],
+        [
+          208,
+          124
+        ],
+        [
+          224,
+          120
+        ],
+        [
+          238,
+          115
         ]
       ]
-    ]
+    ],
+    "sculpt": {
+      "profile": [
+        0.003,
+        0.009,
+        0.017,
+        0.018,
+        0.006
+      ],
+      "flow": -12,
+      "grooves": [
+        {
+          "u": 0.18,
+          "drift": 0.13,
+          "start": 0.18,
+          "depth": 0.0011
+        },
+        {
+          "u": 0.38,
+          "drift": 0.1,
+          "start": 0.32,
+          "depth": 0.0013
+        },
+        {
+          "u": 0.62,
+          "drift": -0.06,
+          "start": 0.45,
+          "depth": 0.0011
+        },
+        {
+          "u": 0.83,
+          "drift": -0.13,
+          "start": 0.3,
+          "depth": 0.001
+        }
+      ],
+      "hemDetail": 1.2
+    }
   }
 ];

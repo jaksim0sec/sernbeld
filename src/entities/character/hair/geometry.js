@@ -96,11 +96,19 @@ function createHairKit(){
  // Side/rear underlayers with a deliberate ear recess and overlapping joins.
  function regionFoundations(fit,part){
   return (part.foundation??[]).map(keys=>{
-   const rows=20,cols=Math.max(12,Math.ceil((keys.at(-1)[0]-keys[0][0])/4)),p=[...fit.anchor(0,0,part.slot==='back'?.0025:.0035).position],uv=[.5,0],ix=[];
+   const sculpt=part.sculpt,rows=sculpt?28:20,cols=Math.max(12,Math.ceil((keys.at(-1)[0]-keys[0][0])/(sculpt?2:4))),p=[...fit.anchor(0,0,part.slot==='back'?.0025:.0035).position],uv=[.5,0],ix=[];
    function hem(phi){let i=1;while(i<keys.length-1&&phi>keys[i][0])i++;const a=keys[i-1],b=keys[i],u=(phi-a[0])/(b[0]-a[0]);return lerp(a[1],b[1],u*u*(3-2*u));}
    for(let i=1;i<=rows;i++){const t=i/rows,start=p.length/3;
-    for(let j=0;j<=cols;j++){const u=j/cols,phi=lerp(keys[0][0],keys.at(-1)[0],u),theta=t*hem(phi),at=Math.min(theta,112);
-     const clearance=(part.slot==='back'?.0025:.0035)+.002*Math.sin(Math.PI*t);
+    for(let j=0;j<=cols;j++){const u=j/cols,basePhi=lerp(keys[0][0],keys.at(-1)[0],u),smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+     const phi=basePhi+(sculpt?sculpt.flow*Math.sin(Math.PI*t)*Math.sin(Math.PI*u):0);
+     const scallop=sculpt?sculpt.hemDetail*Math.sin(Math.PI*u)*(Math.sin(u*19+1.2)+.45*Math.sin(u*37+.7)):0;
+     const theta=t*(hem(basePhi)+scallop),at=Math.min(theta,112);
+     let clearance=(part.slot==='back'?.0025:.0035)+.002*Math.sin(Math.PI*t);
+     if(sculpt){
+      const blend=Math.min(1,Math.sin(Math.PI*u)*4);
+      const relief=sculpt.grooves.reduce((sum,line)=>sum+line.depth*smooth((t-line.start)/.23)*Math.exp(-Math.pow((u-line.u-line.drift*(1-t))/.045,2)),0);
+      clearance=lerp(clearance,profile(sculpt.profile,t)-relief,blend);
+     }
      const a=fit.anchor(at,phi,clearance),q=a.position.slice();q[1]-=Math.max(0,theta-at)*Math.PI/180*fit.radius(direction(at,phi));p.push(...q);uv.push(u,t);}
     for(let j=0;j<cols;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-cols-1;ix.push(b,a,b+1,b+1,a,a+1);}}
    }return mesh(p,uv,ix);

@@ -15,3 +15,6 @@ Selected Flow locks support optional detail. Hem keys are lateral coordinate (-1
 
 ### Flow Bob v1
 Front remains unchanged. Middle and Back have independently authored locks and overlapping angular underlayers (`regionFoundations`). Middle reserves a shorter underlayer around the ears; back has longer nape locks, one with a lower-density carved hem. This is a preview-only style study, not a runtime asset or a completed T2. Per-slot visibility and colors in the viewer support visual inspection. Geometry checks use three synthetic heads; actual studio shapes and visual quality remain separate gates. The prototype triangle count exceeds the intended runtime LOD budget.
+
+### Flow Bob v3 layered sides/rear
+Optional `sculpt` on region foundations controls the primary volume profile, longitudinal sweep, shallow relief grooves and variable lower silhouette. The side and rear overlay locks have staggered roots and lengths; these are not repeated crown-to-tip panels. Front geometry is unchanged. Actual ear and nape appearance remains subject to visual verification.
