@@ -19,5 +19,5 @@
     "docs/PWA.md"
   ],
   "dependencies": [],
-  "next": "HAIR-11260710/T1: Composition v1 실제 사용자 시각 검수 및 실두상 피팅; v5/Flow/Curve 비교 보존; 승인 전 Middle/Back 금지."
+  "next": "HAIR-11260710/T1: Flow v1 단일 기준 유지; 실제 두상 피팅 및 다음 사용자 지시 확인. 다른 비교 시편 제거 완료."
 }
