@@ -183,7 +183,7 @@ export const flowParts=[
           ],
           [
             113,
-            -7,
+            -1,
             0.014
           ]
         ],
@@ -336,7 +336,7 @@ export const flowParts=[
           ],
           [
             105,
-            12,
+            23,
             0.015
           ]
         ],
@@ -788,9 +788,9 @@ export const flowParts=[
             0.018
           ],
           [
-            113,
-            27,
-            0.013
+            100,
+            26,
+            0.01
           ]
         ],
         "angularWidth": [
