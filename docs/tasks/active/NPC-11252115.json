@@ -4,9 +4,6 @@
   "baseline": "0711d188f135a2960491032c44b3c38b1388466e",
   "detail": "docs/tasks/active/NPC-11252115.md",
   "scope": [
-    "src/gameplay/gameplay.part.js",
-    "game.js",
-    "sw.js",
     "src/core/living-world-runtime.js",
     "tests/npc-dialogue.mjs",
     "tests/npc-dialogue-browser.mjs",
