@@ -24,5 +24,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: analytical roof/stair/water 참조 질의 구현; 공유 점유 이관 후 실제 runtime 등록/표면/소비자 연결 및 직접 검증."
+  "next": "MOTION-11261538/T1: 공유 경로 순차 이관 승인 후 기존 grid 등록 훅/실제 runtime 및 surface/consumer 연결, 직접 회귀와 번들 검증. 독립 참조 구현 확장 중단."
 }
