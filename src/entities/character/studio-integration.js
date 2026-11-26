@@ -225,6 +225,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   if(firstPerson)bodyYaw=aimYaw;
   else{
    const target=combat.swing?(combat.swing.aimYaw??player.yaw)+Math.PI:
+    player.keyboardSteering&&!player.swimming&&!player.slide?aimYaw:
     speed>.12?(player.moveHeading??Math.atan2(player.vel.x,player.vel.z)):bodyYaw;
    const delta=wrap(target-bodyYaw);
    turnStep=delta*(1-Math.exp(-(pose?17:11)*dt));

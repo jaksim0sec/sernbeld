@@ -432,3 +432,32 @@ for(const a of [3.04,4.64,6.24,1.44]){
   assert(progress>5,'grazing snagged a rounded corner: '+a+' progress '+progress);
   console.log('PASS corner grazing angle '+a+' progress '+progress.toFixed(3)+'m');
 }
+
+{
+ const Input=new Function(game.slice(game.indexOf('var LOOK_SENSITIVITY ='),game.indexOf('var _n ='))+';return Input;')();
+ const Follow=new Function(game.slice(game.indexOf('var MovementCameraFollow ='),game.indexOf('var CameraRig ='))+';return MovementCameraFollow;')();
+ const keyboard=(...codes)=>Object.assign(Object.create(Input.prototype),{keys:new Set(codes),stick:{x:0,y:0},keyboardSteering:true,jumpQueued:false});
+ clear();
+ const forward=player(),back=player(),left=player(),right=player();
+ tick(forward,keyboard('KeyW'),60);tick(back,keyboard('KeyS','ShiftLeft'),60);
+ tick(left,keyboard('KeyA'),30);tick(right,keyboard('KeyD'),30);
+ assert(forward.pos.z<-2&&Math.abs(forward.pos.x)<1e-8&&forward.yaw===0);
+ assert(back.pos.z>2&&Math.abs(back.pos.x)<1e-8&&back.yaw===0&&!back.running);
+ assert(Math.hypot(left.pos.x,left.pos.z)<1e-8&&left.yaw>1.19);
+ assert(Math.hypot(right.pos.x,right.pos.z)<1e-8&&right.yaw< -1.19);
+ const arcL=player(),arcR=player(),arc120=player();
+ tick(arcL,keyboard('KeyW','KeyA'),30);tick(arcR,keyboard('KeyW','KeyD'),30);
+ tick(arc120,keyboard('KeyW','KeyA'),60,1/120);
+ assert(arcL.pos.x<-.2&&arcL.pos.z<-.5&&arcR.pos.x>.2&&arcR.pos.z<-.5);
+ assert(Math.abs(arcL.pos.x+arcR.pos.x)<1e-8&&arcL.pos.distanceTo(arc120.pos)<1e-8);
+ assert(Math.abs(arcL.yaw-arc120.yaw)<1e-8);
+ const before=arcL.yaw;tick(arcL,keyboard('KeyW'),60);assert.equal(arcL.yaw,before);
+ const cancelled=player();tick(cancelled,keyboard('KeyW','KeyS','KeyA','KeyD'),60);
+ assert.equal(cancelled.yaw,0);assert.equal(cancelled.pos.length(),0);
+ const follow=new Follow(),reverse=keyboard('KeyS');
+ for(let k=0;k<120;k++){follow.prepare(back,reverse,false,true);tick(back,reverse);follow.update(1/60,back);}
+ assert.equal(back.yaw,0);assert.equal(back.moveBasisYaw,null);
+ const touch=keyboard();touch.keyboardSteering=false;touch.stick.x=1;
+ const mobile=player();tick(mobile,touch,60);assert(mobile.pos.x>2&&mobile.yaw===0);
+ console.log('PASS: keyboard forward/backpedal, turn in place, combined steering, cancellation, fixed ticks, no camera reversal, touch vector retained');
+}

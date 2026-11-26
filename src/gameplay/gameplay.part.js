@@ -2869,6 +2869,7 @@ var Input = class {
     this.jumpQueued = false;
     this.toggles = [];
     this.touchActive = false;
+    this.keyboardSteering = true;
     this.sprintEl = sprintEl;
     this.sprintEnabled = false;
     const touches = /* @__PURE__ */ new Map();
@@ -2876,6 +2877,7 @@ var Input = class {
     addEventListener("keydown", (e) => {
       if (e.repeat || (document.getElementById("speech")?.hidden === false && e.code !== "Escape")) return;
       this.keys.add(e.code);
+      if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) this.keyboardSteering = true;
       if (e.code === "Space") this.jumpQueued = true;
       if (e.code === "KeyJ" || e.code === "KeyK") this.attackQueued = true;
       this.toggles.push(e.code);
@@ -2893,6 +2895,7 @@ var Input = class {
       if (touch) this.touchActive = true;
       const moveSide = !this.lookOnly && touch && e.clientX < innerWidth * 0.5 && ![...touches.values()].some((t) => t.kind === "move");
       touches.set(e.pointerId, { kind: moveSide ? "move" : "look", x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, touch, t0: performance.now(), travel: 0 });
+      if (moveSide) this.keyboardSteering = false;
       if (moveSide && stickEl) {
         stickEl.style.display = "block";
         stickEl.style.left = e.clientX + "px";
@@ -2961,6 +2964,14 @@ var Input = class {
       y /= l;
     }
     return { x, y, mag: Math.min(1, l) };
+  }
+  // Keyboard turn and translation are independent axes; touch retains vector steering.
+  groundMove() {
+    if (!this.keyboardSteering) return this.move();
+    const k=this.keys;
+    const turn=Number(k.has("KeyD")||k.has("ArrowRight"))-Number(k.has("KeyA")||k.has("ArrowLeft"));
+    const y=Number(k.has("KeyW")||k.has("ArrowUp"))-Number(k.has("KeyS")||k.has("ArrowDown"));
+    return {x:0,y,mag:Math.abs(y),turn};
   }
   setSprint(enabled) {
     this.sprintEnabled = Boolean(enabled);
@@ -3415,6 +3426,7 @@ var Player = class {
     this.accumulator = 0;
     this.simTime = 0;
     this.moveHeading = null;
+    this.keyboardSteering = false;
     this.nearby = [];
     this.renderReady = false;
     this.stepRise = 0;
@@ -3501,8 +3513,14 @@ var Player = class {
       this.pos.set(safe.x,safe.y,safe.z);this.vel.y=0;this.onGround=true;this.swimming=false;
       this.previousPos.copy(this.pos);
     }
-    const movementYaw=this.traversal?this.yaw:(this.moveBasisYaw??this.yaw);
-    const mv=input.move(),sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
+    this.keyboardSteering=Boolean(input.keyboardSteering&&!this.traversal&&!this.swimming&&!this.slide);
+    const mv=this.keyboardSteering?input.groundMove():input.move();
+    if(this.keyboardSteering){
+      this.moveBasisYaw=null;
+      this.yaw-=mv.turn*2.4*dt;
+    }
+    const movementYaw=this.traversal||this.keyboardSteering?this.yaw:(this.moveBasisYaw??this.yaw);
+    const sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
     if(this.traversal){this.advanceTraversal(dt,dx,dz,jump);return;}
@@ -3519,7 +3537,7 @@ var Player = class {
         return;
       }
     }
-    const runRequested = input.run() && mv.mag > .1;
+    const runRequested = input.run() && mv.mag > .1 && (!this.keyboardSteering || mv.y>0);
     this.running = runRequested && (this.swimming || !this.exhausted);
     const sp=this.swimming?(this.running?3.6:2.6):this.running?PLAYER.run:PLAYER.walk;
     const tx=dx*sp,tz=dz*sp;
@@ -3777,7 +3795,7 @@ var MovementCameraFollow = class {
     this.teleportId=null;this.inputAngle=null;this.manual=false;this.turning=false;
   }
   prepare(p,input,manualLook,enabled){
-    if(!enabled||p.mode!=="walk"||p.traversal||p.swimming){this.reset(p);return;}
+    if(!enabled||input.keyboardSteering||p.mode!=="walk"||p.traversal||p.swimming){this.reset(p);return;}
     if(this.teleportId!==p.teleportId){this.reset(p);this.teleportId=p.teleportId;}
     const mv=input.move();
     if(mv.mag<.18){this.reset(p);return;}
