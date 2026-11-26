@@ -1107,6 +1107,10 @@ function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
   return h;
 }
 function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius,solids=null) {
+  // T1 common static-overlap authority: retain the existing collision response
+  // objects and candidate order while deriving contacts through one registry.
+  // Standalone legacy regression fixtures use the exact previous implementation.
+  if(WorldCollision?.contacts)return WorldCollision.contacts(x,z,y,nearby,radius,solids,PLAYER.body);
   const contacts=[];
   for(const o of solids??query(x,z,radius)){
     if(o.top<=y+CONTACT_SKIN||o.bot>=y+PLAYER.body-CONTACT_SKIN)continue;
