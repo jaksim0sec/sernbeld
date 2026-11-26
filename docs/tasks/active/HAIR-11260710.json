@@ -19,5 +19,5 @@
     "docs/PWA.md"
   ],
   "dependencies": [],
-  "next": "HAIR-11260710/T1: Flow Detail 7 시작점과 비대칭 곡률 사용자 검수; 기존 8다발 보존."
+  "next": "HAIR-11260710: Flow Bob v1 앞/옆/뒤 전체 시편 사용자 다각도 검수, 실두상 피팅 및 외형 확정 후 최적화. 기존 T1/T2 완료 승인 아님."
 }

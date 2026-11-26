@@ -93,6 +93,19 @@ function createHairKit(){
    for(let j=0;j<sides;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-sides-1;ix.push(b,a,b+1,b+1,a,a+1);}}
   }return mesh(p,uv,ix);
  }
+ // Side/rear underlayers with a deliberate ear recess and overlapping joins.
+ function regionFoundations(fit,part){
+  return (part.foundation??[]).map(keys=>{
+   const rows=20,cols=Math.max(12,Math.ceil((keys.at(-1)[0]-keys[0][0])/4)),p=[...fit.anchor(0,0,part.slot==='back'?.0025:.0035).position],uv=[.5,0],ix=[];
+   function hem(phi){let i=1;while(i<keys.length-1&&phi>keys[i][0])i++;const a=keys[i-1],b=keys[i],u=(phi-a[0])/(b[0]-a[0]);return lerp(a[1],b[1],u*u*(3-2*u));}
+   for(let i=1;i<=rows;i++){const t=i/rows,start=p.length/3;
+    for(let j=0;j<=cols;j++){const u=j/cols,phi=lerp(keys[0][0],keys.at(-1)[0],u),theta=t*hem(phi),at=Math.min(theta,112);
+     const clearance=(part.slot==='back'?.0025:.0035)+.002*Math.sin(Math.PI*t);
+     const a=fit.anchor(at,phi,clearance),q=a.position.slice();q[1]-=Math.max(0,theta-at)*Math.PI/180*fit.radius(direction(at,phi));p.push(...q);uv.push(u,t);}
+    for(let j=0;j<cols;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-cols-1;ix.push(b,a,b+1,b+1,a,a+1);}}
+   }return mesh(p,uv,ix);
+  });
+ }
  const slots=['front','middle','back','extra'];
  function validatePart(part){
   if(part?.version!==1||!/^hair-[a-z0-9-]+$/.test(part.id)||!slots.includes(part.slot)||!Array.isArray(part.bodies)||!part.bodies.length||!part.bodies.every(x=>['male','female'].includes(x))||typeof part.join!=='string'||!part.join||!Array.isArray(part.compatibility)||!part.compatibility.length||!part.compatibility.every(x=>typeof x==='string'&&x)||!Array.isArray(part.clumps)||!part.clumps.length||!part.material||!part.lod||!part.physics)throw Error('invalid hair part');
@@ -123,7 +136,7 @@ function createHairKit(){
  // Detail pass on the existing parent lock: carve its terminal envelope and
  // longitudinal relief in its own surface coordinates; do not add leaf meshes.
  function detailedRibbon(fit,c){
-  const d=c.detail,rows=32,cols=28;
+  const d=c.detail,rows=d.rows??32,cols=d.cols??28;
   const p=[],uv=[],ix=[],root=[],outer=[],inner=[];
   const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
   const sample=(keys,u)=>{let i=1;while(i<keys.length-1&&u>keys[i][0])i++;const a=keys[i-1],b=keys[i];return lerp(a[1],b[1],smooth((u-a[0])/(b[0]-a[0])));};
@@ -216,6 +229,6 @@ function createHairKit(){
  function makePart(fit,part){validatePart(part);const built=[];for(const c of part.clumps){if(c.edgeCompanion){const parent=built[part.clumps.findIndex(x=>x.role===c.edgeCompanion.parent)],neighbor=built[part.clumps.findIndex(x=>x.role===c.edgeCompanion.neighbor)];if(!parent||!neighbor)throw Error('missing edge references');built.push(edgeCompanion(fit,c,parent,neighbor));continue;}built.push((()=>{if(c.detail)return detailedRibbon(fit,c);if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});})());}return built;}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
- return {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
+ return {loft,surface,studioHead,scalpCap,frontFoundation,regionFoundations,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
 }
-export const {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();
+export const {loft,surface,studioHead,scalpCap,frontFoundation,regionFoundations,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();

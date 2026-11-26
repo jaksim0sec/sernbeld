@@ -1,4 +1,4 @@
-// HAIR-11260710/T1: Flow v1 with local carved edge detail. Side/back not authored.
+// HAIR-11260710: preserved Flow Detail 7 front, independent middle/back bob study.
 export const flowParts=[
   {
     "version": 1,
@@ -947,6 +947,924 @@ export const flowParts=[
           ]
         }
       }
+    ]
+  },
+  {
+    "version": 1,
+    "id": "hair-t1-middle-flow-bob",
+    "slot": "middle",
+    "bodies": [
+      "male",
+      "female"
+    ],
+    "join": "scalp-v1",
+    "compatibility": [
+      "t1-specimen"
+    ],
+    "material": "debug-t1",
+    "lod": "near-t1",
+    "physics": "fixed-t1",
+    "clumps": [
+      {
+        "role": "left temple framing",
+        "rootAnchor": {
+          "theta": 24,
+          "phi": -69
+        },
+        "controlPoints": [
+          [
+            24,
+            -69,
+            0.005
+          ],
+          [
+            45,
+            -77,
+            0.01
+          ],
+          [
+            68,
+            -79,
+            0.014
+          ],
+          [
+            90,
+            -73,
+            0.014
+          ],
+          [
+            110,
+            -72,
+            0.01
+          ]
+        ],
+        "angularWidth": [
+          19,
+          24,
+          22,
+          13,
+          1.3
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.0038,
+          0.0048,
+          0.0028,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 2,
+        "tipCut": 2.2,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "left upper ear sweep",
+        "rootAnchor": {
+          "theta": 18,
+          "phi": -93
+        },
+        "controlPoints": [
+          [
+            18,
+            -93,
+            0.005
+          ],
+          [
+            38,
+            -95,
+            0.01
+          ],
+          [
+            57,
+            -96,
+            0.014
+          ],
+          [
+            76,
+            -108,
+            0.016
+          ],
+          [
+            94,
+            -119,
+            0.013
+          ]
+        ],
+        "angularWidth": [
+          30,
+          35,
+          34,
+          23,
+          1.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.004,
+          0.0052,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -4,
+        "tipCut": 2,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "left behind ear nape",
+        "rootAnchor": {
+          "theta": 38,
+          "phi": -110
+        },
+        "controlPoints": [
+          [
+            38,
+            -110,
+            0.006
+          ],
+          [
+            62,
+            -118,
+            0.012
+          ],
+          [
+            83,
+            -122,
+            0.016
+          ],
+          [
+            105,
+            -121,
+            0.016
+          ],
+          [
+            121,
+            -110,
+            0.012
+          ]
+        ],
+        "angularWidth": [
+          25,
+          30,
+          29,
+          20,
+          2
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.004,
+          0.005,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 2,
+        "tipCut": 2.6,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right temple framing",
+        "rootAnchor": {
+          "theta": 27,
+          "phi": 72
+        },
+        "controlPoints": [
+          [
+            27,
+            72,
+            0.005
+          ],
+          [
+            45,
+            79,
+            0.011
+          ],
+          [
+            65,
+            83,
+            0.014
+          ],
+          [
+            87,
+            79,
+            0.014
+          ],
+          [
+            105,
+            74,
+            0.01
+          ]
+        ],
+        "angularWidth": [
+          20,
+          25,
+          23,
+          14,
+          1.6
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.0038,
+          0.0045,
+          0.0028,
+          0.0006
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -2,
+        "tipCut": 1.5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right upper ear sweep",
+        "rootAnchor": {
+          "theta": 16,
+          "phi": 92
+        },
+        "controlPoints": [
+          [
+            16,
+            92,
+            0.005
+          ],
+          [
+            36,
+            98,
+            0.01
+          ],
+          [
+            58,
+            102,
+            0.014
+          ],
+          [
+            77,
+            110,
+            0.015
+          ],
+          [
+            97,
+            120,
+            0.013
+          ]
+        ],
+        "angularWidth": [
+          29,
+          34,
+          33,
+          22,
+          1.7
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0015,
+          0.004,
+          0.005,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 3,
+        "tipCut": 2.6,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right behind ear nape",
+        "rootAnchor": {
+          "theta": 35,
+          "phi": 112
+        },
+        "controlPoints": [
+          [
+            35,
+            112,
+            0.006
+          ],
+          [
+            61,
+            118,
+            0.012
+          ],
+          [
+            82,
+            125,
+            0.016
+          ],
+          [
+            106,
+            123,
+            0.016
+          ],
+          [
+            118,
+            113,
+            0.012
+          ]
+        ],
+        "angularWidth": [
+          26,
+          30,
+          28,
+          18,
+          1.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.004,
+          0.005,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -2,
+        "tipCut": 1.7,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      }
+    ],
+    "foundation": [
+      [
+        [
+          -124,
+          106
+        ],
+        [
+          -112,
+          99
+        ],
+        [
+          -94,
+          84
+        ],
+        [
+          -76,
+          88
+        ]
+      ],
+      [
+        [
+          76,
+          88
+        ],
+        [
+          94,
+          85
+        ],
+        [
+          112,
+          100
+        ],
+        [
+          124,
+          106
+        ]
+      ]
+    ]
+  },
+  {
+    "version": 1,
+    "id": "hair-t1-back-flow-bob",
+    "slot": "back",
+    "bodies": [
+      "male",
+      "female"
+    ],
+    "join": "scalp-v1",
+    "compatibility": [
+      "t1-specimen"
+    ],
+    "material": "debug-t1",
+    "lod": "near-t1",
+    "physics": "fixed-t1",
+    "clumps": [
+      {
+        "role": "left rear shoulder of silhouette",
+        "rootAnchor": {
+          "theta": 25,
+          "phi": 121
+        },
+        "controlPoints": [
+          [
+            25,
+            121,
+            0.006
+          ],
+          [
+            47,
+            130,
+            0.012
+          ],
+          [
+            71,
+            133,
+            0.019
+          ],
+          [
+            95,
+            135,
+            0.021
+          ],
+          [
+            118,
+            127,
+            0.018
+          ],
+          [
+            131,
+            121,
+            0.014
+          ]
+        ],
+        "angularWidth": [
+          24,
+          30,
+          34,
+          31,
+          20,
+          1.8
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.005,
+          0.007,
+          0.006,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -3,
+        "tipCut": 2.6,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "right rear shoulder of silhouette",
+        "rootAnchor": {
+          "theta": 23,
+          "phi": 239
+        },
+        "controlPoints": [
+          [
+            23,
+            239,
+            0.006
+          ],
+          [
+            45,
+            231,
+            0.012
+          ],
+          [
+            70,
+            228,
+            0.018
+          ],
+          [
+            94,
+            229,
+            0.021
+          ],
+          [
+            116,
+            232,
+            0.018
+          ],
+          [
+            128,
+            238,
+            0.014
+          ]
+        ],
+        "angularWidth": [
+          25,
+          31,
+          34,
+          29,
+          19,
+          1.7
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.005,
+          0.0065,
+          0.005,
+          0.003,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 3,
+        "tipCut": 1.9,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "rear right broad sweep",
+        "rootAnchor": {
+          "theta": 13,
+          "phi": 148
+        },
+        "controlPoints": [
+          [
+            13,
+            148,
+            0.005
+          ],
+          [
+            34,
+            147,
+            0.012
+          ],
+          [
+            58,
+            151,
+            0.019
+          ],
+          [
+            83,
+            156,
+            0.024
+          ],
+          [
+            108,
+            160,
+            0.021
+          ],
+          [
+            133,
+            152,
+            0.015
+          ]
+        ],
+        "angularWidth": [
+          33,
+          38,
+          39,
+          36,
+          26,
+          2.3
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.005,
+          0.007,
+          0.006,
+          0.004,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -3,
+        "tipCut": 2.7,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "role": "rear central broad sweep",
+        "rootAnchor": {
+          "theta": 9,
+          "phi": 180
+        },
+        "controlPoints": [
+          [
+            9,
+            180,
+            0.005
+          ],
+          [
+            30,
+            180,
+            0.012
+          ],
+          [
+            54,
+            177,
+            0.02
+          ],
+          [
+            80,
+            177,
+            0.025
+          ],
+          [
+            107,
+            181,
+            0.022
+          ],
+          [
+            136,
+            188,
+            0.016
+          ]
+        ],
+        "angularWidth": [
+          37,
+          42,
+          42,
+          39,
+          27,
+          2.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.005,
+          0.0075,
+          0.006,
+          0.004,
+          0.0008
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 2,
+        "tipCut": 3.2,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "detail": {
+          "rows": 18,
+          "cols": 14,
+          "start": 0.58,
+          "hem": [
+            [
+              -1,
+              0.92
+            ],
+            [
+              -0.72,
+              0.98
+            ],
+            [
+              -0.48,
+              0.85
+            ],
+            [
+              -0.22,
+              0.97
+            ],
+            [
+              0.12,
+              1
+            ],
+            [
+              0.4,
+              0.88
+            ],
+            [
+              0.66,
+              0.96
+            ],
+            [
+              1,
+              0.9
+            ]
+          ],
+          "grooves": [
+            {
+              "u": -0.46,
+              "start": 0.33,
+              "width": 0.095,
+              "depth": 0.00085,
+              "drift": 0.13
+            },
+            {
+              "u": 0.38,
+              "start": 0.53,
+              "width": 0.09,
+              "depth": 0.0007,
+              "drift": -0.09
+            }
+          ],
+          "bend": [
+            [
+              -1,
+              -2.5
+            ],
+            [
+              -0.5,
+              -1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0.5,
+              1.5
+            ],
+            [
+              1,
+              2.2
+            ]
+          ]
+        }
+      },
+      {
+        "role": "rear left broad sweep",
+        "rootAnchor": {
+          "theta": 15,
+          "phi": 212
+        },
+        "controlPoints": [
+          [
+            15,
+            212,
+            0.005
+          ],
+          [
+            35,
+            212,
+            0.012
+          ],
+          [
+            59,
+            210,
+            0.019
+          ],
+          [
+            83,
+            206,
+            0.024
+          ],
+          [
+            108,
+            204,
+            0.021
+          ],
+          [
+            132,
+            211,
+            0.015
+          ]
+        ],
+        "angularWidth": [
+          32,
+          38,
+          39,
+          35,
+          24,
+          2
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.005,
+          0.007,
+          0.006,
+          0.0035,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": 3,
+        "tipCut": 2,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1"
+      }
+    ],
+    "foundation": [
+      [
+        [
+          118,
+          103
+        ],
+        [
+          140,
+          113
+        ],
+        [
+          165,
+          118
+        ],
+        [
+          190,
+          119
+        ],
+        [
+          215,
+          116
+        ],
+        [
+          242,
+          103
+        ]
+      ]
     ]
   }
 ];

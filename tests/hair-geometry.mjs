@@ -28,13 +28,28 @@ function verifyDetails(kit,fit,parts,checkGeometry){
  const all=[cap,...gs],metrics=all.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('penetration '+JSON.stringify(metrics));
  return {triangles:all.reduce((sum,g)=>sum+g.indices.length/3,0),carved,penetrationMm:Math.max(...metrics.map(m=>m.maxMetres))*1000};
 }
-if(parts.length!==1||parts[0].slot!=='front')throw Error('T1 front-only scope');
-for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Flow local detail',JSON.stringify(verifyDetails(kit,synthetic(kit,scale),parts,checkGeometry)));
+function verifyFull(kit,fit,parts,checkGeometry){
+ const all=[kit.frontFoundation(fit),...kit.makePart(fit,parts[0])],bySlot={front:all.reduce((n,g)=>n+g.indices.length/3,0)};
+ if(!kit.compatible(parts,'male')||!kit.compatible(parts,'female'))throw Error('slot mismatch');
+ for(const part of parts.slice(1)){const under=kit.regionFoundations(fit,part),locks=kit.makePart(fit,part),again=kit.makePart(fit,part);
+  under.forEach(g=>checkGeometry(kit,g));locks.forEach((g,i)=>{checkGeometry(kit,g,true);if(!g.positions.every((x,k)=>x===again[i].positions[k]))throw Error('nondeterminism');});
+  const gs=[...under,...locks];all.push(...gs);bySlot[part.slot]=gs.reduce((n,g)=>n+g.indices.length/3,0);}
+ const metrics=all.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('full intrusion '+JSON.stringify(metrics.filter(m=>m.miss||m.maxMetres>.001)));
+ const p=[],ix=[];for(const g of all){const off=p.length/3;for(const x of g.positions)p.push(x);for(const i of g.indices)ix.push(i+off);}
+ const shell=kit.surface(Float32Array.from(p),Uint32Array.from(ix),fit.center);
+ function cover(theta,phis){let hit=0;for(const phi of phis){const d=kit.direction(theta,phi),a=shell.radius(d),b=fit.radius(d);if(a!==null&&b!==null&&a>b+.0007)hit++;}return {theta,hit,total:phis.length};}
+ const circle=Array.from({length:72},(_,i)=>i*5),rear=Array.from({length:21},(_,i)=>130+i*5);
+ const coverage=[...([20,45,70,75].map(t=>cover(t,circle))),...([95,105,110].map(t=>cover(t,rear)))];
+ if(coverage.some(x=>x.hit!==x.total))throw Error('coverage '+JSON.stringify(coverage));
+ return {bySlot,triangles:all.reduce((n,g)=>n+g.indices.length/3,0),penetrationMm:Math.max(...metrics.map(x=>x.maxMetres))*1000,coverage};
+}
+if(parts.map(p=>p.slot).join(',')!=='front,middle,back')throw Error('slot scope');
+for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Flow local detail',JSON.stringify({front:verifyDetails(kit,synthetic(kit,scale),parts,checkGeometry),full:verifyFull(kit,synthetic(kit,scale),parts,checkGeometry)}));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');
 const {createStudioGeometry,controls}=await import('../src/entities/character/studio-geometry.js');const {normalizeStudioCharacter}=await import('../src/entities/character/appearance.js');
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 let failed=false;
 for(const body of ['male','female'])for(const variant of ['default','wide','narrow','high','low','deep','shallow']){
- try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);console.log('PASS',body,variant,JSON.stringify(verifyDetails(kit,fit,parts,checkGeometry)));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
+ try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);console.log('PASS',body,variant,JSON.stringify({front:verifyDetails(kit,fit,parts,checkGeometry),full:verifyFull(kit,fit,parts,checkGeometry)}));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
 }if(failed)process.exitCode=1;
