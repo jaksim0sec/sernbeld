@@ -32,5 +32,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: static overlap/floor/ceiling connected and Node/browser regressions passing on earlier SHA; finish manifest/explicit identity, indexed terrain/roof/stair/water and slope/actor-profile consumers, NPC navigation/camera/IK, W01-W12 and final browser/mobile p95 before marking done."
+  "next": "MOTION-11261538/T1: analytical index, stair bounds, explicit ID inputs and bridge water query implemented; next authoring manifest and authoritative terrain/stair/roof/water/slope, actor profile, NPC nav/camera/IK, W01-W12 and browser/mobile gates."
 }

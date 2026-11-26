@@ -35,3 +35,9 @@
 - `playerCeiling`: 정적 box/cyl 최저 아랫면 선택을 `staticCeiling` → `sampleCeiling`의 `underside` feature와 `[0,-1,0]` 기하 normal로 등록. 최종 `PLAYER.body + CONTACT_SKIN`과 처마 `roofSlabsAt` 로직은 유지. 층/지붕 underside parity 직접 회귀 추가. `bodyBlockedAt/pushOut/occupiedAt`와 camera ray 및 신규 surface IDs는 아직 완전 통합하지 않았다.
 - `tests/world-collision-runtime.mjs`는 동일 레거시 world-render 소스를 새 bridge 켬/끔으로 평가하며 두 경로의 높이, normal/depth/order/ceiling clearance를 직접 비교한다. 외부 결과는 [CI 45847848067](https://github.com/jaksim0sec/sernbeld/actions/runs/45847848067)의 Node 7종 및 Chromium 2종 PASS, [CI 45848804611](https://github.com/jaksim0sec/sernbeld/actions/runs/45848804611)의 추가 headroom Node 7종 PASS까지 확인. `game.js` 재생성, `sw.js` v82; 최신 수정 SHA의 browser/실모바일 회귀는 별도 게이트.
 - 현재 analytical 표면 조회는 debug/reference로 한정. 생산용 indexed roof/stair/terrain query와 실제 경사 normal 일치, water/clearance profile, anchor/revision, NPC navigation·카메라 소비, 제작 manifest/경로 점유 해제, W01~W12/실모바일 측정 완료 전에는 T1 **종결 금지**.
+
+## Analytical 공간 인덱스 및 명시 ID (2026-11-27, PARTIAL)
+
+- 정적 analytical 등록 시 XZ 32m sparse cell 인덱스에 연결한다. 256개 셀 초과 대형 source는 별도 목록으로 처리해 전체 월드 격자 할당을 피한다. 정확한 bounds 및 기존 policy/revision resolver를 narrow phase 전에 검사한다. 제거 시 인덱스도 정리하며 suspend/resume은 기존 resolver에서 처리한다. 전체 registry queryAabb는 여전히 debug reference이다.
+- stair bounds는 기존 stairUV 투영의 역변환으로 실제 네 모서리를 계산한다. terrain/stair/water도 명시 collisionId를 받을 수 있고, roof 자식 ID 중복은 두 자식 등록 전에 검사한다. 기존 미지정 serial ID는 유지되므로 제작 manifest 전체 이관은 아직 아니다.
+- runtime bridge에 sampleWater를 노출했다. 기존 수영 controller는 바꾸지 않았다. 신규 회귀는 원거리 80개 source, 인덱스 삭제, 대형 수역, suspend/resume, 명시 ID와 회전된 계단 bounds를 확인한다. 실제 renderer source를 사용한 V8 격리 실행 및 analytical surface 테스트 PASS; Node/Chromium/실기기와 성능 p95는 NOT RUN. 기존 지형/지붕/계단/수역 권위 소비자, 제작 manifest 및 NPC nav/camera/IK 이관은 미완료.
