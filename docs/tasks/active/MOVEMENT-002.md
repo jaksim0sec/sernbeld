@@ -51,3 +51,7 @@
 ## 캐릭터 조향과 카메라 분리 (사용자 후속 S 작업)
 - 직전 변경의 공통 yaw 때문에 작은 회전도 화면을 돌리고 상대 시선/몸통 회전을 축소했다. 3인칭 키보드 facingYaw를 카메라 yaw와 분리. A/D는 몸 방향, W/S는 몸 기준 전후진. 55° 이상 조향 차에서만 완만하게 추적, 30° 차에서 정지(지수 2.4/s, 최대 2.6rad/s; 구현 판단), 수동 드래그 우선. 1인칭, 모바일 벡터, 카메라 충돌·등반·수영, 학교 V3 보행/달리기 계수·발 IK 유지. turnStep/gazeYaw 연결 복원, 후진 위상은 몸 기준, 순수 회전 위상은 원래대로. 공유 gameplay/game/sw 국소 순차 통합.
 - PASS 실제 player-physics.mjs V8 격리 15285 assertions, 소각도 고정/대각도 완만 추적/정지/연속 회전/수동 orbit/후진/카메라 독립 이동 및 기존 물리. 실월드 Chromium 테스트 독립 heading 계약으로 갱신, 구문 확인. 기존 번들 blob SHA 일치 검증. 실제 렌더링·모션/조작감, Chromium 및 배포 NOT RUN.
+
+## 0bfd06c 실제 main CI 검증 (세션 복구)
+- Actions 45759739558: `player-physics`, `camera-comfort`, schoolyard motion joints/registered clips/world-translation ownership, Node/Chromium 카엘 실월드 PASS. Chromium 실제 window 키 입력: W/S ±0.589626m, A/D 제자리 ±1.2rad, W/S+A/D 조합 각 ±0.72rad 및 곡선 이동, 모든 물리 조향 케이스 cameraYaw=0. 카메라 자동 보정은 별도 player-physics 회귀 PASS; 실화면에서의 자동 보정·모션 감각은 NOT RUN. PWA 오프라인 회귀 PASS.
+- 전체 CI FAIL: `tools/check-infra.mjs`의 INFRA-001/NPC-11252115 `tools/verify.mjs` 점유 중복, `character-runtime-browser.mjs`의 reference-round 얼굴 featureError=0.0007923543453216553 (선행 실패와 동일 종류). 기존 의상/지도 터치 PARTIAL 유지. 검증 기반 package/deploy는 SKIPPED; 별도 Pages build/deployment 45759738399 SUCCESS (공개 URL SHA 미확인). 이동 소스는 재수정하지 않음. 사용자 실기기 체감/시각 품질 확인 전 전체 작업 종결하지 않음.
