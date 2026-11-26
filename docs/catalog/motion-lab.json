@@ -1,0 +1,23 @@
+[
+  {
+    "id": "dev.motion-lab-fixtures",
+    "kind": "asset",
+    "title": "개발자 모션 테스트 공간 구조물",
+    "stage": "INTEGRATED",
+    "source": [
+      "src/gameplay/gameplay.part.js"
+    ],
+    "runtime": "src/gameplay/gameplay.part.js",
+    "approval": "개발자 전용 테스트 도형 요청 범위; 피격 반응 제외",
+    "collision": "mixed",
+    "units": "m",
+    "pivot": "월드 Y-up, 각 구조물 바닥 또는 중심",
+    "checks": [
+      {
+        "criterion": "경사·턱·계단·수영·더미·공격 모션 및 저장 분리",
+        "result": "NOT RUN",
+        "evidence": "tests/world-playability.mjs"
+      }
+    ]
+  }
+]

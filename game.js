@@ -53517,20 +53517,102 @@ function motionLabURL(enabled){
   else url.searchParams.delete("motionLab");
   return url.href;
 }
+// Developer-only fixtures. Physical dimensions in metres; no normal-world
+// assets, NPCs, inventory mutations or persistent region registrations.
+function createMotionLabFixtures(scene){
+  const root=new Group();root.name="motion-lab-fixtures";scene.add(root);
+  const floorMat=new MeshStandardMaterial({color:0x737b82,roughness:1});
+  const slopeMat=new MeshStandardMaterial({color:0x9eaeb8,roughness:1,side:DoubleSide});
+  const stepMat=new MeshStandardMaterial({color:0xb5bbc0,roughness:1});
+  const ledgeMat=new MeshStandardMaterial({color:0xb1a18b,roughness:1});
+  const poolMat=new MeshStandardMaterial({color:0x546b75,roughness:1,side:DoubleSide});
+  const waterMat=new MeshStandardMaterial({color:0x318eaf,roughness:.28,transparent:true,opacity:.64,depthWrite:false,side:DoubleSide});
+  const pool={minX:-56,maxX:-26,minZ:-13,maxZ:13,bottom:-3,surface:-.18,entry:6};
+  const stairs={x:-12,z:12,width:4,run:.55,rise:.22,count:12};
+  const ramps=[30,45,60].map((angle,i)=>({angle,x:-16+i*11,z:-16,width:7,height:6,run:6/Math.tan(angle*Math.PI/180)}));
+  const wall={x:18,z:-23,width:8,depth:4,height:6,angle:90};
+  const ledges=[["knee",.45],["waist",.85],["shoulder",1.38],["head",PLAYER.body]].map(([id,height],i)=>({id,height,x:2+i*6,z:13,width:4,depth:4}));
+  const dummy={x:18,z:2};
+  const plane=(name,mat,x,y,z,w,d)=>{
+    const o=mesh(new PlaneGeometry(w,d),mat,x,y,z);o.name=name;o.rotation.x=-Math.PI/2;o.castShadow=false;root.add(o);return o;
+  };
+  const solid=(name,mat,x,z,w,d,h,y=0,climbable=true,collide=true)=>{
+    const o=mesh(boxGeo,mat,x,y+h/2,z);o.scale.set(w,h,d);o.name=name;root.add(o);
+    if(collide)addBox({cx:x,cy:y+h/2,cz:z,hx:w/2,hy:h/2,hz:d/2,yaw:0,walk:true,climbable});
+    return o;
+  };
+  // A continuous rectangular floor with a genuine opening, not water placed
+  // on a flat plane. The shallow east entry shares its exact height function.
+  const extent=10000,midX=(pool.minX+pool.maxX)/2,midZ=(pool.minZ+pool.maxZ)/2;
+  plane("motion-lab-floor-west",floorMat,(-extent+pool.minX)/2,0,0,pool.minX+extent,extent*2);
+  plane("motion-lab-floor-east",floorMat,(extent+pool.maxX)/2,0,0,extent-pool.maxX,extent*2);
+  plane("motion-lab-floor-north",floorMat,midX,0,(-extent+pool.minZ)/2,pool.maxX-pool.minX,pool.minZ+extent);
+  plane("motion-lab-floor-south",floorMat,midX,0,(extent+pool.maxZ)/2,pool.maxX-pool.minX,extent-pool.maxZ);
+  const flatEnd=pool.maxX-pool.entry;
+  plane("motion-lab-pool-bottom",poolMat,(pool.minX+flatEnd)/2,pool.bottom,midZ,flatEnd-pool.minX,pool.maxZ-pool.minZ);
+  const basinGeo=new BufferGeometry();
+  basinGeo.setAttribute("position",new Float32BufferAttribute([
+    flatEnd,pool.bottom,pool.minZ, flatEnd,pool.bottom,pool.maxZ, pool.maxX,0,pool.minZ,
+    pool.maxX,0,pool.minZ, flatEnd,pool.bottom,pool.maxZ, pool.maxX,0,pool.maxZ
+  ],3));basinGeo.computeVertexNormals();
+  const basinRamp=mesh(basinGeo,poolMat,0,0,0);basinRamp.name="motion-lab-pool-entry";root.add(basinRamp);
+  solid("pool-west-side",poolMat,pool.minX-.1,midZ,.2,pool.maxZ-pool.minZ,3,-3,false,false);
+  for(const z of [pool.minZ-.1,pool.maxZ+.1])solid("pool-side",poolMat,midX,z,pool.maxX-pool.minX,.2,3,-3,false,false);
+  const water=plane("motion-lab-water",waterMat,midX,pool.surface,midZ,pool.maxX-pool.minX,pool.maxZ-pool.minZ);
+  water.renderOrder=2;water.receiveShadow=false;
+  const inPool=(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ;
+  for(const r of ramps){
+    // The wedge top is analytical terrain (same surface used by physics,
+    // climbing, foot IK and camera rays). A real box forms its level landing.
+    const a=-r.width/2,b=r.width/2,L=r.run,H=r.height;
+    const vertices=[a,0,0,b,0,0,a,H,-L,b,H,-L,a,0,-L,b,0,-L];
+    const g=new BufferGeometry();g.setAttribute("position",new Float32BufferAttribute(vertices,3));
+    g.setIndex([0,1,2,1,3,2,0,2,4,1,5,3,2,3,4,3,5,4,0,4,1,1,4,5]);g.computeVertexNormals();
+    const wedge=mesh(g,slopeMat,r.x,0,r.z);wedge.name="motion-lab-slope-"+r.angle;root.add(wedge);
+    solid("motion-lab-landing-"+r.angle,slopeMat,r.x,r.z-L-2,r.width,4,H);
+  }
+  solid("motion-lab-wall-90",slopeMat,wall.x,wall.z,wall.width,wall.depth,wall.height);
+  for(let i=0;i<stairs.count;i++)solid("motion-lab-stair-"+i,stepMat,stairs.x,stairs.z+(i+.5)*stairs.run,stairs.width,stairs.run,(i+1)*stairs.rise,0,false);
+  solid("motion-lab-stair-landing",stepMat,stairs.x,stairs.z+stairs.count*stairs.run+2,stairs.width,4,stairs.count*stairs.rise,0,false);
+  for(const l of ledges)solid("motion-lab-ledge-"+l.id,ledgeMat,l.x,l.z,l.width,l.depth,l.height);
+  const target=new Group();target.name="motion-lab-training-dummy";target.position.set(dummy.x,0,dummy.z);root.add(target);
+  const wood=new MeshStandardMaterial({color:0x826248,roughness:1}),pad=new MeshStandardMaterial({color:0xc3a47c,roughness:1});
+  const cylinder=(name,r,h,y,mat)=>{
+    const m=mesh(new CylinderGeometry(r,r,h,20),mat,0,y,0);m.name=name;target.add(m);
+  };
+  cylinder("base",.55,.14,.07,wood);cylinder("post",.13,1.7,.85,wood);
+  cylinder("target-pad",.35,.78,1.16,pad);cylinder("target-cap",.23,.26,1.68,pad);
+  addCyl({x:dummy.x,z:dummy.z,r:.35,y0:0,y1:1.81,walk:false,climbable:false});
+  const stairHeight=(x,z,margin=0,exact=false)=>{
+    const u=z-stairs.z,L=stairs.run*stairs.count;
+    if(Math.abs(x-stairs.x)>stairs.width/2+margin||u<-margin||u>L+margin)return null;
+    const q=clamp2(u,0,L);
+    return exact?Math.min(stairs.count,Math.floor(q/stairs.run)+1)*stairs.rise:clamp2(q/stairs.run,0,stairs.count)*stairs.rise;
+  };
+  const height=(x,z)=>{
+    if(inPool(x,z))return pool.bottom*Math.min(1,(pool.maxX-x)/pool.entry);
+    const step=stairHeight(x,z,0,true);if(step!==null)return step;
+    for(const r of ramps){
+      const u=r.z-z;
+      if(Math.abs(x-r.x)<=r.width/2&&u>=0&&u<=r.run)return r.height*u/r.run;
+    }
+    return 0;
+  };
+  return {root,pool,stairs,ramps,wall,ledges,dummy,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
+}
 async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
-  playerTerrain=()=>0;
-  sample=()=>0;
-  stairSurface=()=>null;
-  waterLevel=()=>-1e6;
+  const fixtures=createMotionLabFixtures(scene);
+  playerTerrain=fixtures.height;
+  sample=fixtures.height;
+  stairSurface=fixtures.stairHeight;
+  waterLevel=fixtures.waterLevel;
   Save.load();
   const labSave={data:JSON.parse(JSON.stringify(Save.data)),write:()=>true};
   labSave.data.settings.view="third";
   scene.background=new Color(0xa7acb1);
   scene.fog=new Fog(0xa7acb1,55,150);
-  const floor=new Mesh(new PlaneGeometry(20000,20000),new MeshStandardMaterial({color:0x737b82,roughness:1}));
-  floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;floor.name="motion-lab-floor";scene.add(floor);
-  const gridFloor=new GridHelper(200,200,0x92999e,0x92999e);
+  const gridFloor=new GridHelper(20,20,0x92999e,0x92999e);
   gridFloor.position.y=.003;gridFloor.name="motion-lab-grid";scene.add(gridFloor);
   scene.add(new HemisphereLight(0xffffff,0x777777,2.0));
   const light=new DirectionalLight(0xffffff,2.0);
@@ -53547,17 +53629,19 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
   const studioFactory=createStudioGeometry(studioSource);
   const makeCharacter=(profile,options)=>createStudioModel(characterTypes,studioFactory,profile,options);
   const player=new Player(),rig=new CameraRig(camera),movementCamera=new MovementCameraFollow(),ui=new GameUI();
-  const input=new Input(canvas2,{stickEl:hud.el.stick,jumpEl:hud.el.jump,sprintEl:$("sprint"),onAnyInput:()=>hud.hideHint()});
+  const input=new Input(canvas2,{stickEl:hud.el.stick,jumpEl:hud.el.jump,atkEl:$("atk"),sprintEl:$("sprint"),onAnyInput:()=>hud.hideHint()});
   const view=new ViewModel(camera),combat={swing:null};
+  let testSword=false,nextHand="right";
   const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save:labSave,
-    getEquipped:()=>null,makeCharacter,makeWeapon:()=>null,view,height:PLAYER.height,
+    getEquipped:side=>testSword&&side==="right"?{definitionId:"apprentice_sword",wear:0}:null,makeCharacter,
+    makeWeapon:id=>{const model=ITEMS[id]?.model;if(!model||!MODELS[model])return null;const weapon=new Mesh(MODELS[model](),view.mat);weapon.userData.handleY=-.08;return weapon;},view,height:PLAYER.height,
     attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
   rig.motion=labSave.data.settings.motion;
-  const reset=()=>{player.teleport(0,0,0,-.10);movementCamera.reset(player);};
+  const reset=()=>{combat.swing=null;player.teleport(0,0,0,-.10);movementCamera.reset(player);};
   reset();
   $("hudMapOpen").style.display="none";
   $("bagBtn").style.display="none";
-  $("atk").hidden=true;
+  $("atk").hidden=!IS_MOBILE;
   $("sprint").hidden=!IS_MOBILE;
   $("clock").textContent="모션 테스트 공간";
   document.querySelector(".hud-world-kicker").textContent="개발자 모드";
@@ -53572,9 +53656,10 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     };
     add("원래 위치로 초기화",()=>{reset();ui.close(ui.travel);});
     add(avatars.mode==="third"?"1인칭으로 전환":"3인칭으로 전환",()=>{avatars.setThird(avatars.mode!=="third",{persist:false});ui.close(ui.travel);});
+    add(testSword?"맨손 테스트로 전환":"검 모션 테스트로 전환",()=>{testSword=!testSword;combat.swing=null;view.setWeapon("right",testSword?ITEMS.apprentice_sword:null);ui.close(ui.travel);});
     add("카엘 항구로 돌아가기",()=>location.replace(motionLabURL(false)));
     const note=document.createElement("p");note.className="system-menu-note";
-    note.textContent="평지에서 이동과 카메라를 검수합니다. 이 공간의 위치와 변경사항은 저장되지 않습니다.";body.append(note);
+    note.textContent="북쪽: 30°·45°·60° 경사와 90° 벽 / 서쪽: 수영 연못 / 남쪽: 계단과 높이별 턱 / 동쪽: 더미. 위치와 장비 변경은 저장되지 않습니다.";body.append(note);
   };
   const resize=()=>{
     const quality=GRAPHICS[graphicsKey(labSave.data.settings.graphics)];
@@ -53583,7 +53668,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
   };
   addEventListener("resize",resize);resize();
   hud.ready({name:"모션 테스트 공간",subtitle:"개발자 모드 · 저장되지 않는 독립 공간"});
-  hud.el.hint.textContent=IS_MOBILE?"왼쪽 드래그로 이동 · 오른쪽 드래그로 시점 조작":"W/S 전후진 · A/D 회전 · Shift 달리기 · Space 점프 · Esc 메뉴";
+  hud.el.hint.textContent=IS_MOBILE?"왼쪽 드래그로 이동 · 오른쪽 드래그로 시점 조작":"W/S 전후진 · A/D 회전 · Shift 달리기 · Space 점프 · J/K 공격 · Esc 메뉴";
   let last=performance.now();
   const tick=now=>{
     const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;const t=now/1000;
@@ -53596,11 +53681,19 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
       const manualLook=player.look(input);
       movementCamera.prepare(player,input,manualLook,input.independentHeading);
       player.advance(dt,input,[]);
-      if(input.independentHeading)movementCamera.update(dt,player);
-      input.consumeAttack();
+      const attack=input.consumeAttack();
+      if(player.traversal||player.swimming)combat.swing=null;
+      if(combat.swing){combat.swing.t+=dt;if(combat.swing.t>=combat.swing.dur)combat.swing=null;}
+      if(attack&&!combat.swing&&player.mode==="walk"&&!player.traversal&&!player.swimming){
+        const w=testSword?ITEMS.apprentice_sword:FISTS,hand=testSword?"right":nextHand,dur=1.15/w.rate;
+        nextHand=hand==="right"?"left":"right";
+        combat.swing={hand,w,t:0,dur,spec:maktwoAttackSpec(w.model,dur),contact:null,hit:false,aimYaw:avatars.mode==="third"?player.yaw:null,aimPitch:avatars.mode==="third"?player.pitch:null};
+      }
+      if(input.independentHeading&&!combat.swing)movementCamera.update(dt,player);
     }
-    rig.update(dt,player);avatars.update(dt,t,combat);avatars.applyThirdCamera(dt,rig);
-    gridFloor.position.x=Math.round(player.pos.x);gridFloor.position.z=Math.round(player.pos.z);
+    rig.update(dt,player);
+    if(player.mode==="walk"&&avatars.mode==="first"&&!player.traversal)maktwoAttackCamera(camera,combat.swing,rig.motion);
+    avatars.update(dt,t,combat);avatars.applyThirdCamera(dt,rig);avatars.updateTrail(combat);
     light.target.position.set(player.pos.x,0,player.pos.z);
     light.position.copy(light.target.position).add(new Vector3(5,10,6));
     renderer.shadowMap.needsUpdate=true;
@@ -53608,7 +53701,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     ui.setStamina(player,camera,avatars.mode==="third"&&avatars.bodyRoot.visible,ui.travel.hidden);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev={motionLab:true,scene,camera,renderer,player,input,rig,avatars,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
+  window.__dev={motionLab:true,scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
 }
 async function boot() {
   const canvas2 = document.getElementById("view");

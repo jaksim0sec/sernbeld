@@ -207,6 +207,24 @@ async function checkBrowser() {
    window.dispatchEvent(new KeyboardEvent("keyup",{code:"KeyW"}));
    if(!(p.pos.z<-2&&Math.abs(p.pos.y)<1e-6&&p.onGround))throw Error("Lab movement failed "+JSON.stringify(p.pos));
    d.reset();if(p.pos.length()>1e-6)throw Error("Lab reset failed");
+   const f=d.fixtures,near=(a,b)=>Math.abs(a-b)<1e-5;
+   if(!f||f.ramps.length!==3||f.wall.angle!==90||f.ledges.length!==4)throw Error("Lab fixtures missing");
+   for(const r of f.ramps){
+    if(!near(d.playerTerrain(r.x,r.z-r.run/2),r.height/2)||!near(Math.atan(r.height/r.run)*180/Math.PI,r.angle))throw Error("Ramp surface mismatch "+r.angle);
+   }
+   if(!near(d.playerFloor(f.wall.x,f.wall.z,7,0),f.wall.height))throw Error("Wall collider missing");
+   for(const l of f.ledges)if(!near(d.playerFloor(l.x,l.z,3,0),l.height))throw Error("Ledge collider mismatch "+l.id);
+   const s=f.stairs;
+   if(!near(d.playerTerrain(s.x,s.z+s.run*3.5),s.rise*4))throw Error("Stair tread mismatch");
+   const pool=f.pool,cx=(pool.minX+pool.maxX)/2,cz=(pool.minZ+pool.maxZ)/2;
+   if(!near(d.playerTerrain(cx,cz),pool.bottom)||!near(d.waterLevel(cx,cz),pool.surface)||!(d.waterLevel(0,0)<-100))throw Error("Pool surface mismatch");
+   p.teleport(cx,cz,0,0,pool.bottom);
+   for(let n=0;n<120;n++)p.advance(1/60,i,[]);
+   if(!p.swimming)throw Error("Pool swimming did not activate");
+   if(!d.scene.getObjectByName("motion-lab-training-dummy")||!d.collidersAt(f.dummy.x,f.dummy.z,.1).length)throw Error("Lab dummy missing");
+   d.reset();i.attackQueued=true;d.frame();
+   if(!d.combat.swing)throw Error("Lab attack preview missing");
+   d.reset();
    if(localStorage.getItem(key)!==saved)throw Error("Lab wrote main save");
    d.ui.toggleTravel();
    if(![...d.ui.travel.querySelectorAll("button")].some(b=>b.textContent.trim()==="카엘 항구로 돌아가기"))throw Error("Lab return missing");
