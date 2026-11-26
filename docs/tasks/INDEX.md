@@ -56,4 +56,4 @@ TRACE의 작업 주소는 `AREA-NNN` 또는 `AREA-NNN/Tn`이다. 작업 ID는 �
 
 [모듈형 3D 헤어 제작·물리·통합 (HAIR-11260710)](active/HAIR-11260710.md)
 
-[공용 물리·상호작용·모션 개편 (MOTION-11261538)](active/MOTION-11261538.md) — XL/T1~T8, T1 등록+정적 Player 지지·접촉·천장 소비자 이관 PARTIAL; Node/Chromium 일부 PASS, analytical·수역·카메라·NPC nav/manifest/최종 회귀 미완료.
+[공용 물리·상호작용·모션 개편 (MOTION-11261538)](active/MOTION-11261538.md) — XL/T1~T8, T1 공용 등록·표면 및 정적 Player 기반 DONE (직접 Node/Chromium PASS), 다음 T2. 잔여 행동·등록·W01~W12/모바일 게이트 유지.

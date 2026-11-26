@@ -2,7 +2,7 @@
 
 - 기준 main: `031a8d5f3ffdcf18576fe4613b89f8b6d75531d9` (2026-11-26). [현행 엔진 지도](PHYSICS_ENGINE_BASELINE.md), [등록 평가](WORLD_COLLISION_AUDIT.md), [모션 데이터 명세](MOTION_ENGINEERING_RESEARCH.md), [MOTION-11261538/T1](../tasks/active/MOTION-11261538.md)의 상세 실행 명세.
 - 사용자 요구: 기본 3D 기술은 검증된 기존 기술을 활용하되 외부 사례를 절대 규칙으로 삼지 않는다. 세른벨드는 경사, 미끄러짐, 벽등반, 공중 잡기, 수영이 핵심이다. 물체 등록·경계·판정이 콘텐츠별 알고리즘에 의존하지 않게 한다.
-- 상태: 설계/문헌 조사 완료, 구현 미착수. 이하 API 및 신규 수치는 구현 제안. 기존값과 측정값을 구분한다. T1 내 순차 체크포인트이며 별도 T를 추가하지 않는다. 실제 행동 개선은 기존 T3~T6에서 완성하되 T1에서 기존 행동이 퇴화하지 않도록 확인한다.
+- 상태: T1 공용 기반 구현 및 직접 검증 완료. 초기 설계 명세로서 아래 API/수치/검증 요구는 보존하며, 단계별 책임은 상위 작업의 T1 종결 기록이 우선한다. T1 기반 이외의 미이관 API는 제안 또는 미완료로 구분한다.
 
 ## 1. 실무 근거와 선택
 
@@ -217,3 +217,7 @@ E. 소비자 연결·통합: Player floor/contact/ceiling/traversal/IK, NPC nav,
 오버레이: 기하 proxy, 실제 렌더, support point와 normal(기하/solver 다른 색), actor shape, 경사 분류, water bounds, query 결과 및 reason. 60Hz trace와 렌더 frame timestamp 연결. 첫 불일치가 등록, geometry, classification, motion state, render/IK, camera 중 어느 층인지 기록. 2개 녹화의 등반 해제/물 경계 반복은 실제 재현 시 이 trace로 원인 확정.
 
 상태: 문서만 추가, 코드 구현·벤치마크·실기기·전체 check-infra NOT RUN. 자료의 API를 사용할 수 있는지 설치·실행한 결과가 아니고, 선택과 수치의 최종 승인은 별도.
+
+## 10. 단계 책임 조정 (2026-11-27)
+
+사용자 승인에 따라 B/C 및 현재 실제 등록/Player 높이·정적 판정 이관에 대한 직접 검증으로 T1 기반을 닫는다. D/E의 미완료 제작 manifest·소비자 연결과 W01~W12는 삭제하지 않고 [상위 작업의 T1 종결 및 책임 재배치](../tasks/active/MOTION-11261538.md#t1-종결--공용-물리-기반의-독립-결과-2026-11-27)에 따라 T2~T8 및 최종 게이트에서 수행한다. 이 절은 §9의 과거 T1 완결 범위를 대체하지만 각 W의 합격 조건, 최종 실기기 검증, 실패 은폐 금지 및 적용 전 직접 회귀 원칙은 변경하지 않는다.

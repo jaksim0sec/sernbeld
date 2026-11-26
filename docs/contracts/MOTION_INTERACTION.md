@@ -1,6 +1,6 @@
-# 공용 물리·표면 상호작용 계약 (T1 등록 구현 진행)
+# 공용 물리·표면 상호작용 계약 (T1 기반 종결)
 
-상태: INTEGRATED(정적 primitive support/overlap/headroom의 권위 질의에 한함) / T1 PARTIAL. [실행 명세](../knowledge/WORLD_SURFACE_REFACTOR_PLAN.md), [작업](../tasks/active/MOTION-11261538.md). 기존 Player 이동 시간 적분·경사·등반·수영 모드는 보존. 지형/계단/roof analytical의 전체 판정 소비와 NPC nav, camera, asset authoring 및 실모바일 최종 검증은 미완료. 아래 이전 검증 메모는 단계 당시의 기록이며 최신 이관·검증 내용은 마지막 절을 따른다.
+상태: T1 공용 기반 VERIFIED/PASS/DONE (등록/정적 Player 및 terrain/stair/roof 높이 소비). 전체 이관은 T2~T8에서 계속한다. 아래 PARTIAL 메모는 당시의 역사적 기록이며 마지막 절의 확정 범위 및 단계별 책임이 우선한다.
 
 - `src/core/world-collision.js` createWorldCollision: instance ID/region/physics/transform/shapes 등록. m, Y-up, yaw radians, positive scale. box/water half extents, cylinder radius/height(동일 XZ scale), heightfield/roof는 geometryRef 및 local bounds. 비지원 변환·누락된 explicit policy·중복 ID는 거부. 장식은 빈 shapes, water는 비고체 volume. 원본/반환 스냅샷과 내부 데이터 분리.
 - handle은 id+generation; 삭제 후 같은 ID 재등록해도 이전 handle 무효. revision은 변환/활성/지역 상태 변경 때 증가하여 anchor 무효화. region suspend는 개별 active 값을 보존. query purpose 및 layer/self exclusion은 공통 resolver에서 적용. oneWay의 방향성, 실제 geometry query는 backend의 책임.
@@ -47,3 +47,9 @@
 - sourceKind별 indexed analytical support 조회를 노출한다. terrain/계단/roof footprint/roof overhang을 구분하고, 가장 높은 roof/terrain 및 첫 등록 stair 선택을 보존한다. roofHeight/roofOverhangTop, heightfieldTriangle, playerTerrain의 exact tread 경로가 실제 renderer에서 이 질의를 소비한다. 따라서 playerFloor/foot IK에도 연결된다. 기존 범위 밖 terrain sample 및 모션 lab의 별도 analytical height callback을 유지한다. legacy 계단 우선순위와 처마 maxY/skin 보존.
 - 모션/solver/수영/경사 유한차분 및 roof slab/headroom의 기존 동작은 미변경. region suspend 시 roof support는 공용 resolver에서 제거되지만 terrain fallback과 legacy grid 등은 추가 이관 필요. 정확한 slope normal/anchor, NPC nav/camera, 수역 controller, asset manifest는 미완료.
 - 실제 renderer 소스를 사용하는 runtime fixture 159 assertions와 analytical fixture 48 assertions V8 격리 실행 PASS. game.js는 동일 6개 source fragment 순서로 재생성, SW v83. 최신 변경의 실제 Node/Chromium/모바일은 NOT RUN/NOT VERIFIED; 이전 main f3545fe CI 45908175756에서 물리 직접 Node 7개 PASS, 전체 contracts의 기존 INFRA/NPC tools/verify.mjs 점유 충돌과 browser 얼굴 형상 featureError는 FAIL로 보존.
+
+## T1 기반 종결 (2026-11-27)
+
+- `f3fde2ed817cb02e8f411b5f3f04e6490a7a8db2`의 [CI 45908960059](https://github.com/jaksim0sec/sernbeld/actions/runs/45908960059)에서 공용 등록/실제 소비자 Node 직접 검사, 물리/실월드 Node 회귀, 카엘 및 모션랩 Chromium 직접 회귀 PASS. 전체 CI는 check-infra 및 캐릭터 featureError FAIL이며 실모바일은 NOT RUN.
+- 등록/purpose/region/revision·primitive/analytical의 실제 지원 범위만 T1 계약으로 확정한다. 완전한 sweep/raycast, 미이관된 수역/경사/anchor/nav/camera/actor 및 manifest는 완료된 권위 API로 사용하지 않는다.
+- T2~T8의 미완료 필수 구현과 W01~W12·실모바일 책임은 [T1 종결 및 잔여 책임](../tasks/active/MOTION-11261538.md#t1-종결--공용-물리-기반의-독립-결과-2026-11-27)을 따른다. 기존 수치 및 검증 기준은 유지한다.
