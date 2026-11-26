@@ -46674,11 +46674,15 @@ function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
   if(h>maxY+CONTACT_SKIN)h=-Infinity;
   // Roof eaves and awnings carry feet from above, never block from below.
   h=Math.max(h,roofOverhangTop(x,z,maxY));
-  for(const o of solids??query(x,z,radius)){
-    // A solid top is a support, including low decorative blocks that were
-    // previously marked non-walkable. NPCs are never registered as supports.
-    if(o.top>maxY+CONTACT_SKIN||o.top<=h)continue;
-    if(radius===0?inside(o,x,z,0):playerContact(o,x,z,radius))h=o.top;
+  if(WorldCollision?.staticSupport){
+    const hit=WorldCollision.staticSupport(x,z,maxY,radius,solids,PLAYER.body);
+    if(hit&&hit.point[1]>h)h=hit.point[1];
+  }else{
+    for(const o of solids??query(x,z,radius)){
+      // Legacy extraction stays executable for isolated movement regressions.
+      if(o.top>maxY+CONTACT_SKIN||o.top<=h)continue;
+      if(radius===0?inside(o,x,z,0):playerContact(o,x,z,radius))h=o.top;
+    }
   }
   return h;
 }
