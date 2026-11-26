@@ -14,7 +14,11 @@ import {createSkillWorkbench} from './src/ui/skill-workbench.js';
 import {createLivingWorldRuntime} from './src/core/living-world-runtime.js';
 import {livingWorldContent} from './src/core/living-world-content.js';
 import {createNavGridRouteAdapter,residentWalkSpeed} from './src/core/npc-movement.js';
+import {createRuntimeCollisionBridge} from './src/core/world-collision-runtime.js';
 import {createResidentActivityCache,residentActivityStamp,captureResidentActivity,restoreResidentActivity,seedResidentActivity,distributedResidentDay,residentDestinationClear,pickResidentWanderPoint} from './src/core/resident-activity.js';
+// The renderer's existing geometry remains the authoritative solver; this
+// bridge records the very same authored proxies with stable query policies.
+WorldCollision=createRuntimeCollisionBridge({query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,stairUV,stairMinV:STAIR_MIN_V,stairMaxV:STAIR_MAX_V});
 const residentActivityCache=createResidentActivityCache();
 var TINT = {
   stone: [0.82, 0.8, 0.75],
@@ -5471,7 +5475,8 @@ var Townsfolk = class {
   playerContacts(p) {
     const out=[];
     for(const n of this.list){
-      if(n.hidden||!n.ch||Math.abs(p.pos.y-n.y)>2||Math.hypot(p.pos.x-n.x,p.pos.z-n.z)>2)continue;
+      // The physical resident exists independently of its render mesh/LOD.
+      if(n.hidden||Math.abs(p.pos.y-n.y)>2||Math.hypot(p.pos.x-n.x,p.pos.z-n.z)>2)continue;
       const scale=n.def.scale??1;
       out.push({type:"cyl",x:n.x,z:n.z,r:Math.max(.12,.62*scale-PLAYER.radius),bot:n.y,top:n.y+1.72*scale,walk:false});
     }
@@ -6811,7 +6816,10 @@ function createMotionLabFixtures(scene){
 }
 async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
+  WorldCollision?.setRegion('motion-lab');
   const fixtures=createMotionLabFixtures(scene);
+  const pool=fixtures.pool;
+  WorldCollision?.water({contains:(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ,surfaceAt:()=>pool.surface,bottomAt:(x,z)=>fixtures.height(x,z),bounds:{center:[(pool.minX+pool.maxX)/2,(pool.bottom+pool.surface)/2,(pool.minZ+pool.maxZ)/2],half:[(pool.maxX-pool.minX)/2,(pool.surface-pool.bottom)/2,(pool.maxZ-pool.minZ)/2]}});
   playerTerrain=fixtures.height;
   sample=fixtures.height;
   stairSurface=fixtures.stairHeight;
@@ -6947,7 +6955,12 @@ async function boot() {
     Save.data.combatVisualDemoEquipped = true;
     Save.write();
   }
+  WorldCollision?.setRegion(region.id);
   await generateWorld(region, (p, t) => hud.progress(p, t));
+  // Register the actual generated heightfield and fixed stair records once.
+  // Sampled normals never replace the current sliding/traversal authority yet.
+  WorldCollision?.terrain({heights:World.H,gridN:GRID_N,cell:CFG.cell,half:CFG.half});
+  for(const flight of STAIRS)WorldCollision?.stair(flight);
   shared.uSunDir.value.copy(World.sun);
   shared.uHeight.value = World.heightTex;
   shared.uMask.value = World.maskTex;
