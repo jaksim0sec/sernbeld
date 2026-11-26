@@ -1,4 +1,4 @@
-import {smoothCameraHeight,solveThirdBoom,solveTraversalCamera} from '../src/entities/character/studio-integration.js';
+import {smoothCameraHeight,solveThirdBoom,solveTraversalCamera,sampleBodySupport,bodySupportCorrection,smoothBodyHeight} from '../src/entities/character/studio-integration.js';
 function regression(smoothCameraHeight,solveThirdBoom){
  const check=(ok,msg)=>{if(!ok)throw Error(msg)};
  let y=0,max=0,raw=0;
@@ -92,4 +92,55 @@ console.log('PASS camera comfort:',JSON.stringify(regression(smoothCameraHeight,
  cut.p.traversal={};cut.step();check(cut.p.moveBasisYaw===null,"Traversal retained walking basis");
  console.log('PASS movement camera: reversal 30/60/120fps, straight movement, manual drag, direction change, strafe, disabled and traversal');
  })(MovementCameraFollow);
+}
+
+{
+ // Root height and leg-support correction must share one filter. Use the
+ // authored stair profiles, not a synthetic animation or camera trajectory.
+ const {readFileSync}=await import('node:fs');
+ const terrain=readFileSync(new URL('../src/world/terrain-runtime.part.js',import.meta.url),'utf8');
+ const exact=new Function(terrain.slice(terrain.indexOf('var WALL ='),terrain.indexOf('var P ='))+
+  terrain.slice(terrain.indexOf('function stairUV('),terrain.indexOf('function stairHeight('))+
+  'return {STAIRS,stairSurface,STAIR_MIN_V,STAIR_MAX_V}')();
+ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
+ let cases=0,walkMax=0;
+ for(const s of exact.STAIRS){
+  const len=Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1]),dx=(s.b[0]-s.a[0])/len,dz=(s.b[1]-s.a[1])/len;
+  if(Math.abs(s.y1-s.y0)<.01)continue;
+  const v=(exact.STAIR_MIN_V+exact.STAIR_MAX_V)/2;
+  const coord=u=>({x:s.a[0]+dx*u+s.n[0]*v,z:s.a[1]+dz*u+s.n[1]*v});
+  const ground=(x,z,y)=>{const h=exact.stairSurface(x,z,0,true);return h!==null&&h<=y+.482?h:null};
+  for(const fps of [20,30,60,120])for(const speed of [2.6,7.5])for(const dir of [-1,1]){
+   const dt=1/fps,initial=dir>0?.5:len-.5,limit=dir>0?len-.5:.5;
+   let prev=null;
+   for(let u=initial;dir*(limit-u)>0;u+=dir*speed*dt){
+    const p=coord(u),raw=exact.stairSurface(p.x,p.z,0,true);p.y=raw;
+    const support=sampleBodySupport(p,raw,dir*dx*speed,dir*dz*speed,ground);
+    const a=coord(u+.22*dir),b=coord(u-.22*dir),h1=ground(a.x,a.z,raw)??raw,h2=ground(b.x,b.z,raw)??raw;
+    const correction=bodySupportCorrection([h1-support.y-.04,h2-support.y],support.stepped);
+    const y=smoothBodyHeight(prev,support.y+correction,dt,true,speed);
+    check(Math.abs(y-raw)<.48,'body drifted beyond low-step range');
+    if(prev!==null){
+     check(Math.abs(y-prev)<=Math.max(2.4,speed*.8+.6)*dt+1e-8,'root height snapped');
+     if(fps===60&&speed===2.6)walkMax=Math.max(walkMax,Math.abs(y-prev));
+    }
+    prev=y;
+   }
+   cases++;
+  }
+ }
+ for(const fps of [20,30,60,120]){
+  let y=0;
+  for(let i=0;i<fps;i++)y=smoothBodyHeight(y,.3,1/fps,true,2.6);
+  check(Math.abs(y-.3)<.001,'root failed to settle');
+ }
+ check(smoothBodyHeight(null,80,.05,true)===80,'teleport smeared');
+ check(smoothBodyHeight(1,0,.05,false)===0,'airborne root lag');
+ check(bodySupportCorrection([.3,0],true)<=.06,'one high foot raised the whole torso');
+ const p={x:0,y:0,z:0};
+ check(sampleBodySupport(p,0,2.6,0,(x)=>x>0?2:0).y===0,'wall contaminated body support');
+ check(sampleBodySupport(p,0,2.6,0,(x)=>x>0?-2:0).y===0,'cliff contaminated body support');
+ check(sampleBodySupport(p,0,0,0,()=>.3).y===0,'stationary support anticipated a step');
+ check(walkMax<=.045,'60 FPS stair walk exceeded expected root rise');
+ console.log('PASS body support:',cases,'authored stair profile cases; 60fps walking max',walkMax,'m/frame');
 }
