@@ -158,7 +158,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
  // must be reinserted into that grid, then registered again under a fresh
  // revision. Old consumers are unchanged until authority is switched.
  return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
-  sampleSupport:world.sampleSupport,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities};
+  sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities};
 }
 
 export function sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}){
