@@ -1339,3 +1339,186 @@ export const flowParts=[
     ]
   }
 ];
+
+// Composition v1: three connected macro regions; cuts and relief are subordinate to their silhouette.
+export const frontComposition={
+  "id": "front-composition-v1",
+  "rootBoundaries": [
+    -79,
+    -22,
+    17,
+    77
+  ],
+  "midBoundaries": [
+    -82,
+    -31,
+    19,
+    81
+  ],
+  "groups": [
+    {
+      "role": "left sweep",
+      "split": [
+        -79,
+        -38
+      ],
+      "bulge": 0.0045,
+      "hem": [
+        [
+          0,
+          101
+        ],
+        [
+          0.13,
+          104
+        ],
+        [
+          0.3,
+          100
+        ],
+        [
+          0.46,
+          91
+        ],
+        [
+          0.56,
+          102
+        ],
+        [
+          0.74,
+          106
+        ],
+        [
+          0.9,
+          99
+        ],
+        [
+          1,
+          91
+        ]
+      ],
+      "grooves": [
+        {
+          "u": 0.47,
+          "start": 0.38,
+          "width": 0.045,
+          "depth": 0.0014,
+          "drift": -0.06
+        }
+      ]
+    },
+    {
+      "role": "dominant center",
+      "split": [
+        -30,
+        26
+      ],
+      "bulge": 0.008,
+      "hem": [
+        [
+          0,
+          91
+        ],
+        [
+          0.16,
+          98
+        ],
+        [
+          0.31,
+          109
+        ],
+        [
+          0.43,
+          112
+        ],
+        [
+          0.55,
+          106
+        ],
+        [
+          0.66,
+          96
+        ],
+        [
+          0.76,
+          108
+        ],
+        [
+          0.9,
+          110
+        ],
+        [
+          1,
+          89
+        ]
+      ],
+      "grooves": [
+        {
+          "u": 0.65,
+          "start": 0.56,
+          "width": 0.04,
+          "depth": 0.0018,
+          "drift": 0.05
+        },
+        {
+          "u": 0.27,
+          "start": 0.24,
+          "width": 0.052,
+          "depth": 0.0009,
+          "drift": -0.035
+        }
+      ]
+    },
+    {
+      "role": "right framing",
+      "split": [
+        34,
+        76
+      ],
+      "bulge": 0.0042,
+      "hem": [
+        [
+          0,
+          89
+        ],
+        [
+          0.16,
+          96
+        ],
+        [
+          0.31,
+          101
+        ],
+        [
+          0.46,
+          104
+        ],
+        [
+          0.59,
+          98
+        ],
+        [
+          0.73,
+          96
+        ],
+        [
+          0.88,
+          102
+        ],
+        [
+          1,
+          99
+        ]
+      ],
+      "grooves": [
+        {
+          "u": 0.62,
+          "start": 0.68,
+          "width": 0.05,
+          "depth": 0.0013,
+          "drift": 0.055
+        }
+      ]
+    }
+  ]
+};

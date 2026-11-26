@@ -93,6 +93,51 @@ function createHairKit(){
    for(let j=0;j<sides;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-sides-1;ix.push(b,a,b+1,b+1,a,a+1);}}
   }return mesh(p,uv,ix);
  }
+ // A composition is authored as three large regions of ONE front surface.
+ // Adjacent regions share actual vertices above the split; smaller locks are
+ // cut into the hem and sculpted into the same surface, not duplicated leaves.
+ function composedFringe(fit,design){
+  const {groups,rootBoundaries,midBoundaries}=design, rows=28,cols=24,splitRow=15;
+  if(groups.length!==3||rootBoundaries.length!==4||midBoundaries.length!==4)throw Error('invalid fringe composition');
+  const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  const sample=(keys,u)=>{let i=1;while(i<keys.length-1&&u>keys[i][0])i++;const a=keys[i-1],b=keys[i];return lerp(a[1],b[1],smooth((u-a[0])/(b[0]-a[0])));};
+  const outer=[],uv=[],faces=[],lookup=new Map(),root=[];
+  function vertex(key,theta,phi,clearance,u,t){
+   if(lookup.has(key))return lookup.get(key);
+   const id=outer.length/3;outer.push(...fit.anchor(theta,phi,clearance).position);uv.push(u,t);root.push(0);lookup.set(key,id);return id;
+  }
+  const pole=vertex('pole',0,0,.006,.5,0);
+  groups.forEach((group,gi)=>{
+   let prev;
+   for(let i=1;i<=rows;i++){
+    const t=i/rows, split=smooth((i-splitRow)/(rows-splitRow)), row=[];
+    const edge=(side)=>{const k=gi+side,b=lerp(rootBoundaries[k],midBoundaries[k],smooth(t/.75));return lerp(b,group.split[side],split);};
+    const left=edge(0),right=edge(1);
+    for(let k=0;k<=cols;k++){
+     const u=k/cols,phi=lerp(left,right,u),hem=sample(group.hem,u);
+     const theta=105*t+(hem-105)*smooth((t-splitRow/rows)/(1-splitRow/rows));
+     const shape=Math.sin(Math.PI*u),lift=Math.sin(Math.PI*t*.88);
+     let relief=0;
+     for(const groove of group.grooves){const center=groove.u+groove.drift*(1-t),strength=smooth((t-groove.start)/.22);relief+=groove.depth*strength*Math.exp(-Math.pow((u-center)/groove.width,2))*Math.sin(Math.PI*u);}
+     const clearance=.006+.003*Math.sin(Math.PI*t)+group.bulge*shape**1.1*lift-relief;
+     const key=i<=splitRow&&(k===0||k===cols)?'shared:'+i+':'+(gi+(k===cols?1:0)):gi+':'+i+':'+k;
+     row.push(vertex(key,theta,phi,clearance,(gi+u)/groups.length,t));
+    }
+    for(let k=0;k<cols;k++){if(!prev)faces.push(pole,row[k],row[k+1]);else faces.push(prev[k],row[k],prev[k+1],prev[k+1],row[k],row[k+1]);}
+    prev=row;
+   }
+  });
+  // Close the thin shell. Internal welded edges are never capped, so upper
+  // boundaries are physically continuous. Only the outer perimeter and
+  // authored split edges get side faces.
+  const count=outer.length/3,p=outer.slice(),ix=faces.slice(),allUv=uv.slice(),allRoot=root.slice(),edges=new Map();
+  for(let i=0;i<count;i++){const v=outer.slice(i*3,i*3+3),dir=norm(sub(v,fit.center));p.push(...sub(v,mul(dir,.0015)));allUv.push(...uv.slice(i*2,i*2+2));allRoot.push(0);}
+  for(let i=0;i<faces.length;i+=3){const [a,b,c]=faces.slice(i,i+3);ix.push(c+count,b+count,a+count);
+   for(const [x,y] of [[a,b],[b,c],[c,a]]){const key=Math.min(x,y)+':'+Math.max(x,y),old=edges.get(key);if(old)old.n++;else edges.set(key,{x,y,n:1});}}
+  for(const {x,y,n} of edges.values()){if(n>2)throw Error('non-manifold outer fringe');if(n===1)ix.push(y,x,x+count,y,x+count,y+count);}
+  let result=mesh(p,allUv,ix,[],allRoot);if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,allUv,ix,[],allRoot);}
+  result.composition={groups:groups.length,weldedRows:splitRow,outerVertices:count};return result;
+ }
  const slots=['front','middle','back','extra'];
  function validatePart(part){
   if(part?.version!==1||!/^hair-[a-z0-9-]+$/.test(part.id)||!slots.includes(part.slot)||!Array.isArray(part.bodies)||!part.bodies.length||!part.bodies.every(x=>['male','female'].includes(x))||typeof part.join!=='string'||!part.join||!Array.isArray(part.compatibility)||!part.compatibility.length||!part.compatibility.every(x=>typeof x==='string'&&x)||!Array.isArray(part.clumps)||!part.clumps.length||!part.material||!part.lod||!part.physics)throw Error('invalid hair part');
@@ -156,6 +201,6 @@ function createHairKit(){
  function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.guide)return guideLock(fit,c);if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
- return {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
+ return {loft,surface,studioHead,scalpCap,frontFoundation,composedFringe,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};
 }
-export const {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();
+export const {loft,surface,studioHead,scalpCap,frontFoundation,composedFringe,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction}=createHairKit();

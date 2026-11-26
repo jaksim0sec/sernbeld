@@ -1,5 +1,5 @@
 import * as kit from '../src/entities/character/hair/geometry.js';
-import {specimenParts as parts,curveParts,flowParts} from '../src/entities/character/hair/specimen.js';
+import {specimenParts as parts,curveParts,flowParts,frontComposition} from '../src/entities/character/hair/specimen.js';
 function synthetic(kit,scale=[.085,.12,.095]){
  const p=[],ix=[],n=48,m=24;
  // Non-duplicated rings, poles. Ray tests do not depend on triangle winding.
@@ -23,11 +23,23 @@ console.log('PASS synthetic geometry',JSON.stringify(verifySynthetic(kit,parts,s
 function verifyCurves(fit){const gs=kit.makePart(fit,curveParts[0]),again=kit.makePart(fit,curveParts[0]);gs.forEach(g=>checkGeometry(kit,g,true));if(!gs.every((g,i)=>g.positions.every((x,k)=>x===again[i].positions[k])))throw Error('curve determinism');const metrics=gs.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('curve penetration '+JSON.stringify(metrics));return {maxCorrectionMm:Math.max(...gs.map(g=>g.fitCorrectionMetres))*1000,triangles:gs.reduce((a,g)=>a+g.indices.length/3,0)};}
 for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Cartesian curves',scale,verifyCurves(synthetic(kit,scale)));
 console.log('PASS hierarchical flow',JSON.stringify(verifySynthetic(kit,flowParts,synthetic,checkGeometry)));
+function verifyComposition(kit,fit,design,checkGeometry){
+ const g=kit.composedFringe(fit,design),again=kit.composedFringe(fit,design);checkGeometry(kit,g,true);
+ if(!g.positions.every((x,i)=>x===again.positions[i]))throw Error('composition nondeterministic');
+ const edges=new Map();for(let i=0;i<g.indices.length;i+=3){const a=g.indices[i],b=g.indices[i+1],c=g.indices[i+2];for(const [x,y] of [[a,b],[b,c],[c,a]]){const key=Math.min(x,y)+':'+Math.max(x,y);const e=edges.get(key)??[0,0];e[0]++;e[1]+=x<y?1:-1;edges.set(key,e);}}
+ if([...edges.values()].some(e=>e[0]!==2||e[1]!==0))throw Error('composition not a closed oriented manifold');
+ const metrics=kit.penetration(fit,g);if(metrics.miss||metrics.maxMetres>.001)throw Error('composition penetration '+JSON.stringify(metrics));
+ const shell=kit.surface(g.positions,g.indices,fit.center),coverage=[];
+ for(const theta of [35,55,70,80,95,105]){let hit=0,total=0;for(let phi=-55;phi<=55;phi+=5){const dir=kit.direction(theta,phi);const hair=shell.radius(dir),skin=fit.radius(dir);total++;if(hair!==null&&skin!==null&&hair>skin+.001)hit++;}coverage.push({theta,hit,total});}
+ if(coverage.slice(0,3).some(c=>c.hit!==c.total))throw Error('root/mid coverage broken '+JSON.stringify(coverage));
+ return {triangles:g.indices.length/3,vertices:g.positions.length/3,penetrationMm:metrics.maxMetres*1000,coverage,...g.composition};
+}
+for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS connected composition',JSON.stringify(verifyComposition(kit,synthetic(kit,scale),frontComposition,checkGeometry)));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');
 const {createStudioGeometry,controls}=await import('../src/entities/character/studio-geometry.js');const {normalizeStudioCharacter}=await import('../src/entities/character/appearance.js');
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 let failed=false;
 for(const body of ['male','female'])for(const variant of ['default','wide','narrow','high','low','deep','shallow']){
- try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);console.log('curve fit',body,variant,verifyCurves(fit));const geometries=[kit.frontFoundation(fit),...parts.flatMap(p=>kit.makePart(fit,p))];geometries.forEach((g,i)=>checkGeometry(kit,g,i>0));const metrics=geometries.map(g=>kit.penetration(fit,g));const pass=metrics.every(m=>!m.miss&&m.maxMetres<=.001);failed||=!pass;console.log(pass?'PASS':'FAIL',body,variant,JSON.stringify(metrics));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
+ try{const profile=normalizeStudioCharacter({body,...(variant==='default'?{}:{values:controls.map(c=>({wide:{headWidth:1,temple:1},narrow:{headWidth:-1,temple:-1},high:{headHeight:1,foreheadHeight:1},low:{headHeight:-1,foreheadHeight:-1},deep:{skull:1,forehead:1},shallow:{skull:-1,forehead:-1}}[variant][c.key]??0))})});const fit=kit.studioHead(factory.build(profile).body);console.log('composition fit',body,variant,verifyComposition(kit,fit,frontComposition,checkGeometry));console.log('curve fit',body,variant,verifyCurves(fit));const geometries=[kit.frontFoundation(fit),...parts.flatMap(p=>kit.makePart(fit,p))];geometries.forEach((g,i)=>checkGeometry(kit,g,i>0));const metrics=geometries.map(g=>kit.penetration(fit,g));const pass=metrics.every(m=>!m.miss&&m.maxMetres<=.001);failed||=!pass;console.log(pass?'PASS':'FAIL',body,variant,JSON.stringify(metrics));}catch(e){failed=true;console.error('FAIL',body,variant,e.message);}
 }if(failed)process.exitCode=1;

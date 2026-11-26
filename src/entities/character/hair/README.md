@@ -11,3 +11,6 @@ The front foundation is a continuous frontal root panel; six individually author
 
 ### Curve v1 (separate comparison variant)
 Cartesian guide points are authored in skull-relative x/y/z (scaled by horizontal radius, crown radius, forward radius). Root is attached via angular anchor. Width/depth are ratios of horizontal/forward radius, tilt is in degrees. Rounded convex exterior/flattened inner custom profile; noncolliding rings are not projected to scalp. Collision-only cross-section translation is measured as fitCorrectionMetres. The old v5 stays selectable; this is an unapproved study, not a replacement of an approved style.
+
+### Composition v1
+Three macro regions share upper vertices and are cut only below the shared rows. Each region has its own authored boundary, hem and subordinate relief curves; the result is a single closed thin shell. This is a separate front study and does not replace v5, Flow or Curve. Design is not randomly perturbed, and the one-direction nonlinear flow guideline is not a hard constraint. User art approval is required.
