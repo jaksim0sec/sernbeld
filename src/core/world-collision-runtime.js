@@ -73,6 +73,10 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const candidates=solids??[...query(x,z,radius)];
   return registry.sampleSupport({root:[x,maxY,z],profile:{radius,height},maxRise:0,maxDrop:Infinity,candidates,staticOnly:true},{regionId,purpose:"support"});
  }
+ function staticCeiling(x,z,y,targetY,solids=null,radius=.35,height=1.72){
+  const candidates=solids??[...query(x,z,radius)];
+  return registry.sampleCeiling({root:[x,y,z],targetY,profile:{radius,height},candidates},{regionId,purpose:"headroom"});
+ }
  // Authoritative compatibility consumer for the existing capsule solver.
  // It uses normalized SurfaceContact but returns the legacy objects unchanged.
  // The existing cached candidate order must be retained for corner response.
@@ -96,5 +100,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,stair,water,support,staticSupport,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,stair,water,support,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }
