@@ -35,6 +35,12 @@ jobs:
             state=success
             node "tests/$name.mjs" > /tmp/physics-single.log 2>&1 || { state=failure; result=1; }
             cat /tmp/physics-single.log
+            if [ "$state" = failure ] && [ "${{ github.event_name }}" = push ]; then
+              reason="$(grep -m1 -E 'AssertionError|TypeError|ReferenceError|SyntaxError|Error:' /tmp/physics-single.log || true)"
+              reason="$(printf '%s' "$reason" | tr -cd '[:alnum:] ._:-' | cut -c1-90)"
+              jq -n --arg context "physics/error-$name: $reason" '{state:"failure",context:$context,description:"Inspect workflow job logs for full details"}' > /tmp/physics-error-status.json
+              curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary @/tmp/physics-error-status.json "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}"
+            fi
             if [ "${{ github.event_name }}" = push ]; then
               jq -n --arg state "$state" --arg context "physics/test-$name" '{state:$state,context:$context,description:"Direct Node T1 regression"}' > /tmp/physics-single-status.json
               curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary @/tmp/physics-single-status.json "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}"
