@@ -4,6 +4,32 @@ import {createWorldCollision,legacyCollisionPolicy} from './world-collision.js';
 export function createLegacyStaticCollision({query,inside,local,playerContact,skin=.002}){
  if(![query,inside,local,playerContact].every(f=>typeof f==="function")||!Number.isFinite(skin)||skin<0)throw new TypeError("invalid legacy callbacks");
  const links=new WeakMap(),byId=new Map(),analytical=new Map();
+ // Sparse immutable XZ index; very large sources avoid world-sized allocation.
+ const analyticalCells=new Map(),largeAnalytical=new Set(),CELL=32,MAX_CELLS=256;
+ const cellKey=(x,z)=>x+":"+z;
+ function indexAnalytical(a){
+  const b=a.bounds,x0=Math.floor(b.min[0]/CELL),x1=Math.floor(b.max[0]/CELL),
+   z0=Math.floor(b.min[2]/CELL),z1=Math.floor(b.max[2]/CELL);
+  if(![x0,x1,z0,z1].every(Number.isSafeInteger)||(x1-x0+1)*(z1-z0+1)>MAX_CELLS){
+   largeAnalytical.add(a);return;
+  }
+  for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){
+   const key=cellKey(x,z);let set=analyticalCells.get(key);
+   if(!set)analyticalCells.set(key,set=new Set());
+   set.add(a);a.cells.push(key);
+  }
+ }
+ function unindexAnalytical(a){
+  largeAnalytical.delete(a);
+  for(const key of a.cells){const set=analyticalCells.get(key);set.delete(a);if(!set.size)analyticalCells.delete(key);}
+ }
+ function* analyticalAt(x,z,kind){
+  const local=analyticalCells.get(cellKey(Math.floor(x/CELL),Math.floor(z/CELL)));
+  for(const set of [local,largeAnalytical])if(set)for(const a of set){
+   const b=a.bounds;
+   if(a.kind===kind&&x>=b.min[0]&&x<=b.max[0]&&z>=b.min[2]&&z<=b.max[2])yield a;
+  }
+ }
  const positive=n=>Number.isFinite(n)&&n>0;
  const vec=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -63,13 +89,8 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
     const hit=contact(data,"top",pointOnTop(o,x,z),[0,1,0],[0,1,0],y-o.top);
     if(!best||hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)best=hit;
    }
-   // Analytical sources are explicitly registered and queried through their
-   // exact geometry callback. This is a reference pass; production must
-   // supply indexed candidates for large roof/terrain populations.
-   if(!args.staticOnly)for(const a of analytical.values()){
-    if(a.kind!=="surface")continue;
+   if(!args.staticOnly)for(const a of analyticalAt(x,z,"surface")){
     const data=resolve(a.id,a.shapeId);if(!data)continue;
-    const b=data.shape.worldBounds;if(x<b.min[0]||x>b.max[0]||z<b.min[2]||z>b.max[2])continue;
     const s=a.sample(x,z);if(!s)continue;
     if(!vec(s.point)||typeof s.featureId!=="string"||(s.geometricNormal!==null&&(!vec(s.geometricNormal)||Math.abs(Math.hypot(...s.geometricNormal)-1)>1e-6)))throw new TypeError("invalid analytical surface result");
     if(s.point[1]>y+rise+skin||s.point[1]<y-drop-skin)continue;
@@ -93,10 +114,8 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   sampleWater(args,filter,resolve){
    getProfile(args,true);
    const [x,,z]=args.root;let best=null;
-   for(const a of analytical.values()){
-    if(a.kind!=="water")continue;
+   for(const a of analyticalAt(x,z,"water")){
     const data=resolve(a.id,a.shapeId);if(!data)continue;
-    const b=data.shape.worldBounds;if(x<b.min[0]||x>b.max[0]||z<b.min[2]||z>b.max[2])continue;
     const s=a.sample(args.root);if(!s)continue;
     if(![s.surfaceY,s.bottomY,s.depth,s.feetImmersion].every(Number.isFinite)||s.depth<=0||s.bottomY>=s.surfaceY||Math.abs(s.surfaceY-s.bottomY-s.depth)>1e-7)throw new TypeError("invalid water result");
     const hit={...s,instanceId:a.id,shapeId:a.shapeId,revision:data.revision,priority:a.priority};
@@ -146,19 +165,25 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   if(kind==="water"&&shape.type!=="water")throw new TypeError("invalid water shape");
   // World-coordinate sampler must agree with the immutable authoring transform.
   // No analytical transform updates until the sampler/grid is rebuilt.
-  const h=world.register(instance);analytical.set(h.id,{id:h.id,shapeId:shape.id,kind,sample,priority});return h;
+  const h=world.register(instance),bounds=world.get(h.id).shapes[0].worldBounds;
+  if(!bounds.min.every(Number.isFinite)||!bounds.max.every(Number.isFinite)){
+   world.remove(h);throw new TypeError("nonfinite analytical world bounds");
+  }
+  const a={id:h.id,shapeId:shape.id,kind,sample,priority,bounds,cells:[]};
+  indexAnalytical(a);analytical.set(h.id,a);return h;
  }
  function remove(h){
   world.remove(h);const link=byId.get(h.id);
   if(link){links.delete(link.record);byId.delete(h.id);}
-  analytical.delete(h.id);
+  const a=analytical.get(h.id);if(a){unindexAnalytical(a);analytical.delete(h.id);}
   return true;
  }
  // Intentionally no updateTransform: original legacy grid is static. A move
  // must be reinserted into that grid, then registered again under a fresh
  // revision. Old consumers are unchanged until authority is switched.
  return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
-  sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities};
+  sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities,
+  analyticalIndexStats:()=>({cells:analyticalCells.size,largeSources:largeAnalytical.size,sources:analytical.size})};
 }
 
 export function sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}){
