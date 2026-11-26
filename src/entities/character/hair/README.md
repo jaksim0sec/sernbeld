@@ -8,3 +8,6 @@ Head-local metres, Y up, +Z front. Studio body remains read-only; `studioHead(fa
 
 ### Front-only inspection (v3)
 The front foundation is a continuous frontal root panel; six individually authored asymmetric locks overlap it. Full scalp guide is optional/off; unfinished side and rear remain exposed intentionally. No side/back expansion before user front approval. Synthetic and actual tests cover the foundation and front locks, not the optional guide.
+
+### Curve v1 (separate comparison variant)
+Cartesian guide points are authored in skull-relative x/y/z (scaled by horizontal radius, crown radius, forward radius). Root is attached via angular anchor. Width/depth are ratios of horizontal/forward radius, tilt is in degrees. Rounded convex exterior/flattened inner custom profile; noncolliding rings are not projected to scalp. Collision-only cross-section translation is measured as fitCorrectionMetres. The old v5 stays selectable; this is an unapproved study, not a replacement of an approved style.

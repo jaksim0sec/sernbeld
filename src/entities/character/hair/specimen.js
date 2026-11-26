@@ -397,3 +397,403 @@ export const specimenParts=[
     ]
   }
 ];
+
+// Curve study is a separate variant; v5 remains available for comparison.
+export const curveParts=[
+  {
+    "version": 1,
+    "id": "hair-t1-front-curve",
+    "slot": "front",
+    "bodies": [
+      "male",
+      "female"
+    ],
+    "join": "scalp-v1",
+    "compatibility": [
+      "t1-specimen"
+    ],
+    "material": "debug-t1",
+    "lod": "near-t1",
+    "physics": "fixed-t1",
+    "clumps": [
+      {
+        "rootAnchor": {
+          "theta": 30,
+          "phi": -62
+        },
+        "controlPoints": [
+          [
+            30,
+            -62,
+            0.004
+          ],
+          [
+            90,
+            -62,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            -0.61,
+            0.65,
+            0.61
+          ],
+          [
+            -0.81,
+            0.36,
+            0.7
+          ],
+          [
+            -0.83,
+            0.05,
+            0.74
+          ],
+          [
+            -0.77,
+            -0.25,
+            0.73
+          ]
+        ],
+        "widthProfile": [
+          0.16,
+          0.34,
+          0.32,
+          0.22,
+          0.035
+        ],
+        "depthProfile": [
+          0.035,
+          0.072,
+          0.075,
+          0.06,
+          0.008
+        ],
+        "twistProfile": [
+          0,
+          -12,
+          -18,
+          -6
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "rootAnchor": {
+          "theta": 20,
+          "phi": -48
+        },
+        "controlPoints": [
+          [
+            20,
+            -48,
+            0.004
+          ],
+          [
+            90,
+            -48,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            -0.38,
+            0.8,
+            0.66
+          ],
+          [
+            -0.57,
+            0.46,
+            0.92
+          ],
+          [
+            -0.57,
+            0.03,
+            1.02
+          ],
+          [
+            -0.4,
+            -0.28,
+            0.99
+          ]
+        ],
+        "widthProfile": [
+          0.18,
+          0.36,
+          0.38,
+          0.27,
+          0.055
+        ],
+        "depthProfile": [
+          0.04,
+          0.1,
+          0.105,
+          0.075,
+          0.009
+        ],
+        "twistProfile": [
+          0,
+          -7,
+          -9,
+          8
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "rootAnchor": {
+          "theta": 13,
+          "phi": -30
+        },
+        "controlPoints": [
+          [
+            13,
+            -30,
+            0.004
+          ],
+          [
+            90,
+            -30,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            -0.22,
+            0.88,
+            0.64
+          ],
+          [
+            -0.3,
+            0.5,
+            1
+          ],
+          [
+            -0.22,
+            0.08,
+            1.13
+          ],
+          [
+            -0.05,
+            -0.32,
+            1.04
+          ]
+        ],
+        "widthProfile": [
+          0.16,
+          0.4,
+          0.43,
+          0.31,
+          0.065
+        ],
+        "depthProfile": [
+          0.038,
+          0.12,
+          0.125,
+          0.09,
+          0.01
+        ],
+        "twistProfile": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "rootAnchor": {
+          "theta": 7,
+          "phi": 4
+        },
+        "controlPoints": [
+          [
+            7,
+            4,
+            0.004
+          ],
+          [
+            90,
+            4,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            0.08,
+            0.92,
+            0.53
+          ],
+          [
+            0.18,
+            0.58,
+            1.01
+          ],
+          [
+            0.29,
+            0.12,
+            1.14
+          ],
+          [
+            0.42,
+            -0.26,
+            1.02
+          ]
+        ],
+        "widthProfile": [
+          0.2,
+          0.43,
+          0.46,
+          0.29,
+          0.06
+        ],
+        "depthProfile": [
+          0.04,
+          0.125,
+          0.13,
+          0.085,
+          0.01
+        ],
+        "twistProfile": [
+          0,
+          -4,
+          -10,
+          1
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "rootAnchor": {
+          "theta": 17,
+          "phi": 36
+        },
+        "controlPoints": [
+          [
+            17,
+            36,
+            0.004
+          ],
+          [
+            90,
+            36,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            0.38,
+            0.79,
+            0.68
+          ],
+          [
+            0.52,
+            0.45,
+            0.94
+          ],
+          [
+            0.64,
+            0.05,
+            0.99
+          ],
+          [
+            0.66,
+            -0.18,
+            0.9
+          ]
+        ],
+        "widthProfile": [
+          0.17,
+          0.34,
+          0.35,
+          0.24,
+          0.045
+        ],
+        "depthProfile": [
+          0.03,
+          0.09,
+          0.095,
+          0.07,
+          0.009
+        ],
+        "twistProfile": [
+          0,
+          -7,
+          -15,
+          -12
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      },
+      {
+        "rootAnchor": {
+          "theta": 29,
+          "phi": 61
+        },
+        "controlPoints": [
+          [
+            29,
+            61,
+            0.004
+          ],
+          [
+            90,
+            61,
+            0.01
+          ]
+        ],
+        "guide": [
+          [
+            0.6,
+            0.64,
+            0.59
+          ],
+          [
+            0.78,
+            0.39,
+            0.72
+          ],
+          [
+            0.86,
+            0.04,
+            0.72
+          ],
+          [
+            0.82,
+            -0.21,
+            0.68
+          ]
+        ],
+        "widthProfile": [
+          0.14,
+          0.3,
+          0.29,
+          0.2,
+          0.035
+        ],
+        "depthProfile": [
+          0.03,
+          0.067,
+          0.07,
+          0.055,
+          0.008
+        ],
+        "twistProfile": [
+          0,
+          9,
+          12,
+          4
+        ],
+        "crossSection": "sculpted",
+        "grooves": 0,
+        "physicsProfile": "fixed-t1"
+      }
+    ]
+  }
+];
