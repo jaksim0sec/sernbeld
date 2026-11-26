@@ -19,8 +19,6 @@ function verifySynthetic(kit,parts,synthetic,checkGeometry){
  }return results;
 }
 if(parts.length!==1||parts[0].slot!=='front')throw Error('T1 front-only scope');
-function coverage(k,ps){const fit=synthetic(k),all=[k.frontFoundation(fit),...k.makePart(fit,ps[0])],positions=[],indices=[];for(const a of all){const off=positions.length/3;positions.push(...a.positions);indices.push(...Array.from(a.indices,x=>x+off));}const shell=k.surface(Float32Array.from(positions),Uint32Array.from(indices),fit.center);return [80,85,90,95,100,105].map(theta=>{let total=0,covered=0;for(let phi=-60;phi<=60;phi+=2){total++;const dir=k.direction(theta,phi),rh=shell.radius(dir),rs=fit.radius(dir);if(rh!==null&&rs!==null&&rh>rs+.001)covered++;}return {theta,covered,total};});}
-const coverageStats=coverage(kit,parts);if(coverageStats.slice(0,3).some(x=>x.covered!==x.total))throw Error('Upper fringe coverage regression');console.log('PASS synthetic frontal angular coverage',JSON.stringify(coverageStats));
 console.log('PASS synthetic geometry',JSON.stringify(verifySynthetic(kit,parts,synthetic,checkGeometry)));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');

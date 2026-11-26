@@ -1,4 +1,4 @@
-// T1 front-only v6: compact overlapping fringe, staggered locks, no side/back.
+// T1 front-only fringe v5: restrained staggered cuts; no side/back.
 export const specimenParts=[
   {
     "version": 1,
@@ -19,418 +19,40 @@ export const specimenParts=[
       {
         "rootAnchor": {
           "theta": 31,
-          "phi": -70
+          "phi": -65
         },
         "controlPoints": [
           [
             31,
-            -70,
-            0.0045
-          ],
-          [
-            46.5,
-            -70,
-            0.0075
-          ],
-          [
-            62,
-            -70,
-            0.01
-          ],
-          [
-            81,
-            -67.5,
-            0.0105
-          ],
-          [
-            100,
             -65,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          25,
-          26,
-          26,
-          19,
-          3.4
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -1,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 2
-      },
-      {
-        "rootAnchor": {
-          "theta": 24,
-          "phi": -54
-        },
-        "controlPoints": [
-          [
-            24,
-            -54,
-            0.0045
+            0.005
           ],
           [
-            42,
-            -54.5,
-            0.0075
-          ],
-          [
-            60,
-            -55,
-            0.0105
-          ],
-          [
-            82.5,
-            -51.5,
-            0.011000000000000001
-          ],
-          [
-            105,
-            -48,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          25,
-          29,
-          28,
-          20,
-          3.1
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -2,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 3
-      },
-      {
-        "rootAnchor": {
-          "theta": 18,
-          "phi": -38
-        },
-        "controlPoints": [
-          [
-            18,
-            -38,
-            0.0045
-          ],
-          [
-            38,
-            -38,
-            0.0075
-          ],
-          [
-            58,
-            -38,
+            49,
+            -67,
             0.011
           ],
           [
-            83.5,
-            -34.5,
-            0.0105
+            68,
+            -70,
+            0.013
           ],
           [
-            109,
-            -31,
-            0.0085
+            87,
+            -68,
+            0.014
+          ],
+          [
+            99,
+            -61,
+            0.012
           ]
         ],
         "angularWidth": [
-          27,
           30,
-          28,
-          20,
-          3.7
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -1,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 2
-      },
-      {
-        "rootAnchor": {
-          "theta": 11,
-          "phi": -23
-        },
-        "controlPoints": [
-          [
-            11,
-            -23,
-            0.0045
-          ],
-          [
-            33.5,
-            -22.5,
-            0.0075
-          ],
-          [
-            56,
-            -22,
-            0.01
-          ],
-          [
-            84,
-            -18.5,
-            0.011000000000000001
-          ],
-          [
-            112,
-            -15,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          26,
+          31,
           30,
-          28,
-          22,
-          4.1
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -2,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 2.5
-      },
-      {
-        "rootAnchor": {
-          "theta": 5,
-          "phi": -7
-        },
-        "controlPoints": [
-          [
-            5,
-            -7,
-            0.0045
-          ],
-          [
-            29.5,
-            -5.5,
-            0.0075
-          ],
-          [
-            54,
-            -4,
-            0.0105
-          ],
-          [
-            81.5,
-            0,
-            0.0105
-          ],
-          [
-            109,
-            4,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          27,
-          30,
-          29,
-          21,
-          3.5
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -1,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 1.8
-      },
-      {
-        "rootAnchor": {
-          "theta": 12,
-          "phi": 9
-        },
-        "controlPoints": [
-          [
-            12,
-            9,
-            0.0045
-          ],
-          [
-            34,
-            10.5,
-            0.0075
-          ],
-          [
-            56,
-            12,
-            0.011
-          ],
-          [
-            84,
-            16.5,
-            0.011000000000000001
-          ],
-          [
-            112,
-            21,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          26,
-          29,
-          27,
-          21,
-          4
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -2,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 2.8
-      },
-      {
-        "rootAnchor": {
-          "theta": 16,
-          "phi": 25
-        },
-        "controlPoints": [
-          [
-            16,
-            25,
-            0.0045
-          ],
-          [
-            37,
-            27,
-            0.0075
-          ],
-          [
-            58,
-            29,
-            0.01
-          ],
-          [
-            82,
-            33.5,
-            0.0105
-          ],
-          [
-            106,
-            38,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          25,
-          28,
-          26,
-          19,
+          18,
           3.3
         ],
         "widthProfile": [
@@ -440,74 +62,11 @@ export const specimenParts=[
           0.002
         ],
         "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
-        ],
-        "twistProfile": [
-          0,
-          0
-        ],
-        "crossSection": "lens",
-        "grooves": 2,
-        "sweep": -1,
-        "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1",
-        "tipCut": 2.1
-      },
-      {
-        "rootAnchor": {
-          "theta": 23,
-          "phi": 42
-        },
-        "controlPoints": [
-          [
-            23,
-            42,
-            0.0045
-          ],
-          [
-            42,
-            43.5,
-            0.0075
-          ],
-          [
-            61,
-            45,
-            0.0105
-          ],
-          [
-            82,
-            48.5,
-            0.011000000000000001
-          ],
-          [
-            103,
-            52,
-            0.0085
-          ]
-        ],
-        "angularWidth": [
-          25,
-          28,
-          26,
-          19,
-          3.5
-        ],
-        "widthProfile": [
-          0.02,
-          0.035,
-          0.022,
-          0.002
-        ],
-        "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
+          0.002,
+          0.004,
+          0.0048,
+          0.0032,
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -518,45 +77,108 @@ export const specimenParts=[
         "sweep": -2,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
-        "tipCut": 2.5
+        "tipCut": 2.2
       },
       {
         "rootAnchor": {
-          "theta": 30,
-          "phi": 57
+          "theta": 21,
+          "phi": -49
         },
         "controlPoints": [
           [
-            30,
-            57,
-            0.0045
+            21,
+            -49,
+            0.006
           ],
           [
-            47.5,
-            58.5,
-            0.0075
+            42,
+            -53,
+            0.012
           ],
           [
-            65,
-            60,
-            0.011
+            62,
+            -54,
+            0.015
           ],
           [
-            82,
-            64,
-            0.0105
+            88,
+            -50,
+            0.017
           ],
           [
-            99,
-            68,
-            0.0085
+            105,
+            -39,
+            0.012
           ]
         ],
         "angularWidth": [
+          34,
+          39,
+          35,
           24,
-          26,
-          25,
-          18,
+          4.1
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.0048,
+          0.0064,
+          0.004,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -4,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "tipCut": 3.3
+      },
+      {
+        "rootAnchor": {
+          "theta": 12,
+          "phi": -32
+        },
+        "controlPoints": [
+          [
+            12,
+            -32,
+            0.006
+          ],
+          [
+            36,
+            -34,
+            0.013
+          ],
+          [
+            58,
+            -30,
+            0.018
+          ],
+          [
+            88,
+            -19,
+            0.018
+          ],
+          [
+            110,
+            -4,
+            0.013000000000000001
+          ]
+        ],
+        "angularWidth": [
+          40,
+          42,
+          36,
+          22,
           3.2
         ],
         "widthProfile": [
@@ -566,11 +188,11 @@ export const specimenParts=[
           0.002
         ],
         "depthProfile": [
-          0.0015,
-          0.0028,
-          0.0038,
-          0.0029,
-          0.0008
+          0.002,
+          0.0048,
+          0.0064,
+          0.004,
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -578,10 +200,199 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -1,
+        "sweep": -5,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
-        "tipCut": 1.7
+        "tipCut": 2.6
+      },
+      {
+        "rootAnchor": {
+          "theta": 5,
+          "phi": -8
+        },
+        "controlPoints": [
+          [
+            5,
+            -8,
+            0.006
+          ],
+          [
+            27,
+            -12,
+            0.013
+          ],
+          [
+            54,
+            -5,
+            0.019
+          ],
+          [
+            83,
+            9,
+            0.02
+          ],
+          [
+            108,
+            20,
+            0.015
+          ]
+        ],
+        "angularWidth": [
+          46,
+          44,
+          38,
+          24,
+          4.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.0048,
+          0.0064,
+          0.004,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -5,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "tipCut": 3.7
+      },
+      {
+        "rootAnchor": {
+          "theta": 12,
+          "phi": 19
+        },
+        "controlPoints": [
+          [
+            12,
+            19,
+            0.006
+          ],
+          [
+            34,
+            19,
+            0.012
+          ],
+          [
+            59,
+            25,
+            0.016
+          ],
+          [
+            84,
+            37,
+            0.017
+          ],
+          [
+            103,
+            46,
+            0.012
+          ]
+        ],
+        "angularWidth": [
+          36,
+          39,
+          34,
+          20,
+          3.5
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.0048,
+          0.0056,
+          0.0032,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -3,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.5
+      },
+      {
+        "rootAnchor": {
+          "theta": 24,
+          "phi": 46
+        },
+        "controlPoints": [
+          [
+            24,
+            46,
+            0.006
+          ],
+          [
+            42,
+            49,
+            0.011
+          ],
+          [
+            65,
+            53,
+            0.014
+          ],
+          [
+            86,
+            62,
+            0.014
+          ],
+          [
+            97,
+            68,
+            0.011
+          ]
+        ],
+        "angularWidth": [
+          31,
+          35,
+          31,
+          18,
+          3.1
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.002,
+          0.004,
+          0.0048,
+          0.0032,
+          0.0007
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -2,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.1
       }
     ]
   }
