@@ -19,5 +19,5 @@
     "docs/PWA.md"
   ],
   "dependencies": [],
-  "next": "HAIR-11260710/T1: 웹 조사 기반 Curve v1과 v5 비교 사용자 검수, 실두상 피팅 확인; 승인 전 Middle/Back 금지."
+  "next": "HAIR-11260710/T1: v5 기준 유지, 별도 FLOW v1의 분기 및 흐름 비교 시각 검수; 실두상 확인·승인 전 Middle/Back 금지."
 }

@@ -1,5 +1,5 @@
 import * as kit from '../src/entities/character/hair/geometry.js';
-import {specimenParts as parts,curveParts} from '../src/entities/character/hair/specimen.js';
+import {specimenParts as parts,curveParts,flowParts} from '../src/entities/character/hair/specimen.js';
 function synthetic(kit,scale=[.085,.12,.095]){
  const p=[],ix=[],n=48,m=24;
  // Non-duplicated rings, poles. Ray tests do not depend on triangle winding.
@@ -22,6 +22,7 @@ if(parts.length!==1||parts[0].slot!=='front')throw Error('T1 front-only scope');
 console.log('PASS synthetic geometry',JSON.stringify(verifySynthetic(kit,parts,synthetic,checkGeometry)));
 function verifyCurves(fit){const gs=kit.makePart(fit,curveParts[0]),again=kit.makePart(fit,curveParts[0]);gs.forEach(g=>checkGeometry(kit,g,true));if(!gs.every((g,i)=>g.positions.every((x,k)=>x===again[i].positions[k])))throw Error('curve determinism');const metrics=gs.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('curve penetration '+JSON.stringify(metrics));return {maxCorrectionMm:Math.max(...gs.map(g=>g.fitCorrectionMetres))*1000,triangles:gs.reduce((a,g)=>a+g.indices.length/3,0)};}
 for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Cartesian curves',scale,verifyCurves(synthetic(kit,scale)));
+console.log('PASS hierarchical flow',JSON.stringify(verifySynthetic(kit,flowParts,synthetic,checkGeometry)));
 if(process.argv.includes('--synthetic'))process.exit(0);
 const {readFileSync}=await import('node:fs');const {gunzipSync}=await import('node:zlib');
 const {createStudioGeometry,controls}=await import('../src/entities/character/studio-geometry.js');const {normalizeStudioCharacter}=await import('../src/entities/character/appearance.js');
