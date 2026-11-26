@@ -38,3 +38,6 @@ T4: graph ambientPath에 등록된 participationIds는 기존 participationActio
 
 ## NPC-003/T5 최종 검증
 [종결 기록](../tasks/archive/NPC-003.md) 및 [CI 45606026442](https://github.com/jaksim0sec/sernbeld/actions/runs/45606026442): T2~T4 구현·자동 통합 검증 완료. 등록/resolver, 세션/서비스, 그룹 사건 및 실제 scheduler 효과와 기존 카엘 production 회귀 PASS; graph runner Chromium DOM fixture 4 viewport와 NPC 50명 외형 PASS. 전체 게임 신규 graph E2E 및 실기기 NOT RUN. 신규 production graph 등록은 별도 작업이다.
+
+## 화제 허브 분류 (2026-11-26)
+마지막 페이지의 topic hub에서만 같은 분류의 일반 화제·거래·일반 의뢰·길드 업무를 묶는다. 단일 항목은 기존처럼 직접 노출하고 사건·그룹 참여·의뢰 제출/보고·숙박은 직접 접근을 유지한다. 하위 목록은 같은 세션 안에서 이동하며 이전으로 돌아가기와 기존 대화 끝내기를 제공한다. 분류 이동은 대사·효과·기억을 발생시키지 않으며 현재 도달 가능 여부 및 선택 revision을 검증한다. 실제 화제와 서비스의 실행·조건·quote·아이템 아이콘은 기존 계약을 사용한다. 화제 완료/서비스 응답은 최상위 허브로 돌아간다. 격리 V8 신규 회귀 PASS; 전체 Node/Chromium/실게임 및 배포는 미검증.
