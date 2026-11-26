@@ -6,13 +6,44 @@ const phase=(from,to,t)=>{
  return fraction*fraction*(3-2*fraction);
 };
 
-// Grounded avatar root smoothing is independent of collision feet and camera Y.
-// Keep the residual within the existing foot IK reach; reset across airborne
-// movement, traversal, teleport and view changes rather than blending a fall.
-export function smoothBodyHeight(previous,target,dt,grounded){
+// Build a continuous-ish support profile across the moving body's footprint.
+// Exact treads remain the collision/foot-IK surface. Only the avatar root
+// samples this profile; a deck edge or high wall must not lift the body.
+export function sampleBodySupport(position,feetY,vx,vz,groundSurface){
+ const raw=position.y,speed=Math.hypot(vx,vz);
+ if(!groundSurface||speed<.12)return {y:raw,stepped:false};
+ const center=groundSurface(position.x,position.z,feetY);
+ if(!Number.isFinite(center)||Math.abs(center-raw)>.12)return {y:raw,stepped:false};
+ const reach=.24*clamp01(speed/.65),dx=vx/speed,dz=vz/speed;
+ let sum=center,lo=center,hi=center,valid=1;
+ for(const fraction of [-1,-.5,.5,1]){
+  const h=groundSurface(position.x+dx*reach*fraction,position.z+dz*reach*fraction,feetY);
+  if(!Number.isFinite(h)||Math.abs(h-center)>.48)continue;
+  sum+=h;lo=Math.min(lo,h);hi=Math.max(hi,h);valid++;
+ }
+ // Ignore steep drops/obstacles rather than averaging across unrelated levels.
+ if(valid!==5||hi-lo>.48)return {y:raw,stepped:false};
+ return {y:raw+(sum/valid-center),stepped:hi-lo>.08};
+}
+// A high swing foot does not authorize raising the whole torso. On staggered
+// supports only a small shared correction is allowed; each leg handles its
+// own remaining error in IK. On level ground retain the existing compensation.
+export function bodySupportCorrection(errors,stepped){
+ if(!errors.length)return 0;
+ const hi=Math.max(...errors),lo=Math.min(...errors);
+ const mixed=stepped||hi-lo>.12;
+ const desired=mixed?Math.max(-.08,Math.min(.06,(hi+lo)*.5)):hi;
+ return Math.max(-.16,Math.min(.18,desired));
+}
+// The root receives one final height target, including support compensation.
+// Never clamp to the new target in a single frame: that reintroduces snapping.
+export function smoothBodyHeight(previous,target,dt,grounded,speed=0){
  if(!grounded||!Number.isFinite(previous))return target;
- const next=target+(previous-target)*Math.exp(-Math.max(0,dt)*16);
- return Math.max(target-.24,Math.min(target+.24,next));
+ dt=Math.max(0,dt);
+ const rate=12+Math.min(7.5,Math.max(0,speed))*2;
+ const maxDelta=Math.max(2.4,speed*.8+.6)*dt;
+ const delta=(target-previous)*(1-Math.exp(-dt*rate));
+ return previous+Math.max(-maxDelta,Math.min(maxDelta,delta));
 }
 
 // Presentation-only camera math. No physics or animated bone writes.
@@ -99,7 +130,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyGrounded=false,footOffset=0,gaitSpeed=0,slideWeight=0,lastSlide=null;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyGrounded=false,gaitSpeed=0,slideWeight=0,lastSlide=null;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
  dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
@@ -180,16 +211,15 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const aimYaw=player.yaw+Math.PI;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   footOffset=gaitSpeed=0;bodyY=null;bodyGrounded=false;
+   gaitSpeed=0;bodyY=null;bodyGrounded=false;
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=aimYaw;bodyCut=player.teleportId;footOffset=0;gaitSpeed=0;actor._combatStance=null;}
+  if(bodyReset){bodyYaw=aimYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
-  bodyY=smoothBodyHeight(bodyReset||!bodyGrounded?null:bodyY,renderPos.y,dt,grounded);
-  bodyGrounded=grounded;
   const speed=Math.hypot(player.vel.x,player.vel.z);
+  const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
   gaitSpeed+=(speed-gaitSpeed)*(1-Math.exp(-dt*12));
   let turnRate=0,turnStep=0;
   if(firstPerson)bodyYaw=aimYaw;
@@ -202,7 +232,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    turnRate=turnStep/Math.max(.001,dt);
   }
   if(!firstPerson){
-   actor.group.position.copy(renderPos);actor.group.position.y=bodyY;
+   actor.group.position.copy(renderPos);actor.group.position.y=support.y;
    actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
   }
   animatePlayer(actor,dt,t,player,pose,equipped,{
@@ -211,6 +241,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
+   bodyY=null;bodyGrounded=false;
    // Keep the eye anchor independent of the actor's floor-clamped render Y.
    const yOffset=cameraY-renderPos.y;
    if(Math.abs(yOffset)>1e-6){
@@ -275,20 +306,21 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    actor.group.position.copy(camera.position).sub(displacement.copy(eye).applyQuaternion(actor.group.quaternion));
   }else{
    headCut=null;lastHeadMode=null;headRoll=0;
-   actor.group.position.copy(renderPos);actor.group.position.y=bodyY;actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
+   actor.group.position.copy(renderPos);actor.group.position.y=support.y;actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
    let desired=0;
-   if(player.onGround&&!player.swimming){
-    let best=-Infinity;
+   if(grounded&&!actor._combatStance){
+    const errors=[];
     for(const side of ['left','right']){
-      const foot=actor.B['foot_'+side].getWorldPosition(displacement);
-      const surface=groundSurface?.(foot.x,foot.z,player.pos.y)??renderPos.y;
-      best=Math.max(best,surface+ankleRest*actor.group.scale.y-foot.y);
+     const foot=actor.B['foot_'+side].getWorldPosition(displacement);
+     const surface=groundSurface?.(foot.x,foot.z,player.pos.y)??renderPos.y;
+     if(Number.isFinite(surface)&&Math.abs(surface-player.pos.y)<=.5)errors.push(surface+ankleRest*actor.group.scale.y-foot.y);
     }
-    desired=Math.max(-.16,Math.min(.18,best));
+    desired=bodySupportCorrection(errors,support.stepped);
    }
-   footOffset=actor._combatStance||!player.onGround||player.swimming?0:footOffset+(desired-footOffset)*(1-Math.exp(-dt*24));
-   actor.B.pelvis.position.y+=footOffset/(actor.units*actor.group.scale.y);
-   if(player.onGround&&!player.swimming&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt);
+   bodyY=smoothBodyHeight(bodyReset||!bodyGrounded?null:bodyY,support.y+desired,dt,grounded,speed);
+   bodyGrounded=grounded;
+   actor.group.position.y=bodyY;
+   if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt);
   }
   // Sliding down a steep face: crouched, feet planted on the slope, arms
   // out for balance. Eased in and out over the regular airborne pose.
