@@ -11,7 +11,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   World={H:new Float64Array(9)},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v)),
   stairSurface=()=>null,sample=()=>0;
   ${src.slice(start,end)}
-  return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerContact,
+  return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerContacts,playerContact,
     roofInFoot,roofInOuter,roofSurfaceLocal,
     install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
@@ -28,6 +28,23 @@ for(const [x,y,z] of [[0,2,0],[5,2,0],[-5,2,0]]){
  assert(hit.instanceId===([0,5,-5].includes(x)?(x===0?b:x===5?c:second).collisionId:null));
 }
 assert(bridge.overlap([0,1,0],profile).some(h=>h.instanceId===b.collisionId),'static overlap uses registered ID');
+const parity=(x,y,z,nearby=[],solids=null)=>{
+ const r=profile.radius,old=[],candidates=solids??[...env.query(x,z,r)];
+ for(const o of candidates){
+  if(o.top<=y+.002||o.bot>=y+profile.height-.002)continue;
+  const hit=env.playerContact(o,x,z,r);if(hit)old.push(hit);
+ }
+ for(const o of nearby){
+  if(o.top<=y+.002||o.bot>=y+profile.height-.002)continue;
+  const hit=env.playerContact(o,x,z,r);if(hit)old.push(hit);
+ }
+ const actual=env.playerContacts(x,z,y,nearby,r,solids);
+ assert.deepEqual(actual,old,'registry overlap must preserve original contact normals, depth, source objects and order');
+};
+for(const point of [[0,1,0],[.95,.5,.75],[1.5,0,1.1],[5,.2,0],[6,.3,0]])parity(...point);
+const staticBuffer=[...env.query(0,0,3)],dynamic={type:'cyl',x:.5,z:0,r:.27,bot:0,top:1.72,walk:false};
+parity(0,.5,0,[dynamic],staticBuffer);
+
 bridge.suspendRegion('lab');
 assert.equal(bridge.support([0,2,0],profile,{maxRise:.48}),null,'region suspend');
 bridge.resumeRegion('lab');
