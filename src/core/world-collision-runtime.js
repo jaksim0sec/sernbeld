@@ -21,11 +21,11 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   record.collisionId=id;handles.set(id,h);records.set(id,record);types[kind]++;
   return h;
  }
- function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid"}={}){
+ function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid",sourceKind=type}={}){
   if(handles.has(id))throw new TypeError("duplicate analytical collision ID");
   const shape={id:"surface",type,center:[0,0,0],geometryRef:id,bounds,policy};
   if(type==="water"){delete shape.geometryRef;delete shape.bounds;shape.half=bounds.half;shape.center=bounds.center;}
-  const h=registry.registerAnalytical({id,regionId,physics,transform:identity,shapes:[shape]},{sample,priority});
+  const h=registry.registerAnalytical({id,regionId,physics,transform:identity,shapes:[shape]},{sample,priority,sourceKind});
   handles.set(id,h);if(type==="water")types.water++;return h;
  }
  function roof(record){
@@ -42,13 +42,13 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    output.push(analytical(id,"roof",bounds,roofPolicy(overhang),(x,z)=>{
     const hit=sampleLegacyRoof(r,x,z,roofHelpers);
     return hit&&hit.overhang===overhang?hit:null;
-   }));
+   },{sourceKind:overhang?"roof-overhang":"roof-foot"}));
   }
   r.collisionId=base;types.roof++;return output;
  }
  function terrain({heights,gridN,cell,half,collisionId}){
   const id=collisionId??next("terrain"),bounds={min:[-half,-10000,-half],max:[half,10000,half]};
-  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}));
+  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}),{sourceKind:"terrain"});
   types.terrain++;return h;
  }
  function stair(record){
@@ -62,7 +62,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const minX=Math.min(...corners.map(p=>p[0]))-1e-7,maxX=Math.max(...corners.map(p=>p[0]))+1e-7;
   const minZ=Math.min(...corners.map(p=>p[1]))-1e-7,maxZ=Math.max(...corners.map(p=>p[1]))+1e-7;
   const id=record.collisionId??next("stair"),bounds={min:[minX,Math.min(record.y0,record.y1)-1,minZ],max:[maxX,Math.max(record.y0,record.y1)+1,maxZ]};
-  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleLegacyStair(record,x,z,{stairUV,minV:stairMinV,maxV:stairMaxV}));
+  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleLegacyStair(record,x,z,{stairUV,minV:stairMinV,maxV:stairMaxV}),{sourceKind:"stair"});
   types.stair++;return h;
  }
  function water({contains,surfaceAt,bottomAt,bounds,priority=0,collisionId}){
@@ -72,6 +72,14 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function support(root,profile,{maxRise=0,maxDrop=Infinity,purpose="support",region=regionId}={}){
   return registry.sampleSupport({root,profile,maxRise,maxDrop},{regionId:region,purpose});
  }
+ // Filter by surface class before choosing a hit. Preserve the existing
+ // stair declaration order and distinguish solid footprint from one-way eaves.
+ function surfaceAt(x,z,kind,maxY=Infinity){
+  if(!["terrain","stair","roof-foot","roof-overhang"].includes(kind))throw new TypeError("invalid surface kind");
+  const y=Number.isFinite(maxY)?maxY:0;
+  return registry.sampleSupport({root:[x,y,z],profile:{radius:0,height:1.72},maxRise:Number.isFinite(maxY)?0:Number.MAX_VALUE,maxDrop:Infinity,analyticalOnly:true,sourceKind:kind,firstAnalytical:kind==="stair"},{regionId,purpose:"support"});
+ }
+ function hasSurfaceKind(kind){return kind==="terrain"?types.terrain>0:kind==="stair"?types.stair>0:types.roof>0;}
  function sampleWater(root,profile,{region=regionId}={}){
   return registry.sampleWater({root,profile},{regionId:region,purpose:"water"});
  }
@@ -111,5 +119,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,stair,water,support,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,stair,water,support,surfaceAt,hasSurfaceKind,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

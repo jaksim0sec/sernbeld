@@ -32,5 +32,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: analytical index, stair bounds, explicit ID inputs and bridge water query implemented; next authoring manifest and authoritative terrain/stair/roof/water/slope, actor profile, NPC nav/camera/IK, W01-W12 and browser/mobile gates."
+  "next": "MOTION-11261538/T1: indexed terrain/roof/stair height consumers connected, direct fixture PASS; check CI, then slope normals, lab analytical surface and water domain/controller, manifests/IDs, NPC nav/camera/actor/anchor/region lifetime and W01-W12/mobile."
 }

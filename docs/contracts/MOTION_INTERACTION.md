@@ -41,3 +41,9 @@
 - 정적 analytical 등록 시 XZ 32m sparse cell 인덱스에 연결한다. 256개 셀 초과 대형 source는 별도 목록으로 처리해 전체 월드 격자 할당을 피한다. 정확한 bounds 및 기존 policy/revision resolver를 narrow phase 전에 검사한다. 제거 시 인덱스도 정리하며 suspend/resume은 기존 resolver에서 처리한다. 전체 registry queryAabb는 여전히 debug reference이다.
 - stair bounds는 기존 stairUV 투영의 역변환으로 실제 네 모서리를 계산한다. terrain/stair/water도 명시 collisionId를 받을 수 있고, roof 자식 ID 중복은 두 자식 등록 전에 검사한다. 기존 미지정 serial ID는 유지되므로 제작 manifest 전체 이관은 아직 아니다.
 - runtime bridge에 sampleWater를 노출했다. 기존 수영 controller는 바꾸지 않았다. 신규 회귀는 원거리 80개 source, 인덱스 삭제, 대형 수역, suspend/resume, 명시 ID와 회전된 계단 bounds를 확인한다. 실제 renderer source를 사용한 V8 격리 실행 및 analytical surface 테스트 PASS; Node/Chromium/실기기와 성능 p95는 NOT RUN. 기존 지형/지붕/계단/수역 권위 소비자, 제작 manifest 및 NPC nav/camera/IK 이관은 미완료.
+
+## 표면 높이의 실제 소비자 이관 (2026-11-27, PARTIAL)
+
+- sourceKind별 indexed analytical support 조회를 노출한다. terrain/계단/roof footprint/roof overhang을 구분하고, 가장 높은 roof/terrain 및 첫 등록 stair 선택을 보존한다. roofHeight/roofOverhangTop, heightfieldTriangle, playerTerrain의 exact tread 경로가 실제 renderer에서 이 질의를 소비한다. 따라서 playerFloor/foot IK에도 연결된다. 기존 범위 밖 terrain sample 및 모션 lab의 별도 analytical height callback을 유지한다. legacy 계단 우선순위와 처마 maxY/skin 보존.
+- 모션/solver/수영/경사 유한차분 및 roof slab/headroom의 기존 동작은 미변경. region suspend 시 roof support는 공용 resolver에서 제거되지만 terrain fallback과 legacy grid 등은 추가 이관 필요. 정확한 slope normal/anchor, NPC nav/camera, 수역 controller, asset manifest는 미완료.
+- 실제 renderer 소스를 사용하는 runtime fixture 159 assertions와 analytical fixture 48 assertions V8 격리 실행 PASS. game.js는 동일 6개 source fragment 순서로 재생성, SW v83. 최신 변경의 실제 Node/Chromium/모바일은 NOT RUN/NOT VERIFIED; 이전 main f3545fe CI 45908175756에서 물리 직접 Node 7개 PASS, 전체 contracts의 기존 INFRA/NPC tools/verify.mjs 점유 충돌과 browser 얼굴 형상 featureError는 FAIL로 보존.

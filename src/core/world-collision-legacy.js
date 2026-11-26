@@ -82,20 +82,24 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
    const profile=getProfile(args,true),[x,y,z]=args.root;
    const rise=args.maxRise??0,drop=args.maxDrop??Infinity;
    if(!Number.isFinite(rise)||rise<0||!(drop>=0)||args.staticOnly!==undefined&&typeof args.staticOnly!=="boolean")throw new TypeError("invalid support range");
-   let best=null;
-   for(const {record:o,data} of candidates(x,z,profile.radius,resolve,args.candidates??null)){
+   let best=null,bestOrder=Infinity;
+   if(!args.analyticalOnly)for(const {record:o,data} of candidates(x,z,profile.radius,resolve,args.candidates??null)){
     if(o.top>y+rise+skin||o.top<y-drop-skin)continue;
     if(!(profile.radius===0?inside(o,x,z,0):playerContact(o,x,z,profile.radius)))continue;
     const hit=contact(data,"top",pointOnTop(o,x,z),[0,1,0],[0,1,0],y-o.top);
     if(!best||hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)best=hit;
    }
    if(!args.staticOnly)for(const a of analyticalAt(x,z,"surface")){
+    if(args.sourceKind!==undefined&&a.sourceKind!==args.sourceKind)continue;
     const data=resolve(a.id,a.shapeId);if(!data)continue;
     const s=a.sample(x,z);if(!s)continue;
     if(!vec(s.point)||typeof s.featureId!=="string"||(s.geometricNormal!==null&&(!vec(s.geometricNormal)||Math.abs(Math.hypot(...s.geometricNormal)-1)>1e-6)))throw new TypeError("invalid analytical surface result");
     if(s.point[1]>y+rise+skin||s.point[1]<y-drop-skin)continue;
     const hit=contact(data,s.featureId,s.point,s.geometricNormal,null,y-s.point[1]);
-    if(!best||hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)best=hit;
+    const earlier=args.firstAnalytical&&a.sequence<bestOrder;
+    if(!best||earlier||!args.firstAnalytical&&(hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)){
+     best=hit;bestOrder=a.sequence;
+    }
    }
    return best;
   },
@@ -158,7 +162,8 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   const link={id:instanceId,shapeId,record,handle:h};links.set(record,link);byId.set(instanceId,link);
   return h;
  }
- function registerAnalytical(instance,{sample,priority=0}={}){
+ let analyticalSequence=0;
+ function registerAnalytical(instance,{sample,priority=0,sourceKind="generic"}={}){
   if(typeof sample!=="function"||!Number.isFinite(priority)||instance?.shapes?.length!==1)throw new TypeError("invalid analytical source");
   const shape=instance.shapes[0],kind=instance.physics==="volume"?"water":"surface";
   if(kind==="surface"&&(!["heightfield","roof"].includes(shape.type)||instance.physics!=="solid"))throw new TypeError("invalid analytical shape");
@@ -169,7 +174,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   if(!bounds.min.every(Number.isFinite)||!bounds.max.every(Number.isFinite)){
    world.remove(h);throw new TypeError("nonfinite analytical world bounds");
   }
-  const a={id:h.id,shapeId:shape.id,kind,sample,priority,bounds,cells:[]};
+  const a={id:h.id,shapeId:shape.id,kind,sample,priority,bounds,cells:[],sourceKind,sequence:++analyticalSequence};
   indexAnalytical(a);analytical.set(h.id,a);return h;
  }
  function remove(h){

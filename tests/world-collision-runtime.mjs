@@ -12,7 +12,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   stairSurface=()=>null,sample=()=>0;
   ${src.slice(start,end)}
   return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerCeiling,playerContacts,playerContact,
-    roofInFoot,roofInOuter,roofSurfaceLocal,
+    roofInFoot,roofInOuter,roofSurfaceLocal,roofHeight,roofOverhangTop,playerTerrain,heightfieldTriangle,
     install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 env.install(bridge);bridge.setRegion('lab');
@@ -137,4 +137,19 @@ assert(bounds.max[0]-bounds.min[0]<8&&bounds.max[2]-bounds.min[2]<8);
 const hit=diagonalBridge.support([43+d,2,43-d],profile);
 assert.equal(hit?.instanceId,sh.id);
 assert.equal(diagonalBridge.support([39,2,39],profile),null);
-console.log('PASS: runtime static, roof, terrain, water, active region, resident render-independence, analytical index and explicit IDs');
+
+assert.equal(env.roofHeight(12,0),4);
+assert.equal(env.roofOverhangTop(14.5,0,3.5),3+1*(1-2.5/3));
+assert.equal(env.roofOverhangTop(14.5,0,2.9),-Infinity);
+bridge.suspendRegion('lab');
+assert.equal(env.roofHeight(12,0),-Infinity);
+assert.equal(env.roofOverhangTop(14.5,0),-Infinity);
+bridge.resumeRegion('lab');
+assert.equal(env.roofHeight(12,0),4);
+assert.equal(bridge.surfaceAt(-1.5,-1.5,'terrain')?.point[1],.5);
+assert.equal(env.heightfieldTriangle(-1.5,-1.5),.5);
+const secondFlight={...flight,collisionId:'lab:diagonal-stair-high',y0:10,y1:12};
+diagonalBridge.stair(secondFlight);
+assert.equal(diagonalBridge.surfaceAt(43+d,43-d,'stair')?.instanceId,sh.id,'first authored flight wins as in legacy');
+assert.equal(diagonalBridge.surfaceAt(39,39,'stair'),null);
+console.log('PASS: runtime static, roof, terrain, water, active region, resident render-independence, analytical index, IDs and migrated surface consumers');

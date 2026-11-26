@@ -977,6 +977,7 @@ function roofRecords(x,z) {
 }
 // Ground over a solid footprint.
 function roofHeight(x,z) {
+  if(WorldCollision?.surfaceAt)return WorldCollision.surfaceAt(x,z,"roof-foot")?.point[1]??-Infinity;
   const b=roofRecords(x,z);
   let h=-Infinity;
   if(!b)return h;
@@ -1002,6 +1003,7 @@ function roofGableTop(x,z) {
 }
 // Highest overhang surface at the point not above maxY (one-way support).
 function roofOverhangTop(x,z,maxY=Infinity) {
+  if(WorldCollision?.surfaceAt)return WorldCollision.surfaceAt(x,z,"roof-overhang",maxY)?.point[1]??-Infinity;
   const b=roofRecords(x,z);
   let h=-Infinity;
   if(!b)return h;
@@ -1044,11 +1046,15 @@ function roofOrTerrain(x,z) {
 // Player contacts use the rendered stair treads, not the NPC navigation ramp.
 // The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
 function playerTerrain(x,z) {
-  const tread=stairSurface(x,z,0,true);
+  const tread=WorldCollision?.hasSurfaceKind("stair")?(WorldCollision.surfaceAt(x,z,"stair")?.point[1]??null):stairSurface(x,z,0,true);
   if(tread!==null)return tread;
   return Math.max(heightfieldTriangle(x,z),roofHeight(x,z));
 }
 function heightfieldTriangle(x,z){
+  if(WorldCollision?.hasSurfaceKind("terrain")){
+    const hit=WorldCollision.surfaceAt(x,z,"terrain");
+    return hit?hit.point[1]:sample(x,z);
+  }
   const gx=(x+HALF)/CFG.cell,gz=(z+HALF)/CFG.cell;
   if(gx<0||gz<0||gx>=GRID_N-1||gz>=GRID_N-1)return sample(x,z);
   const i=Math.floor(gx),j=Math.floor(gz),u=gx-i,v=gz-j,k=j*GRID_N+i,H=World.H;
