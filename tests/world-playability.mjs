@@ -187,6 +187,36 @@ async function checkBrowser() {
   await page.goto(home,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>!!window.__dev,{},{timeout:180000});
   const result=await page.evaluate(checkWorld);
+  await page.evaluate(()=>{
+   const d=window.__dev;
+   if(d.ui.travel.hidden)d.ui.toggleTravel();
+   const click=label=>{const b=[...d.ui.travel.querySelectorAll("button")].find(b=>b.textContent.trim()===label);if(!b)throw Error("Missing menu "+label);b.click();};
+   click("플레이 설정");click("개발자 모드");click("모션 테스트 공간");
+  });
+  await page.waitForURL("**/*motionLab=1");
+  await page.waitForFunction(()=>window.__dev?.motionLab===true,{},{timeout:180000});
+  const lab=await page.evaluate(()=>{
+   const d=window.__dev,key="sernbeld.save.v1",saved=localStorage.getItem(key);
+   if(!saved)throw Error("Normal world was not checkpointed");
+   if(d.folk||d.region)throw Error("Normal world leaked into lab");
+   if(d.playerTerrain(400,-450)!==0||d.collidersAt(400,-450,10).length)throw Error("Lab world not flat and empty");
+   d.renderer.setAnimationLoop(null);
+   const p=d.player,i=d.input;i.independentHeading=true;
+   window.dispatchEvent(new KeyboardEvent("keydown",{code:"KeyW"}));
+   for(let n=0;n<60;n++){p.advance(1/60,i,[]);d.avatars.update(1/60,n/60,{swing:null});}
+   window.dispatchEvent(new KeyboardEvent("keyup",{code:"KeyW"}));
+   if(!(p.pos.z<-2&&Math.abs(p.pos.y)<1e-6&&p.onGround))throw Error("Lab movement failed "+JSON.stringify(p.pos));
+   d.reset();if(p.pos.length()>1e-6)throw Error("Lab reset failed");
+   if(localStorage.getItem(key)!==saved)throw Error("Lab wrote main save");
+   d.ui.toggleTravel();
+   if(![...d.ui.travel.querySelectorAll("button")].some(b=>b.textContent.trim()==="카엘 항구로 돌아가기"))throw Error("Lab return missing");
+   return {flat:true,isolated:true,avatar:!!d.avatars.actor,savePreserved:true};
+  });
+  assert(lab.avatar&&lab.savePreserved);
+  await page.evaluate(()=>[...window.__dev.ui.travel.querySelectorAll("button")].find(b=>b.textContent.trim()==="카엘 항구로 돌아가기").click());
+  await page.waitForURL(url=>!url.searchParams.has("motionLab"));
+  await page.waitForFunction(()=>window.__dev&&!window.__dev.motionLab,{},{timeout:180000});
+  result.motionLab=lab;
   assert.deepEqual(errors,[]);
   return result;
  } finally {

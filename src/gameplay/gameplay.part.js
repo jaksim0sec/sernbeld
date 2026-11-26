@@ -6720,6 +6720,105 @@ var WorldMapPanel = class {
     this.draw();
   }
 };
+function motionLabURL(enabled){
+  const url=new URL(location.href);
+  if(enabled)url.searchParams.set("motionLab","1");
+  else url.searchParams.delete("motionLab");
+  return url.href;
+}
+async function bootMotionLab({renderer,scene,camera,canvas2}){
+  // The page is disposable. Normal-world collision registrations are never built.
+  playerTerrain=()=>0;
+  sample=()=>0;
+  stairSurface=()=>null;
+  waterLevel=()=>-1e6;
+  Save.load();
+  const labSave={data:JSON.parse(JSON.stringify(Save.data)),write:()=>true};
+  labSave.data.settings.view="third";
+  scene.background=new Color(0xa7acb1);
+  scene.fog=new Fog(0xa7acb1,55,150);
+  const floor=new Mesh(new PlaneGeometry(20000,20000),new MeshStandardMaterial({color:0x737b82,roughness:1}));
+  floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;floor.name="motion-lab-floor";scene.add(floor);
+  const gridFloor=new GridHelper(200,200,0x92999e,0x92999e);
+  gridFloor.position.y=.003;gridFloor.name="motion-lab-grid";scene.add(gridFloor);
+  scene.add(new HemisphereLight(0xffffff,0x777777,2.0));
+  const light=new DirectionalLight(0xffffff,2.0);
+  light.castShadow=true;
+  light.shadow.mapSize.set(1024,1024);
+  Object.assign(light.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:35});
+  light.shadow.camera.updateProjectionMatrix();
+  light.shadow.bias=-.00015;
+  scene.add(light,light.target,camera);
+  hud.progress(.95,"테스트 캐릭터를 준비하는 중");
+  const characterTypes={Group,Bone,Skeleton,SkinnedMesh,Mesh,MeshBasicMaterial,BufferGeometry,BufferAttribute,ShaderMaterial,Vector2,Vector3,Vector4,Quaternion,Matrix4,Euler,Color,DoubleSide};
+  const [studioSource,studioLod]=await Promise.all([loadStudioSource(),loadStudioLod()]);
+  studioSource.lod=studioLod;
+  const studioFactory=createStudioGeometry(studioSource);
+  const makeCharacter=(profile,options)=>createStudioModel(characterTypes,studioFactory,profile,options);
+  const player=new Player(),rig=new CameraRig(camera),movementCamera=new MovementCameraFollow(),ui=new GameUI();
+  const input=new Input(canvas2,{stickEl:hud.el.stick,jumpEl:hud.el.jump,sprintEl:$("sprint"),onAnyInput:()=>hud.hideHint()});
+  const view=new ViewModel(camera),combat={swing:null};
+  const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save:labSave,
+    getEquipped:()=>null,makeCharacter,makeWeapon:()=>null,view,height:PLAYER.height,
+    attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
+  rig.motion=labSave.data.settings.motion;
+  const reset=()=>{player.teleport(0,0,0,-.10);movementCamera.reset(player);};
+  reset();
+  $("hudMapOpen").style.display="none";
+  $("bagBtn").style.display="none";
+  $("atk").hidden=true;
+  $("sprint").hidden=!IS_MOBILE;
+  $("clock").textContent="모션 테스트 공간";
+  document.querySelector(".hud-world-kicker").textContent="개발자 모드";
+  $("goal").textContent="";
+  ui.renderTravel=()=>{
+    $("systemMenuTitle").textContent="모션 테스트";
+    $("systemMenuBack").hidden=true;$("menuMoney").hidden=true;
+    const body=ui.travel.querySelector(".system-menu-body");body.replaceChildren();
+    const add=(label,action)=>{
+      const b=document.createElement("button");b.type="button";b.className="system-menu-link";
+      const span=document.createElement("span");span.textContent=label;b.append(span);b.onclick=action;body.append(b);
+    };
+    add("원래 위치로 초기화",()=>{reset();ui.close(ui.travel);});
+    add(avatars.mode==="third"?"1인칭으로 전환":"3인칭으로 전환",()=>{avatars.setThird(avatars.mode!=="third",{persist:false});ui.close(ui.travel);});
+    add("카엘 항구로 돌아가기",()=>location.replace(motionLabURL(false)));
+    const note=document.createElement("p");note.className="system-menu-note";
+    note.textContent="평지에서 이동과 카메라를 검수합니다. 이 공간의 위치와 변경사항은 저장되지 않습니다.";body.append(note);
+  };
+  const resize=()=>{
+    const quality=GRAPHICS[graphicsKey(labSave.data.settings.graphics)];
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,quality.dpr));
+    renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  };
+  addEventListener("resize",resize);resize();
+  hud.ready({name:"모션 테스트 공간",subtitle:"개발자 모드 · 저장되지 않는 독립 공간"});
+  hud.el.hint.textContent=IS_MOBILE?"왼쪽 드래그로 이동 · 오른쪽 드래그로 시점 조작":"W/S 전후진 · A/D 회전 · Shift 달리기 · Space 점프 · Esc 메뉴";
+  let last=performance.now();
+  const tick=now=>{
+    const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;const t=now/1000;
+    for(const code of input.consumeToggles())if(code==="Escape")ui.toggleTravel();
+    if(!ui.travel.hidden){
+      movementCamera.reset(player);input.setSprint(false);input.keys.clear();input.stick.x=input.stick.y=0;
+      input.consumeLook();input.consumeAttack();input.consumeJump();
+    }else{
+      input.independentHeading=avatars.mode==="third";
+      const manualLook=player.look(input);
+      movementCamera.prepare(player,input,manualLook,input.independentHeading);
+      player.advance(dt,input,[]);
+      if(input.independentHeading)movementCamera.update(dt,player);
+      input.consumeAttack();
+    }
+    rig.update(dt,player);avatars.update(dt,t,combat);avatars.applyThirdCamera(dt,rig);
+    gridFloor.position.x=Math.round(player.pos.x);gridFloor.position.z=Math.round(player.pos.z);
+    light.target.position.set(player.pos.x,0,player.pos.z);
+    light.position.copy(light.target.position).add(new Vector3(5,10,6));
+    renderer.shadowMap.needsUpdate=true;
+    renderer.render(scene,camera);hud.tick(dt,renderer.info.render,player.pos);
+    ui.setStamina(player,camera,avatars.mode==="third"&&avatars.bodyRoot.visible,ui.travel.hidden);
+  };
+  renderer.setAnimationLoop(tick);
+  window.__dev={motionLab:true,scene,camera,renderer,player,input,rig,avatars,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
+}
 async function boot() {
   const canvas2 = document.getElementById("view");
   const renderer = new WebGLRenderer({ canvas: canvas2, antialias: true, powerPreference: "high-performance" });
@@ -6730,6 +6829,9 @@ async function boot() {
   const scene = new Scene();
   const camera = new PerspectiveCamera(65, innerWidth / innerHeight, 0.2, 14e3);
   camera.rotation.order = "YXZ";
+  if(new URLSearchParams(location.search).get("motionLab")==="1"){
+    await bootMotionLab({renderer,scene,camera,canvas2});return;
+  }
   hud.progress(0.01, "\uC9C8\uAC10\uC744 \uADF8\uB9AC\uB294 \uC911");
   await nextFrame2();
   shared.uNoise.value = makeNoiseTexture();
@@ -7067,6 +7169,7 @@ async function boot() {
       choice("카메라 시점",[["first","1인칭"],["third","3인칭"]],avatars.mode,v=>avatars.setThird(v==="third"));
       choice("그래픽 품질",[["low","하"],["medium","중"],["high","상"]],graphicsKey(Save.data.settings.graphics),v=>applyGraphics(v));
       choice("화면 흔들림",[[1,"보통"],[.4,"약하게"],[0,"끄기"]],Save.data.settings.motion,v=>{Save.data.settings.motion=rig.motion=v;Save.write();});
+      body.append(menuButton("개발자 모드","ui-dev",()=>navigateMenu("dev"),"system-menu-link"));
       return;
     }
     if(page==="controls"){
@@ -7083,6 +7186,8 @@ async function boot() {
     }
     if(page==="dev"){
       const fly=menuButton(player.mode==="fly"?"걷기로 돌아가기":"자유 비행",null,()=>{toggleFly();ui.close(ui.travel);},"system-menu-link");
+      heading("독립 테스트 공간");
+      body.append(menuButton("모션 테스트 공간",null,()=>{if(player.mode==="walk")persist();location.assign(motionLabURL(true));},"system-menu-link"));
       body.append(fly);heading("검수용 이동");
       for(const t of region.teleports)body.append(menuButton(t.name,null,()=>{teleport(t);ui.close(ui.travel);},"system-menu-link"));
       return;
