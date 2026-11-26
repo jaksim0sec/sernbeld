@@ -1,6 +1,6 @@
 # 공용 물리·표면 상호작용 계약 (T1 등록 구현 진행)
 
-상태: REGISTERED/PARTIAL. [실행 명세](../knowledge/WORLD_SURFACE_REFACTOR_PLAN.md), [작업](../tasks/active/MOTION-11261538.md). 런타임 game.js에는 등록·비교 어댑터만 연결; 실제 이동·등반·수영의 authoritative solver는 이전 그대로이며 신규 contact/sweep/query가 물리 권위가 된 것은 아니다. CI/실게임 검증은 아직 별도 확인 필요.
+상태: INTEGRATED(정적 primitive support/overlap/headroom의 권위 질의에 한함) / T1 PARTIAL. [실행 명세](../knowledge/WORLD_SURFACE_REFACTOR_PLAN.md), [작업](../tasks/active/MOTION-11261538.md). 기존 Player 이동 시간 적분·경사·등반·수영 모드는 보존. 지형/계단/roof analytical의 전체 판정 소비와 NPC nav, camera, asset authoring 및 실모바일 최종 검증은 미완료. 아래 이전 검증 메모는 단계 당시의 기록이며 최신 이관·검증 내용은 마지막 절을 따른다.
 
 - `src/core/world-collision.js` createWorldCollision: instance ID/region/physics/transform/shapes 등록. m, Y-up, yaw radians, positive scale. box/water half extents, cylinder radius/height(동일 XZ scale), heightfield/roof는 geometryRef 및 local bounds. 비지원 변환·누락된 explicit policy·중복 ID는 거부. 장식은 빈 shapes, water는 비고체 volume. 원본/반환 스냅샷과 내부 데이터 분리.
 - handle은 id+generation; 삭제 후 같은 ID 재등록해도 이전 handle 무효. revision은 변환/활성/지역 상태 변경 때 증가하여 anchor 무효화. region suspend는 개별 active 값을 보존. query purpose 및 layer/self exclusion은 공통 resolver에서 적용. oneWay의 방향성, 실제 geometry query는 backend의 책임.
@@ -27,3 +27,11 @@
 - `GameEvents`의 region 활성/중지/해제는 레지스트리에 전달되나, 레거시 grid의 정적 데이터 소유권 및 실제 지면 판정과 동등하게 비활성화된다는 뜻은 아니다. `window.__dev.collision.stats()/probe(x,z,y)`는 디버깅용으로 기존 floor/new sample의 불일치를 관찰할 뿐 자동 보정하지 않는다.
 - 로드되지 않은 NPC 모델도 `Townsfolk.playerContacts` 반환 후보에 남는다. 모델/LOD와 body의 생명주기는 분리됐지만 현재 NPC 충돌 반경 계산은 legacy 상수 기반이며, 프로파일 대칭·접촉 쌍 분리 및 필터 검증은 추가 필요.
 - `tests/world-collision-runtime.mjs`과 기존 3개 reference 테스트를 메인 workflow에서 직접 실행하도록 추가. CI 출력을 얻기 전까지 PASS라고 선언하지 않으며 관련 runtime 통합의 browser/실게임/실기기 결과도 NOT RUN. T1 잔여 B~E 직접 판정 이관과 W01~W12는 [작업 기록](../tasks/active/MOTION-11261538.md)에 유지.
+
+## 정적 플레이어 판정의 공용 권위 이관 (2026-11-26, PARTIAL)
+
+- `playerContacts`: `createRuntimeCollisionBridge.contacts` → `registry.overlapBody`를 사용. source-grid의 이미 수집된 solids 후보를 중복 조회하지 않고, registry ID/region/policy로 필터링한 후 기존 `{nx,nz,depth,collider}`를 동일 후보 순서로 반환한다. NPC 동적 근접 contact는 기존 별도 인자 뒤에 유지한다. 전체 움직임 알고리즘과 좌표 적분은 교체하지 않는다.
+- `playerFloor`: 정적 box/cyl 최고 상면 선택을 `staticSupport` → `sampleSupport({staticOnly:true})`로 이관. 실제 terrain/STAIRS/roof는 현재 별도 기존 수면·표면 계산을 유지. `playerFootSurface`도 `playerFloor` 호출을 통해 정적 부분을 간접 소비. 값이 동일하도록 `tests/world-collision-runtime.mjs`에서 bridge on/off parity 검증한다.
+- `playerCeiling`: 정적 box/cyl 최저 아랫면 선택을 `staticCeiling` → `sampleCeiling`의 `underside` feature와 `[0,-1,0]` 기하 normal로 등록. 최종 `PLAYER.body + CONTACT_SKIN`과 처마 `roofSlabsAt` 로직은 유지. 층/지붕 underside parity 직접 회귀 추가. `bodyBlockedAt/pushOut/occupiedAt`와 camera ray 및 신규 surface IDs는 아직 완전 통합하지 않았다.
+- `tests/world-collision-runtime.mjs`는 동일 레거시 world-render 소스를 새 bridge 켬/끔으로 평가하며 두 경로의 높이, normal/depth/order/ceiling clearance를 직접 비교한다. 외부 결과는 [CI 45847848067](https://github.com/jaksim0sec/sernbeld/actions/runs/45847848067)의 Node 7종 및 Chromium 2종 PASS, [CI 45848804611](https://github.com/jaksim0sec/sernbeld/actions/runs/45848804611)의 추가 headroom Node 7종 PASS까지 확인. `game.js` 재생성, `sw.js` v82; 최신 수정 SHA의 browser/실모바일 회귀는 별도 게이트.
+- 현재 analytical 표면 조회는 debug/reference로 한정. 생산용 indexed roof/stair/terrain query와 실제 경사 normal 일치, water/clearance profile, anchor/revision, NPC navigation·카메라 소비, 제작 manifest/경로 점유 해제, W01~W12/실모바일 측정 완료 전에는 T1 **종결 금지**.
