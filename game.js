@@ -46704,9 +46704,14 @@ function playerContacts(x,z,y,nearby=[],radius=PLAYER.radius,solids=null) {
 }
 function playerCeiling(x,z,y,targetY,solids=null) {
   let top=targetY;
-  for(const o of solids??query(x,z,PLAYER.radius)){
-    if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
-    top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
+  if(WorldCollision?.staticCeiling){
+    const hit=WorldCollision.staticCeiling(x,z,y,targetY,solids,PLAYER.radius,PLAYER.body);
+    if(hit)top=Math.min(top,hit.point[1]-PLAYER.body-CONTACT_SKIN);
+  }else{
+    for(const o of solids??query(x,z,PLAYER.radius)){
+      if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
+      top=Math.min(top,o.bot-PLAYER.body-CONTACT_SKIN);
+    }
   }
   // A head rising into an eave or awning stops at its underside.
   for(let i=-1;i<8;i++){
