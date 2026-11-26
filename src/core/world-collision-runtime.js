@@ -67,6 +67,12 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function overlap(root,profile,{region=regionId}={}){
   return registry.overlapBody({root,profile},{regionId:region,purpose:"block"});
  }
+ // Player support migration: only the solid primitive part is switched.
+ // Terrain, roof and stair policy still use their existing exact legacy path.
+ function staticSupport(x,z,maxY,radius,solids=null,height=1.72){
+  const candidates=solids??[...query(x,z,radius)];
+  return registry.sampleSupport({root:[x,maxY,z],profile:{radius,height},maxRise:0,maxDrop:Infinity,candidates,staticOnly:true},{regionId,purpose:"support"});
+ }
  // Authoritative compatibility consumer for the existing capsule solver.
  // It uses normalized SurfaceContact but returns the legacy objects unchanged.
  // The existing cached candidate order must be retained for corner response.
@@ -90,5 +96,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,stair,water,support,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,stair,water,support,staticSupport,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }
