@@ -22,6 +22,16 @@ const c=env.addCyl({x:5,z:0,r:1,y0:0,y1:2,walk:true});
 const second=env.addBox({cx:-5,cy:1,cz:0,hx:1,hy:1,hz:1,yaw:0,walk:true});
 assert.notEqual(b.collisionId,second.collisionId);
 assert.equal(bridge.get(b.collisionId).regionId,'lab');
+const compareFloor=(x,z,maxY,radius=.35,solids=null)=>{
+ env.install(null);
+ const legacy=env.playerFloor(x,z,maxY,radius,solids);
+ env.install(bridge);
+ const migrated=env.playerFloor(x,z,maxY,radius,solids);
+ assert.equal(migrated,legacy,'registered solid support must match original floor for '+[x,z,maxY,radius]);
+};
+for(const [x,z,maxY,r] of [[0,0,2.48,.35],[0,0,1,.35],[.95,1,2.48,.35],[5,0,2.48,.35],[6.1,0,2.48,.35],[6.1,0,2.48,0],[-5,0,2.48,.35]])compareFloor(x,z,maxY,r);
+compareFloor(0,0,2.48,.35,[...env.query(0,0,.35)]);
+
 for(const [x,y,z] of [[0,2,0],[5,2,0],[-5,2,0]]){
  const hit=bridge.support([x,y,z],profile,{maxRise:.48});
  assert(hit&&Math.abs(hit.point[1]-env.playerFloor(x,z,y+.48))<1e-8,'live primitive support parity');
@@ -52,6 +62,7 @@ assert(bridge.support([0,2,0],profile,{maxRise:.48}),'resume without reauthoring
 const r=env.addRoof({shape:'gable',cx:12,cz:0,yaw:0,hx:2,hz:2,ox:3,oz:3,base:3,rise:1,half:3,acrossX:true});
 assert.equal(bridge.support([12,4,0],profile).instanceId,r.collisionId+':foot','roof-foot policy');
 assert.equal(bridge.support([14.5,3.16,0],profile,{maxRise:.48})?.instanceId,r.collisionId+':overhang','overhang one-way ID');
+for(const [x,z,maxY] of [[12,0,4.2],[14.5,0,3.5],[14.5,0,2.9]])compareFloor(x,z,maxY);
 const water=bridge.water({contains:(x,z)=>x>20&&x<30&&Math.abs(z)<3,surfaceAt:()=>-.18,bottomAt:()=>-3,bounds:{center:[25,-1.59,0],half:[5,1.41,3]}});
 assert.equal(bridge.debugSnapshot().counts.water,1);
 assert(bridge.get(water.id)?.shapes[0].policy.water,'water is a non-solid volume');
