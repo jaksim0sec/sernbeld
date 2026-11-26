@@ -91,6 +91,9 @@ jobs:
       - run: node tools/verify.mjs build core clothing world
 
   browser:
+    permissions:
+      contents: read
+      statuses: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -102,9 +105,26 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Kael and motion-lab browser regression
         id: physicsbrowser
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          node tests/world-collision-browser.mjs
-          node tests/world-playability.mjs
+          result=0
+          for name in world-collision-browser world-playability; do
+            state=success
+            node "tests/$name.mjs" > /tmp/browser-physics.log 2>&1 || { state=failure; result=1; }
+            cat /tmp/browser-physics.log
+            if [ "${{ github.event_name }}" = push ]; then
+              if [ "$state" = failure ]; then
+                reason="$(grep -m1 -E 'AssertionError|TypeError|ReferenceError|SyntaxError|Error:' /tmp/browser-physics.log || true)"
+                reason="$(printf '%s' "$reason" | tr -cd '[:alnum:] ._:-' | cut -c1-75)"
+                jq -n --arg context "physics/browser-error-$name: $reason" '{state:"failure",context:$context,description:"See browser job logs and screenshot artifacts"}' > /tmp/browser-error-status.json
+                curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary @/tmp/browser-error-status.json "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}"
+              fi
+              jq -n --arg state "$state" --arg context "physics/test-$name" '{state:$state,context:$context,description:"Real Kael and lab Chromium regression"}' > /tmp/browser-physics-status.json
+              curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary @/tmp/browser-physics-status.json "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}"
+            fi
+          done
+          exit "$result"
       - name: Report physics browser regression
         if: always() && github.event_name == 'push'
         env:
