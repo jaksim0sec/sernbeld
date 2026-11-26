@@ -72,7 +72,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Kael and motion-lab browser regression
         id: physicsbrowser
-        run: node tests/world-playability.mjs
+        run: |
+          node tests/world-collision-browser.mjs
+          node tests/world-playability.mjs
       - name: Report physics browser regression
         if: always() && github.event_name == 'push'
         env:
