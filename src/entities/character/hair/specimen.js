@@ -832,6 +832,77 @@ export const flowParts=[
         "physicsProfile": "fixed-t1",
         "tipCut": 2.8,
         "role": "central fork from main lower"
+      },
+      {
+        "rootAnchor": {
+          "theta": 30,
+          "phi": -24
+        },
+        "controlPoints": [
+          [
+            30,
+            -24,
+            0.007
+          ],
+          [
+            44,
+            -23,
+            0.01
+          ],
+          [
+            61,
+            -15,
+            0.013
+          ],
+          [
+            77,
+            -5,
+            0.015
+          ],
+          [
+            90,
+            4,
+            0.014
+          ],
+          [
+            101,
+            15,
+            0.012
+          ]
+        ],
+        "angularWidth": [
+          7,
+          12,
+          15,
+          15,
+          11,
+          1.2
+        ],
+        "widthProfile": [
+          0.02,
+          0.035,
+          0.022,
+          0.002
+        ],
+        "depthProfile": [
+          0.0012,
+          0.0026,
+          0.0038,
+          0.0035,
+          0.002,
+          0.0005
+        ],
+        "twistProfile": [
+          0,
+          0
+        ],
+        "crossSection": "lens",
+        "grooves": 2,
+        "sweep": -1,
+        "surfaceLimit": 112,
+        "physicsProfile": "fixed-t1",
+        "tipCut": 1.1,
+        "role": "central left edge companion"
       }
     ]
   }
