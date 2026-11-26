@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {createSchoolyardMotion,SCHOOLYARD_CLIPS,sampleSchoolyardClip} from '../src/entities/character/schoolyard-motion.js';
+import {createSchoolyardMotion,SCHOOLYARD_CLIPS,sampleSchoolyardClip,pivotFootTarget} from '../src/entities/character/schoolyard-motion.js';
 import {SCHOOLYARD_REFERENCE_ABILITIES} from '../src/entities/character/schoolyard-reference-clips.js';
 
 // Regression: animation must never own world translation or terrain step-up.
@@ -36,3 +36,30 @@ console.log('PASS schoolyard motion joints / registered clips / world-translatio
 assert.equal(SCHOOLYARD_REFERENCE_ABILITIES.yeot.ch.length,40,'exact source channels missing');
 assert.equal(SCHOOLYARD_REFERENCE_ABILITIES.yareung.keys.length,7,'exact reference keyframes truncated');
 assert(sampleSchoolyardClip('specialRoundKick',.3).index_right_0?.[0]>0,'special kick finger keyframes not sampled');
+
+// Stationary A/D alternates lifted knees without changing world position.
+for(const rate of [-2.4,2.4]){
+ const pivotPlayer={...player,vel:{x:0,y:0,z:0},onGround:true,keyboardSteering:true};
+ const driver=createSchoolyardMotion(actor);let left=false,right=false,response;
+ for(let i=0;i<180;i++){
+  response=driver.update(1/60,i/60,pivotPlayer,null,{turnRate:rate});
+  left||=lastPose.shin_left[0]-lastPose.shin_right[0]>15;
+  right||=lastPose.shin_right[0]-lastPose.shin_left[0]>15;
+ }
+ assert(left&&right,'stationary pivot did not alternate lifted legs');
+ assert(response.pivotWeight>.95,'stationary pivot blend too weak');
+ assert.deepEqual(pivotPlayer.pos,origin);
+ for(let i=0;i<60;i++)response=driver.update(1/60,3+i/60,pivotPlayer,null,{turnRate:0});
+ assert.equal(response.pivotWeight,0,'pivot did not settle at idle');
+ response=driver.update(1/60,5,pivotPlayer,null,{turnRate:rate,gaitSpeed:2.6});
+ assert.equal(response.pivotWeight,0,'pivot altered walking gait');
+}
+let planted=null,swing=null;const p0={x:.1,z:0};
+for(let i=0;i<20;i++){
+ const phase=.05+i*.14,neutral={x:.1*Math.cos(phase),z:.1*Math.sin(phase)};
+ const l=pivotFootTarget(planted,'right',phase,p0,neutral,1);planted=l.state;
+ assert.equal(l.x,p0.x);assert.equal(l.z,p0.z);assert.equal(l.lift,0);
+ const s=pivotFootTarget(swing,'left',phase,p0,neutral,1);swing=s.state;
+ assert(s.lift>0,'swing foot not lifted');
+}
+console.log('PASS stationary pivot alternating knees, planted support, swing lift, idle and walking preservation');

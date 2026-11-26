@@ -48,11 +48,23 @@ export function sampleSchoolyardClip(name,time,weight=1){
  blendInto(angles,clip.derivedFrom?SCHOOLYARD_CLIPS[clip.derivedFrom]:clip,time,clamp(weight,0,1));
  return angles;
 }
+// World-space support ankle stays planted while the other foot transfers.
+export function pivotFootTarget(state,side,phase,current,neutral,weight){
+ const p=(phase+(side==='right'?Math.PI:0))%(2*Math.PI);
+ const swing=p<Math.PI,u=swing?p/Math.PI:0,blend=ease(u);
+ if(!state)state={swing,from:{x:current.x,z:current.z},last:{x:current.x,z:current.z}};
+ if(swing!==state.swing){state.from={...state.last};state.swing=swing;}
+ const x=swing?state.from.x+(neutral.x-state.from.x)*blend:state.from.x;
+ const z=swing?state.from.z+(neutral.z-state.from.z)*blend:state.from.z;
+ state.last={x,z};
+ return {state,x:current.x+(x-current.x)*weight,z:current.z+(z-current.z)*weight,
+  lift:swing?.085*Math.sin(Math.PI*u)*weight:0};
+}
 export function createSchoolyardMotion(actor){
  const rig=actor.data.bones,angles={},vel={},targets={};
  for(const b of rig){angles[b.id]=new Float32Array(b.axes.length);vel[b.id]=new Float32Array(b.axes.length);targets[b.id]=new Float32Array(b.axes.length);}
  let prevGround=true,landing=0,airAge=0,turnFlex=0,prevYaw=null,clock=0,stepLift=0;
- let anim=null;
+ let anim=null,pivotWeight=0,pivotPhase=0;
  const api={
   play(name){if(!SCHOOLYARD_CLIPS[name])return false;anim={name,time:0};return true;},
   get active(){return anim?.name??null;},
@@ -76,6 +88,14 @@ export function createSchoolyardMotion(actor){
    turnFlex+=(clamp(Math.abs(turn)*.16,0,1)-turnFlex)*(1-Math.exp(-12*dt));
    const crouch=grounded?(5+7*moving+11*turnFlex+12*landing):0;
    const stepping=Math.max(moving,first?0:turnFlex*.38);
+   // One step per 45 degrees of actual rendered body rotation.
+   const pivotTarget=!first&&grounded&&player.keyboardSteering&&!player.slide&&!swing?.weight
+    ?clamp((Math.abs(turn)-.12)/1.2,0,1)*(1-clamp((speed-.12)/.43,0,1)):0;
+   if(pivotTarget>.01&&pivotWeight<.01)pivotPhase=turn<0?Math.PI:0;
+   pivotWeight+=(pivotTarget-pivotWeight)*(1-Math.exp(-dt*16));
+   if(pivotWeight<.005)pivotWeight=0;
+   if(pivotTarget>.005)pivotPhase=(pivotPhase+Math.abs(turn)*4*dt)%(2*Math.PI);
+   if(first||!grounded||player.slide||swing?.weight||!player.keyboardSteering||speed>=.55)pivotWeight=0;
    stepLift=Math.max(stepLift*Math.exp(-dt*10),grounded?clamp((player.stepRise||0)*2.5,0,1):0);
    for(const id in targets)targets[id].fill(0);
    const put=(id,...a)=>{const b=targets[id];if(b)for(let i=0;i<b.length;i++)b[i]=a[i]??0;};
@@ -111,6 +131,13 @@ export function createSchoolyardMotion(actor){
      put('shin_'+side,knee+lift*22);
      // Shin rotates opposite the hip axis in the studio rig.
      put('foot_'+side,clamp(knee-hip,-35,30)*.65);
+     if(pivotWeight){
+      const p=(pivotPhase+o)%(2*Math.PI),swingLift=p<Math.PI?Math.sin(p):0;
+      const pivotHip=8+22*swingLift,pivotKnee=7+32*swingLift;
+      put('thigh_'+side,(hip+lift*16)*(1-pivotWeight)+pivotHip*pivotWeight,4+5*swingLift*pivotWeight);
+      put('shin_'+side,(knee+lift*22)*(1-pivotWeight)+pivotKnee*pivotWeight);
+      put('foot_'+side,clamp(knee-hip,-35,30)*.65*(1-pivotWeight)+4*swingLift*pivotWeight);
+     }
      put('upper_arm_'+side,-(23+22*run)*moving*q+6*turnFlex,6);
      put('forearm_'+side,18+14*moving+42*run+5*turnFlex,0);
     }
@@ -181,7 +208,7 @@ export function createSchoolyardMotion(actor){
    actor.B.pelvis.position.copy(actor.rest.pelvis);
    actor.B.pelvis.position.y-=grounded?(.013+.014*run)*moving*(1+Math.cos(phase*2))*.5:0;
    applyCombatStance(actor,swing,grounded,speed);
-   return {bob:-.018*moving*Math.cos(2*phase),landing,grounded,first};
+   return {bob:-.018*moving*Math.cos(2*phase),landing,grounded,first,pivotWeight,pivotPhase};
   }
  };
  return api;

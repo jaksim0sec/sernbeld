@@ -1,4 +1,5 @@
 import {normalizeStudioCharacter} from './appearance.js';
+import {pivotFootTarget} from './schoolyard-motion.js';
 import {animatePlayer,armTargets,mountWeapon,poseGrip,poseSurfaceHand,fitSurfaceHandReach} from './avatar-motion.js';
 const clamp01=x=>Math.max(0,Math.min(1,x));
 const phase=(from,to,t)=>{
@@ -203,7 +204,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
   for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;return;}
+  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;turnFeet={};return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const cameraReset=cameraCut!==player.teleportId;
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
@@ -212,12 +213,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const steeringYaw=player.keyboardSteering&&!player.swimming&&!player.slide&&Number.isFinite(player.facingYaw)?player.facingYaw+Math.PI:aimYaw;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   gaitSpeed=0;bodyY=null;bodyGrounded=false;
+   gaitSpeed=0;bodyY=null;bodyGrounded=false;turnFeet={};
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;}
+  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;turnFeet={};}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
@@ -237,13 +238,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    actor.group.position.copy(renderPos);actor.group.position.y=support.y;
    actor.group.quaternion.setFromAxisAngle(upAxis,bodyYaw);
   }
-  animatePlayer(actor,dt,t,player,pose,equipped,{
+  const motion=animatePlayer(actor,dt,t,player,pose,equipped,{
    first:firstPerson,runSpeed,turnRate:firstPerson?null:turnRate,turnStep,gaitSpeed,
    gazeYaw:firstPerson?0:wrap(aimYaw-bodyYaw)
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
-   bodyY=null;bodyGrounded=false;
+   bodyY=null;bodyGrounded=false;turnFeet={};
    // Keep the eye anchor independent of the actor's floor-clamped render Y.
    const yOffset=cameraY-renderPos.y;
    if(Math.abs(yOffset)>1e-6){
@@ -322,7 +323,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    bodyY=smoothBodyHeight(bodyReset||!bodyGrounded?null:bodyY,support.y+desired,dt,grounded,speed);
    bodyGrounded=grounded;
    actor.group.position.y=bodyY;
-   if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt);
+   if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt,motion);
+    else turnFeet={};
   }
   // Sliding down a steep face: crouched, feet planted on the slope, arms
   // out for balance. Eased in and out over the regular airborne pose.
@@ -351,12 +353,32 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  // never writes player position/velocity. Preserve the swing phase and lift
  // a foot only when its sole would intersect the actual support surface.
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
- function fitFeet(a,root,ankleRest,dt){
+ let turnFeet={};
+ const turnNeutral=new T.Vector3();
+ function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
+  const pivot=motion?.pivotWeight??0;
+  if(pivot<.005)turnFeet={};
   for(const side of ['left','right']){
    const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
    if(!hip||!knee||!foot)continue;
    foot.getWorldPosition(footV);
+   if(pivot>=.005){
+    const rest=a.data.bones.find(b=>b.id==='foot_'+side)?.pivot;
+    if(rest){
+     turnNeutral.set(...rest).multiplyScalar(a.units/1428).add(a.model.position);
+     a.group.localToWorld(turnNeutral);
+     const step=pivotFootTarget(turnFeet[side],side,motion.pivotPhase,footV,turnNeutral,pivot);
+     const surface=groundSurface(step.x,step.z,player.pos.y);
+     if(Number.isFinite(surface)&&Math.abs(surface-player.pos.y)<=.5){
+      turnFeet[side]=step.state;
+      goalV.set(step.x,footV.y+(surface+sole-footV.y)*pivot+step.lift,step.z);
+      solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ));
+      continue;
+     }
+     delete turnFeet[side];
+    }
+   }
    const surface=groundSurface(footV.x,footV.z,player.pos.y);
    if(surface===null||Math.abs(surface-player.pos.y)>.5)continue;
    const delta=surface+sole-footV.y;

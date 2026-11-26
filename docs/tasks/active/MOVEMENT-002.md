@@ -55,3 +55,7 @@
 ## 0bfd06c 실제 main CI 검증 (세션 복구)
 - Actions 45759739558: `player-physics`, `camera-comfort`, schoolyard motion joints/registered clips/world-translation ownership, Node/Chromium 카엘 실월드 PASS. Chromium 실제 window 키 입력: W/S ±0.589626m, A/D 제자리 ±1.2rad, W/S+A/D 조합 각 ±0.72rad 및 곡선 이동, 모든 물리 조향 케이스 cameraYaw=0. 카메라 자동 보정은 별도 player-physics 회귀 PASS; 실화면에서의 자동 보정·모션 감각은 NOT RUN. PWA 오프라인 회귀 PASS.
 - 전체 CI FAIL: `tools/check-infra.mjs`의 INFRA-001/NPC-11252115 `tools/verify.mjs` 점유 중복, `character-runtime-browser.mjs`의 reference-round 얼굴 featureError=0.0007923543453216553 (선행 실패와 동일 종류). 기존 의상/지도 터치 PARTIAL 유지. 검증 기반 package/deploy는 SKIPPED; 별도 Pages build/deployment 45759738399 SUCCESS (공개 URL SHA 미확인). 이동 소스는 재수정하지 않음. 사용자 실기기 체감/시각 품질 확인 전 전체 작업 종결하지 않음.
+
+## 제자리 회전 발 디딤 수정 (사용자 후속 S 작업)
+- 기존 turnFlex×.38 저강도 보행 혼합은 최대 입력에서도 약 15%에 불과하고 fitFeet는 높이만 보정해 발이 미끄러졌다. 실제 몸통 회전율 기반 전용 좌우 교대 스텝(90°당 두 걸음), 무릎 들기와 월드 XZ 지지 발 고정/스윙 발 재배치 추가. 기존 이동·카메라·보행·달리기·수영·등반·전투 계약 유지. 최대 8.5cm 스윙 높이는 구현 판단. PWA 78.
+- PASS V8 격리 실제 schoolyard-motion 테스트(기존 전체 + 양 방향 교대 무릎, 지지 발 고정, 스윙 발 들기, 정지 복귀, 보행 비활성); studio-integration 구문 확인(import.meta 격리 치환). 실제 남녀 리그 IK 및 Chromium/실기기 모션 시각 품질 NOT RUN, 기존 시각 검증 유지.
