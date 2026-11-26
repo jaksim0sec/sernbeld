@@ -12,10 +12,11 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   if(!args||!vec(args.root)||!args.profile||!(positive(args.profile.radius)||(allowZeroRadius&&args.profile.radius===0))||!positive(args.profile.height))throw new TypeError("invalid body query");
   return args.profile;
  }
- function candidates(x,z,r,resolve){
-  // query returns a shared scratch array in world-render.part.js. Copy it
-  // before invoking another callback that might query the same grid.
-  const records=[...query(x,z,r)],out=[];
+ function candidates(x,z,r,resolve,provided=null){
+  // The player already builds an authoritative collider candidate buffer once
+  // per physics substep. Keep its order and avoid repeating a grid lookup.
+  if(provided!==null&&!Array.isArray(provided))throw new TypeError('invalid collision candidate buffer');
+  const records=provided??[...query(x,z,r)],out=[];
   for(const record of records){
    const link=links.get(record);
    if(!link)continue; // not adopted yet; caller must not switch authority
@@ -93,7 +94,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   },
   overlapBody(args,filter,resolve){
    const profile=getProfile(args),[x,y,z]=args.root,head=y+profile.height,out=[];
-   for(const {record:o,data} of candidates(x,z,profile.radius,resolve)){
+   for(const {record:o,data} of candidates(x,z,profile.radius,resolve,args.candidates??null)){
     if(o.top<=y+skin||o.bot>=head-skin)continue;
     const c=playerContact(o,x,z,profile.radius);if(!c)continue;
     const n=[c.nx,0,c.nz],py=(Math.max(y,o.bot)+Math.min(head,o.top))/2;
