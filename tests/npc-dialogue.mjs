@@ -226,3 +226,30 @@ function checkGraphRunner(){
  return 'PASS: graph runner, same-session UI, stale input/service, effect outcomes, memory rollback';
 }
 console.log(checkGraphRunner());
+
+
+function checkHubCategories(){
+ const a=(v,msg)=>{if(!v)throw Error(msg);};
+ const makeTopic=(id,source='personal',topicId=id)=>({template:{id,source,label:id,entryNode:'intro',nodes:[{id:'intro',type:'speak',speakerSlot:'npc',pages:['답변'],next:'end'},{id:'end',type:'end',mode:'topicHub'}]},topicId,source,facts:{},slotBinding:{npc:'bran'}});
+ const topics=[makeTopic('work'),makeTopic('rest'),makeTopic('people'),makeTopic('place','personal','kael.topic.place'),makeTopic('event','event')];
+ let services=[{id:'shop.buy',itemId:'a',kind:'item',quote:'old',label:'buy a'},{id:'shop.sell',itemId:'b',kind:'item',label:'sell b'},{id:'living.request.accept',itemId:'1',label:'accept 1'},{id:'living.request.accept',itemId:'2',label:'accept 2'},{id:'living.request.submit',itemId:'3',label:'submit'}];
+ let calls=0,reachable=true;
+ const session=createTopicSession({id:'bran'},['첫 페이지','인사'],{reachable:()=>reachable,resolve:()=>({topics,services}),executeService:()=>{calls++;return {ok:true,text:'완료'};}});
+ const ids=()=>session.choices.map(c=>c.id);
+ const pick=id=>{const i=ids().indexOf(id);a(i>=0,'missing '+id);return session.select(i,session.revision,session.choices[i].token);};
+ a(!ids().length&&session.advance(),'no menu before final greeting page');
+ a(JSON.stringify(ids())===JSON.stringify(['menu.talk','place','event','menu.trade','menu.request','living.request.submit']),'hub grouping and direct event/turn-in');
+ pick('menu.talk');a(ids().join(',')==='work,rest,people,menu.back'&&session.text==='인사'&&calls===0,'navigation does not execute actions');
+ pick('menu.back');pick('menu.talk');pick('work');a(session.text==='답변'&&ids().includes('menu.trade'),'topic completion returns to root');
+ pick('menu.trade');a(session.choices[0].itemId==='a'&&session.choices[0].kind==='item','original descriptor preserved');
+ const stale=session.choices[0].token,rev=session.revision;services=services.map(c=>c.itemId==='a'?{...c,quote:'new'}:c);
+ session.select(0,rev,stale);a(calls===0,'stale quote rejected within category');
+ pick('shop.buy');a(calls===1&&session.text==='완료'&&ids().includes('menu.trade'),'service result returns to root');
+ pick('menu.request');services=services.filter(c=>!c.id.includes('accept'));a(ids().join(',')==='menu.back','empty submenu still has back');
+ pick('menu.back');a(!ids().includes('menu.request'),'empty category hidden');
+ pick('menu.trade');reachable=false;pick('menu.back');a(session.status==='closed','reach checked for navigation');
+ const single=createTopicSession({id:'bran'},'hi',{resolve:()=>({topics:[topics[0]],services:[services[0]]})});
+ a(single.choices.map(c=>c.id).join(',')==='work,shop.buy','singletons remain direct');
+ return 'PASS: topic hub categories, back, singleton, stale quote, reach and root restoration';
+}
+console.log(checkHubCategories());
