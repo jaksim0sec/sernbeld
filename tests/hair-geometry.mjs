@@ -28,6 +28,14 @@ function verifyDetails(kit,fit,parts,checkGeometry){
  const all=[cap,...gs],metrics=all.map(g=>kit.penetration(fit,g));if(metrics.some(m=>m.miss||m.maxMetres>.001))throw Error('penetration '+JSON.stringify(metrics));
  return {triangles:all.reduce((sum,g)=>sum+g.indices.length/3,0),carved,penetrationMm:Math.max(...metrics.map(m=>m.maxMetres))*1000};
 }
+function sideCoverage(kit,fit,parts){
+ const p=[],ix=[];for(const g of [kit.frontFoundation(fit),...parts.flatMap(q=>[...kit.regionFoundations(fit,q),...kit.makePart(fit,q)])]){const off=p.length/3;for(const x of g.positions)p.push(x);for(const i of g.indices)ix.push(i+off);}
+ const shell=kit.surface(Float32Array.from(p),Uint32Array.from(ix),fit.center);
+ const hit=(theta,phi)=>{const d=kit.direction(theta,phi),a=shell.radius(d),b=fit.radius(d);return a!==null&&b!==null&&a>b+.001;};
+ const result=[-1,1].map(sign=>({side:sign,temple:[100,105,110].map(theta=>[65,70,75,80].filter(phi=>hit(theta,sign*phi)).length),upper:[85,90,95].map(theta=>[80,85,90,95,100,105,110].filter(phi=>hit(theta,sign*phi)).length)}));
+ return result;
+}
+function verifySide(kit,fit,parts){const q=sideCoverage(kit,fit,parts);if(q.some(x=>x.temple[0]<2||x.temple[1]<1||x.upper[1]<4))throw Error('side coverage regression '+JSON.stringify(q));return q;}
 function verifyFull(kit,fit,parts,checkGeometry){
  const all=[kit.frontFoundation(fit),...kit.makePart(fit,parts[0])],bySlot={front:all.reduce((n,g)=>n+g.indices.length/3,0)};
  if(!kit.compatible(parts,'male')||!kit.compatible(parts,'female'))throw Error('slot mismatch');
@@ -41,7 +49,7 @@ function verifyFull(kit,fit,parts,checkGeometry){
  const circle=Array.from({length:72},(_,i)=>i*5),rear=Array.from({length:21},(_,i)=>130+i*5);
  const coverage=[...([20,45,70,75].map(t=>cover(t,circle))),...([95,105,110].map(t=>cover(t,rear)))];
  if(coverage.some(x=>x.hit!==x.total))throw Error('coverage '+JSON.stringify(coverage));
- return {bySlot,triangles:all.reduce((n,g)=>n+g.indices.length/3,0),penetrationMm:Math.max(...metrics.map(x=>x.maxMetres))*1000,coverage};
+ return {side:verifySide(kit,fit,parts),bySlot,triangles:all.reduce((n,g)=>n+g.indices.length/3,0),penetrationMm:Math.max(...metrics.map(x=>x.maxMetres))*1000,coverage};
 }
 if(parts.map(p=>p.slot).join(',')!=='front,middle,back')throw Error('slot scope');
 for(const scale of [[.085,.12,.095],[.075,.108,.09],[.094,.13,.105]])console.log('PASS Flow local detail',JSON.stringify({front:verifyDetails(kit,synthetic(kit,scale),parts,checkGeometry),full:verifyFull(kit,synthetic(kit,scale),parts,checkGeometry)}));
