@@ -8,3 +8,9 @@
 - queryAabb는 정확한 yaw-transformed box/cylinder bounds 및 analytical bounds 기반 **개발 참조 검색**이다. 좁은 실제 충돌이나 생산용 공간 해시가 아니다. backend query API는 args/filter/resolveShape callback을 전달하며 resolveShape를 hit 선택 이전에 호출해야 한다. backend 없으면 지원되지 않는 기능으로 명시 실패. 실제 raycast/sweep/overlap/sampleSupport/sampleSurface/sampleWater의 기하 알고리즘 및 결과 검증은 후속 단계. backend spatial index 동기화/원자성도 통합 시 구현·시험할 것.
 - classifySupport: 단위 기하 normal, 실제 발 접촉, support 정책, walkMax와 slideEnter/Exit를 분리. 수직/아래면 비지지. 임계각 50° 기존값을 테스트에서 보존. slopeGravity는 경사 접평면 중력 성분만 반환하며 실제 slide controller는 미변경.
 - 테스트: `node tests/world-collision.mjs`. 작성 함수와 동일한 테스트 함수 47 assertions JS V8 PASS, Node 파일 직접 실행/통합 미실행. 실제 기하 contactNormal/feature ID, 부호, TOI, 기존 shape adapters, broadphase/region 동기화와 profile 소비는 미완료. 이 계약을 런타임 적용 완료로 간주하지 않는다.
+
+## Legacy primitive 연결부 (부분 구현)
+
+- `src/core/world-collision-legacy.js`의 createLegacyStaticCollision은 addBox/addCyl 완료 record와 기존 query/inside/local/playerContact를 받아 정적 shape 등록, 기존 top support 및 lateral contact를 변환한다. 지원 범위는 static primitive만이며 실제 geometry 변형/이동은 legacy grid 재삽입 전에는 지원하지 않는다. 현재 revision 해석은 backend 내부 resolver의 revision 생략일 때만 허용; 저장 anchor는 명시 revision 필수. removed/inactive/self/layer/purpose 필터는 후보 선택 이전 수행.
+- support hit의 separation은 root.y-top; overlap은 기존 수평 penetration의 음수. 모서리의 geometricNormal은 null(고유 단일 face 없음), contactNormal은 solver 분리 방향. top feature point는 실제 상면에 제한. 아직 지형/roof/water/nav 등의 종합 질의 아님. 미등록 record를 무시하므로 기존 runtime authority 전환 금지. `sampleHeightfieldTriangle`은 기존 삼각형 interpolation과 실제 normal/feature를 반환하는 geometry helper, outside grid는 null. 지형 등록·global surface ID 연결은 다음 이관.
+- `node tests/world-collision-legacy.mjs`: 실제 world-render source 조각 기반 parity 테스트. 동일 함수의 V8 격리 실행 44 assertions PASS, 기존 47 PASS. Node 파일/실제 game.js/브라우저 미실행. 기존 runtime은 미수정.

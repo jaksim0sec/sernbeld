@@ -8,7 +8,9 @@
     "tests/world-collision.mjs",
     "docs/contracts/MOTION_INTERACTION.md",
     "docs/tasks/active/MOTION-11261538.md",
-    "docs/tasks/active/MOTION-11261538.json"
+    "docs/tasks/active/MOTION-11261538.json",
+    "src/core/world-collision-legacy.js",
+    "tests/world-collision-legacy.mjs"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -21,5 +23,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: B 독립 기반 구현됨; 공유 점유 조정 후 기존 static grid/backend 연결, C 표면·D 등록·E 소비자 이관 및 직접 검증."
+  "next": "MOTION-11261538/T1: legacy primitive/heightfield adapter 격리 구현; 공유 점유 조정 후 기존 grid 등록 훅, roof/stair/water 및 소비자 이관/직접 검증."
 }

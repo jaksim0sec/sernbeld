@@ -129,7 +129,7 @@ export function createWorldCollision({backend=null}={}){
   // The adapter receives an identity/policy resolver; it must use it BEFORE
   // selecting a hit. Filtering only the nearest returned hit would hide
   // valid farther surfaces. The caller owns backend result buffers.
-  return backend[method](args,f,(instanceId,shapeId,revision)=>resolveShape(instanceId,shapeId,revision,f));
+  return backend[method](args,f,(instanceId,shapeId,revision)=>resolveShape(instanceId,shapeId,revision===undefined?entries.get(instanceId)?.revision:revision,f));
  }
  return {
   register,get,updateTransform,setActive,remove,
