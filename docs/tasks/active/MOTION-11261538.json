@@ -1,0 +1,40 @@
+{
+  "id": "MOTION-11261538",
+  "status": "planned",
+  "baseline": "04b799d6d584359262a1c9ee18e934c1799e3ac8",
+  "detail": "docs/tasks/active/MOTION-11261538.md",
+  "scope": [
+    "src/world/region.part.js",
+    "src/render/world-render.part.js",
+    "src/gameplay/gameplay.part.js",
+    "src/core/npc-movement.js",
+    "src/entities/character/studio-integration.js",
+    "src/entities/character/avatar-motion.js",
+    "src/entities/character/schoolyard-motion.js",
+    "src/entities/character/studio-model.js",
+    "tests/player-physics.mjs",
+    "tests/world-playability.mjs",
+    "tests/camera-comfort.mjs",
+    "tests/studio-model.mjs",
+    "tests/schoolyard-motion.mjs",
+    "tests/schoolyard-ik.mjs",
+    "tests/world-performance.mjs",
+    "game.js",
+    "sw.js",
+    "docs/contracts/MOTION_INTERACTION.md",
+    "docs/tasks/active/MOTION-11261538.md",
+    "docs/tasks/active/MOTION-11261538.json"
+  ],
+  "contracts": [
+    "docs/contracts/CHARACTER_RIG.md",
+    "docs/workflows/DEBUGGING.md",
+    "docs/workflows/MODEL_ASSETS.md",
+    "docs/validation/VALIDATION_POLICY.md",
+    "docs/contracts/LIVING_WORLD.md"
+  ],
+  "dependencies": [
+    "MOVEMENT-002",
+    "NPC-11252115"
+  ],
+  "next": "MOTION-11261538/T1: 최신 main/기존 점유 조정, lab·카엘·남녀 체형 baseline과 공용 물리 경계/표면 판정 계약 확정."
+}
