@@ -1,4 +1,4 @@
-// T1 front-only asymmetrical fringe. Side/back are intentionally not built.
+// T1 front-only asymmetric fringe v4: small shape refinement, no side/back.
 export const specimenParts=[
   {
     "version": 1,
@@ -35,25 +35,25 @@ export const specimenParts=[
           [
             68,
             -70,
-            0.015
+            0.013
           ],
           [
             87,
-            -67,
-            0.016
+            -68,
+            0.014
           ],
           [
-            98,
-            -58,
-            0.013
+            100,
+            -60,
+            0.012
           ]
         ],
         "angularWidth": [
           30,
           31,
-          29,
-          15,
-          1.2
+          30,
+          20,
+          2.2
         ],
         "widthProfile": [
           0.02,
@@ -63,9 +63,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.005,
-          0.006,
           0.004,
+          0.0048,
+          0.0032,
           0.001
         ],
         "twistProfile": [
@@ -74,7 +74,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -3,
+        "sweep": -2,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
@@ -97,25 +97,25 @@ export const specimenParts=[
           [
             62,
             -54,
-            0.017
+            0.015
           ],
           [
             88,
-            -47,
-            0.019
+            -50,
+            0.017
           ],
           [
             108,
-            -33,
-            0.013
+            -37,
+            0.012
           ]
         ],
         "angularWidth": [
           34,
-          40,
-          34,
-          19,
-          1.2
+          39,
+          35,
+          25,
+          2.5
         ],
         "widthProfile": [
           0.02,
@@ -125,9 +125,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.006,
-          0.008,
-          0.005,
+          0.0048,
+          0.0064,
+          0.004,
           0.001
         ],
         "twistProfile": [
@@ -136,7 +136,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -6,
+        "sweep": -4,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
@@ -159,25 +159,25 @@ export const specimenParts=[
           [
             58,
             -30,
-            0.02
+            0.018
           ],
           [
             88,
-            -15,
-            0.02
+            -19,
+            0.018
           ],
           [
-            110,
-            4,
-            0.014
+            112,
+            -2,
+            0.013000000000000001
           ]
         ],
         "angularWidth": [
           40,
-          44,
+          42,
           36,
-          17,
-          1.2
+          24,
+          2.4
         ],
         "widthProfile": [
           0.02,
@@ -187,9 +187,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.006,
-          0.008,
-          0.005,
+          0.0048,
+          0.0064,
+          0.004,
           0.001
         ],
         "twistProfile": [
@@ -198,7 +198,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -8,
+        "sweep": -5,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
@@ -221,25 +221,25 @@ export const specimenParts=[
           [
             54,
             -5,
-            0.021
+            0.019
           ],
           [
             83,
-            12,
-            0.022
+            9,
+            0.02
           ],
           [
-            107,
-            24,
-            0.016
+            110,
+            19,
+            0.015
           ]
         ],
         "angularWidth": [
           46,
-          46,
+          44,
           38,
-          18,
-          1.2
+          25,
+          2.5
         ],
         "widthProfile": [
           0.02,
@@ -249,9 +249,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.006,
-          0.008,
-          0.005,
+          0.0048,
+          0.0064,
+          0.004,
           0.001
         ],
         "twistProfile": [
@@ -260,7 +260,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -8,
+        "sweep": -5,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
@@ -283,25 +283,25 @@ export const specimenParts=[
           [
             59,
             25,
-            0.018
+            0.016
           ],
           [
             84,
-            38,
-            0.019
+            37,
+            0.017
           ],
           [
-            102,
-            47,
-            0.013
+            104,
+            45,
+            0.012
           ]
         ],
         "angularWidth": [
           36,
-          40,
-          33,
-          15,
-          1.2
+          39,
+          34,
+          22,
+          2.2
         ],
         "widthProfile": [
           0.02,
@@ -311,9 +311,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.006,
-          0.007,
-          0.004,
+          0.0048,
+          0.0056,
+          0.0032,
           0.001
         ],
         "twistProfile": [
@@ -322,7 +322,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -5,
+        "sweep": -3,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       },
@@ -345,25 +345,25 @@ export const specimenParts=[
           [
             65,
             53,
-            0.016
+            0.014
           ],
           [
             86,
-            64,
-            0.016
+            62,
+            0.014
           ],
           [
-            96,
-            70,
-            0.012
+            98,
+            67,
+            0.011
           ]
         ],
         "angularWidth": [
           31,
           35,
-          30,
-          14,
-          1.2
+          31,
+          19,
+          2.2
         ],
         "widthProfile": [
           0.02,
@@ -373,9 +373,9 @@ export const specimenParts=[
         ],
         "depthProfile": [
           0.002,
-          0.005,
-          0.006,
           0.004,
+          0.0048,
+          0.0032,
           0.001
         ],
         "twistProfile": [
@@ -384,7 +384,7 @@ export const specimenParts=[
         ],
         "crossSection": "lens",
         "grooves": 2,
-        "sweep": -3,
+        "sweep": -2,
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1"
       }

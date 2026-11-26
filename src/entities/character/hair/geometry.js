@@ -87,7 +87,7 @@ function createHairKit(){
   const p=[...fit.anchor(0,0,.006).position],uv=[.5,0],ix=[];
   for(let i=1;i<=rings;i++){const t=i/rings,start=p.length/3;
    for(let j=0;j<=sides;j++){const u=j/sides,phi=-81+162*u,edge=Math.abs(u*2-1);
-    const end=67+11*edge,theta=t*end,clearance=.006+.002*Math.sin(Math.PI*t)*(1-edge*.5);
+    const end=75+9*edge,theta=t*end,clearance=.006+.002*Math.sin(Math.PI*t)*(1-edge*.5);
     p.push(...fit.anchor(theta,phi,clearance).position);uv.push(u,t);
    }
    for(let j=0;j<sides;j++){const a=start+j;if(i===1)ix.push(0,a,a+1);else{const b=a-sides-1;ix.push(b,a,b+1,b+1,a,a+1);}}
