@@ -32,5 +32,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T1: shared runtime bridge wired; directly validate Node collision suite, player physics, world playability, lab/Kael Chromium and ownership; complete consumer migration and W01-W12 before T1 closure."
+  "next": "MOTION-11261538/T1: static overlap/floor/ceiling connected and Node/browser regressions passing on earlier SHA; finish manifest/explicit identity, indexed terrain/roof/stair/water and slope/actor-profile consumers, NPC navigation/camera/IK, W01-W12 and final browser/mobile p95 before marking done."
 }
