@@ -135,11 +135,12 @@ export function createWorldCollision({backend=null}={}){
   register,get,updateTransform,setActive,remove,
   suspendRegion:id=>regionState(id,false),resumeRegion:id=>regionState(id,true),
   queryAabb,resolveShape,
-  capabilities:()=>({referenceAabb:true,productionBroadphase:false,...Object.fromEntries(["raycast","overlapBody","sweepBody","sampleSupport","sampleSurface","sampleWater"].map(k=>[k,typeof backend?.[k]==="function"]))}),
+  capabilities:()=>({referenceAabb:true,productionBroadphase:false,...Object.fromEntries(["raycast","overlapBody","sweepBody","sampleSupport","sampleCeiling","sampleSurface","sampleWater"].map(k=>[k,typeof backend?.[k]==="function"]))}),
   raycast:(args,f)=>query("raycast",args,f),
   overlapBody:(args,f)=>query("overlapBody",args,f),
   sweepBody:(args,f)=>query("sweepBody",args,f),
   sampleSupport:(args,f)=>query("sampleSupport",args,f),
+  sampleCeiling:(args,f)=>query("sampleCeiling",args,f),
   sampleSurface:(args,f)=>query("sampleSurface",args,f),
   sampleWater:(args,f)=>query("sampleWater",args,f)
  };
