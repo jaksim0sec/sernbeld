@@ -55,9 +55,9 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   sampleSupport(args,filter,resolve){
    const profile=getProfile(args,true),[x,y,z]=args.root;
    const rise=args.maxRise??0,drop=args.maxDrop??Infinity;
-   if(!Number.isFinite(rise)||rise<0||!(drop>=0))throw new TypeError("invalid support range");
+   if(!Number.isFinite(rise)||rise<0||!(drop>=0)||args.staticOnly!==undefined&&typeof args.staticOnly!=="boolean")throw new TypeError("invalid support range");
    let best=null;
-   for(const {record:o,data} of candidates(x,z,profile.radius,resolve)){
+   for(const {record:o,data} of candidates(x,z,profile.radius,resolve,args.candidates??null)){
     if(o.top>y+rise+skin||o.top<y-drop-skin)continue;
     if(!(profile.radius===0?inside(o,x,z,0):playerContact(o,x,z,profile.radius)))continue;
     const hit=contact(data,"top",pointOnTop(o,x,z),[0,1,0],[0,1,0],y-o.top);
@@ -66,7 +66,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
    // Analytical sources are explicitly registered and queried through their
    // exact geometry callback. This is a reference pass; production must
    // supply indexed candidates for large roof/terrain populations.
-   for(const a of analytical.values()){
+   if(!args.staticOnly)for(const a of analytical.values()){
     if(a.kind!=="surface")continue;
     const data=resolve(a.id,a.shapeId);if(!data)continue;
     const b=data.shape.worldBounds;if(x<b.min[0]||x>b.max[0]||z<b.min[2]||z>b.max[2])continue;
