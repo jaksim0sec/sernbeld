@@ -209,6 +209,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
   cameraCut=player.teleportId;
   const aimYaw=player.yaw+Math.PI;
+  const steeringYaw=player.keyboardSteering&&!player.swimming&&!player.slide&&Number.isFinite(player.facingYaw)?player.facingYaw+Math.PI:aimYaw;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
    gaitSpeed=0;bodyY=null;bodyGrounded=false;
@@ -216,7 +217,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=aimYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;}
+  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
@@ -225,7 +226,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   if(firstPerson)bodyYaw=aimYaw;
   else{
    const target=combat.swing?(combat.swing.aimYaw??player.yaw)+Math.PI:
-    player.keyboardSteering&&!player.swimming&&!player.slide?aimYaw:
+    player.keyboardSteering&&!player.swimming&&!player.slide?steeringYaw:
     speed>.12?(player.moveHeading??Math.atan2(player.vel.x,player.vel.z)):bodyYaw;
    const delta=wrap(target-bodyYaw);
    turnStep=delta*(1-Math.exp(-(pose?17:11)*dt));

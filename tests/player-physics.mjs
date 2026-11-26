@@ -459,5 +459,40 @@ for(const a of [3.04,4.64,6.24,1.44]){
  assert.equal(back.yaw,0);assert.equal(back.moveBasisYaw,null);
  const touch=keyboard();touch.keyboardSteering=false;touch.stick.x=1;
  const mobile=player();tick(mobile,touch,60);assert(mobile.pos.x>2&&mobile.yaw===0);
- console.log('PASS: keyboard forward/backpedal, turn in place, combined steering, cancellation, fixed ticks, no camera reversal, touch vector retained');
+ const third=(...codes)=>Object.assign(keyboard(...codes),{independentHeading:true});
+ const f=new Follow(),actor=player(),turn=third('KeyA');
+ const step=(p,i,follow=f,dt=1/60,manual=false)=>{
+  follow.prepare(p,i,manual,true);tick(p,i,1,dt);follow.update(dt,p);
+ };
+ for(let k=0;k<20;k++)step(actor,turn);
+ assert(actor.facingYaw>.79&&actor.yaw===0,'small actor rotation dragged camera');
+ for(let k=0;k<40;k++){
+  const old=actor.yaw;step(actor,turn);
+  assert(actor.yaw-old>=-1e-9&&actor.yaw-old<=2.6/60+1e-9,'camera snapped or reversed');
+ }
+ assert(actor.facingYaw>2.39&&actor.yaw>.1&&actor.yaw<actor.facingYaw-.5,'large rotation did not ease independently');
+ const heading=actor.facingYaw,still=third();
+ for(let k=0;k<240;k++)step(actor,still);
+ assert.equal(actor.facingYaw,heading);
+ assert(Math.abs(actor.facingYaw-actor.yaw-30*Math.PI/180)<.015,'camera did not settle with offset');
+ const reverseActor=player(),rf=new Follow(),reverseThird=third('KeyS');
+ for(let k=0;k<120;k++)step(reverseActor,reverseThird,rf);
+ assert(reverseActor.pos.z>4&&reverseActor.yaw===0,'camera reversed during backpedal');
+ const manualActor=player(),mf=new Follow(),manualTurn=third('KeyD');
+ for(let k=0;k<90;k++)step(manualActor,manualTurn,mf,1/60,true);
+ assert(manualActor.yaw===0&&manualActor.facingYaw< -3.5,'manual look was overridden');
+ step(manualActor,third(),mf);
+ for(let k=0;k<30;k++)step(manualActor,manualTurn,mf);
+ assert(manualActor.yaw!==0,'new turn did not restore assist');
+ const orbit=player(),of=new Follow(),orbitTurn=third('KeyW','KeyA');
+ for(let k=0;k<360;k++){
+  const old=orbit.yaw;step(orbit,orbitTurn,of);
+  assert(orbit.yaw>=old-1e-8,'continuous turn reversed camera at angle wrap');
+ }
+ assert(orbit.facingYaw-orbit.yaw<Math.PI,'camera fell more than half a turn behind');
+ const free=player(),ff=new Follow(),forwardThird=third('KeyW');
+ free.facingYaw=Math.PI/2;free.yaw=0;
+ for(let k=0;k<60;k++)step(free,forwardThird,ff);
+ assert(free.pos.x< -2&&Math.abs(free.pos.z)<1e-8&&free.yaw===0,'camera orbit changed actor movement');
+ console.log('PASS: keyboard forward/backpedal, turn in place, combined steering, cancellation, fixed ticks, independent camera dead zone and easing, manual orbit, continuous rotation, touch vector retained');
 }

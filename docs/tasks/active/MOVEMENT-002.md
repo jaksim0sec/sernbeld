@@ -47,3 +47,7 @@
 ## 키보드 실월드 입력 회귀 (후속)
 - 8793522의 실제 main Actions 45759129736 contracts에서 `player-physics`와 `camera-comfort` 및 Node 실월드 검증 PASS 확인. 전체 contracts는 별도 INFRA-001/NPC-11252115의 tools/verify.mjs 중복 점유로 FAIL. 직전 Chromium의 캐릭터 에디터 featureError 실패는 이동과 별개이며 최신 browser 결과는 이 기록 시점 미확인.
 - 기존 `world-playability` Chromium 시나리오에 실제 Input의 window keydown/keyup 이벤트를 통과시키는 카엘 지상 회귀 추가: 전진·후진·Shift 후진 제한·제자리 회전·전후진+회전 조합. 열린 평탄부 선택, 고정 물리 tick, 충돌 확인; Node 경로는 그대로 유지. 런타임/조작 계수 변경 없음. 테스트 함수 JS 구문 확인 PASS; 새 Chromium 실행, 카메라/캐릭터 실화면 및 사용자 기기 체감 NOT RUN.
+
+## 캐릭터 조향과 카메라 분리 (사용자 후속 S 작업)
+- 직전 변경의 공통 yaw 때문에 작은 회전도 화면을 돌리고 상대 시선/몸통 회전을 축소했다. 3인칭 키보드 facingYaw를 카메라 yaw와 분리. A/D는 몸 방향, W/S는 몸 기준 전후진. 55° 이상 조향 차에서만 완만하게 추적, 30° 차에서 정지(지수 2.4/s, 최대 2.6rad/s; 구현 판단), 수동 드래그 우선. 1인칭, 모바일 벡터, 카메라 충돌·등반·수영, 학교 V3 보행/달리기 계수·발 IK 유지. turnStep/gazeYaw 연결 복원, 후진 위상은 몸 기준, 순수 회전 위상은 원래대로. 공유 gameplay/game/sw 국소 순차 통합.
+- PASS 실제 player-physics.mjs V8 격리 15285 assertions, 소각도 고정/대각도 완만 추적/정지/연속 회전/수동 orbit/후진/카메라 독립 이동 및 기존 물리. 실월드 Chromium 테스트 독립 heading 계약으로 갱신, 구문 확인. 기존 번들 blob SHA 일치 검증. 실제 렌더링·모션/조작감, Chromium 및 배포 NOT RUN.

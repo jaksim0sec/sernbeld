@@ -12,10 +12,13 @@ import {createSchoolyardMotion} from './schoolyard-motion.js';
 export function animatePlayer(actor,dt,t,player,swingPose,equip,{first=false,runSpeed=5,turnRate=null,turnStep=0,gazeYaw=0,gaitSpeed=Math.hypot(player.vel.x,player.vel.z)}={}){
  // A cylindrical handle needs a partially curled grasp, not the full bare fist.
  const fist=side=>equip?.[side] ? .82 : (swingPose&&(swingPose.side===1)===(side==='right')&&swingPose.weight>.05) ? 1 : first ? .35 : .15;
+ const heading=player.facingYaw??player.yaw;
  const backpedal=player.keyboardSteering&&!player.swimming&&!player.slide&&
-  player.vel.x*Math.sin(player.yaw)+player.vel.z*Math.cos(player.yaw)>.08;
- const gaitDirection=backpedal?-1:1;
- actor.phase=(actor.phase+gaitDirection*Math.max(gaitPhaseStep(gaitSpeed,dt),Math.abs(turnStep)*2.2)+2*Math.PI)%(2*Math.PI);
+  player.vel.x*Math.sin(heading)+player.vel.z*Math.cos(heading)>.08;
+ const gait=gaitPhaseStep(gaitSpeed,dt),turn=Math.abs(turnStep)*2.2;
+ // Preserve the original forward/turning cadence; only reverse translation reverses the stride.
+ const phaseStep=backpedal&&gait>turn?-gait:Math.max(gait,turn);
+ actor.phase=(actor.phase+phaseStep+2*Math.PI)%(2*Math.PI);
  const motion=actor._schoolyardMotion??(actor._schoolyardMotion=createSchoolyardMotion(actor));
  const response=motion.update(dt,t,player,swingPose,{first,runSpeed,turnRate,gazeYaw,gaitSpeed});
  // The reference special clip authors finger joints individually. Do not

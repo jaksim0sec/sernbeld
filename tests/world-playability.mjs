@@ -96,17 +96,18 @@ function checkWorld(d=window.__dev) {
    const event=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
    const trial=(codes,frames)=>{
     live.keys.clear();live.stick.x=live.stick.y=0;live.setSprint(false);
+    const previousIndependent=live.independentHeading;live.independentHeading=true;
     p.teleport(...patch,heading);
     const origin=p.pos.clone();
     try{
      for(const code of codes)event('keydown',code);
      if(!live.keyboardSteering||!codes.every(code=>live.keys.has(code)))throw Error('Actual keyboard event did not reach Input');
      for(let i=0;i<frames;i++){p.advance(1/60,live);verify('actual keyboard '+codes.join('+'));}
-     return {x:p.pos.x-origin.x,z:p.pos.z-origin.z,yaw:p.yaw-heading,running:p.running};
+     return {x:p.pos.x-origin.x,z:p.pos.z-origin.z,yaw:p.facingYaw-heading,cameraYaw:p.yaw-heading,running:p.running};
     }finally{
      for(const code of codes)event('keyup',code);
      if(codes.some(code=>live.keys.has(code)))throw Error('Actual keyup did not clear Input');
-     live.consumeToggles();
+     live.consumeToggles();live.independentHeading=previousIndependent;
     }
    };
    const forward=trial(['KeyW'],18),back=trial(['KeyS','ShiftLeft'],18);
@@ -117,6 +118,7 @@ function checkWorld(d=window.__dev) {
    if(!(left.yaw>1.19&&right.yaw< -1.19&&Math.hypot(left.x,left.z,right.x,right.z)<.01))throw Error('Keyboard turn in place failed '+JSON.stringify({left,right}));
    if(!(arcL.x>.3&&arcR.x>.3&&arcL.z<-.05&&arcR.z>.05&&arcL.yaw>.7&&arcR.yaw<-.7&&reverseL.x<-.3&&reverseR.x<-.3&&reverseL.z>.05&&reverseR.z<-.05))throw Error('Keyboard simultaneous forward/reverse turn failed '+JSON.stringify({arcL,arcR,reverseL,reverseR}));
    keyboard={forward,back,left,right,arcL,arcR,reverseL,reverseR};
+   if(Object.values(keyboard).some(v=>Math.abs(v.cameraYaw)>1e-8))throw Error('Physical keyboard steering directly rotated the camera');
   }
   const traversals=[];
   // Generated Kael stonework, including a rotated low lip and a high wall.

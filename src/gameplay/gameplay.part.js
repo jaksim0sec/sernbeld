@@ -3427,6 +3427,7 @@ var Player = class {
     this.simTime = 0;
     this.moveHeading = null;
     this.keyboardSteering = false;
+    this.facingYaw = null;
     this.nearby = [];
     this.renderReady = false;
     this.stepRise = 0;
@@ -3437,6 +3438,7 @@ var Player = class {
     this.vel.set(0, 0, 0);
     this.wish.set(0, 0);
     this.yaw = yaw;
+    this.facingYaw = null;
     this.pitch = pitch;
     this.onGround = y == null || (this.mode==="walk"&&Math.abs(this.pos.y-playerFloor(this.pos.x,this.pos.z,this.pos.y+CONTACT_SKIN))<=CONTACT_SKIN);
     this.swimming = false;
@@ -3517,9 +3519,12 @@ var Player = class {
     const mv=this.keyboardSteering?input.groundMove():input.move();
     if(this.keyboardSteering){
       this.moveBasisYaw=null;
-      this.yaw-=mv.turn*2.4*dt;
-    }
-    const movementYaw=this.traversal||this.keyboardSteering?this.yaw:(this.moveBasisYaw??this.yaw);
+      // Third person owns actor heading independently of orbit; first person stays coupled.
+      if(!input.independentHeading)this.facingYaw=this.yaw;
+      this.facingYaw=(this.facingYaw??this.yaw)-mv.turn*2.4*dt;
+      if(!input.independentHeading)this.yaw=this.facingYaw;
+    }else this.facingYaw=null;
+    const movementYaw=this.keyboardSteering?this.facingYaw:this.traversal?this.yaw:(this.moveBasisYaw??this.yaw);
     const sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
@@ -3783,7 +3788,7 @@ var Player = class {
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
     this.traversal=this.renderTraversal=this.slide=null;
-    this.moveHeading=null;this.resetInterpolation();this.teleportId++;
+    this.moveHeading=null;this.facingYaw=null;this.keyboardSteering=false;this.resetInterpolation();this.teleportId++;
   }
 };
 // Third-person recentering is an input-segment operation. Freeze the movement
@@ -3793,10 +3798,23 @@ var MovementCameraFollow = class {
   reset(p){
     if(p)p.moveBasisYaw=null;
     this.teleportId=null;this.inputAngle=null;this.manual=false;this.turning=false;
+    this.keyboard=false;this.keyTurn=false;this.keyFollow=false;
   }
   prepare(p,input,manualLook,enabled){
-    if(!enabled||input.keyboardSteering||p.mode!=="walk"||p.traversal||p.swimming){this.reset(p);return;}
+    if(!enabled||p.mode!=="walk"||p.traversal||p.swimming||p.slide){this.reset(p);return;}
     if(this.teleportId!==p.teleportId){this.reset(p);this.teleportId=p.teleportId;}
+    const keyboard=Boolean(input.keyboardSteering&&input.independentHeading);
+    if(keyboard!==this.keyboard){this.reset(p);this.teleportId=p.teleportId;this.keyboard=keyboard;}
+    if(input.keyboardSteering){
+      if(!keyboard){this.reset(p);return;}
+      p.moveBasisYaw=null;
+      const turn=Math.abs(input.groundMove().turn)>0;
+      const looking=manualLook||input.isLooking?.();
+      if(looking){this.manual=true;this.keyFollow=false;}
+      else if(turn&&!this.keyTurn)this.manual=false;
+      this.keyTurn=turn;
+      return;
+    }
     const mv=input.move();
     if(mv.mag<.18){this.reset(p);return;}
     const angle=Math.atan2(mv.x,mv.y);
@@ -3814,7 +3832,19 @@ var MovementCameraFollow = class {
     this.desiredZ=-Math.cos(p.moveBasisYaw)*mv.y-Math.sin(p.moveBasisYaw)*mv.x;
   }
   update(dt,p){
-    if(p.traversal||p.swimming||p.mode!=="walk"){this.reset(p);return;}
+    if(p.traversal||p.swimming||p.slide||p.mode!=="walk"){this.reset(p);return;}
+    if(this.keyboard){
+      if(this.manual||!p.onGround||!Number.isFinite(p.facingYaw))return;
+      const error=Math.atan2(Math.sin(p.facingYaw-p.yaw),Math.cos(p.facingYaw-p.yaw));
+      const gap=Math.abs(error),start=55*Math.PI/180,stop=30*Math.PI/180;
+      // Hysteresis: small turns leave the camera alone; large turns ease toward an offset.
+      if(!this.keyFollow&&this.keyTurn&&gap>start)this.keyFollow=true;
+      if(!this.keyFollow)return;
+      if(gap<=stop+.005){this.keyFollow=false;return;}
+      const step=Math.min(gap-stop,(gap-stop)*(1-Math.exp(-2.4*dt)),2.6*dt);
+      p.yaw+=Math.sign(error)*step;
+      return;
+    }
     if(this.inputAngle===null||this.manual||!p.onGround)return;
     const speed=Math.hypot(p.vel.x,p.vel.z),wish=Math.hypot(this.desiredX,this.desiredZ);
     if(speed<.35||wish<.18)return;
@@ -7235,6 +7265,7 @@ async function boot() {
       const editingSkill = skillWorkbench.isOpen();
       if (editingSkill) clearEditorInput();
       if (!editingSkill && input.consumeAttack() && ui.bag.hidden && ui.travel.hidden && ui.boardP.hidden) combat.attack();
+      input.independentHeading=avatars.mode==="third"&&!editingSkill;
       const manualLook=player.look(input);
       const autoCameraAllowed=avatars.mode==="third"&&!editingSkill&&!combat.swing&&!combat.downed&&ui.bag.hidden&&ui.boardP.hidden&&$("intro").hidden;
       movementCamera.prepare(player,input,manualLook,autoCameraAllowed);
