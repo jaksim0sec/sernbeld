@@ -43,3 +43,7 @@
 ## 키보드 전후진·회전 분리 (사용자 후속 S 작업)
 - W/S는 캐릭터 전후진, A/D는 제자리 회전, 조합은 고정 물리 tick의 전후진과 회전을 동시에 적용. 키보드 지상에서는 기존 입력 구간 카메라 자동 180° 회전을 끄고 몸통이 이동 속도 대신 조준 yaw를 추종한다. 후진은 걷기 속도 및 역방향 보행 위상. 모바일 스틱 벡터, 비행·수영·등반·미끄러짐의 기존 방향 이동 보존. 회전 속도 2.4rad/s와 후진 달리기 제한은 구현 판단. 공유 gameplay/game.js/sw.js는 NPC 작업의 기존 변경과 점유를 보존하는 국소 순차 수정.
 - PASS: 실제 player-physics.mjs 본문 V8 격리 14876 assertions, 신규 키보드 Input/Player/카메라 계약 회귀 포함. 전체 원본 번들 일치 확인 후 재조립, PWA 버전 증가. 실제 Chromium/실기기 조작 감각·후진 모션·CI·배포 NOT RUN.
+
+## 키보드 실월드 입력 회귀 (후속)
+- 8793522의 실제 main Actions 45759129736 contracts에서 `player-physics`와 `camera-comfort` 및 Node 실월드 검증 PASS 확인. 전체 contracts는 별도 INFRA-001/NPC-11252115의 tools/verify.mjs 중복 점유로 FAIL. 직전 Chromium의 캐릭터 에디터 featureError 실패는 이동과 별개이며 최신 browser 결과는 이 기록 시점 미확인.
+- 기존 `world-playability` Chromium 시나리오에 실제 Input의 window keydown/keyup 이벤트를 통과시키는 카엘 지상 회귀 추가: 전진·후진·Shift 후진 제한·제자리 회전·전후진+회전 조합. 열린 평탄부 선택, 고정 물리 tick, 충돌 확인; Node 경로는 그대로 유지. 런타임/조작 계수 변경 없음. 테스트 함수 JS 구문 확인 PASS; 새 Chromium 실행, 카메라/캐릭터 실화면 및 사용자 기기 체감 NOT RUN.

@@ -75,6 +75,49 @@ function checkWorld(d=window.__dev) {
   p.teleport(...clear,0);const start=p.pos.clone(),move=input(1,0,true);let peak=p.pos.y;
   for(let i=0;i<85;i++){p.advance(1/60,move);verify('actual jump');peak=Math.max(peak,p.pos.y);}
   const jump={rise:peak-start.y,travel:p.pos.distanceTo(start),grounded:p.onGround};
+  // Chromium only: use the actual Input instance and its window event
+  // listeners, not the synthetic move() adapter used by the world scenarios.
+  let keyboard=null;
+  if(d.input){
+   const live=d.input,heading=-Math.PI/2;
+   const candidates=[[clear[0]+2,clear[1]],...Object.values(d.region.places).filter(v=>Array.isArray(v)&&v.length>=2)];
+   let patch=null;
+   for(const [x,z] of candidates){
+    const y=d.playerTerrain(x,z);
+    if(y<2)continue;
+    let open=true;
+    for(let dx=-1;dx<=1;dx+=.5)for(let dz=-1;dz<=1;dz+=.5){
+     const h=d.playerTerrain(x+dx,z+dz);
+     if(Math.abs(h-y)>.10||d.playerContacts(x+dx,z+dz,h).length)open=false;
+    }
+    if(open){patch=[x,z];break;}
+   }
+   if(!patch)throw Error('No open flat keyboard test patch');
+   const event=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
+   const trial=(codes,frames)=>{
+    live.keys.clear();live.stick.x=live.stick.y=0;live.setSprint(false);
+    p.teleport(...patch,heading);
+    const origin=p.pos.clone();
+    try{
+     for(const code of codes)event('keydown',code);
+     if(!live.keyboardSteering||!codes.every(code=>live.keys.has(code)))throw Error('Actual keyboard event did not reach Input');
+     for(let i=0;i<frames;i++){p.advance(1/60,live);verify('actual keyboard '+codes.join('+'));}
+     return {x:p.pos.x-origin.x,z:p.pos.z-origin.z,yaw:p.yaw-heading,running:p.running};
+    }finally{
+     for(const code of codes)event('keyup',code);
+     if(codes.some(code=>live.keys.has(code)))throw Error('Actual keyup did not clear Input');
+     live.consumeToggles();
+    }
+   };
+   const forward=trial(['KeyW'],18),back=trial(['KeyS','ShiftLeft'],18);
+   const left=trial(['KeyA'],30),right=trial(['KeyD'],30);
+   const arcL=trial(['KeyW','KeyA'],18),arcR=trial(['KeyW','KeyD'],18);
+   const reverseL=trial(['KeyS','KeyA'],18),reverseR=trial(['KeyS','KeyD'],18);
+   if(!(forward.x>.4&&back.x<-.4&&!back.running&&Math.abs(forward.z)+Math.abs(back.z)<.02&&Math.abs(forward.yaw)+Math.abs(back.yaw)<1e-6))throw Error('Keyboard forward/back failed '+JSON.stringify({forward,back}));
+   if(!(left.yaw>1.19&&right.yaw< -1.19&&Math.hypot(left.x,left.z,right.x,right.z)<.01))throw Error('Keyboard turn in place failed '+JSON.stringify({left,right}));
+   if(!(arcL.x>.3&&arcR.x>.3&&arcL.z<-.05&&arcR.z>.05&&arcL.yaw>.7&&arcR.yaw<-.7&&reverseL.x<-.3&&reverseR.x<-.3&&reverseL.z>.05&&reverseR.z<-.05))throw Error('Keyboard simultaneous forward/reverse turn failed '+JSON.stringify({arcL,arcR,reverseL,reverseR}));
+   keyboard={forward,back,left,right,arcL,arcR,reverseL,reverseR};
+  }
   const traversals=[];
   // Generated Kael stonework, including a rotated low lip and a high wall.
   for(const [kind,x,z,yaw,top] of [
@@ -94,7 +137,7 @@ function checkWorld(d=window.__dev) {
    if(!p.onGround||p.traversal||Math.abs(p.pos.y-top)>.005)throw Error('Traversal landing missed generated top');
    traversals.push({kind,top:p.pos.y,stages:[...stages]});
   }
-  return {places,stairs:stairResults,walls:wallResults,jump,traversals};
+  return {places,stairs:stairResults,walls:wallResults,jump,traversals,keyboard};
 }
 
 async function loadWorld() {
@@ -156,6 +199,7 @@ console.log('ACTUAL WORLD '+(noBrowser?'(Node) ':'(Chromium) ')+JSON.stringify(r
 assert(result.places.length>=5);
 assert(result.stairs.length>=5&&result.stairs.filter(s=>s.move>2&&s.rise>.5).length>=5,'Real stairs are not traversable');
 assert.equal(result.walls.length,3);
+if(!noBrowser)assert(result.keyboard,'Actual Chromium keyboard event scenarios did not run');
 assert(result.jump.rise>.5&&result.jump.grounded&&result.jump.travel>2,'Real jump/landing failed');
 
 assert(result.traversals.some(x=>x.stages.includes("climb")&&x.stages.includes("mantle")));
