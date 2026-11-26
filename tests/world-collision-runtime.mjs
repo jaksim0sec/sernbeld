@@ -46,9 +46,9 @@ assert(Math.abs(terrainHit.point[1]-.5)<1e-8,'heightfield exact triangle');
 assert(bridge.debugSnapshot().registered>=7,'live objects and surfaces registered');
 // Execute the actual resident-contact implementation with no rendered actor.
 const gameplay=readFileSync(new URL('../src/gameplay/gameplay.part.js',import.meta.url),'utf8');
-const a=gameplay.indexOf('  playerContacts(p) {'),b=gameplay.indexOf('  labels(camera',a);
-assert(a>0&&b>a,'resident-contact source boundary');
-const residentContacts=Function(`const PLAYER={radius:.35}; return ({${gameplay.slice(a,b)}}).playerContacts;`)();
+const npcStart=gameplay.indexOf('  playerContacts(p) {'),npcEnd=gameplay.indexOf('  labels(camera',npcStart);
+assert(npcStart>0&&npcEnd>npcStart,'resident-contact source boundary');
+const residentContacts=Function(`const PLAYER={radius:.35}; return ({${gameplay.slice(npcStart,npcEnd)}}).playerContacts;`)();
 const npc={def:{scale:1},x:0,z:0,y:0,hidden:false,ch:null};
 const actor={pos:{x:.6,y:0,z:0}};
 const absent=residentContacts.call({list:[npc]},actor);
