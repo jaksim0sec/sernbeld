@@ -1,4 +1,4 @@
-// T1 front-only asymmetric fringe v4: small shape refinement, no side/back.
+// T1 front-only fringe v5: restrained staggered cuts; no side/back.
 export const specimenParts=[
   {
     "version": 1,
@@ -43,8 +43,8 @@ export const specimenParts=[
             0.014
           ],
           [
-            100,
-            -60,
+            99,
+            -61,
             0.012
           ]
         ],
@@ -52,8 +52,8 @@ export const specimenParts=[
           30,
           31,
           30,
-          20,
-          2.2
+          18,
+          3.3
         ],
         "widthProfile": [
           0.02,
@@ -66,7 +66,7 @@ export const specimenParts=[
           0.004,
           0.0048,
           0.0032,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -76,7 +76,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -2,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.2
       },
       {
         "rootAnchor": {
@@ -105,8 +106,8 @@ export const specimenParts=[
             0.017
           ],
           [
-            108,
-            -37,
+            105,
+            -39,
             0.012
           ]
         ],
@@ -114,8 +115,8 @@ export const specimenParts=[
           34,
           39,
           35,
-          25,
-          2.5
+          24,
+          4.1
         ],
         "widthProfile": [
           0.02,
@@ -128,7 +129,7 @@ export const specimenParts=[
           0.0048,
           0.0064,
           0.004,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -138,7 +139,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -4,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 3.3
       },
       {
         "rootAnchor": {
@@ -167,8 +169,8 @@ export const specimenParts=[
             0.018
           ],
           [
-            112,
-            -2,
+            110,
+            -4,
             0.013000000000000001
           ]
         ],
@@ -176,8 +178,8 @@ export const specimenParts=[
           40,
           42,
           36,
-          24,
-          2.4
+          22,
+          3.2
         ],
         "widthProfile": [
           0.02,
@@ -190,7 +192,7 @@ export const specimenParts=[
           0.0048,
           0.0064,
           0.004,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -200,7 +202,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -5,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.6
       },
       {
         "rootAnchor": {
@@ -229,8 +232,8 @@ export const specimenParts=[
             0.02
           ],
           [
-            110,
-            19,
+            108,
+            20,
             0.015
           ]
         ],
@@ -238,8 +241,8 @@ export const specimenParts=[
           46,
           44,
           38,
-          25,
-          2.5
+          24,
+          4.5
         ],
         "widthProfile": [
           0.02,
@@ -252,7 +255,7 @@ export const specimenParts=[
           0.0048,
           0.0064,
           0.004,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -262,7 +265,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -5,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 3.7
       },
       {
         "rootAnchor": {
@@ -291,8 +295,8 @@ export const specimenParts=[
             0.017
           ],
           [
-            104,
-            45,
+            103,
+            46,
             0.012
           ]
         ],
@@ -300,8 +304,8 @@ export const specimenParts=[
           36,
           39,
           34,
-          22,
-          2.2
+          20,
+          3.5
         ],
         "widthProfile": [
           0.02,
@@ -314,7 +318,7 @@ export const specimenParts=[
           0.0048,
           0.0056,
           0.0032,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -324,7 +328,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -3,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.5
       },
       {
         "rootAnchor": {
@@ -353,8 +358,8 @@ export const specimenParts=[
             0.014
           ],
           [
-            98,
-            67,
+            97,
+            68,
             0.011
           ]
         ],
@@ -362,8 +367,8 @@ export const specimenParts=[
           31,
           35,
           31,
-          19,
-          2.2
+          18,
+          3.1
         ],
         "widthProfile": [
           0.02,
@@ -376,7 +381,7 @@ export const specimenParts=[
           0.004,
           0.0048,
           0.0032,
-          0.001
+          0.0007
         ],
         "twistProfile": [
           0,
@@ -386,7 +391,8 @@ export const specimenParts=[
         "grooves": 2,
         "sweep": -2,
         "surfaceLimit": 112,
-        "physicsProfile": "fixed-t1"
+        "physicsProfile": "fixed-t1",
+        "tipCut": 2.1
       }
     ]
   }

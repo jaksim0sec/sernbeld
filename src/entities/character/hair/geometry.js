@@ -63,15 +63,15 @@ function createHairKit(){
   const {data,worldPositions:p,indices:ix}=body;
   const pivot=data.bones.find(b=>b.id==='head')?.pivot?.map(v=>v/1428);if(!pivot)throw Error('missing head pivot');
   let lo=Infinity,hi=-Infinity,faceLo=Infinity,faceHi=-Infinity;for(let i=1;i<p.length;i+=3){lo=Math.min(lo,p[i]);hi=Math.max(hi,p[i]);if(i>=data.face.start*3){faceLo=Math.min(faceLo,p[i]);faceHi=Math.max(faceHi,p[i]);}}
-  const units=1.76/(hi-lo),cut=faceLo;const positions=[],indices=[],map=new Map();
-  function vertex(i){if(!map.has(i)){map.set(i,positions.length/3);positions.push(...[0,1,2].map(a=>(p[i*3+a]-pivot[a])*units));}return map.get(i);}
+  const units=1.76/(hi-lo),cut=faceLo;const positions=[],normals=[],indices=[],map=new Map();
+  function vertex(i){if(!map.has(i)){map.set(i,positions.length/3);positions.push(...[0,1,2].map(a=>(p[i*3+a]-pivot[a])*units));if(body.normals)normals.push(...body.normals.subarray(i*3,i*3+3));}return map.get(i);}
   for(let k=0;k<data.parts[0].count;k+=3){const ids=Array.from(ix.slice(k,k+3));if(ids.every(i=>p[i*3+1]>=cut-1e-6))indices.push(...ids.map(vertex));}
   if(!positions.length)throw Error('no head triangles');
   const top=(faceHi-pivot[1])*units,bottom=(faceLo-pivot[1])*units;
   let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity;
   for(let i=0;i<positions.length;i+=3)if(positions[i+1]>=bottom+(top-bottom)*.55){x0=Math.min(x0,positions[i]);x1=Math.max(x1,positions[i]);z0=Math.min(z0,positions[i+2]);z1=Math.max(z1,positions[i+2]);}
   const center=[(x0+x1)/2,bottom+(top-bottom)*.58,(z0+z1)/2];
-  return {...surface(Float32Array.from(positions),Uint32Array.from(indices),center),units,pivot};
+  return {...surface(Float32Array.from(positions),Uint32Array.from(indices),center),units,pivot,...(normals.length?{normals:Float32Array.from(normals)}:{})};
  }
  // Front +Z, left/right +/-X, Y up; cap and parts use the same angular anchor convention.
  function hairline(phi){const c=Math.cos(rad(phi));return c>=0?lerp(83,60,c*c):lerp(83,112,c*c);}
@@ -106,7 +106,7 @@ function createHairKit(){
    const t=i/segments, [theta,phi,clearance]=cat(c.controlPoints,t),width=profile(c.angularWidth,t),depth=profile(c.depthProfile,t);
    for(let k=0;k<=sides;k++){
     const a=2*Math.PI*(k%sides)/sides,side=Math.cos(a),outer=Math.sin(a);
-    const angle=phi+side*width/2, polar=Math.max(1,theta+side*c.sweep*Math.sin(Math.PI*t));
+    const angle=phi+side*width/2, polar=Math.max(1,theta+side*c.sweep*Math.sin(Math.PI*t)-(c.tipCut??0)*Math.abs(side)*Math.max(0,(t-.7)/.3)**2);
     // Follow the actual skull through the crown; below the ear line extend the lock
     // from a measured surface anchor instead of projecting it onto the cheek/neck.
     const limit=c.surfaceLimit??112, at=Math.min(polar,limit), anchor=fit.anchor(at,angle,0);
