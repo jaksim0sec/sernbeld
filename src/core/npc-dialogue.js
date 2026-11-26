@@ -113,12 +113,13 @@ export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({
  const topicKey=t=>JSON.stringify([t.template.id,t.eventRef?.id??null,t.eventRef?.revision??null,t.groupId??null]);
  let status='active',revision=0,pages=pagesOf(line),page=0,phase='hub',selected=null,node=null,nextNode=null;
  let choiceHistory=[],topicIds=[],lastTemplateId=null,currentSpeakerId=initialSpeakerId;
+ let menu=null;
  const context=()=>{const x=readContext()??{};return {...x,choiceHistory:[...(x.choiceHistory??[]),...choiceHistory],topicIds:[...(x.topicIds??[]),...topicIds],lastTemplateId:lastTemplateId??x.lastTemplateId};};
  const findNode=k=>selected?.template.nodes.find(n=>n.id===k);
  const safeReach=()=>{try{return reachable()===true;}catch{return false;}};
  function close(){if(status==='active'){status='closed';revision++;selected=null;}}
  function show(v){pages=pagesOf(v);page=0;}
- function hub(v){selected=null;node=null;nextNode=null;phase='hub';if(v!==undefined){currentSpeakerId=def.id;show(v);}}
+ function hub(v){selected=null;node=null;nextNode=null;phase='hub';menu=null;if(v!==undefined){currentSpeakerId=def.id;show(v);}}
  function live(){
   if(!safeReach()){close();return false;}
   if(!selected)return true;
@@ -171,14 +172,37 @@ export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({
   if(phase==='choice')return node.choices.filter(c=>topicConditionsPass(c.conditions,condContext())).map(c=>({id:c.id,label:c.label,kind:'reply',token:JSON.stringify(['choice',node.id,c.id]),target:c}));
   if(phase!=='hub')return [];
   const r=resolve(context());
-  return [...r.topics.map(t=>({id:t.template.id,label:t.template.label??t.topicId,kind:'reply',token:'topic:'+topicKey(t),topic:t})),...r.services.map(s=>({...s,token:'service:'+serviceKey(s),service:s}))];
+  const entries=[...r.topics.map(t=>({id:t.template.id,label:t.template.label??t.topicId,kind:'reply',token:'topic:'+topicKey(t),topic:t})),...r.services.map(s=>({...s,token:'service:'+serviceKey(s),service:s}))];
+  // Group only hub navigation; authored replies and domain action descriptors remain intact.
+  const labels={talk:'이야기하기',place:'이 지역에 관하여',trade:'거래하기',request:'부탁이나 소식',guild:'길드 업무'};
+  const category=e=>{
+   if(e.topic){
+    if(e.topic.eventRef||e.topic.source==='event'||e.topic.template.source==='event')return null;
+    return e.topic.topicId?.endsWith('.place')?'place':'talk';
+   }
+   if(e.id==='shop.buy'||e.id==='shop.sell')return 'trade';
+   if(e.id==='living.request.accept'||e.id==='living.request.abandon')return 'request';
+   if(e.id==='guild.register'||e.id==='guild.board')return 'guild';
+   return null;
+  };
+  if(menu)return [...entries.filter(e=>category(e)===menu),{id:'menu.back',label:'이전으로 돌아가기',kind:'reply',token:'menu:back',navigation:'back'}];
+  const groups=new Map();
+  for(const e of entries){const k=category(e);if(k){if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e);}}
+  const shown=new Set();
+  return entries.flatMap(e=>{
+   const k=category(e);
+   if(!k||groups.get(k).length===1)return [e];
+   if(shown.has(k))return [];
+   shown.add(k);
+   return [{id:'menu.'+k,label:labels[k],kind:'reply',token:'menu:'+k,navigation:k}];
+  });
  }
  return {
   graph:true,speakerId:def.id,participantId:'player',
   get status(){return status;},get revision(){return revision;},get text(){return pages[page];},get currentSpeakerId(){return currentSpeakerId;},
   get pageIndex(){return page;},get pageCount(){return pages.length;},
   get canAdvance(){return status==='active'&&(page+1<pages.length||phase==='speak');},
-  get choices(){return descriptors().map(({target,topic,service,...v})=>v);},
+  get choices(){return descriptors().map(({target,topic,service,navigation,...v})=>v);},
   advance(expected=revision){
    if(status!=='active'||expected!==revision||!this.canAdvance)return false;
    revision++;if(!live())return true;
@@ -190,7 +214,8 @@ export function createTopicSession(def,line,{readContext=()=>({}),resolve=()=>({
    const item=descriptors()[index];
    if(!item||token!==undefined&&token!==item.token){revision++;live();return true;}
    revision++;if(!live())return true;
-   if(item.topic){selected=item.topic;transition(selected.template.entryNode);return true;}
+   if(item.navigation){menu=item.navigation==='back'?null:item.navigation;return true;}
+   if(item.topic){menu=null;selected=item.topic;transition(selected.template.entryNode);return true;}
    if(item.target){record(item.target.id,false);transition(item.target.nextNode,true);return true;}
    if(item.service){
     let r;try{r=executeService(item.service);}catch{r={ok:false};}
