@@ -11,7 +11,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   World={H:new Float64Array(9)},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v)),
   stairSurface=()=>null,sample=()=>0;
   ${src.slice(start,end)}
-  return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerContacts,playerContact,
+  return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerCeiling,playerContacts,playerContact,
     roofInFoot,roofInOuter,roofSurfaceLocal,
     install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
@@ -63,6 +63,20 @@ const r=env.addRoof({shape:'gable',cx:12,cz:0,yaw:0,hx:2,hz:2,ox:3,oz:3,base:3,r
 assert.equal(bridge.support([12,4,0],profile).instanceId,r.collisionId+':foot','roof-foot policy');
 assert.equal(bridge.support([14.5,3.16,0],profile,{maxRise:.48})?.instanceId,r.collisionId+':overhang','overhang one-way ID');
 for(const [x,z,maxY] of [[12,0,4.2],[14.5,0,3.5],[14.5,0,2.9]])compareFloor(x,z,maxY);
+const overhead=env.addBox({cx:0,cy:4,cz:0,hx:1.5,hy:1,hz:1.5,yaw:0,walk:false});
+const compareCeiling=(x,z,y,targetY,solids=null)=>{
+ env.install(null);
+ const original=env.playerCeiling(x,z,y,targetY,solids);
+ env.install(bridge);
+ const migrated=env.playerCeiling(x,z,y,targetY,solids);
+ assert.equal(migrated,original,'headroom underside must remain exact across overlap and eaves');
+};
+for(const [x,z,y,targetY] of [[0,0,1,2],[0,0,1,1.05],[.85,.8,1,2],[3,0,1,2],[12,0,1,3.5],[14.5,0,1,2.5]])compareCeiling(x,z,y,targetY);
+compareCeiling(0,0,1,2,[...env.query(0,0,.35)]);
+const ceilingHit=bridge.staticCeiling(0,0,1,2);
+assert.equal(ceilingHit?.instanceId,overhead.collisionId);
+assert.deepEqual(ceilingHit.geometricNormal,[0,-1,0]);
+
 const water=bridge.water({contains:(x,z)=>x>20&&x<30&&Math.abs(z)<3,surfaceAt:()=>-.18,bottomAt:()=>-3,bounds:{center:[25,-1.59,0],half:[5,1.41,3]}});
 assert.equal(bridge.debugSnapshot().counts.water,1);
 assert(bridge.get(water.id)?.shapes[0].policy.water,'water is a non-solid volume');
