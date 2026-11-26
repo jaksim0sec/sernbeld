@@ -4,7 +4,6 @@
   "baseline": "352b593efea0d81fa2c2ebe370ac689ca475ee06",
   "detail": "docs/tasks/active/MOVEMENT-002.md",
   "scope": [
-    "src/render/world-render.part.js",
     "src/entities/character/studio-integration.js",
     "src/entities/character/avatar-motion.js",
     "tests/player-physics.mjs",
