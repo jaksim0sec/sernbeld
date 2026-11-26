@@ -848,6 +848,8 @@ function fallMist(q, width, group) {
   return out2;
 }
 var CELL = 32;
+// Registered runtime metadata is optional in isolated legacy physics tests.
+var WorldCollision = null;
 var grid = /* @__PURE__ */ new Map();
 var all = [];
 var stamp = 0;
@@ -871,14 +873,18 @@ function addBox(b) {
   b.top = b.cy + b.hy;
   b.bot = b.cy - b.hy;
   b.walk = b.walk !== false;
-  return insert(b, b.cx, b.cz, Math.hypot(b.hx, b.hz));
+  const record=insert(b, b.cx, b.cz, Math.hypot(b.hx, b.hz));
+  WorldCollision?.primitive(record);
+  return record;
 }
 function addCyl(c) {
   c.type = "cyl";
   c.top = c.y1;
   c.bot = c.y0;
   c.walk = c.walk !== false;
-  return insert(c, c.x, c.z, c.r);
+  const record=insert(c, c.x, c.z, c.r);
+  WorldCollision?.primitive(record);
+  return record;
 }
 var out = [];
 function query(x, z, r) {
@@ -941,6 +947,7 @@ function addRoof(r) {
       if(!b)roofGrid.set(k,b=[]);
       b.push(r);
     }
+  WorldCollision?.roof(r);
   return r;
 }
 // Radius in a faceted cone's own polygon (G.cone: seg corners from rot).
