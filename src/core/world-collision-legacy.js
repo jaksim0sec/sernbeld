@@ -3,7 +3,7 @@ import {createWorldCollision,legacyCollisionPolicy} from './world-collision.js';
 // Legacy static primitives: reuse the existing grid and narrow phase.
 export function createLegacyStaticCollision({query,inside,local,playerContact,skin=.002}){
  if(![query,inside,local,playerContact].every(f=>typeof f==="function")||!Number.isFinite(skin)||skin<0)throw new TypeError("invalid legacy callbacks");
- const links=new WeakMap(),byId=new Map();
+ const links=new WeakMap(),byId=new Map(),analytical=new Map();
  const positive=n=>Number.isFinite(n)&&n>0;
  const vec=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -62,6 +62,33 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
     const hit=contact(data,"top",pointOnTop(o,x,z),[0,1,0],[0,1,0],y-o.top);
     if(!best||hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)best=hit;
    }
+   // Analytical sources are explicitly registered and queried through their
+   // exact geometry callback. This is a reference pass; production must
+   // supply indexed candidates for large roof/terrain populations.
+   for(const a of analytical.values()){
+    if(a.kind!=="surface")continue;
+    const data=resolve(a.id,a.shapeId);if(!data)continue;
+    const b=data.shape.worldBounds;if(x<b.min[0]||x>b.max[0]||z<b.min[2]||z>b.max[2])continue;
+    const s=a.sample(x,z);if(!s)continue;
+    if(!vec(s.point)||typeof s.featureId!=="string"||(s.geometricNormal!==null&&(!vec(s.geometricNormal)||Math.abs(Math.hypot(...s.geometricNormal)-1)>1e-6)))throw new TypeError("invalid analytical surface result");
+    if(s.point[1]>y+rise+skin||s.point[1]<y-drop-skin)continue;
+    const hit=contact(data,s.featureId,s.point,s.geometricNormal,null,y-s.point[1]);
+    if(!best||hit.point[1]>best.point[1]||hit.point[1]===best.point[1]&&order(hit.surfaceId,best.surfaceId)<0)best=hit;
+   }
+   return best;
+  },
+  sampleWater(args,filter,resolve){
+   getProfile(args,true);
+   const [x,,z]=args.root;let best=null;
+   for(const a of analytical.values()){
+    if(a.kind!=="water")continue;
+    const data=resolve(a.id,a.shapeId);if(!data)continue;
+    const b=data.shape.worldBounds;if(x<b.min[0]||x>b.max[0]||z<b.min[2]||z>b.max[2])continue;
+    const s=a.sample(args.root);if(!s)continue;
+    if(![s.surfaceY,s.bottomY,s.depth,s.feetImmersion].every(Number.isFinite)||s.depth<=0||s.bottomY>=s.surfaceY||Math.abs(s.surfaceY-s.bottomY-s.depth)>1e-7)throw new TypeError("invalid water result");
+    const hit={...s,instanceId:a.id,shapeId:a.shapeId,revision:data.revision,priority:a.priority};
+    if(!best||hit.priority>best.priority||hit.priority===best.priority&&order(hit.instanceId,best.instanceId)<0)best=hit;
+   }
    return best;
   },
   overlapBody(args,filter,resolve){
@@ -99,15 +126,26 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   const link={id:instanceId,shapeId,record,handle:h};links.set(record,link);byId.set(instanceId,link);
   return h;
  }
+ function registerAnalytical(instance,{sample,priority=0}={}){
+  if(typeof sample!=="function"||!Number.isFinite(priority)||instance?.shapes?.length!==1)throw new TypeError("invalid analytical source");
+  const shape=instance.shapes[0],kind=instance.physics==="volume"?"water":"surface";
+  if(kind==="surface"&&(!["heightfield","roof"].includes(shape.type)||instance.physics!=="solid"))throw new TypeError("invalid analytical shape");
+  if(kind==="water"&&shape.type!=="water")throw new TypeError("invalid water shape");
+  // World-coordinate sampler must agree with the immutable authoring transform.
+  // No analytical transform updates until the sampler/grid is rebuilt.
+  const h=world.register(instance);analytical.set(h.id,{id:h.id,shapeId:shape.id,kind,sample,priority});return h;
+ }
  function remove(h){
-  world.remove(h);const link=byId.get(h.id);links.delete(link.record);byId.delete(h.id);
+  world.remove(h);const link=byId.get(h.id);
+  if(link){links.delete(link.record);byId.delete(h.id);}
+  analytical.delete(h.id);
   return true;
  }
  // Intentionally no updateTransform: original legacy grid is static. A move
  // must be reinserted into that grid, then registered again under a fresh
  // revision. Old consumers are unchanged until authority is switched.
- return {registerStatic,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
-  sampleSupport:world.sampleSupport,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities};
+ return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
+  sampleSupport:world.sampleSupport,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities};
 }
 
 export function sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}){
@@ -123,4 +161,55 @@ export function sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}){
  const h=lower?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
  const dx=(lower?b-a:d-c)/cell,dz=(lower?c-a:d-b)/cell,len=Math.hypot(dx,1,dz);
  return {featureId:`${i}:${j}:${lower?0:1}`,point:[x,h,z],geometricNormal:[-dx/len,1/len,-dz/len]};
+}
+
+
+export function sampleLegacyRoof(record,x,z,{local,roofInFoot,roofInOuter,roofSurfaceLocal}){
+ const r=record,[lx,lz]=local(r,x,z),foot=roofInFoot(r,lx,lz);
+ if(!foot&&!roofInOuter(r,lx,lz))return null;
+ const y=roofSurfaceLocal(r,lx,lz);
+ let dx=0,dz=0,feature,ambiguous=false;
+ if(r.shape==="shed"){
+  dz=r.rise/(r.z1-r.z0);feature="shed";
+ }else if(r.shape==="cone"){
+  if(r.seg){
+   let best=-Infinity,face=-1,ties=0,ax=0,az=0;
+   for(let i=0;i<r.seg;i++){
+    const a=(i+.5)/r.seg*Math.PI*2+(r.rot||0),c=Math.cos(a),s=Math.sin(a),d=lx*c+lz*s;
+    if(d>best+1e-9){best=d;face=i;ties=1;ax=c;az=s;}else if(Math.abs(d-best)<=1e-9)ties++;
+   }
+   ambiguous=ties>1&&r.rise!==0;
+   const k=-r.rise/(r.half*Math.cos(Math.PI/r.seg));dx=k*ax;dz=k*az;feature=ambiguous?"cone-edge":"cone:"+face;
+  }else{
+   const d=Math.hypot(lx,lz);ambiguous=d<1e-9&&r.rise!==0;
+   if(d>1e-9){dx=-r.rise*lx/(r.half*d);dz=-r.rise*lz/(r.half*d);}
+   feature=ambiguous?"cone-apex":"cone";
+  }
+ }else if(r.shape==="gable"){
+  const v=r.acrossX?lx:lz,d=-r.rise/r.half*Math.sign(v);
+  if(r.acrossX)dx=d;else dz=d;
+  ambiguous=Math.abs(v)<1e-9&&r.rise!==0;feature=ambiguous?"ridge":"gable:"+Math.sign(v);
+ }else throw new TypeError("unsupported roof shape");
+ const wx=dx*r.cos+dz*r.sin,wz=-dx*r.sin+dz*r.cos,len=Math.hypot(wx,1,wz);
+ if(!Number.isFinite(y)||!Number.isFinite(len))throw new TypeError("invalid roof geometry");
+ return {featureId:(foot?"foot:":"overhang:")+feature,point:[x,y,z],geometricNormal:ambiguous?null:[-wx/len,1/len,-wz/len],overhang:!foot};
+}
+
+export function sampleLegacyStair(record,x,z,{stairUV,minV,maxV}){
+ const [u,v,L]=stairUV(record,x,z);
+ if(!Number.isFinite(L)||L<=0||!Number.isFinite(record.y0)||!Number.isFinite(record.y1)||!Number.isFinite(minV)||!Number.isFinite(maxV)||minV>=maxV)throw new TypeError("invalid stair geometry");
+ if(u<0||u>L||v<minV||v>maxV)return null;
+ const rise=record.y1-record.y0,steps=Math.max(1,Math.ceil(Math.abs(rise)/.3)),k=Math.min(steps-1,Math.floor(u/L*steps));
+ // Match exact stairSurface: one-step stairs retain the first-step rule.
+ const y=k===0?record.y0+.06:k===steps-1?record.y1+.06:record.y0+rise*(k+.5)/steps+.06;
+ return {featureId:"tread:"+k,point:[x,y,z],geometricNormal:[0,1,0]};
+}
+
+export function sampleLegacyWater({surfaceAt,contains,bottomAt},root){
+ if(!Array.isArray(root)||root.length!==3||!root.every(Number.isFinite)||![surfaceAt,contains,bottomAt].every(f=>typeof f==="function"))throw new TypeError("invalid water query");
+ const [x,y,z]=root;
+ if(!contains(x,z))return null;
+ const surface=surfaceAt(x,z),bottom=bottomAt(x,z);
+ if(!Number.isFinite(surface)||!Number.isFinite(bottom)||bottom>=surface)return null;
+ return {surfaceY:surface,bottomY:bottom,depth:surface-bottom,feetImmersion:Math.max(0,Math.min(surface-bottom,surface-y)),feetWithin:y>=bottom&&y<=surface};
 }

@@ -14,3 +14,8 @@
 - `src/core/world-collision-legacy.js`의 createLegacyStaticCollision은 addBox/addCyl 완료 record와 기존 query/inside/local/playerContact를 받아 정적 shape 등록, 기존 top support 및 lateral contact를 변환한다. 지원 범위는 static primitive만이며 실제 geometry 변형/이동은 legacy grid 재삽입 전에는 지원하지 않는다. 현재 revision 해석은 backend 내부 resolver의 revision 생략일 때만 허용; 저장 anchor는 명시 revision 필수. removed/inactive/self/layer/purpose 필터는 후보 선택 이전 수행.
 - support hit의 separation은 root.y-top; overlap은 기존 수평 penetration의 음수. 모서리의 geometricNormal은 null(고유 단일 face 없음), contactNormal은 solver 분리 방향. top feature point는 실제 상면에 제한. 아직 지형/roof/water/nav 등의 종합 질의 아님. 미등록 record를 무시하므로 기존 runtime authority 전환 금지. `sampleHeightfieldTriangle`은 기존 삼각형 interpolation과 실제 normal/feature를 반환하는 geometry helper, outside grid는 null. 지형 등록·global surface ID 연결은 다음 이관.
 - `node tests/world-collision-legacy.mjs`: 실제 world-render source 조각 기반 parity 테스트. 동일 함수의 V8 격리 실행 44 assertions PASS, 기존 47 PASS. Node 파일/실제 game.js/브라우저 미실행. 기존 runtime은 미수정.
+
+## Analytical 표면과 수역 (격리 구현)
+
+- `registerAnalytical(instance,{sample,priority})`는 단일 roof/heightfield 또는 water source만 등록한다. world-coordinate sampler와 명시 bounds, region/revision/필터를 공유한다. 움직이는 geometry 및 생산용 공간 인덱스 미지원. `sampleSupport`는 기존 primitive 및 analytical 후보를 함께 선택한다. 기하 normal이 고유하지 않은 ridge/corner는 null; analytical 접촉의 solver normal은 미계산(null). roof overhang의 방향별 차단/ceiling/overlap 및 실제 동작은 후속. `sampleWater`는 수면·바닥·수심·침수량을 별도로 반환하며 고체 support가 아니다. 실제 sea/river/pool domain 연결 및 부력은 후속.
+- `tests/world-collision-surfaces.mjs`의 48 신규 assertion과 기존 91 assertion 격리 실행 PASS. 실제 runtime 변경 없음. 위 표면 선택은 legacy max terrain과 다를 수 있어 통합 전 비교 필요.
