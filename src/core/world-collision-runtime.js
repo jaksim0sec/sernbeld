@@ -26,7 +26,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const shape={id:"surface",type,center:[0,0,0],geometryRef:id,bounds,policy};
   if(type==="water"){delete shape.geometryRef;delete shape.bounds;shape.half=bounds.half;shape.center=bounds.center;}
   const h=registry.registerAnalytical({id,regionId,physics,transform:identity,shapes:[shape]},{sample,priority});
-  handles.set(id,h);types[type==="heightfield"?"terrain":type]++;return h;
+  handles.set(id,h);if(type==="water")types.water++;return h;
  }
  function roof(record){
   const r=record,reach=r.outerR??Math.hypot(r.ox??0,r.oz??0);
@@ -47,13 +47,15 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  }
  function terrain({heights,gridN,cell,half}){
   const id=next("terrain"),bounds={min:[-half,-10000,-half],max:[half,10000,half]};
-  return analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}));
+  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}));
+  types.terrain++;return h;
  }
  function stair(record){
   const a=record.a,b=record.b,minX=Math.min(a[0],b[0])-100,maxX=Math.max(a[0],b[0])+100;
   const minZ=Math.min(a[1],b[1])-100,maxZ=Math.max(a[1],b[1])+100;
   const id=next("stair"),bounds={min:[minX,Math.min(record.y0,record.y1)-1,minZ],max:[maxX,Math.max(record.y0,record.y1)+1,maxZ]};
-  return analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleLegacyStair(record,x,z,{stairUV,minV:stairMinV,maxV:stairMaxV}));
+  const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleLegacyStair(record,x,z,{stairUV,minV:stairMinV,maxV:stairMaxV}));
+  types.stair++;return h;
  }
  function water({contains,surfaceAt,bottomAt,bounds,priority=0}){
   const id=next("water");
