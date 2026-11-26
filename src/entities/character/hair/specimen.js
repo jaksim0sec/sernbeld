@@ -909,7 +909,43 @@ export const flowParts=[
         "surfaceLimit": 112,
         "physicsProfile": "fixed-t1",
         "tipCut": 0.7,
-        "role": "central left edge companion"
+        "role": "central left edge companion",
+        "edgeCompanion": {
+          "parent": "central dominant inward curl",
+          "neighbor": "left dominant sweep",
+          "start": 0.3,
+          "end": 0.055,
+          "leftTrace": [
+            [
+              0,
+              0
+            ],
+            [
+              0.34,
+              -0.012
+            ],
+            [
+              0.53,
+              0.018
+            ],
+            [
+              0.7,
+              0.13
+            ],
+            [
+              0.84,
+              0.43
+            ],
+            [
+              0.94,
+              0.77
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        }
       }
     ]
   }

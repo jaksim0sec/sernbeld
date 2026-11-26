@@ -167,7 +167,53 @@ function createHairKit(){
   if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,uv,ix,[],root);}
   result.detail={rows,cols,trim:d.hem.map(([u,end])=>({u,end}))};return result;
  }
- function makePart(fit,part){validatePart(part);return part.clumps.map(c=>{if(c.detail)return detailedRibbon(fit,c);if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});});}
+ // Front-outline authoring for the single companion, with real parent references.
+ function edgeCompanion(fit,c,parent,neighbor){
+  const rows=32,sides=12,stride=sides+1,p=[],uv=[],ix=[],seams=[],root=[];
+  const yvals=Array.from(parent.positions).filter((_,i)=>i%3===1),hi=Math.max(...yvals),lo=Math.min(...yvals),h=hi-lo;
+  const yStart=hi-h*c.edgeCompanion.start,yEnd=lo+h*c.edgeCompanion.end;
+  function section(g,y){
+   let min=Infinity,max=-Infinity;
+   for(let k=0;k<g.indices.length;k+=3)for(let j=0;j<3;j++){
+    const a=g.indices[k+j]*3,b=g.indices[k+(j+1)%3]*3,A=g.positions[a+1],B=g.positions[b+1];
+    if((A<=y&&B>y)||(B<=y&&A>y)){const x=lerp(g.positions[a],g.positions[b],(y-A)/(B-A));min=Math.min(min,x);max=Math.max(max,x);}
+   }if(!Number.isFinite(min))throw Error('edge reference missed');return [min,max];
+  }
+  const pr=section(parent,yStart),nr=section(neighbor,yStart);
+  // Locate the root at the neighbor's inner boundary, within the parent.
+  // This prevents a nominally correct curve starting too far under the left lock.
+  const start=Math.min(pr[1]-.002,Math.max(pr[0]+.002,nr[1]-.002)),end=section(parent,yEnd)[0]-.003,spread=end-start;
+  if(spread<.005)throw Error('edge reference inverted');
+  const trace=c.edgeCompanion.leftTrace;
+  const slope=i=>{if(i===0)return 0;if(i===trace.length-1)return (trace[i][1]-trace[i-1][1])/(trace[i][0]-trace[i-1][0]);const a=trace[i-1],b=trace[i],d=trace[i+1],m=(b[1]-a[1])/(b[0]-a[0]),n=(d[1]-b[1])/(d[0]-b[0]);return m*n<=0?0:2*m*n/(m+n);};
+  function traced(t){let i=0;while(i<trace.length-2&&t>trace[i+1][0])i++;const a=trace[i],b=trace[i+1],dt=b[0]-a[0],u=(t-a[0])/dt;return (2*u*u*u-3*u*u+1)*a[1]+(u*u*u-2*u*u+u)*dt*slope(i)+(-2*u*u*u+3*u*u)*b[1]+(u*u*u-u*u)*dt*slope(i+1);}
+  // Exact +Z surface intersection in the intended frontal XY plane. The
+  // centerline or angular width cannot overwrite the two authored boundaries.
+  function front(x,y){
+   const pos=fit.positions,ind=fit.indices;let z=-Infinity;
+   for(let i=0;i<ind.length;i+=3){
+    const a=ind[i]*3,b=ind[i+1]*3,d=ind[i+2]*3,ax=pos[a],ay=pos[a+1],bx=pos[b]-ax,by=pos[b+1]-ay,cx=pos[d]-ax,cy=pos[d+1]-ay;
+    const det=bx*cy-by*cx;if(Math.abs(det)<1e-12)continue;
+    const u=((x-ax)*cy-(y-ay)*cx)/det,w=(bx*(y-ay)-by*(x-ax))/det;
+    if(u>=-1e-7&&w>=-1e-7&&u+w<=1+1e-7)z=Math.max(z,pos[a+2]+u*(pos[b+2]-pos[a+2])+w*(pos[d+2]-pos[a+2]));
+   }if(!Number.isFinite(z))throw Error('edge silhouette outside head');return z;
+  }
+  const bounds=[];
+  for(let i=0;i<=rows;i++){
+   const t=i/rows,y=lerp(yStart,yEnd,t),left=start+spread*traced(t),parentEdge=section(parent,y)[0];
+   const grow=Math.min(1,t/.17),close=Math.min(1,(1-t)/.16),smooth=x=>x*x*(3-2*x);
+   const desired=Math.max(.0012,parentEdge-left+.004);
+   const width=.0012+(desired-.0012)*smooth(grow)*smooth(close);
+   bounds.push({t,y,left,right:left+width});
+   const clearance=profile([.006,.009,.013,.015,.014],t),depth=profile([.0012,.003,.0042,.003,.00045],t);
+   for(let k=0;k<=sides;k++){const angle=2*Math.PI*(k%sides)/sides,u=(1+Math.cos(angle))/2,x=left+width*u;p.push(x,y,front(x,y)+clearance+Math.sin(angle)*depth/2);uv.push(k/sides,t);root.push(i===0?1:0);}
+   seams.push([i*stride,i*stride+sides]);if(i)for(let k=0;k<sides;k++){const a=(i-1)*stride+k,b=i*stride+k;ix.push(a,b,a+1,a+1,b,b+1);}
+  }
+  for(const end of [0,1]){const start=end?rows*stride:0,id=p.length/3,avg=[0,0,0];for(let k=0;k<sides;k++)for(let j=0;j<3;j++)avg[j]+=p[(start+k)*3+j]/sides;p.push(...avg);uv.push(.5,end);root.push(end?0:1);for(let k=0;k<sides;k++)if(end)ix.push(id,start+k+1,start+k);else ix.push(id,start+k,start+k+1);}
+  let result=mesh(p,uv,ix,seams,root);if(signedVolume(result)<0){for(let i=0;i<ix.length;i+=3)[ix[i+1],ix[i+2]]=[ix[i+2],ix[i+1]];result=mesh(p,uv,ix,seams,root);}
+  result.edgeTrace=bounds;return result;
+ }
+ function makePart(fit,part){validatePart(part);const built=[];for(const c of part.clumps){if(c.edgeCompanion){const parent=built[part.clumps.findIndex(x=>x.role===c.edgeCompanion.parent)],neighbor=built[part.clumps.findIndex(x=>x.role===c.edgeCompanion.neighbor)];if(!parent||!neighbor)throw Error('missing edge references');built.push(edgeCompanion(fit,c,parent,neighbor));continue;}built.push((()=>{if(c.detail)return detailedRibbon(fit,c);if(c.angularWidth)return ribbon(fit,c);const a=fit.anchor(...c.controlPoints[0]);const points=c.controlPoints.map(v=>fit.anchor(...v).position);return loft({...c,controlPoints:points,rootNormal:a.normal});})());}return built;}
  function penetration(fit,g){let max=0,count=0,miss=0,eligible=0;for(let i=0;i<g.positions.length;i+=3){if(g.rootMask[i/3])continue;eligible++;const v=sub(Array.from(g.positions.slice(i,i+3)),fit.center),l=length(v),r=fit.radius(v);if(r===null){miss++;continue;}const depth=Math.max(0,r-l);if(depth>1e-6){count++;max=Math.max(max,depth);}}return {maxMetres:max,count,eligible,miss};}
  function signedVolume(g){let sum=0;for(let i=0;i<g.indices.length;i+=3){const a=Array.from(g.positions.slice(g.indices[i]*3,g.indices[i]*3+3)),b=Array.from(g.positions.slice(g.indices[i+1]*3,g.indices[i+1]*3+3)),c=Array.from(g.positions.slice(g.indices[i+2]*3,g.indices[i+2]*3+3));sum+=dot(a,cross(b,c))/6;}return sum;}
  return {loft,surface,studioHead,scalpCap,frontFoundation,hairline,validatePart,compatible,makePart,penetration,signedVolume,direction};

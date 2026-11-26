@@ -9,10 +9,17 @@ function synthetic(kit,scale=[.085,.12,.095]){
  return kit.surface(Float32Array.from(p),Uint32Array.from(ix),[0,0,0]);
 }
 function checkGeometry(kit,g,closed=false){const assert=(ok,msg)=>{if(!ok)throw Error(msg);};assert(g.positions.length===g.normals.length&&g.uv.length===g.positions.length/3*2,'attribute sizes');assert([...g.positions,...g.normals,...g.uv].every(Number.isFinite),'finite');assert(g.indices.every(i=>i<g.positions.length/3),'indices');for(let i=0;i<g.normals.length;i+=3)assert(Math.abs(Math.hypot(...g.normals.slice(i,i+3))-1)<1e-5,'normal length');if(closed)assert(kit.signedVolume(g)>0,'inward loft winding');}
+function verifyTrace(g){
+ const e=g.edgeTrace;if(!e||e.length!==33)throw Error('missing edge trace');
+ const span=e[32].left-e[0].left,early=Math.abs(e[16].left-e[0].left)/span,late=(e[32].left-e[24].left)/span;
+ if(span<=0||early>.05||late<.65)throw Error('edge curvature not preserved');
+ return {early,late,widthMm:Math.max(...e.map(q=>q.right-q.left))*1000};
+}
 function verifyDetails(kit,fit,parts,checkGeometry){
  const cap=kit.frontFoundation(fit),gs=kit.makePart(fit,parts[0]),again=kit.makePart(fit,parts[0]);checkGeometry(kit,cap);
  if(!kit.compatible(parts,'male')||!kit.compatible(parts,'female')||kit.compatible([parts[0],parts[0]],'male'))throw Error('part compatibility');
  let carved=0;
+ const edge=gs.find(g=>g.edgeTrace);verifyTrace(edge);
  gs.forEach((g,i)=>{checkGeometry(kit,g,true);if(!g.positions.every((x,k)=>x===again[i].positions[k]))throw Error('nondeterminism');if(!g.detail)return;
   carved++;
   const edges=new Map();for(let n=0;n<g.indices.length;n+=3){const [a,b,c]=g.indices.slice(n,n+3);for(const [x,y] of [[a,b],[b,c],[c,a]]){const key=Math.min(x,y)+':'+Math.max(x,y),e=edges.get(key)??[0,0];e[0]++;e[1]+=x<y?1:-1;edges.set(key,e);}}
