@@ -18,7 +18,8 @@
     "src/gameplay/gameplay.part.js",
     "game.js",
     "sw.js",
-    ".github/workflows/main-validation.yml"
+    ".github/workflows/main-validation.yml",
+    "tests/world-collision-browser.mjs"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
