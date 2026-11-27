@@ -224,3 +224,7 @@ df44aef CI 46006775897: stair sole penetration observed up to .09471m (previous 
 ### LIVE-B24/B25 stationary edge follow-up
 
 16909b1 actual stair sole penetration max .01987m, right knee peak .74696rad at idle frame 100 with unchanged root and ankle support. Added geometric anticipation for settling sole on split-height stance; synthetic target jump .22→.01031m. Added peak edge influence/length attribution to actual body/pants diagnostic. New actual checks pending, both OPEN.
+
+### T3.5 사용자 승인 및 T4 진입 (2026-11-28)
+
+사용자 실게임 T3.5 성공 승인. B24 체감 범위 승인 및 직접 회귀 PASS; B25 원본/의상 변형의 정량·원인·최종 게이트는 독립 보존, 원본 가중치 수정 없음. T4 B11~B14 OPEN; 메시 착지 후보 재시도 구현 시작. 기존 영상 증거와 게이트 유지.

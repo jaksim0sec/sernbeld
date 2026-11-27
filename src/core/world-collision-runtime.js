@@ -449,8 +449,11 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    };
    const walkable=p=>p&&p.normal[1]>=Math.cos(walkMax)-1e-8;
    const lateral=[dz,-dx];
-   // First reachable stable stance. All samples refer to real triangles.
+   // Keep the nearest geometric candidate first, but offer a bounded set
+   // of alternatives on the same source for the existing body path validator.
+   let offered=0,lastDistance=-Infinity;
    for(let d=radius+reach+.1;d<=2.4;d+=.08){
+    if(d-lastDistance<.16-1e-8)continue;
     const tx=x+dx*d,tz=z+dz*d,stand=sample(tx,tz);
     if(!walkable(stand)||stand.y-y>height)continue;
     const ring=Array.from({length:8},(_,i)=>sample(tx+Math.cos(i*Math.PI/4)*radius*.8,tz+Math.sin(i*Math.PI/4)*radius*.8));
@@ -462,7 +465,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
     }
     if(!hands)continue;
     plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:-dx,nz:-dz,stand,hands,over});
-    break;
+    lastDistance=d;if(++offered>=3)break;
    }
   }
   return plans.sort((a,b)=>a.toi-b.toi);

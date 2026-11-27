@@ -766,6 +766,13 @@ console.log('PASS T3 real rock support, repeat jump and fixed-tick walkable grad
   const plans=m.meshMantlePlans(0,1.56,0,0,-1);
   assert.equal(plans[0]?.instanceId,h.id);assert.equal(plans[0].stand.y,1);
   assert(plans[0].hands.every(v=>v.y===1&&v.normal[1]===1));
+  const alternatives=m.meshMantlePlans(0,1.5,0,0,-1);
+  assert.equal(alternatives.length,3,'bounded alternate stable stances on the same source');
+  for(let i=0;i<alternatives.length;i++){
+   const plan=alternatives[i];assert.equal(plan.instanceId,h.id);assert.equal(plan.revision,m.get(h.id).revision);assert.equal(plan.stand.y,1);
+   assert(plan.hands.every(v=>v.y===1&&v.normal[1]===1));
+   if(i)assert(alternatives[i-1].stand.z-plan.stand.z>=.16-1e-8,'nearest first, distinct alternatives');
+  }
   assert.equal(m.meshMantlePlans(10,1.56,0,0,-1).length,0);
   assert.equal(m.meshMantlePlans(20,1.56,0,0,-1).length,0);
   assert.equal(m.meshMantlePlans(0,1.56,0,0,1).length,0);
