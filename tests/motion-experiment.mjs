@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep,hingeReachAngle,solveGroundHinge} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -204,3 +204,49 @@ console.log('PASS T3.5 visual stair velocity, smooth stance acquisition, running
  assert(anticipateFootStep(-.10,0,0,0,0,0,x=>x>=0?.22:0)===0,'idle remains planted');
  assert(anticipateFootStep(-.10,0,0,0,2.6,0,x=>x>=0?null:0)===0,'missing surface cannot lift leg');
  console.log('PASS T3.5 upward ankle anticipation, exact tread and non-step preservation');
+
+
+for(const deg of [0,5,25,60,100,135]){
+ const angle=deg*Math.PI/180,d=Math.sqrt(.42**2+.41**2+2*.42*.41*Math.cos(angle));
+ const solved=hingeReachAngle(.42*.41,0,0,.42**2+.41**2,d,0,135*Math.PI/180,.2);
+ assert(Math.abs(angle-solved)<1e-6,'hinge recovers target flexion');
+}
+for(let i=0;i<=200;i++){
+ const angle=.1+i*.008,A=.14,B=.021,C=.004,L=.36;
+ const distance=Math.sqrt(L+2*(C+A*Math.cos(angle)+B*Math.sin(angle)));
+ const solved=hingeReachAngle(A,B,C,L,distance,0,2.4,angle);
+ assert(Math.abs(angle-solved)<1e-7,'noncollinear rest offsets');
+}
+assert(Math.abs(hingeReachAngle(.17,0,0,.34,0,0,2.1,.2)-2.1)<1e-9,'unreachable ankle uses permitted maximum');
+assert(Math.abs(hingeReachAngle(.17,0,0,.34,3,0,2.1,.2))<1e-9,'unreachable extension uses permitted minimum');
+
+
+ // Exact rig metadata, both bodies: the local knee must remain on its
+ // declared hinge and the solved triangle must reach its chosen distance.
+ for(const body of ['male','female']){
+  const actor=make({body},{clothing:false});
+  try{
+   for(const side of ['left','right']){
+    const spec=actor.data.bones.find(b=>b.id==='shin_'+side).axes;
+    assert.equal(spec.length,1,'expected single-axis studio knee');
+    const axis=new T.Vector3(...spec[0].d).normalize();
+    const u=actor.B['shin_'+side].position.clone().multiplyScalar(actor.units);
+    const v=actor.B['foot_'+side].position.clone().multiplyScalar(actor.units);
+    const dir=new T.Vector3(.14,-1,.2).normalize();
+    const pole=new T.Vector3(0,0,1).addScaledVector(dir,-dir.z).normalize();
+    for(let i=1;i<=20;i++){
+     const angle=(spec[0].min+(spec[0].max-spec[0].min)*i/21)*Math.PI/180;
+     const authored=new T.Quaternion().setFromAxisAngle(axis,angle);
+     const reach=u.clone().add(v.clone().applyQuaternion(authored)).length();
+     const solved=solveGroundHinge(T,u,v,spec[0],reach,authored,dir,pole);
+     assert(solved,'actual rig hinge solution');
+     const endpoint=u.clone().add(v.clone().applyQuaternion(solved.knee)).applyQuaternion(solved.hip);
+     assert(endpoint.distanceTo(dir.clone().multiplyScalar(reach))<1e-6,'actual rig endpoint parity');
+     const kneeAxis=new T.Vector3(solved.knee.x,solved.knee.y,solved.knee.z);
+     assert(kneeAxis.cross(axis).length()<1e-8,'no off-axis local knee rotation');
+     assert(solved.angle>=spec[0].min*Math.PI/180-1e-9&&solved.angle<=spec[0].max*Math.PI/180+1e-9);
+    }
+   }
+  }finally{actor.dispose();}
+ }
+ console.log('PASS T3.5 actual male/female rig hinge, axis and reach');

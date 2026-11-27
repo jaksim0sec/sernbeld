@@ -208,3 +208,7 @@ T2: 학습 선례와 제작 표준(원리/실패/예외/평가 방법)을 작성
 ### T3 종결 이후 평가 보존 (2026-11-27)
 
 사용자 승인으로 T3 구현 단계 종결. 9fe9ca6 CI 45961555734 직접 Node 및 Kael/motion-lab Chromium PASS. LIVE-B22/B23은 공용 기하·지지 연속성 직접 회귀 PASS와 사용자 개선 보고를 반영하되 모든 원본 상황의 최신 실화면 검증은 PARTIAL; B21 보고 범위 RESOLVED 유지. V01-B01/B02/B05–B10은 개별 증거 없이 일괄 RESOLVED 처리하지 않는다. T3.5에서 비차단 시각 디테일만 다듬고 기능성 회귀가 재현되면 T3 재개, 양 체형·반복/실기기 증거는 동일 작업의 T6/최종 게이트에 유지. 카엘 실제 proxy parity 및 잡기/등반은 T4/T7 책임으로 연계한다.
+
+### LIVE-B24/B25 diagnostic update (2026-11-27)
+
+42fb618 actual browser CI 45966678083 logged ascending ankle steps up to .113217m and joint step up to .622271rad. Ground IK previously omitted local hinge-axis constraints despite distance limits; exact single-axis knee solve added. Actual before/after rig and body/garment deformation still unverified; both remain OPEN. See [T3.5 task record](MOTION-11261538.md).

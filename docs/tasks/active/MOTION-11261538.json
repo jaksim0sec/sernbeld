@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3.5: 지속가능 — LIVE-B24 ascending leg transition and LIVE-B25 abnormal non-joint deformation; reproduce and distinguish authored pose/IK/rig/body skin/garment, then targeted fix. User requested analysis/record only in this pass. Do not close until evidence; preserve T3 functional gates."
+  "next": "MOTION-11261538/T3.5: 지속가능 — inspect actual hinge constraint CI and before/after stair leg metrics; separate B25 skin/garment deformation, then targeted B24 phase/target fix if residual. Both OPEN."
 }

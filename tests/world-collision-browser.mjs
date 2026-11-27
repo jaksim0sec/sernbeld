@@ -259,6 +259,8 @@ try{
    if(name==='stairs'){const f=d.fixtures.stairs;p.teleport(f.x,f.z-.5,Math.PI,0,0);}
    if(name==='blocked'){const f=d.fixtures.ramps[0];p.teleport(f.x+f.width/2+.45,f.z-f.run/2,Math.PI/2,0,0);}
    const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
+   const pose=actor.pose;let authoredKnees=null;
+   actor.pose=function(angles){pose.call(this,angles);authoredKnees=Object.fromEntries(['left','right'].map(side=>[side,this.B['shin_'+side].quaternion.toArray()]));};
    const step=(i,record)=>{
     p.advance(1/60,input,[]);
     const before=p.pos.clone();d.avatars.update(1/60,i/60,{swing:null});
@@ -267,6 +269,8 @@ try{
      const hit=d.collision.probe(p.pos.x,p.pos.z,p.pos.y).hit;
      const frame=m.capturePose(actor,m.readMotionState(p,actor,hit),{time:i/60,groundSurface:d.playerFootSurface,ankleRest:rig.ankleRest});
      frame.headWorld=actor.B.head.getWorldQuaternion(actor.B.head.quaternion.clone()).toArray();
+     frame.authoredKnees=authoredKnees;
+     frame.kneeAxes=Object.fromEntries(['left','right'].map(side=>[side,actor.data.bones.find(b=>b.id==='shin_'+side).axes[0].d]));
      frames.push(frame);
     }
    };
@@ -276,6 +280,7 @@ try{
    for(let i=72;i<132;i++)step(i,true);
    for(const c of codes)key('keyup',c);
    for(let i=132;i<192;i++)step(i,true);
+   actor.pose=pose;
    out[name]={summary:m.summarizeMotionTrace(frames),quality:m.motionQuality(frames),frames};
   }
   d.reset();return out;
@@ -309,6 +314,21 @@ try{
   stairLegs[side]={samples,maxAnkleStep,maxJointStep};
  }
  console.log('T3.5 actual upward stair leg observations '+JSON.stringify(stairLegs));
+ const kneeEvidence={};
+ for(const name of ['walk','stairs','slope','backpedal']){
+  let authored=0,postIK=0,samples=0;
+  for(const frame of trials[name].frames){
+   if(!frame.state.grounded)continue;
+   for(const side of ['left','right']){
+    const q=frame.joints.find(j=>j.id==='shin_'+side).rotation,a=frame.authoredKnees[side],axis=frame.kneeAxes[side],n=Math.hypot(...axis);
+    const off=v=>Math.hypot(v[1]*axis[2]-v[2]*axis[1],v[2]*axis[0]-v[0]*axis[2],v[0]*axis[1]-v[1]*axis[0])/n;
+    authored=Math.max(authored,off(a));postIK=Math.max(postIK,off(q));samples++;
+   }
+  }
+  assert(samples>0&&postIK<1e-5,'ground knee hinge axis '+name+' '+postIK);
+  kneeEvidence[name]={samples,authored,postIK};
+ }
+ console.log('T3.5 actual authored vs post-IK knee hinge evidence '+JSON.stringify(kneeEvidence));
  const qualitySummary=Object.fromEntries(Object.entries(trials).map(([k,v])=>[k,{summary:v.summary,quality:v.quality}]));
  await writeFile('test-results/motion-t2-fixed-trace.json',JSON.stringify(trials));
  console.log('T2 fixed 60Hz post-IK observations '+JSON.stringify(qualitySummary));

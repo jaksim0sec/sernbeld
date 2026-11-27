@@ -123,6 +123,57 @@ export function groundIKWeight(vertical,horizontal){
  const t=clamp01((magnitude-.002)/(full-.002));
  return t*t*(3-2*t);
 }
+// Solve the declared single-axis knee, including non-collinear rest offsets.
+// d² = |u|²+|v|²+2(C+A cos(angle)+B sin(angle)). Select the reachable
+// solution nearest the authored flexion, rather than adding arbitrary twist.
+export function hingeReachAngle(A,B,C,lengthSq,distance,min,max,authored){
+ const clamp=x=>Math.max(min,Math.min(max,x));
+ const wanted=(distance*distance-lengthSq)*.5-C;
+ const radius=Math.hypot(A,B),center=Math.atan2(B,A);
+ if(radius<1e-12)return clamp(authored);
+ const spread=Math.acos(Math.max(-1,Math.min(1,wanted/radius)));
+ let best=clamp(authored),error=Infinity;
+ const consider=angle=>{
+  if(angle<min-1e-9||angle>max+1e-9)return;
+  angle=clamp(angle);
+  const e=Math.abs(A*Math.cos(angle)+B*Math.sin(angle)-wanted);
+  if(e<error-1e-10||(Math.abs(e-error)<=1e-10&&Math.abs(angle-authored)<Math.abs(best-authored))){best=angle;error=e;}
+ };
+ consider(min);consider(max);
+ for(let k=-2;k<=2;k++){const base=center+k*2*Math.PI;consider(base+spread);consider(base-spread);consider(base);consider(base+Math.PI);}
+ return best;
+}
+export function hingeSignedAngle(q,axis){
+ return 2*Math.atan2(q.x*axis.x+q.y*axis.y+q.z*axis.z,q.w);
+}
+// The hip supplies the plane orientation; the knee only supplies flexion.
+// Mapping the rest triangle's orthonormal basis to the target plane keeps
+// the exact ankle reach without any off-axis local knee rotation.
+export function solveGroundHinge(T,upper,lower,axisSpec,distance,authored,dir,pole,scratch=null){
+ const w=scratch??{axis:new T.Vector3(),cross:new T.Vector3(),lowerBent:new T.Vector3(),sourceDir:new T.Vector3(),sourcePole:new T.Vector3(),sourceZ:new T.Vector3(),targetZ:new T.Vector3(),matrix:new T.Matrix4(),hip:new T.Quaternion(),knee:new T.Quaternion(),srcQ:new T.Quaternion()};
+ const axis=w.axis.fromArray(axisSpec.d).normalize(),u=upper,v=lower;
+ const C=u.dot(axis)*v.dot(axis),A=u.dot(v)-C,B=u.dot(w.cross.crossVectors(axis,v));
+ const min=axisSpec.min*Math.PI/180,max=axisSpec.max*Math.PI/180;
+ const angle=hingeReachAngle(A,B,C,u.lengthSq()+v.lengthSq(),distance,min,max,hingeSignedAngle(authored,axis));
+ w.knee.setFromAxisAngle(axis,angle);
+ w.lowerBent.copy(v).applyQuaternion(w.knee);
+ w.sourceDir.copy(u).add(w.lowerBent);
+ const reach=w.sourceDir.length();
+ if(reach<1e-8)return null;
+ w.sourceDir.multiplyScalar(1/reach);
+ w.sourcePole.copy(u).addScaledVector(w.sourceDir,-u.dot(w.sourceDir));
+ if(w.sourcePole.lengthSq()<1e-12){
+  w.sourcePole.crossVectors(w.sourceDir,axis).multiplyScalar(angle<0?-1:1);
+  if(w.sourcePole.lengthSq()<1e-12)return null;
+ }
+ w.sourcePole.normalize();
+ w.sourceZ.crossVectors(w.sourcePole,w.sourceDir).normalize();
+ w.targetZ.crossVectors(pole,dir).normalize();
+ w.srcQ.setFromRotationMatrix(w.matrix.makeBasis(w.sourcePole,w.sourceDir,w.sourceZ));
+ w.hip.setFromRotationMatrix(w.matrix.makeBasis(pole,dir,w.targetZ)).multiply(w.srcQ.invert());
+ return {hip:w.hip,knee:w.knee,angle,reach};
+}
+
 // The rig's authored maximum knee flexion bounds the reachable ankle sphere.
 export function groundLegDistance(l1,l2,distance,maxFlex){
  const max=l1+l2-.001;
@@ -494,6 +545,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  let turnFeet={},gaitFeet={};
  const turnNeutral=new T.Vector3(),groundForward=new T.Vector3();
  const authoredHipQ=new T.Quaternion(),authoredKneeQ=new T.Quaternion();
+ const hingeScratch={axis:new T.Vector3(),cross:new T.Vector3(),lowerBent:new T.Vector3(),sourceDir:new T.Vector3(),sourcePole:new T.Vector3(),sourceZ:new T.Vector3(),targetZ:new T.Vector3(),matrix:new T.Matrix4(),hip:new T.Quaternion(),knee:new T.Quaternion(),srcQ:new T.Quaternion()};
+ const hingeUpper=new T.Vector3(),hingeLower=new T.Vector3();
  function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
   const pivot=motion?.pivotWeight??0;
@@ -570,6 +623,20 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   if(poleV.lengthSq()<1e-7){poleV.set(0,0,1).transformDirection(a.group.matrixWorld);poleV.addScaledVector(dirV,-poleV.dot(dirV));}
   if(poleV.lengthSq()<1e-7)return;
   poleV.normalize();
+  if(groundFlex!==null){
+   const joint=a.data.bones.find(b=>b.id==='shin_'+side);
+   if(joint?.axes.length===1){
+    const solution=solveGroundHinge(T,hingeUpper.copy(knee.position).multiplyScalar(scale),hingeLower.copy(foot.position).multiplyScalar(scale),joint.axes[0],d,knee.quaternion,dirV,poleV,hingeScratch);
+    // Do not fall back to unrestricted knee rotation for a singular hinge.
+    if(!solution)return;
+    hip.parent.getWorldQuaternion(qParent);
+    hip.quaternion.slerp(qParent.invert().multiply(solution.hip),weight);
+    knee.quaternion.slerp(solution.knee,weight);
+    foot.parent.getWorldQuaternion(qParent);
+    foot.quaternion.copy(qParent.invert().multiply(rotation));
+    return;
+   }
+  }
   const along=(d*d+l1*l1-l2*l2)/(2*d);
   newKnee.copy(hipV).addScaledVector(dirV,along).addScaledVector(poleV,Math.sqrt(Math.max(0,l1*l1-along*along)));
   goalV.copy(hipV).addScaledVector(dirV,d);
