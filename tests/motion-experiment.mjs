@@ -4,7 +4,7 @@ import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
 import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter} from '../src/entities/character/appearance.js';
-import {motionManifest,createMotionTrace,sampleLabGround,replayMotion,summarizeMotionTrace} from '../src/entities/character/motion-experiment.js';
+import {motionManifest,createMotionTrace,sampleLabGround,replayMotion,summarizeMotionTrace,motionQuality} from '../src/entities/character/motion-experiment.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 const make=(profile,options)=>createStudioModel(T,factory,normalizeStudioCharacter(profile),options);
@@ -37,3 +37,8 @@ const mock=(time,action,x,teleportId=0)=>({time,state:{action,grounded:true,tele
 const summary=summarizeMotionTrace([mock(0,'idle',0),mock(1,'walk',.02),mock(2,'walk',.04),mock(3,'walk',10,1)]);
 assert.equal(summary.feet.left.comparisons,2);assert.equal(summary.feet.left.maxDrift,.04);assert.equal(summary.feet.left.maxPenetration,.005);assert.equal(summary.feet.right.maxDrift,null);assert.equal(summary.actions.length,3);assert.equal(summary.feet.left.windows.length,2);
 console.log('PASS posed bare-body sole samples and trace summary reset/coverage');
+
+const qframe=(i,phase,action,grounded=true)=>({time:i/60,state:{root:[0,0,0],renderRoot:[0,0,0],phase,heading:0,action,grounded,teleportId:0},bodyRoot:[0,0,0],joints:[{id:'head',rotation:[0,0,0,1]}]});
+const quality=motionQuality([qframe(0,6.2,'walk'),qframe(1,.1,'walk'),qframe(2,.2,'backpedal'),qframe(3,.1,'backpedal'),qframe(4,.1,'airborne',false),qframe(5,.1,'idle')]);
+assert.deepEqual(quality.phase,{forward:1,reverse:1,opposite:0});assert.equal(quality.maxLocalJointDeltaRad,0);assert.equal(quality.groundTransitions.length,2);assert.equal(quality.maxRootRenderGap,0);
+console.log('PASS motion quality wrap/reverse, discontinuity and ground event diagnostics');

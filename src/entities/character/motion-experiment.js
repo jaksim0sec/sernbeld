@@ -99,6 +99,36 @@ export function summarizeMotionTrace(frames){
  }
  return {actions,feet,scope:'observed bare-body sole samples; no authored support or pass/fail inference'};
 }
+// A separate presentation diagnostic: measured changes, never a new solver.
+// The same action and fixed sampling interval are required for phase checks.
+export function motionQuality(frames){
+ const result={frames:frames.length,phase:{forward:0,reverse:0,opposite:0},maxLocalJointDeltaRad:null,maxRootRenderGap:null,maxRenderBodyGap:null,groundTransitions:[],pivotFrames:0};
+ let previous=null;
+ for(let i=0;i<frames.length;i++){
+  const f=frames[i],s=f.state;if(!s)continue;
+  if(s.root&&s.renderRoot)result.maxRootRenderGap=Math.max(result.maxRootRenderGap??0,dist(s.root,s.renderRoot));
+  if(s.renderRoot&&f.bodyRoot)result.maxRenderBodyGap=Math.max(result.maxRenderBodyGap??0,dist(s.renderRoot,f.bodyRoot));
+  const p=previous?.state,dt=previous?f.time-previous.time:0;
+  if(p&&p.teleportId===s.teleportId&&dt>0&&dt<=.1){
+   const headingDelta=Math.atan2(Math.sin(s.heading-p.heading),Math.cos(s.heading-p.heading));
+   if(s.action==='idle'&&s.grounded&&Math.abs(headingDelta)/dt>.12)result.pivotFrames++;
+   if(p.grounded!==s.grounded)result.groundTransitions.push({frame:i,kind:s.grounded?'land':'leave-ground'});
+   if(s.action===p.action&&['walk','run','backpedal'].includes(s.action)){
+    const d=Math.atan2(Math.sin(s.phase-p.phase),Math.cos(s.phase-p.phase));
+    if(Math.abs(d)>1e-6){const reverse=s.action==='backpedal';result.phase[reverse?'reverse':'forward']++;if(reverse?d>0:d<0)result.phase.opposite++;}
+   }
+   const old=new Map((previous.joints??[]).map(j=>[j.id,j.rotation]));
+   for(const j of f.joints??[]){
+    const q=old.get(j.id);if(!q)continue;
+    const dot=Math.abs(q.reduce((sum,v,k)=>sum+v*j.rotation[k],0));
+    const angle=2*Math.acos(Math.max(0,Math.min(1,dot)));
+    result.maxLocalJointDeltaRad=Math.max(result.maxLocalJointDeltaRad??0,angle);
+   }
+  }
+  previous=f;
+ }
+ return result;
+}
 export function capturePose(actor,state,{time=0,groundSurface=null,ankleRest=null}={}){
  actor.group.updateWorldMatrix(true,true);
  const joints=actor.data.bones.map(b=>{
@@ -116,7 +146,7 @@ export function capturePose(actor,state,{time=0,groundSurface=null,ankleRest=nul
 export function createMotionTrace({limit=600}={}){
  if(!Number.isInteger(limit)||limit<1||limit>1800)throw new RangeError('trace limit');
  let active=false,frames=[],error=null;
- const read=()=>({frames:frames.slice(),active,error,...(frames[0]?.state?{summary:summarizeMotionTrace(frames)}:{})});
+ const read=()=>({frames:frames.slice(),active,error,...(frames[0]?.state?{summary:summarizeMotionTrace(frames),quality:motionQuality(frames)}:{})});
  return {start(){active=true;frames=[];error=null;},stop(reason=null){active=false;error=reason;return read();},get active(){return active;},push(frame){if(!active)return false;frames.push(frame);if(frames.length===limit)active=false;return true;},read};
 }
 export function sampleLabGround(fixtures,x,z){
@@ -162,7 +192,7 @@ export function replayMotion(makeActor,profile,{scenario='walk',strength='baseli
    actor.group.position.copy(p.pos);actor.group.rotation.y=p.yaw+Math.PI;
    const before=vec(p.pos),response=animatePlayer(actor,1/60,1+t,p,null,{}, {turnRate:turn,turnStep:turn/60,runSpeed:7.5});
    if(dist(before,vec(p.pos))!==0)throw Error('animation wrote physical root');
-   const state=readMotionState(p,actor,null);state.pivotPhase=response.pivotPhase;state.pivotWeight=response.pivotWeight;state.landing=response.landing;
+   const state=readMotionState(p,actor,null);if(scenario==='pivot'&&response.pivotWeight>.005)state.action='pivot';state.pivotPhase=response.pivotPhase;state.pivotWeight=response.pivotWeight;state.landing=response.landing;
    trace.push(capturePose(actor,state,{time:t,groundSurface:()=>0,ankleRest:measure.ankleRest}));
   }
   return {scenario,strength,scale,rig:measure,frames:trace,scope:'scripted driver; no physics or post-IK'};

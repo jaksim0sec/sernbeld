@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {mkdir} from 'node:fs/promises';
+import {mkdir,writeFile} from 'node:fs/promises';
 
 const {chromium}=await import('playwright');
 const port=8796,url='http://127.0.0.1:'+port+'/';
@@ -74,6 +74,45 @@ try{
   },angle);
   await page.screenshot({path:'test-results/motion-t2-'+name+'.png'});
  }
+  // Reproducible real-controller/pose fixture. Advance existing Player and
+ // avatar update directly at 60 Hz, as in world-playability; no alternate solver.
+ const trials=await page.evaluate(async()=>{
+  const d=window.__dev,p=d.player,input=d.input;
+  const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
+  const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
+  const out={};input.independentHeading=true;
+  const cases=[['idle',[]],['walk',['KeyW']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']]];
+  for(const [name,codes] of cases){
+   input.keys.clear();input.setSprint(false);d.reset();
+   const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
+   const step=(i,record)=>{
+    p.advance(1/60,input,[]);
+    const before=p.pos.clone();d.avatars.update(1/60,i/60,{swing:null});
+    if(before.distanceTo(p.pos)>1e-9)throw Error('avatar changed physics root');
+    if(record){
+     const hit=d.collision.probe(p.pos.x,p.pos.z,p.pos.y).hit;
+     frames.push(m.capturePose(actor,m.readMotionState(p,actor,hit),{time:i/60,groundSurface:d.playerFootSurface,ankleRest:rig.ankleRest}));
+    }
+   };
+   for(let i=0;i<60;i++)step(i,false);
+   for(let i=60;i<72;i++)step(i,true);
+   for(const c of codes)key('keydown',c);
+   for(let i=72;i<132;i++)step(i,true);
+   for(const c of codes)key('keyup',c);
+   for(let i=132;i<192;i++)step(i,true);
+   out[name]={summary:m.summarizeMotionTrace(frames),quality:m.motionQuality(frames),frames};
+  }
+  d.reset();return out;
+ });
+ assert(trials.walk.summary.actions.some(a=>a.action==='walk'));
+ assert(trials.backpedal.summary.actions.some(a=>a.action==='backpedal'));
+ assert(trials.pivot.quality.pivotFrames>0);
+ assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='leave-ground'));
+ assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='land'));
+ for(const trial of Object.values(trials))assert.equal(trial.quality.frames,132);
+ const qualitySummary=Object.fromEntries(Object.entries(trials).map(([k,v])=>[k,{summary:v.summary,quality:v.quality}]));
+ await writeFile('test-results/motion-t2-fixed-trace.json',JSON.stringify(trials));
+ console.log('T2 fixed 60Hz post-IK observations '+JSON.stringify(qualitySummary));
  await page.screenshot({path:'test-results/physics-t1-lab.png'});
  assert.deepEqual(errors,[]);
  console.log('PASS: Kael and motion-lab live collision registration, support parity, PWA and LOD-independent runtime '+JSON.stringify({main,lab}));
