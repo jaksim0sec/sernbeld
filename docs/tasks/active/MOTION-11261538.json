@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: actual Chromium and Node on 6927137 passed core functional regression; forward/landing metrics improved, reverse joint discontinuity remains. Ground IK continuity safeguards implemented; verify latest actual post-IK joint/frame peak, run/slope and male/female/V01 before core closure. T3.5 bounded polish only."
+  "next": "MOTION-11261538/T3: prioritize LIVE-B21 major apparent body/sidewall penetration (P0, root cause unconfirmed), then remaining reverse/run/slope and male/female/V01 evaluation. T3.5 bounded polish only."
 }
