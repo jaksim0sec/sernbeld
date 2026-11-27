@@ -287,3 +287,41 @@ for(const flight of [lower,upper]){
 assert.equal(playerEnv.playerTerrain(62,0,-1,true),0,'unreachable stair is not penetration ground');
 assert.equal(playerEnv.playerTerrain(62,0,-1),high.point[1],'candidate retains legacy rise barrier');
 console.log('PASS T3 saved height, actual fixed ticks and presentation retain stacked flight');
+
+ 
+// T3 continuous static sweep: endpoints miss a shallow cylinder/OBB graze.
+const sweepBridge=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+sweepBridge.setRegion('sweep');env.install(sweepBridge);
+const grazing=env.addCyl({x:20,z:0,r:.1,y0:0,y1:2,walk:false});
+const gx=19.96,gz=.4475,dx=.08;
+assert.equal(env.playerContacts(gx,gz,0).length,0);
+assert.equal(env.playerContacts(gx+dx,gz,0).length,0);
+const hits=sweepBridge.staticSweep(gx,gz,0,dx,0);
+assert.equal(hits.length,1);
+assert.equal(hits[0].collider,grazing);
+assert(hits[0].toi>0&&hits[0].toi<.5);
+assert(hits[0].nx<0&&hits[0].nz>0);
+assert.equal(sweepBridge.staticSweep(gx,gz,2,dx,0).length,0,'support top is not a side obstacle');
+assert.equal(sweepBridge.staticSweep(20,0,0,1,0).length,0,'existing overlap escape belongs to endpoint solver');
+const sweptCandidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+ 'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+)(env.playerTerrain,env.playerFloor,()=>null,sweepBridge,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+const grazingActor={pos:{x:gx,y:0,z:gz},onGround:true,swimming:false,nearby:[],solids:env.playerSweepColliders(gx,gz,.45)};
+assert.equal(sweptCandidate.call(grazingActor,dx,0).contacts[0].collider,grazing,'actual Player detects interior contact with clear endpoints');
+sweepBridge.suspendRegion('sweep');
+assert.equal(sweepBridge.staticSweep(gx,gz,0,dx,0,[grazing]).length,0,'cached inactive record excluded');
+sweepBridge.resumeRegion('sweep');
+assert.equal(sweepBridge.staticSweep(gx,gz,0,dx,0,[grazing]).length,1);
+assert(sweepBridge.remove(grazing.collisionId));
+assert.equal(sweepBridge.staticSweep(gx,gz,0,dx,0,[grazing]).length,0,'stale cached record excluded');
+const ob=env.addBox({cx:25,cy:1,cz:0,hx:.1,hy:1,hz:.1,yaw:Math.PI/4,walk:false});
+const world=(a,b)=>[25+a*ob.cos+b*ob.sin,-a*ob.sin+b*ob.cos];
+const q=.3475/Math.SQRT2;
+const [sx,sz]=world(.1+q-.04/Math.SQRT2,.1+q+.04/Math.SQRT2);
+const [ex,ez]=world(.1+q+.04/Math.SQRT2,.1+q-.04/Math.SQRT2);
+assert.equal(env.playerContacts(sx,sz,0).length,0);
+assert.equal(env.playerContacts(ex,ez,0).length,0);
+const corner=sweepBridge.staticSweep(sx,sz,0,ex-sx,ez-sz);
+assert.equal(corner[0]?.collider,ob);
+assert(corner[0].toi>0&&corner[0].toi<.5);
+console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual candidate and region lifecycle');

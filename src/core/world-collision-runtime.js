@@ -143,10 +143,17 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return out;
  }
+ // Static horizontal sweep at the candidate feet height. Player retains
+ // step admission, vertical movement and velocity projection.
+ function staticSweep(x,z,y,dx,dz,solids=null,radius=.35,height=1.72){
+  const hits=registry.sweepBody({root:[x,y,z],delta:[dx,0,dz],profile:{radius,height},candidates:solids},{regionId,purpose:"block"});
+  if(!hits.length)return [];
+  return hits.filter(h=>h.toi<=hits[0].toi+1e-6).map(h=>({nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider:records.get(h.instanceId),toi:h.toi}));
+ }
  function remove(id){
   const h=handles.get(id);if(!h)return false;
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

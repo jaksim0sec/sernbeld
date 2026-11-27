@@ -3736,6 +3736,10 @@ var Player = class {
       const unresolved=contacts.filter(c=>!prior.some(q=>c.collider===q.collider&&c.depth<q.depth-1e-5));
       if(unresolved.length)return {contacts:unresolved};
     }
+    // Even when endpoint overlap is clear, a grazing corner may have been
+    // crossed. Use the registered sweep with the cached broadphase buffer.
+    const swept=WorldCollision?.staticSweep?.(p.x,p.z,y,x-p.x,z-p.z,this.solids,PLAYER.radius,PLAYER.body)??[];
+    if(swept.length)return {contacts:swept};
     return {x,z,y,contacts:[]};
   }
   blocked(x,z){return this.candidate(x-this.pos.x,z-this.pos.z).contacts.length>0;}

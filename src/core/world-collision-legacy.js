@@ -77,6 +77,33 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
    point,geometricNormal:n,contactNormal:c,separation,toi:null,
    policyId:data.shape.policy.id,revision:data.revision};
  }
+ // Minimize squared distance from a center segment to a convex primitive.
+ // In OBB-local coordinates the distance is quadratic between face crossings.
+ function closestSweepTime(o,x,z,dx,dz){
+  if(o.type==="cyl")return clamp(((o.x-x)*dx+(o.z-z)*dz)/(dx*dx+dz*dz),0,1);
+  const [a,b]=local(o,x,z),u=dx*o.cos-dz*o.sin,v=dx*o.sin+dz*o.cos,ts=[0,1];
+  const axes=[[a,u,o.hx],[b,v,o.hz]];
+  for(const [p,d,h] of axes)if(d!==0)for(const edge of [-h,h]){
+   const t=(edge-p)/d;if(t>0&&t<1)ts.push(t);
+  }
+  ts.sort((a,b)=>a-b);
+  let best=Infinity,bestT=0;
+  const consider=t=>{
+   const q=a+u*t,r=b+v*t,ex=q-clamp(q,-o.hx,o.hx),ez=r-clamp(r,-o.hz,o.hz),s=ex*ex+ez*ez;
+   if(s<best){best=s;bestT=t;}
+  };
+  for(let i=1;i<ts.length;i++){
+   const lo=ts[i-1],hi=ts[i],mid=(lo+hi)/2;
+   let num=0,den=0;
+   for(const [p,d,h] of axes){
+    const q=p+d*mid;
+    if(q<-h||q>h){num+=d*(p-Math.sign(q)*h);den+=d*d;}
+   }
+   consider(lo);consider(hi);
+   if(den>0)consider(clamp(-num/den,lo,hi));
+  }
+  return bestT;
+ }
  const backend={
   sampleSupport(args,filter,resolve){
    const profile=getProfile(args,true),[x,y,z]=args.root;
@@ -126,6 +153,36 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
     if(!best||hit.priority>best.priority||hit.priority===best.priority&&order(hit.instanceId,best.instanceId)<0)best=hit;
    }
    return best;
+  },
+  sweepBody(args,filter,resolve){
+   const profile=getProfile(args),[x,y,z]=args.root,delta=args.delta;
+   if(!vec(delta)||delta[1]!==0)throw new TypeError("static horizontal sweep only");
+   const [dx,,dz]=delta,distance=Math.hypot(dx,dz);
+   if(distance<1e-9)return [];
+   const out=[];
+   for(const {record:o,data} of candidates(x,z,profile.radius+distance,resolve,args.candidates??null)){
+    if(o.top<=y+skin||o.bot>=y+profile.height-skin)continue;
+    // Leave existing overlaps to the endpoint escape solver.
+    if(playerContact(o,x,z,profile.radius))continue;
+    const t=closestSweepTime(o,x,z,dx,dz);
+    let c=playerContact(o,x+dx*t,z+dz*t,profile.radius);
+    if(!c)continue;
+    let lo=0,hi=t;
+    for(let i=0;i<20;i++){
+     const mid=(lo+hi)/2,p=playerContact(o,x+dx*mid,z+dz*mid,profile.radius);
+     if(p){hi=mid;c=p;}else lo=mid;
+    }
+    const px=x+dx*hi,pz=z+dz*hi,n=[c.nx,0,c.nz];
+    let feature="side",geometricNormal=n;
+    if(o.type==="box"){
+     const nx=c.nx*o.cos-c.nz*o.sin,nz=c.nx*o.sin+c.nz*o.cos;
+     if(Math.abs(nx)>1e-7&&Math.abs(nz)>1e-7){feature="corner:"+Math.sign(nx)+":"+Math.sign(nz);geometricNormal=null;}
+     else feature=Math.abs(nx)>Math.abs(nz)?"side-x:"+Math.sign(nx):"side-z:"+Math.sign(nz);
+    }
+    const hit=contact(data,feature,sidePoint(o,px,pz,c.nx,c.nz,(Math.max(y,o.bot)+Math.min(y+profile.height,o.top))/2),geometricNormal,n,-c.depth);
+    hit.toi=hi;out.push(hit);
+   }
+   return out.sort((a,b)=>a.toi-b.toi||order(a.surfaceId,b.surfaceId));
   },
   overlapBody(args,filter,resolve){
    const profile=getProfile(args),[x,y,z]=args.root,head=y+profile.height,out=[];
@@ -188,7 +245,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
  // revision. Old consumers are unchanged until authority is switched.
  return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
   activeStatic:(record,filter)=>{const link=links.get(record);return Boolean(link&&world.isEligible(link.id,link.shapeId,filter));},
-  sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities,
+  sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,sweepBody:world.sweepBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities,
   analyticalIndexStats:()=>({cells:analyticalCells.size,largeSources:largeAnalytical.size,sources:analytical.size})};
 }
 

@@ -79,3 +79,8 @@
 
 - 등록된 primitive의 활성 및 지역/block 필터를 bodyBlockedAt/pushOut/occupiedAt에 공통 적용한다. 기존 허용치와 기하 판정은 유지. bridge 없는 legacy fixture fallback 및 stale 등록 비활성 유지.
 - groundSlope는 실제 선택 지지 높이와 일치하는 terrain/lab-ground normal에만 classifySupport를 적용한다. null은 확인된 보행 가능, undefined는 미확정(기존 경로로 복귀)이다. 계단/지붕 분기 및 50° 기준 유지. T3 이동 후보/모션·접지/실화면 검증은 미완료.
+
+
+## T3 등록 정적 수평 sweep (PARTIAL)
+
+- `sweepBody({root,delta,profile,candidates}, {regionId,purpose:'block'})`: static box/cylinder only, delta.y=0; returns sorted SurfaceContacts with normalized contactNormal and fractional toi. Rounded OBB corner uses geometricNormal=null. Existing start overlap is left to endpoint escape policy. Runtime staticSweep selects simultaneous earliest contacts and Player candidate consumes the existing cached broadphase at the candidate feet height when endpoint overlap permits. Step/vertical/terrain/roof/dynamic ownership remains with existing solver; this does not establish full continuous 3D collision coverage.
