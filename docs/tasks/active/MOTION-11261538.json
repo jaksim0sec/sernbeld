@@ -21,7 +21,9 @@
     ".github/workflows/main-validation.yml",
     "tests/world-collision-browser.mjs",
     "src/entities/character/motion-experiment.js",
-    "tests/motion-experiment.mjs"
+    "tests/motion-experiment.mjs",
+    "docs/knowledge/MOTION_VIDEO_LESSONS.md",
+    "docs/tasks/active/MOTION-11261538-video-bugs.md"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -34,5 +36,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T2: confirm matched strength CI and visual evidence, record user aesthetic direction/approval scope and remaining quality baseline before closing."
+  "next": "MOTION-11261538/T2: preserve existing experiment evidence; draft indexed motion creation standard using video lessons, verify remaining matched strength visual evidence; resolve V01 bugs in assigned T3–T8."
 }
