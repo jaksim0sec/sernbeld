@@ -104,6 +104,21 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
   }
   return bestT;
  }
+ // Shared narrow phase for registered static primitives and frame-local resident
+ // snapshots. Existing overlaps remain the endpoint escape solver's responsibility.
+ function sweepPrimitive(o,x,z,y,dx,dz,radius,height){
+  if(o.top<=y+skin||o.bot>=y+height-skin||Math.hypot(dx,dz)<1e-9)return null;
+  if(playerContact(o,x,z,radius))return null;
+  const t=closestSweepTime(o,x,z,dx,dz);
+  let c=playerContact(o,x+dx*t,z+dz*t,radius);
+  if(!c)return null;
+  let lo=0,hi=t;
+  for(let i=0;i<20;i++){
+   const mid=(lo+hi)/2,p=playerContact(o,x+dx*mid,z+dz*mid,radius);
+   if(p){hi=mid;c=p;}else lo=mid;
+  }
+  return {...c,toi:hi};
+ }
  const backend={
   sampleSupport(args,filter,resolve){
    const profile=getProfile(args,true),[x,y,z]=args.root;
@@ -161,17 +176,9 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
    if(distance<1e-9)return [];
    const out=[];
    for(const {record:o,data} of candidates(x,z,profile.radius+distance,resolve,args.candidates??null)){
-    if(o.top<=y+skin||o.bot>=y+profile.height-skin)continue;
-    // Leave existing overlaps to the endpoint escape solver.
-    if(playerContact(o,x,z,profile.radius))continue;
-    const t=closestSweepTime(o,x,z,dx,dz);
-    let c=playerContact(o,x+dx*t,z+dz*t,profile.radius);
+    const c=sweepPrimitive(o,x,z,y,dx,dz,profile.radius,profile.height);
     if(!c)continue;
-    let lo=0,hi=t;
-    for(let i=0;i<20;i++){
-     const mid=(lo+hi)/2,p=playerContact(o,x+dx*mid,z+dz*mid,profile.radius);
-     if(p){hi=mid;c=p;}else lo=mid;
-    }
+    const hi=c.toi;
     const px=x+dx*hi,pz=z+dz*hi,n=[c.nx,0,c.nz];
     let feature="side",geometricNormal=n;
     if(o.type==="box"){
@@ -243,7 +250,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
  // Intentionally no updateTransform: original legacy grid is static. A move
  // must be reinserted into that grid, then registered again under a fresh
  // revision. Old consumers are unchanged until authority is switched.
- return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
+ return {registerStatic,registerAnalytical,remove,sweepPrimitive,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
   activeStatic:(record,filter)=>{const link=links.get(record);return Boolean(link&&world.isEligible(link.id,link.shapeId,filter));},
   sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,sweepBody:world.sweepBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities,
   analyticalIndexStats:()=>({cells:analyticalCells.size,largeSources:largeAnalytical.size,sources:analytical.size})};

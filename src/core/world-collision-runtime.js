@@ -143,12 +143,19 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return out;
  }
- // Static horizontal sweep at the candidate feet height. Player retains
- // step admission, vertical movement and velocity projection.
- function staticSweep(x,z,y,dx,dz,solids=null,radius=.35,height=1.72){
-  const hits=registry.sweepBody({root:[x,y,z],delta:[dx,0,dz],profile:{radius,height},candidates:solids},{regionId,purpose:"block"});
+ // Horizontal sweep at candidate feet height. Static geometry uses the
+ // registry; active resident snapshots use the same primitive narrow phase.
+ // Return only the earliest simultaneous contacts across both populations.
+ function staticSweep(x,z,y,dx,dz,solids=null,radius=.35,height=1.72,nearby=[]){
+  const hits=registry.sweepBody({root:[x,y,z],delta:[dx,0,dz],profile:{radius,height},candidates:solids},{regionId,purpose:"block"})
+   .map(h=>({nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider:records.get(h.instanceId),toi:h.toi}));
+  for(const o of nearby){
+   const c=registry.sweepPrimitive(o,x,z,y,dx,dz,radius,height);
+   if(c)hits.push(c);
+  }
   if(!hits.length)return [];
-  return hits.filter(h=>h.toi<=hits[0].toi+1e-6).map(h=>({nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider:records.get(h.instanceId),toi:h.toi}));
+  hits.sort((a,b)=>a.toi-b.toi);
+  return hits.filter(h=>h.toi<=hits[0].toi+1e-6);
  }
  function remove(id){
   const h=handles.get(id);if(!h)return false;

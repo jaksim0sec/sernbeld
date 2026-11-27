@@ -375,3 +375,43 @@ console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual cand
  assert.equal(env.playerSafeSpawn(90,0).y,4,'legacy extraction retains unregistered behavior');
  console.log('PASS T3 automatic spawn respects registered region and removed proxy');
 }
+
+
+// T3: resident and registered static sweep share the earliest contact rule.
+{
+ const mixed=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+ mixed.setRegion('mixed-sweep');env.install(mixed);
+ const resident={def:{scale:1},x:40,z:0,y:0,hidden:false,ch:null};
+ const x=39.96,z=.6175,dx=.08;
+ const p={pos:{x,y:0,z},onGround:true,swimming:false,solids:[]};
+ p.nearby=residentContacts.call({list:[resident]},p);
+ assert.equal(p.nearby.length,1);
+ assert.equal(env.playerContacts(x,z,0,p.nearby).length,0);
+ assert.equal(env.playerContacts(x+dx,z,0,p.nearby).length,0);
+ const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+  'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+ )(env.playerTerrain,env.playerFloor,()=>null,mixed,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+ const contact=candidate.call(p,dx,0).contacts[0];
+ assert(contact&&contact.collider===p.nearby[0],'actual Player cannot cross resident with both endpoints clear');
+ assert(contact.toi>0&&contact.toi<.5&&contact.nx<0&&contact.nz>0);
+ assert.equal(mixed.staticSweep(x,z,2,dx,0,[],.35,1.72,p.nearby).length,0,'vertical separation');
+ assert.equal(mixed.staticSweep(40,0,0,dx,0,[],.35,1.72,p.nearby).length,0,'existing overlap may escape');
+ assert.equal(mixed.staticSweep(x,z,0,0,0,[],.35,1.72,p.nearby).length,0,'stationary sweep');
+ const later=env.addCyl({x:40.02,z:0,r:.27,y0:0,y1:2,walk:false});
+ const staticHit=mixed.staticSweep(x,z,0,dx,0,[later])[0];
+ assert(staticHit&&staticHit.toi>contact.toi);
+ assert.equal(mixed.staticSweep(x,z,0,dx,0,[later],.35,1.72,p.nearby)[0].collider,p.nearby[0],'earliest resident wins across populations');
+ const earlier=env.addCyl({x:39.94,z:0,r:.27,y0:0,y1:2,walk:false});
+ const first=mixed.staticSweep(x,z,0,dx,0,[earlier],.35,1.72,p.nearby);
+ // This earlier cylinder is already overlapping the origin, so it does not
+ // override a new contact. A coincident static produces a simultaneous hit.
+ assert.equal(first[0].collider,p.nearby[0]);
+ const coincident=env.addCyl({x:40,z:0,r:.27,y0:0,y1:2,walk:false});
+ const tied=mixed.staticSweep(x,z,0,dx,0,[coincident],.35,1.72,p.nearby);
+ assert.equal(tied.length,2);
+ assert(tied.some(c=>c.collider===coincident)&&tied.some(c=>c.collider===p.nearby[0]));
+ resident.hidden=true;
+ p.nearby=residentContacts.call({list:[resident]},p);
+ assert.equal(candidate.call(p,dx,0).contacts.length,0,'inactive resident not swept');
+ console.log('PASS T3 shared static/resident narrow phase, actual candidate, earliest contact, overlap escape and inactive residents');
+}

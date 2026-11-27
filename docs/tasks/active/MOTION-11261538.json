@@ -36,5 +36,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: automatic spawn now respects active registered primitives; remaining compound terrain/roof/dynamic sweep checks and T2 locomotion/contact/transition integration after scope coordination, then V01 evaluation. T2 outstanding evidence remains tracked."
+  "next": "MOTION-11261538/T3: static and active resident snapshots now share horizontal primitive sweep; remaining relative dynamic motion and compound terrain/roof sweep, T2 locomotion/contact/transition integration after scope coordination, then V01 evaluation. T2 outstanding evidence remains tracked."
 }

@@ -50580,8 +50580,9 @@ var Player = class {
       if(unresolved.length)return {contacts:unresolved};
     }
     // Even when endpoint overlap is clear, a grazing corner may have been
-    // crossed. Use the registered sweep with the cached broadphase buffer.
-    const swept=WorldCollision?.staticSweep?.(p.x,p.z,y,x-p.x,z-p.z,this.solids,PLAYER.radius,PLAYER.body)??[];
+    // crossed. Use the same continuous narrow phase for registered statics
+    // and the active resident snapshots supplied to the endpoint solver.
+    const swept=WorldCollision?.staticSweep?.(p.x,p.z,y,x-p.x,z-p.z,this.solids,PLAYER.radius,PLAYER.body,this.nearby)??[];
     if(swept.length)return {contacts:swept};
     return {x,z,y,contacts:[]};
   }
