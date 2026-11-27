@@ -114,6 +114,56 @@ export function anticipateFootStep(x,z,surface,feetY,vx,vz,groundSurface,lock=0)
  return surface+Math.max(0,upper-surface)*ease*(1-clamp01(lock)*(1-ease));
 }
 
+// A support point on the toe/heel may meet the next tread well before the
+// ankle does. Detect discrete height changes without changing slope policy.
+export function isFootTreadEdge(x,z,h,px,pz,ph,feetY,surfaceAt){
+ if(!Number.isFinite(h)||!Number.isFinite(ph)||Math.abs(ph-h)<.06||Math.abs(ph-h)>.48)return false;
+ let lo=0,hi=1,lower=h,upper=ph;
+ const rising=ph>h,threshold=(h+ph)*.5;
+ for(let i=0;i<7;i++){
+  const m=(lo+hi)*.5,v=surfaceAt(x+(px-x)*m,z+(pz-z)*m,feetY);
+  if(!Number.isFinite(v)||Math.abs(v-feetY)>.5)return false;
+  if(rising?v>=threshold:v<=threshold){hi=m;upper=v;}else{lo=m;lower=v;}
+ }
+ return Math.abs(upper-lower)>=.06&&Math.abs(upper-lower)<=.48;
+}
+// Each offset is relative to the ankle in world coordinates, in its actual
+// authored orientation. Preserve the rigid foot orientation and query its
+// footprint, including anticipation from the leading sole, not its pivot.
+export function footTreadTarget(x,z,surface,feetY,vx,vz,offsets,groundSurface,lock=0){
+ let active=false,target=-Infinity;
+ for(const p of offsets){
+  const px=x+p.x,pz=z+p.z,h=groundSurface(px,pz,feetY);
+  if(!Number.isFinite(h)||Math.abs(h-feetY)>.5||Math.abs(h-surface)>.48)continue;
+  const ahead=anticipateFootStep(px,pz,h,feetY,vx,vz,groundSurface,lock);
+  if(ahead>h+1e-8||isFootTreadEdge(x,z,surface,px,pz,h,feetY,groundSurface))active=true;
+  target=Math.max(target,Math.max(h,ahead)-p.y);
+ }
+ return active&&Number.isFinite(target)?target:null;
+}
+// Representative real rest-sole vertices. Cache in bodyAnchors (once per
+// avatar); no posed mesh traversal or allocation of vectors per frame.
+export function footSoleOffsets(T,actor,side){
+ const g=actor.mesh.geometry,p=g.attributes.position,j=g.attributes.skinIndex,w=g.attributes.skinWeight;
+ const bones=actor.data.bones,root='foot_'+side,pivot=bones.find(b=>b.id===root)?.pivot;
+ if(!pivot||!p||!j||!w)return [];
+ const names=new Map(bones.map(b=>[b.id,b]));
+ const ids=new Set(bones.flatMap((b,i)=>{for(let n=b;n;n=names.get(n.parent))if(n.id===root)return [i];return [];}));
+ const candidates=[];let low=Infinity;
+ for(let i=0;i<actor.bodyVertexCount;i++){
+  let weight=0;for(const k of ['X','Y','Z','W'])if(ids.has(j['get'+k](i)))weight+=w['get'+k](i);
+  if(weight<.5)continue;
+  const y=p.getY(i);low=Math.min(low,y);candidates.push(i);
+ }
+ const sole=candidates.filter(i=>(p.getY(i)-low)*actor.units<=.025);
+ if(!sole.length)return [];
+ const pick=fn=>sole.reduce((best,i)=>fn(i)<fn(best)?i:best,sole[0]);
+ const centerX=(p.getX(pick(i=>p.getX(i)))+p.getX(pick(i=>-p.getX(i))))*.5;
+ const centerZ=(p.getZ(pick(i=>p.getZ(i)))+p.getZ(pick(i=>-p.getZ(i))))*.5;
+ const selected=new Set([pick(i=>p.getZ(i)),pick(i=>-p.getZ(i)),pick(i=>p.getX(i)),pick(i=>-p.getX(i)),pick(i=>(p.getX(i)-centerX)**2+(p.getZ(i)-centerZ)**2),pick(i=>p.getY(i))]);
+ return [...selected].map(i=>new T.Vector3(p.getX(i)-pivot[0]/1428,p.getY(i)-pivot[1]/1428,p.getZ(i)-pivot[2]/1428));
+}
+
 // Fade ground IK from the authored pose for small target changes. A hard
 // invocation threshold otherwise applies the full knee pole repair to even a
 // millimetre-sized correction. Upward anti-penetration has a shorter fade.
@@ -357,6 +407,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const chest=pivot('upper_arm_left').add(pivot('upper_arm_right')).multiplyScalar(.5);
   return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06)),headRest:pivot('head'),
    ankleRest:Math.min(pivot('foot_left').y,pivot('foot_right').y),
+   soleOffsets:Object.fromEntries(['left','right'].map(side=>{const rest=footSoleOffsets(T,actor,side);return [side,{rest,world:rest.map(()=>new T.Vector3())}];})),
    kneeFlex:Object.fromEntries(['left','right'].map(side=>[side,actor.data.bones.find(b=>b.id==='shin_'+side)?.axes[0]?.max]))};
  }
  const flipY=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
@@ -589,10 +640,21 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
     const ahead=anticipateFootStep(x,z,surface,player.pos.y,player.vel.x,player.vel.z,groundSurface,contact?.weight??0);
     if(ahead>surface)vertical=Math.max(vertical,Math.min(.27,ahead+sole-footV.y));
    }
+   foot.getWorldQuaternion(footWorldQ);
+   // A tread can intersect a toe or heel while the ankle still samples the
+   // lower tread. Use actual rest-sole offsets, including foot pitch.
+   // Also handle stopping on the boundary (no velocity required for exact
+   // footprint clearance). Ordinary flat/continuous surfaces are untouched.
+   if(!player.slide&&pivot<.005){
+    const samples=bodyAnchors().soleOffsets[side],scale=a.units*a.group.scale.x;
+    for(let i=0;i<samples.rest.length;i++)samples.world[i].copy(samples.rest[i]).multiplyScalar(scale).applyQuaternion(footWorldQ);
+    const target=footTreadTarget(x,z,surface,player.pos.y,player.vel.x,player.vel.z,samples.world,groundSurface,contact?.weight??0);
+    if(target!==null)vertical=Math.max(vertical,Math.min(.48,target-footV.y));
+   }
    const weight=groundIKWeight(vertical,Math.hypot(x-footV.x,z-footV.z));
    if(!weight)continue;
    goalV.set(x,footV.y+vertical,z);
-   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ),null,bodyAnchors().kneeFlex[side]??135,weight);
+   solveFoot(a,side,goalV,footWorldQ,null,bodyAnchors().kneeFlex[side]??135,weight);
   }
  }
  function solveFoot(a,side,target,rotation,preferredPole=null,groundFlex=null,weight=1){

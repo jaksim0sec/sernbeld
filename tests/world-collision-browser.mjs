@@ -251,6 +251,65 @@ try{
   const d=window.__dev,p=d.player,input=d.input;
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
   const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
+
+  // Measure mid-segment edges, away from the joint blend zone, separately
+  // for the body's actual skinning and the pants' CPU shader counterpart.
+  // Values are observations, not arbitrary acceptance limits.
+  function legMeshProbe(actor){
+   const pivot=id=>actor.data.bones.find(b=>b.id===id).pivot;
+   const min=actor.mesh.geometry.boundingBox.min.y,units=actor.units;
+   const sign=Math.sign(pivot('thigh_left')[0]-pivot('thigh_right')[0])||1;
+   const pants=actor.model.getObjectByName('clothing:pants.basic-trousers');
+   const meshes=[{name:'body',object:actor.mesh,rest:actor.mesh.geometry.attributes.position,body:true}];
+   if(pants?.userData.deformGarmentVertex)meshes.push({name:'pants',object:pants,rest:pants.geometry.attributes.aRest,body:false});
+   for(const m of meshes){
+    const g=m.object.geometry,p=m.rest,index=g.index,geometryRest=g.attributes.position;
+    m.groups={};
+    for(const side of ['left','right'])for(const part of ['thigh','shin']){
+     const top=pivot(part+'_'+side)[1]/1428,bottom=pivot((part==='thigh'?'shin':'foot')+'_'+side)[1]/1428;
+     const lo=Math.min(top,bottom)+Math.abs(top-bottom)*.30,hi=Math.max(top,bottom)-Math.abs(top-bottom)*.30;
+     const within=i=>{
+      if(m.body&&i>=actor.bodyVertexCount)return false;
+      const y=m.body?p.getY(i):p.getY(i)/units+min;
+      return y>=lo&&y<=hi&&(p.getX(i)*sign>=0)===(side==='left');
+     };
+     const edges=new Map();
+     for(let i=0;i<index.count;i+=3){
+      const tri=[index.getX(i),index.getX(i+1),index.getX(i+2)];
+      for(let k=0;k<3;k++){
+       const a=Math.min(tri[k],tri[(k+1)%3]),b=Math.max(tri[k],tri[(k+1)%3]);
+       if(!within(a)||!within(b))continue;
+       const l=Math.hypot(geometryRest.getX(a)-geometryRest.getX(b),geometryRest.getY(a)-geometryRest.getY(b),geometryRest.getZ(a)-geometryRest.getZ(b));
+       if(l*(m.body?units:1)<.002)continue;
+       edges.set(a+':'+b,{a,b,l});
+      }
+     }
+     const all=[...edges.values()],stride=Math.max(1,Math.ceil(all.length/96));
+     m.groups[part+'_'+side]=all.filter((_,i)=>i%stride===0);
+    }
+   }
+   const a=actor.group.position.clone(),b=a.clone(),scale=a.clone();
+   return ()=>{
+    actor.group.updateMatrixWorld(true);
+    const out={};
+    for(const m of meshes){
+     const o=m.object;o.userData.updateGarmentPose?.();o.getWorldScale(scale);
+     const point=(i,v)=>m.body?o.localToWorld(o.getVertexPosition(i,v)):o.userData.deformGarmentVertex(i,v);
+     out[m.name]={};
+     for(const [id,edges] of Object.entries(m.groups)){
+      let max=0,sum=0;
+      for(const edge of edges){
+       const ratio=point(edge.a,a).distanceTo(point(edge.b,b))/(edge.l*scale.x),error=Math.abs(ratio-1);
+       if(!Number.isFinite(error))throw Error('nonfinite leg mesh edge');
+       max=Math.max(max,error);sum+=error;
+      }
+      out[m.name][id]={samples:edges.length,maxRelativeLengthChange:max,meanRelativeLengthChange:edges.length?sum/edges.length:null};
+     }
+    }
+    return out;
+   };
+  }
+
   const out={};input.independentHeading=true;
   const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']],['slope',['KeyW']],['stairs',['KeyW']],['blocked',['KeyW']]];
   for(const [name,codes] of cases){
@@ -259,10 +318,12 @@ try{
    if(name==='stairs'){const f=d.fixtures.stairs;p.teleport(f.x,f.z-.5,Math.PI,0,0);}
    if(name==='blocked'){const f=d.fixtures.ramps[0];p.teleport(f.x+f.width/2+.45,f.z-f.run/2,Math.PI/2,0,0);}
    const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
-   const pose=actor.pose;let authoredKnees=null;
-   actor.pose=function(angles){pose.call(this,angles);authoredKnees=Object.fromEntries(['left','right'].map(side=>[side,this.B['shin_'+side].quaternion.toArray()]));};
+   const pose=actor.pose;let authoredKnees=null,authoredLegMesh=null,sampleLegMesh=false;
+   const probeLegMesh=['walk','stairs'].includes(name)?legMeshProbe(actor):null;
+   actor.pose=function(angles){pose.call(this,angles);authoredKnees=Object.fromEntries(['left','right'].map(side=>[side,this.B['shin_'+side].quaternion.toArray()]));if(sampleLegMesh)authoredLegMesh=probeLegMesh();};
    const step=(i,record)=>{
     p.advance(1/60,input,[]);
+    sampleLegMesh=Boolean(probeLegMesh&&record&&i%12===0);
     const before=p.pos.clone();d.avatars.update(1/60,i/60,{swing:null});
     if(before.distanceTo(p.pos)>1e-9)throw Error('avatar changed physics root');
     if(record){
@@ -270,6 +331,7 @@ try{
      const frame=m.capturePose(actor,m.readMotionState(p,actor,hit),{time:i/60,groundSurface:d.playerFootSurface,ankleRest:rig.ankleRest});
      frame.headWorld=actor.B.head.getWorldQuaternion(actor.B.head.quaternion.clone()).toArray();
      frame.authoredKnees=authoredKnees;
+     if(sampleLegMesh)frame.legMesh={authored:authoredLegMesh,postIK:probeLegMesh()};
      frame.kneeAxes=Object.fromEntries(['left','right'].map(side=>[side,actor.data.bones.find(b=>b.id==='shin_'+side).axes[0].d]));
      frames.push(frame);
     }
@@ -329,6 +391,18 @@ try{
   kneeEvidence[name]={samples,authored,postIK};
  }
  console.log('T3.5 actual authored vs post-IK knee hinge evidence '+JSON.stringify(kneeEvidence));
+ const legMeshEvidence={};
+ for(const name of ['walk','stairs']){
+  const evidence=trials[name].frames.filter(f=>f.legMesh).map(f=>f.legMesh);
+  assert(evidence.length>0&&evidence.every(f=>f.authored&&f.postIK),'actual skin mesh comparison coverage');
+  const summary={};for(const frame of evidence)for(const stage of ['authored','postIK'])for(const [mesh,parts] of Object.entries(frame[stage]))for(const [part,v] of Object.entries(parts)){
+   const key=stage+':'+mesh+':'+part,record=summary[key]??(summary[key]={samples:0,maxRelativeLengthChange:0,peakMeanRelativeLengthChange:0});
+   record.samples+=v.samples;record.maxRelativeLengthChange=Math.max(record.maxRelativeLengthChange,v.maxRelativeLengthChange);record.peakMeanRelativeLengthChange=Math.max(record.peakMeanRelativeLengthChange,v.meanRelativeLengthChange??0);
+  }
+  assert(Object.entries(summary).filter(([key])=>key.includes(':body:')).every(([,v])=>v.samples>0),'actual body mid-segment sample coverage');
+  legMeshEvidence[name]=summary;
+ }
+ console.log('T3.5 body and pants mid-segment deformation observations '+JSON.stringify(legMeshEvidence));
  const qualitySummary=Object.fromEntries(Object.entries(trials).map(([k,v])=>[k,{summary:v.summary,quality:v.quality}]));
  await writeFile('test-results/motion-t2-fixed-trace.json',JSON.stringify(trials));
  console.log('T2 fixed 60Hz post-IK observations '+JSON.stringify(qualitySummary));

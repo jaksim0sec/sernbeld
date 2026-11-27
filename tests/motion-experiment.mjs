@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep,hingeReachAngle,solveGroundHinge} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep,hingeReachAngle,solveGroundHinge,isFootTreadEdge,footTreadTarget,footSoleOffsets} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -250,3 +250,38 @@ assert(Math.abs(hingeReachAngle(.17,0,0,.34,3,0,2.1,.2))<1e-9,'unreachable exten
   }finally{actor.dispose();}
  }
  console.log('PASS T3.5 actual male/female rig hinge, axis and reach');
+
+
+ const stepSurface=x=>x>=0?.22:0;
+ const solePoints=[{x:.14,y:-.09,z:0},{x:-.06,y:-.08,z:0},{x:0,y:-.09,z:0}];
+ assert(isFootTreadEdge(-.1,0,0,.04,0,.22,0,stepSurface));
+ assert(!isFootTreadEdge(-.1,0,0,.04,0,.112,0,x=>(x+.1)*.8));
+ assert(Math.abs(footTreadTarget(-.10,0,0,0,0,0,solePoints,stepSurface)-.31)<1e-9,'toe clears upper tread even when ankle is lower');
+ assert(Math.abs(footTreadTarget(.02,0,.22,.22,0,0,solePoints,stepSurface)-.31)<1e-9,'heel crossing does not drop upper support');
+ assert(footTreadTarget(-.5,0,0,0,0,0,solePoints,stepSurface)===null,'flat unaffected');
+ assert(footTreadTarget(0,0,0,0,2.6,0,solePoints,x=>x*.8)===null,'continuous slope unaffected');
+ assert(footTreadTarget(-.1,0,0,0,2.6,0,solePoints,x=>x>=0?.8:0)===null,'high obstacle excluded');
+ assert(footTreadTarget(-.1,0,0,0,2.6,0,solePoints,x=>x>=0?null:0)===null,'missing support excluded');
+ for(const fps of [30,60,120]){
+  let prior=null,max=0;for(let i=0;i<fps;i++){
+   const x=-.5+i*2.6/fps,h=stepSurface(x),a=footTreadTarget(x,0,h,h,2.6,0,solePoints,stepSurface);
+   const y=Math.max(h+.09,a??-Infinity);
+   if(prior!==null)max=Math.max(max,Math.abs(y-prior));prior=y;
+   assert(y>=h+.09-1e-10&&y<=.31+1e-10);
+  }
+  assert(max<.22,'leading sole anticipation must precede ankle edge');
+  console.log('T3.5 synthetic sole footprint maximum delta',fps,max);
+ }
+
+
+for(const body of ['male','female']){
+ const actor=make({body},{clothing:false});
+ try{for(const side of ['left','right']){
+  const samples=footSoleOffsets(T,actor,side);
+  assert(samples.length>=3&&samples.length<=6,'actual representative sole vertices');
+  assert(samples.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
+  const span=(Math.max(...samples.map(p=>p.z))-Math.min(...samples.map(p=>p.z)))*actor.units;
+  assert(span>.06&&span<.5,'actual sole has longitudinal extent');
+ }}finally{actor.dispose();}
+}
+console.log('PASS representative male/female rest sole footprint');

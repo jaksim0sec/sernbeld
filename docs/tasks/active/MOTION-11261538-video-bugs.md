@@ -212,3 +212,7 @@ T2: 학습 선례와 제작 표준(원리/실패/예외/평가 방법)을 작성
 ### LIVE-B24/B25 diagnostic update (2026-11-27)
 
 42fb618 actual browser CI 45966678083 logged ascending ankle steps up to .113217m and joint step up to .622271rad. Ground IK previously omitted local hinge-axis constraints despite distance limits; exact single-axis knee solve added. Actual before/after rig and body/garment deformation still unverified; both remain OPEN. See [T3.5 task record](MOTION-11261538.md).
+
+### LIVE-B24/B25 actual hinge result and footprint follow-up
+
+861baaf CI 45979090534 actual male/female hinge PASS; actual stairs maximum knee off-axis component <1.1e-19 but ankle step remains .1036m, local leg step .6168rad, bare-body sole penetration .1609m. Ankle-only surface query misses leading sole across risers; footprint step correction added. Body/pants authored/post-IK edge observations added; actual comparison not yet available. Both OPEN; see task record.
