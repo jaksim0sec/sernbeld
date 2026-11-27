@@ -140,7 +140,7 @@ export function summarizeMotionTrace(frames){
 // A separate presentation diagnostic: measured changes, never a new solver.
 // The same action and fixed sampling interval are required for phase checks.
 export function motionQuality(frames){
- const result={frames:frames.length,phase:{forward:0,reverse:0,opposite:0},maxLocalJointDeltaRad:null,maxRootRenderGap:null,maxRenderBodyGap:null,groundTransitions:[],pivotFrames:0};
+ const result={frames:frames.length,phase:{forward:0,reverse:0,opposite:0},maxLocalJointDeltaRad:null,maxLocalJointDelta:null,maxRootRenderGap:null,maxRenderBodyGap:null,groundTransitions:[],pivotFrames:0};
  let previous=null;
  for(let i=0;i<frames.length;i++){
   const f=frames[i],s=f.state;if(!s)continue;
@@ -160,7 +160,7 @@ export function motionQuality(frames){
     const q=old.get(j.id);if(!q)continue;
     const dot=Math.abs(q.reduce((sum,v,k)=>sum+v*j.rotation[k],0));
     const angle=2*Math.acos(Math.max(0,Math.min(1,dot)));
-    result.maxLocalJointDeltaRad=Math.max(result.maxLocalJointDeltaRad??0,angle);
+    if(result.maxLocalJointDeltaRad===null||angle>result.maxLocalJointDeltaRad){result.maxLocalJointDeltaRad=angle;result.maxLocalJointDelta={joint:j.id,frame:i,action:s.action,radians:angle};}
    }
   }
   previous=f;

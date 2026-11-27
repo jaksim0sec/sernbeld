@@ -59,6 +59,21 @@ export function transitionBodyHeight(previous,previousRoot,root,target,dt,ground
  return root+offset*Math.exp(-Math.max(0,dt)*12);
 }
 
+// Ground IK releases a lifted ankle continuously, rather than dropping a
+// 90 mm correction in one frame when the authored foot crosses a threshold.
+export function groundFootCorrection(delta,stance){
+ if(delta>=0)return Math.min(.27,delta);
+ const t=clamp01((-delta-.045)/.09);
+ return Math.max(-.09,delta)*stance*(1-t*t*(3-2*t));
+}
+// The rig's authored maximum knee flexion bounds the reachable ankle sphere.
+export function groundLegDistance(l1,l2,distance,maxFlex){
+ const max=l1+l2-.001;
+ const flex=Math.max(0,Math.min(179,Number.isFinite(maxFlex)?maxFlex:135))*Math.PI/180;
+ const min=Math.max(Math.abs(l1-l2)+.005,Math.sqrt(Math.max(0,l1*l1+l2*l2+2*l1*l2*Math.cos(flex))));
+ return Math.min(max,Math.max(Math.min(max,min),distance));
+}
+
 // The procedural driver bends the swing knee while cos(phase+offset)>0.
 // Author a conservative support window inside the opposite half-cycle.
 // Reverse playback traverses the same support window in the opposite direction.
@@ -229,7 +244,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const pivot=id=>new T.Vector3(...actor.data.bones.find(b=>b.id===id).pivot).multiplyScalar(actor.units/1428).add(actor.model.position);
   const chest=pivot('upper_arm_left').add(pivot('upper_arm_right')).multiplyScalar(.5);
   return anchors={chest,eye:chest.clone().add(new T.Vector3(0,.19,.06)),headRest:pivot('head'),
-   ankleRest:Math.min(pivot('foot_left').y,pivot('foot_right').y)};
+   ankleRest:Math.min(pivot('foot_left').y,pivot('foot_right').y),
+   kneeFlex:Object.fromEntries(['left','right'].map(side=>[side,actor.data.bones.find(b=>b.id==='shin_'+side)?.axes[0]?.max]))};
  }
  const flipY=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
  const upAxis=new T.Vector3(0,1,0),displacement=new T.Vector3();
@@ -394,7 +410,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  // a foot only when its sole would intersect the actual support surface.
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
  let turnFeet={},gaitFeet={};
- const turnNeutral=new T.Vector3();
+ const turnNeutral=new T.Vector3(),groundForward=new T.Vector3();
  function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
   const pivot=motion?.pivotWeight??0;
@@ -430,24 +446,37 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    // ankle may follow a bounded world-space anchor, rather than sliding.
    const blend=useGait?clamp01((gaitSpeed-.15)/.5):0;
    const stance=1-blend+blend*gaitSupportWeight(a.phase,side);
-   const vertical=delta>0?Math.min(.27,delta):delta>=-.09?Math.max(-.09,delta)*stance:0;
+   const vertical=groundFootCorrection(delta,stance);
    if(Math.abs(vertical)<.004&&!(contact?.weight>0))continue;
    goalV.set(x,footV.y+vertical,z);
-   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ));
+   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ),null,bodyAnchors().kneeFlex[side]??135);
   }
  }
- function solveFoot(a,side,target,rotation,preferredPole=null){
+ function solveFoot(a,side,target,rotation,preferredPole=null,groundFlex=null){
   const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
   const scale=a.units*a.group.scale.x;
   hip.getWorldPosition(hipV);knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
   dirV.copy(target).sub(hipV);
   const l1=knee.position.length()*scale,l2=foot.position.length()*scale;
-  const d=Math.min(l1+l2-.001,Math.max(Math.abs(l1-l2)+.005,dirV.length()));
+  const d=groundFlex===null?Math.min(l1+l2-.001,Math.max(Math.abs(l1-l2)+.005,dirV.length())):groundLegDistance(l1,l2,dirV.length(),groundFlex);
   if(dirV.lengthSq()<1e-8)return;
   dirV.normalize();
   if(preferredPole)poleV.copy(preferredPole);
   else poleV.copy(kneeV).sub(hipV);
   poleV.addScaledVector(dirV,-poleV.dot(dirV));
+  if(groundFlex!==null){
+   // The projected authored knee can become singular or cross the ankle line
+   // as the target moves backward. Keep the bend in the anatomical forward
+   // hemisphere; retain authored lateral bias when it is well conditioned.
+   groundForward.set(0,0,1).transformDirection(a.group.matrixWorld);
+   groundForward.addScaledVector(dirV,-groundForward.dot(dirV));
+   if(groundForward.lengthSq()>1e-7){
+    groundForward.normalize();
+    const forward=poleV.dot(groundForward),blend=clamp01(forward/.045);
+    if(blend>0)poleV.normalize();else poleV.copy(groundForward);
+    poleV.lerp(groundForward,1-blend);
+   }
+  }
   if(poleV.lengthSq()<1e-7){poleV.set(0,0,1).transformDirection(a.group.matrixWorld);poleV.addScaledVector(dirV,-poleV.dot(dirV));}
   if(poleV.lengthSq()<1e-7)return;
   poleV.normalize();

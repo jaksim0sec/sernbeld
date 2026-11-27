@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -48,7 +48,7 @@ console.log('PASS posed bare-body sole samples and trace summary reset/coverage'
 
 const qframe=(i,phase,action,grounded=true)=>({time:i/60,state:{root:[0,0,0],renderRoot:[0,0,0],phase,heading:0,action,grounded,teleportId:0},bodyRoot:[0,0,0],joints:[{id:'head',rotation:[0,0,0,1]}]});
 const quality=motionQuality([qframe(0,6.2,'walk'),qframe(1,.1,'walk'),qframe(2,.2,'backpedal'),qframe(3,.1,'backpedal'),qframe(4,.1,'airborne',false),qframe(5,.1,'idle')]);
-assert.deepEqual(quality.phase,{forward:1,reverse:1,opposite:0});assert.equal(quality.maxLocalJointDeltaRad,0);assert.equal(quality.groundTransitions.length,2);assert.equal(quality.maxRootRenderGap,0);
+assert.deepEqual(quality.phase,{forward:1,reverse:1,opposite:0});assert.equal(quality.maxLocalJointDeltaRad,0);assert.equal(quality.maxLocalJointDelta.joint,'head');assert.equal(quality.groundTransitions.length,2);assert.equal(quality.maxRootRenderGap,0);
 console.log('PASS motion quality wrap/reverse, discontinuity and ground event diagnostics');
 
 const flat=()=>0;
@@ -97,3 +97,30 @@ close(transitionBodyHeight(.18,0,5,5,1/60,false,true,0,true),5);
 close(transitionBodyHeight(null,0,5,5,1/60,false,false,0),5);
 close(transitionBodyHeight(.1,0,.1,.2,0,false,true,0),.2);
 console.log('PASS visual offset continuity through takeoff, flight, landing and teleport at 30/60/120 FPS');
+
+assert.equal(groundFootCorrection(.4,0),.27);
+assert.equal(groundFootCorrection(-.135,1),0);
+assert.equal(groundFootCorrection(-.06,0),0);
+assert(Math.abs(groundFootCorrection(-.090001,1)-groundFootCorrection(-.089999,1))<.00001);
+for(let i=0;i<135;i++){
+ const a=groundFootCorrection(-i/1000,1),b=groundFootCorrection(-(i+1)/1000,1);
+ assert(Math.abs(a-b)<.004);
+}
+for(const flex of [100,120,135,150]){
+ const d=groundLegDistance(.42,.41,0,flex);
+ const angle=Math.acos((d*d-.42**2-.41**2)/(2*.42*.41))*180/Math.PI;
+ assert(Math.abs(angle-flex)<1e-8);
+ assert(Math.abs(groundLegDistance(.42,.41,10,flex)-.829)<1e-9);
+}
+console.log('PASS continuous ground-foot release and authored knee reach bounds');
+
+for(const body of ['male','female']){
+ const actor=make({body});
+ try{for(const side of ['left','right']){
+  const axis=actor.data.bones.find(b=>b.id==='shin_'+side).axes[0];
+  assert(Number.isFinite(axis.max)&&axis.max>0&&axis.max<180);
+  const l1=actor.B['shin_'+side].position.length()*actor.units,l2=actor.B['foot_'+side].position.length()*actor.units;
+  const d=groundLegDistance(l1,l2,0,axis.max);
+  assert(d>Math.abs(l1-l2)&&d<l1+l2);
+ }}finally{actor.dispose();}
+}
