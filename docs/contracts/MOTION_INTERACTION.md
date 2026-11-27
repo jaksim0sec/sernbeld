@@ -84,3 +84,5 @@
 ## T3 등록 정적 수평 sweep (PARTIAL)
 
 - `sweepBody({root,delta,profile,candidates}, {regionId,purpose:'block'})`: static box/cylinder only, delta.y=0; returns sorted SurfaceContacts with normalized contactNormal and fractional toi. Rounded OBB corner uses geometricNormal=null. Existing start overlap is left to endpoint escape policy. Runtime staticSweep selects simultaneous earliest contacts and Player candidate consumes the existing cached broadphase at the candidate feet height when endpoint overlap permits. Step/vertical/terrain/roof/dynamic ownership remains with existing solver; this does not establish full continuous 3D collision coverage.
+
+- Ground support queries use support-only stair selection; an unreachable upper tread remains a horizontal admission barrier but cannot erase the lower landing surface or override its steep-grade classification. Stair seam exemption is bounded to nearby reachable tread heights; legacy no-registry behavior remains.

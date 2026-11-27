@@ -325,3 +325,29 @@ const corner=sweepBridge.staticSweep(sx,sz,0,ex-sx,ez-sz);
 assert.equal(corner[0]?.collider,ob);
 assert(corner[0].toi>0&&corner[0].toi<.5);
 console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual candidate and region lifecycle');
+
+
+// T3: a flight above the actor must not erase underlying landing support.
+{
+ const overhead={collisionId:'overhead:flight',a:[72,0],b:[78,0],n:[0,1],y0:5,y1:7};
+ const overheadBridge=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
+ overheadBridge.setRegion('overhead');overheadBridge.stair(overhead);
+ playerEnv.install(overheadBridge);
+ const under=new playerEnv.Player();under.teleport(74,0,0,0,0);
+ assert.equal(under.pos.y,0,'saved ground position beneath unreachable flight');
+ under.pos.y=.8;under.previousPos.copy(under.pos);under.onGround=false;under.vel.y=-1;
+ for(let i=0;i<120;i++)under.advance(1/120,neutral);
+ assert.equal(under.pos.y,0,'airborne actor lands on actual ground beneath upper flight');
+ assert(under.onGround);
+ assert(Math.abs(under.renderPos.y)<1e-6,'presentation converges on actual landed ground');
+ assert(playerEnv.playerTerrain(74,0,.48)>5,'horizontal authored stair barrier remains separate');
+ const slopeUnder=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
+ slopeUnder.setRegion('slope-under');
+ slopeUnder.terrain({collisionId:'slope-under:terrain',heights:new Float64Array([-40,0,40,-40,0,40,-40,0,40]),gridN:3,cell:20,half:20});
+ slopeUnder.stair({...overhead,collisionId:'slope-under:flight',a:[-2,0],b:[4,0]});
+ env.install(slopeUnder);
+ assert.equal(env.playerFloor(0,0,.002),0,'registered underlying terrain remains support');
+ const underGrade=env.playerSteepGround(0,0,0);
+ assert(underGrade&&Math.abs(underGrade.k-2)<1e-9&&Math.abs(underGrade.ux-1)<1e-9,'unreachable overhead stair cannot make steep terrain walkable');
+ console.log('PASS T3 underlying ground landing and slope beneath unreachable flight');
+}

@@ -1076,8 +1076,14 @@ function playerSteepGround(x,z,floor) {
   if(!Number.isFinite(floor))return null;
   const roof=Math.max(roofHeight(x,z),roofOverhangTop(x,z,floor));
   const onRoof=Math.abs(floor-roof)<=CONTACT_SKIN;
-  if(!onRoof&&Math.abs(floor-playerTerrain(x,z,floor))>CONTACT_SKIN)return null;
-  for(const [ox,oz] of [[0,0],[e,0],[-e,0],[0,e],[0,-e]])if(stairSurface(x+ox,z+oz,0,true)!==null)return null;
+  if(!onRoof&&Math.abs(floor-playerTerrain(x,z,floor,true))>CONTACT_SKIN)return null;
+  const registeredStairs=WorldCollision?.hasSurfaceKind("stair");
+  for(const [ox,oz] of [[0,0],[e,0],[-e,0],[0,e],[0,-e]]){
+    const tread=registeredStairs?
+      WorldCollision.surfaceAt(x+ox,z+oz,"stair",floor+PLAYER.step+CONTACT_SKIN)?.point[1]??null:
+      stairSurface(x+ox,z+oz,0,true);
+    if(tread!==null&&(!registeredStairs||Math.abs(tread-floor)<=PLAYER.step+CONTACT_SKIN))return null;
+  }
   // Prefer the registered exact triangle/ramp normal. Roofs and ambiguous
   // features keep the legacy seam/overhang path until their own migration.
   if(!onRoof&&WorldCollision?.groundSlope){
@@ -1085,7 +1091,7 @@ function playerSteepGround(x,z,floor) {
     if(slope!==undefined)return slope;
   }
   // On a roof sample the continuous roof surface across the wall line.
-  const H=onRoof?roofOrTerrain:playerTerrain;
+  const H=onRoof?roofOrTerrain:registeredStairs?(x,z)=>playerTerrain(x,z,floor+PLAYER.step+CONTACT_SKIN,true):playerTerrain;
   const gx=(H(x+e,z)-H(x-e,z))/(2*e),gz=(H(x,z+e)-H(x,z-e))/(2*e),k=Math.hypot(gx,gz);
   return k>WALK_GRADE?{ux:gx/k,uz:gz/k,k}:null;
 }
@@ -1114,7 +1120,9 @@ function playerSweepColliders(x,z,range=PLAYER.radius) {
   return candidates.filter(o=>playerContact(o,x,z,range+.004));
 }
 function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
-  let h=playerTerrain(x,z,maxY);
+  // Support queries must ignore an unreachable upper stair, even though
+  // horizontal admission still uses it as an authored rise barrier.
+  let h=playerTerrain(x,z,maxY,true);
   if(h>maxY+CONTACT_SKIN)h=-Infinity;
   // Roof eaves and awnings carry feet from above, never block from below.
   h=Math.max(h,roofOverhangTop(x,z,maxY));
