@@ -3493,7 +3493,7 @@ var Player = class {
     // tread or terrain. Camera smoothing remains presentation-only.
     if(this.mode==="walk"){
       const ground=playerFloor(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,0);
-      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z),ground);
+      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN),ground);
       this.visualY=this.renderPos.y;
     }
   }
@@ -3693,8 +3693,8 @@ var Player = class {
   }
   candidate(dx,dz){
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
-    const terrain=playerTerrain(x,z),maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
-    const limit=p.y+maxRise+CONTACT_SKIN;
+    const maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
+    const limit=p.y+maxRise+CONTACT_SKIN,terrain=playerTerrain(x,z,limit);
     let floor=playerFloor(x,z,limit,PLAYER.radius,this.solids);
     if(terrain>limit){
       const len=Math.hypot(dx,dz),ex=.07;
@@ -3708,7 +3708,7 @@ var Player = class {
     if(maxRise>0&&floor>y+CONTACT_SKIN){
       const rise=floor-y;
       const atStair=stairSurface(x,z,0,true)!==null;
-      const currentTerrain=playerTerrain(p.x,p.z);
+      const currentTerrain=playerTerrain(p.x,p.z,p.y+CONTACT_SKIN);
       if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04){
         // Uphill admission and landing must agree on the actual geometric
         // grade. A shallow directional rise can hide a steep diagonal face.

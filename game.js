@@ -46621,8 +46621,14 @@ function roofOrTerrain(x,z) {
 }
 // Player contacts use the rendered stair treads, not the NPC navigation ramp.
 // The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
-function playerTerrain(x,z) {
-  const tread=WorldCollision?.hasSurfaceKind("stair")?(WorldCollision.surfaceAt(x,z,"stair")?.point[1]??null):stairSurface(x,z,0,true);
+function playerTerrain(x,z,maxY=Infinity) {
+  // Locomotion picks the highest reachable registered tread. If none is
+  // reachable, retain the authored flight as the existing rise barrier.
+  // Unbounded scenery/spawn queries keep their original declaration order.
+  const tread=WorldCollision?.hasSurfaceKind("stair")?(
+    WorldCollision.surfaceAt(x,z,"stair",maxY)?.point[1]??
+    (Number.isFinite(maxY)?WorldCollision.surfaceAt(x,z,"stair")?.point[1]:null)??null
+  ):stairSurface(x,z,0,true);
   if(tread!==null)return tread;
   return Math.max(heightfieldTriangle(x,z),roofHeight(x,z));
 }
@@ -46645,7 +46651,7 @@ function playerSteepGround(x,z,floor) {
   if(!Number.isFinite(floor))return null;
   const roof=Math.max(roofHeight(x,z),roofOverhangTop(x,z,floor));
   const onRoof=Math.abs(floor-roof)<=CONTACT_SKIN;
-  if(!onRoof&&Math.abs(floor-playerTerrain(x,z))>CONTACT_SKIN)return null;
+  if(!onRoof&&Math.abs(floor-playerTerrain(x,z,floor))>CONTACT_SKIN)return null;
   for(const [ox,oz] of [[0,0],[e,0],[-e,0],[0,e],[0,-e]])if(stairSurface(x+ox,z+oz,0,true)!==null)return null;
   // Prefer the registered exact triangle/ramp normal. Roofs and ambiguous
   // features keep the legacy seam/overhang path until their own migration.
@@ -46683,7 +46689,7 @@ function playerSweepColliders(x,z,range=PLAYER.radius) {
   return candidates.filter(o=>playerContact(o,x,z,range+.004));
 }
 function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
-  let h=playerTerrain(x,z);
+  let h=playerTerrain(x,z,maxY);
   if(h>maxY+CONTACT_SKIN)h=-Infinity;
   // Roof eaves and awnings carry feet from above, never block from below.
   h=Math.max(h,roofOverhangTop(x,z,maxY));
@@ -50320,7 +50326,7 @@ var Player = class {
     // tread or terrain. Camera smoothing remains presentation-only.
     if(this.mode==="walk"){
       const ground=playerFloor(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,0);
-      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z),ground);
+      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN),ground);
       this.visualY=this.renderPos.y;
     }
   }
@@ -50520,8 +50526,8 @@ var Player = class {
   }
   candidate(dx,dz){
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
-    const terrain=playerTerrain(x,z),maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
-    const limit=p.y+maxRise+CONTACT_SKIN;
+    const maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
+    const limit=p.y+maxRise+CONTACT_SKIN,terrain=playerTerrain(x,z,limit);
     let floor=playerFloor(x,z,limit,PLAYER.radius,this.solids);
     if(terrain>limit){
       const len=Math.hypot(dx,dz),ex=.07;
@@ -50535,7 +50541,7 @@ var Player = class {
     if(maxRise>0&&floor>y+CONTACT_SKIN){
       const rise=floor-y;
       const atStair=stairSurface(x,z,0,true)!==null;
-      const currentTerrain=playerTerrain(p.x,p.z);
+      const currentTerrain=playerTerrain(p.x,p.z,p.y+CONTACT_SKIN);
       if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04){
         // Uphill admission and landing must agree on the actual geometric
         // grade. A shallow directional rise can hide a steep diagonal face.

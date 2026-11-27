@@ -83,7 +83,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function surfaceAt(x,z,kind,maxY=Infinity){
   if(!["terrain","stair","roof-foot","roof-overhang","lab-ground"].includes(kind))throw new TypeError("invalid surface kind");
   const y=Number.isFinite(maxY)?maxY:0;
-  return registry.sampleSupport({root:[x,y,z],profile:{radius:0,height:1.72},maxRise:Number.isFinite(maxY)?0:Number.MAX_VALUE,maxDrop:Infinity,analyticalOnly:true,sourceKind:kind,firstAnalytical:kind==="stair"},{regionId,purpose:"support"});
+  return registry.sampleSupport({root:[x,y,z],profile:{radius:0,height:1.72},maxRise:Number.isFinite(maxY)?0:Number.MAX_VALUE,maxDrop:Infinity,analyticalOnly:true,sourceKind:kind,firstAnalytical:kind==="stair"&&!Number.isFinite(maxY)},{regionId,purpose:"support"});
  }
  function hasSurfaceKind(kind){return kind==="terrain"?types.terrain>0:kind==="stair"?types.stair>0:types.roof>0;}
  // Grounded actor consumers distinguish an exact geometric slope from an

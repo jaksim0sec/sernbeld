@@ -223,3 +223,37 @@ assert(!env.playerSweepColliders(5,0,.35).includes(c),'suspended primitive exclu
 bridge.resumeRegion('lab');
 assert(env.playerSweepColliders(5,0,.35).includes(c),'resumed primitive enters sweep');
 console.log('PASS T3 exact uphill slope gate, contour preservation, discontinuity/stair fallback, active sweep candidates');
+
+// T3: vertically stacked flights must resolve against the actor's height.
+const stacked=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
+stacked.setRegion('stacked');
+const upper={collisionId:'stacked:upper',a:[60,0],b:[66,0],n:[0,1],y0:5,y1:7};
+const lower={...upper,collisionId:'stacked:lower',y0:0,y1:2};
+stacked.stair(upper);stacked.stair(lower);
+env.install(stacked);
+const low=stacked.surfaceAt(62,0,'stair',3),high=stacked.surfaceAt(62,0,'stair',8);
+assert.equal(low?.instanceId,lower.collisionId);
+assert.equal(high?.instanceId,upper.collisionId);
+assert.equal(stacked.surfaceAt(62,0,'stair')?.instanceId,upper.collisionId,'unbounded authored order preserved');
+assert.equal(env.playerFloor(62,0,3),low.point[1]);
+assert.equal(env.playerFloor(62,0,8),high.point[1]);
+assert.equal(env.playerTerrain(62,0,3),low.point[1],'bounded tread');
+assert.equal(env.playerTerrain(62,0,0),high.point[1],'no reachable tread keeps legacy rise barrier');
+const actualCandidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+ 'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+)(env.playerTerrain,env.playerFloor,()=>0,stacked,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+const foot=env.playerFloor(61.69,0,3);
+const stairActor={pos:{x:61.69,y:foot,z:0},onGround:true,swimming:false,nearby:[],solids:null};
+const step=actualCandidate.call(stairActor,.08,0);
+assert.equal(step.contacts.length,0,'lower stair not blocked by upper flight');
+assert.equal(step.y,env.playerFloor(61.77,0,foot+.48+.002));
+assert(step.y>foot,'test crosses a tread');
+const cap=env.addBox({cx:61.69,cy:foot+1.72+.1+.1,cz:0,hx:.5,hy:.1,hz:.5,yaw:0,walk:false});
+assert(actualCandidate.call(stairActor,.08,0).contacts.length>0,'insufficient origin headroom vetoes step');
+assert(stacked.remove(cap.collisionId));
+assert.equal(actualCandidate.call(stairActor,.08,0).contacts.length,0,'removed overhead no longer vetoes');
+stacked.suspendRegion('stacked');
+assert.equal(stacked.surfaceAt(62,0,'stair',3),null);
+stacked.resumeRegion('stacked');
+assert.equal(env.playerFloor(62,0,3),low.point[1]);
+console.log('PASS T3 vertically stacked stair support, real candidate step, headroom and active region');
