@@ -114,6 +114,30 @@ try{
  await writeFile('test-results/motion-t2-fixed-trace.json',JSON.stringify(trials));
  console.log('T2 fixed 60Hz post-IK observations '+JSON.stringify(qualitySummary));
  await page.screenshot({path:'test-results/physics-t1-lab.png'});
+ // Reuse the real visible rig to render detached-driver poses. Same profile,
+ // root, phase, camera and lighting for all three strengths; no gameplay write.
+ const strengthEvidence=await page.evaluate(async()=>{
+  const d=window.__dev,m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
+  const replays=['low','baseline','high'].map(strength=>d.motionExperiment.replay({scenario:'walk',strength,scale:d.avatars.actor.group.scale.y,frames:90}));
+  const comparison=m.compareMotionStrength(replays);
+  return {comparison,poses:Object.fromEntries(replays.map(r=>[r.strength,[30,60].map(i=>r.frames[i])]))};
+ });
+ assert.equal(strengthEvidence.comparison.rootDelta,0);assert.equal(strengthEvidence.comparison.phaseDelta,0);
+ assert.equal(strengthEvidence.comparison.lowerLocalDelta,0);
+ await writeFile('test-results/motion-t2-strength.json',JSON.stringify(strengthEvidence));
+ for(const [strength,poses] of Object.entries(strengthEvidence.poses))for(let pose=0;pose<poses.length;pose++)for(const [view,angle] of [['front',0],['side',Math.PI/2],['three-quarter',Math.PI/4]]){
+  await page.evaluate(({frame,angle})=>{
+   const d=window.__dev,actor=d.avatars.actor,a=actor.group,cam=d.camera;
+   a.position.fromArray(frame.bodyRoot);a.rotation.set(0,frame.state.heading+Math.PI,0);
+   for(const j of frame.joints){actor.B[j.id].position.fromArray(j.local);actor.B[j.id].quaternion.fromArray(j.rotation);}
+   a.updateMatrixWorld(true);const theta=a.rotation.y+angle;
+   cam.position.set(a.position.x+Math.sin(theta)*3,a.position.y+1.15,a.position.z+Math.cos(theta)*3);
+   cam.lookAt(a.position.x,a.position.y+.88,a.position.z);d.renderer.render(d.scene,cam);
+  },{frame:poses[pose],angle});
+  await page.screenshot({path:'test-results/motion-t2-strength-'+strength+'-'+pose+'-'+view+'.png'});
+ }
+ console.log('T2 matched strength evidence '+JSON.stringify(strengthEvidence.comparison));
+
  assert.deepEqual(errors,[]);
  console.log('PASS: Kael and motion-lab live collision registration, support parity, PWA and LOD-independent runtime '+JSON.stringify({main,lab}));
 } finally {

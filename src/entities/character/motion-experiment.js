@@ -4,10 +4,48 @@ const finite=Number.isFinite, TAU=2*Math.PI;
 const vec=v=>v&&[v.x,v.y,v.z].every(finite)?[v.x,v.y,v.z]:null;
 const dist=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
 export const MOTION_STRENGTH=Object.freeze({low:.65,baseline:1,high:1.35});
+// Declarative presentation contract, not a replacement for Player or the IK solver.
+// Only pivot has a source-defined phase window; do not invent gait foot locks.
+export function motionPolicy(action){
+ const policy={entry:'authoritative action or presentation driver changes',exit:'authoritative action changes; no clip-completion wait',reset:'teleport or actor replacement',contactAuthority:'physical support and explicit IK intent',contactWindows:null,transitionWindows:{kind:'event-driven',interruptible:true,phaseContinuity:'preserve unless explicit reset'}};
+ if(action==='idle'||action==='social')return {...policy,contact:{kind:'bilateral-ground-candidate',requires:['grounded','third-person'],authoredLock:false}};
+ if(['walk','run','backpedal'].includes(action))return {...policy,contact:{kind:'gait-near-surface-candidate',authoredLock:false,phaseDirection:action==='backpedal'?'reverse':'forward',source:'schoolyard-motion.js gait; studio-integration.js fitFeet'}};
+ if(action==='pivot')return {...policy,contact:{kind:'pivot-ankle-target',requires:['grounded','third-person','pivotWeight>0'],authoredLock:true,source:'pivotFootTarget'},contactWindows:{clock:'pivotPhase',units:'radian',period:TAU,left:{swing:[0,Math.PI],support:[Math.PI,TAU]},right:{support:[0,Math.PI],swing:[Math.PI,TAU]},interval:'start-inclusive/end-exclusive',weight:'blend by pivotWeight; not a guaranteed sole lock'}};
+ if(action==='airborne'||action==='swim'||action==='fly')return {...policy,contact:{kind:'no-ground-lock',authoredLock:false}};
+ return {...policy,contact:{kind:'external-action-specific',authoredLock:false}};
+}
+const upperMotionChannel=id=>/^(pelvis|waist|ribcage|neck|head|upper_arm_|forearm_)/.test(id);
+const quaternionAngle=(a,b)=>2*Math.acos(Math.max(0,Math.min(1,Math.abs(a.reduce((s,v,i)=>s+v*b[i],0)))));
+export function compareMotionStrength(replays){
+ const [low,base,high]=['low','baseline','high'].map(s=>replays.find(r=>r.strength===s));
+ if(!low||!base||!high||[low,high].some(r=>r.scenario!==base.scenario||r.scale!==base.scale||r.rig.body!==base.rig.body||r.frames.length!==base.frames.length))throw Error('strength comparison requires matching replays');
+ let rootDelta=0,phaseDelta=0,lowerLocalDelta=0;const channels={};
+ for(let i=0;i<base.frames.length;i++){
+  const b=base.frames[i],l=low.frames[i],h=high.frames[i];
+  if(l.time!==b.time||h.time!==b.time)throw Error('strength replay timing mismatch');
+  for(const f of [l,h]){
+   rootDelta=Math.max(rootDelta,dist(f.state.root,b.state.root));
+   phaseDelta=Math.max(phaseDelta,Math.abs(f.state.phase-b.state.phase));
+  }
+  for(let j=0;j<b.joints.length;j++){
+   const x=b.joints[j],y=l.joints[j],z=h.joints[j];
+   if(x.id!==y.id||x.id!==z.id)throw Error('strength rig channel mismatch');
+   if(!upperMotionChannel(x.id)){
+    // Component comparison avoids acos precision noise for identical quaternions.
+    lowerLocalDelta=Math.max(lowerLocalDelta,dist(x.rotation,y.rotation),dist(x.rotation,z.rotation),dist(x.local,y.local),dist(x.local,z.local));continue;
+   }
+   const c=channels[x.id]??={lowToBaselineRad:0,highToBaselineRad:0,lowToHighRad:0};
+   c.lowToBaselineRad=Math.max(c.lowToBaselineRad,quaternionAngle(y.rotation,x.rotation));
+   c.highToBaselineRad=Math.max(c.highToBaselineRad,quaternionAngle(z.rotation,x.rotation));
+   c.lowToHighRad=Math.max(c.lowToHighRad,quaternionAngle(y.rotation,z.rotation));
+  }
+ }
+ return {scenario:base.scenario,body:base.rig.body,scale:base.scale,frames:base.frames.length,rootDelta,phaseDelta,lowerLocalDelta,channels,scope:'detached driver only; not full post-IK or approved appearance'};
+}
 export function motionManifest(clips=SCHOOLYARD_CLIPS){
  const base={schemaVersion:1,rigVersion:'studio-v1',rootOwnership:'physics',displacement:'in-place',source:'existing project motion driver',referencePermission:'project use only; redistribution not established',contactWindows:null,transitionWindows:null,tests:['tests/schoolyard-motion.mjs']};
- return [...['idle','walk','run','backpedal','pivot','airborne','swim','social'].map(id=>({...base,id,kind:'procedural',duration:null,repeat:id!=='airborne',actions:[id],syncGroup:['walk','run','backpedal'].includes(id)?'gait':id,channels:['pelvis','waist','ribcage','neck','head','arms','legs'],markers:[]})),
- ...Object.entries(clips).map(([id,c])=>({...base,id,kind:'keyframe',duration:c.duration,repeat:false,actions:[],syncGroup:null,channels:[...new Set(c.channels.flatMap(k=>Object.keys(k.p)))].sort(),markers:c.channels.map(k=>({time:k.t,kind:'authored-key'})),source:'user-supplied schoolyard reference: '+c.source}))];
+ return [...['idle','walk','run','backpedal','pivot','airborne','swim','social'].map(id=>({...base,...motionPolicy(id),id,kind:'procedural',duration:null,repeat:id!=='airborne',actions:[id],syncGroup:['walk','run','backpedal'].includes(id)?'gait':id,channels:['pelvis','waist','ribcage','neck','head','arms','legs'],markers:[]})),
+ ...Object.entries(clips).map(([id,c])=>({...base,id,kind:'keyframe',duration:c.duration,repeat:false,actions:[],syncGroup:null,channels:[...new Set(c.channels.flatMap(k=>Object.keys(k.p)))].sort(),markers:c.channels.map(k=>({time:k.t,kind:'authored-key'})),contact:{kind:'unannotated-keyframe',authoredLock:false},source:'user-supplied schoolyard reference: '+c.source}))];
 }
 export function readMotionState(player,actor,support){
  const root=vec(player.pos),velocity=vec(player.vel),renderRoot=vec(player.renderPos??player.pos),heading=player.facingYaw??player.yaw??0;
