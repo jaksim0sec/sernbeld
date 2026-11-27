@@ -359,21 +359,22 @@ try{
  // Isolate the legs instead of treating body/root smoothing as a proxy.
  const stairLegs={};
  for(const side of ['left','right']){
-  let maxAnkleStep=0,maxJointStep=0,samples=0,previous=null;
+  let maxAnkleStep=0,maxJointStep=0,samples=0,previous=null,peak=null;
   for(const f of trials.stairs.frames){
    if(previous&&f.state.grounded&&previous.state.grounded&&f.state.root[1]>=previous.state.root[1]&&f.state.root[1]>.1){
     const ankle=f.feet.find(q=>q.side===side).ankle,old=previous.feet.find(q=>q.side===side).ankle;
     maxAnkleStep=Math.max(maxAnkleStep,Math.abs(ankle[1]-old[1]));
     for(const id of ['thigh_'+side,'shin_'+side,'foot_'+side]){
      const q=f.joints.find(j=>j.id===id).rotation,p=previous.joints.find(j=>j.id===id).rotation;
-     maxJointStep=Math.max(maxJointStep,2*Math.acos(Math.min(1,Math.abs(q.reduce((a,v,i)=>a+v*p[i],0)))));
+     const delta=2*Math.acos(Math.min(1,Math.abs(q.reduce((a,v,i)=>a+v*p[i],0))));
+     if(delta>maxJointStep){maxJointStep=delta;peak={joint:id,time:f.time,action:f.state.action,phase:[previous.state.phase,f.state.phase],velocity:f.state.velocity,root:[previous.state.root,f.state.root],body:[previous.bodyRoot,f.bodyRoot],ankle:[old,ankle],surface:[previous.feet.find(q=>q.side===side).surface,f.feet.find(q=>q.side===side).surface],authored:[previous.authoredKnees[side],f.authoredKnees[side]],solved:[p,q]};}
     }
     samples++;
    }
    previous=f;
   }
   assert(samples>0&&Number.isFinite(maxAnkleStep)&&Number.isFinite(maxJointStep),'stair leg trace');
-  stairLegs[side]={samples,maxAnkleStep,maxJointStep};
+  stairLegs[side]={samples,maxAnkleStep,maxJointStep,peak};
  }
  console.log('T3.5 actual upward stair leg observations '+JSON.stringify(stairLegs));
  const kneeEvidence={};

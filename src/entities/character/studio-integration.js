@@ -130,16 +130,30 @@ export function isFootTreadEdge(x,z,h,px,pz,ph,feetY,surfaceAt){
 // Each offset is relative to the ankle in world coordinates, in its actual
 // authored orientation. Preserve the rigid foot orientation and query its
 // footprint, including anticipation from the leading sole, not its pivot.
-export function footTreadTarget(x,z,surface,feetY,vx,vz,offsets,groundSurface,lock=0){
- let active=false,target=-Infinity;
+export function footTreadSupport(x,z,surface,feetY,vx,vz,offsets,groundSurface,lock=0){
+ let active=false,target=-Infinity,exact=-Infinity;
  for(const p of offsets){
   const px=x+p.x,pz=z+p.z,h=groundSurface(px,pz,feetY);
   if(!Number.isFinite(h)||Math.abs(h-feetY)>.5||Math.abs(h-surface)>.48)continue;
   const ahead=anticipateFootStep(px,pz,h,feetY,vx,vz,groundSurface,lock);
   if(ahead>h+1e-8||isFootTreadEdge(x,z,surface,px,pz,h,feetY,groundSurface))active=true;
+  exact=Math.max(exact,h-p.y);
   target=Math.max(target,Math.max(h,ahead)-p.y);
  }
- return active&&Number.isFinite(target)?target:null;
+ return Number.isFinite(exact)?{active,exact,target}:null;
+}
+export function footTreadTarget(...args){
+ const support=footTreadSupport(...args);
+ return support?.active?support.target:null;
+}
+// Preserve visual tread support through stopping and the last footprint crossing.
+// Exact rising clearance always wins; only surplus height is released gradually.
+export function continueFootTreadTarget(previous,support,baseY,dt){
+ if(!support||(!support.active&&!Number.isFinite(previous)))return null;
+ const desired=Math.max(baseY,support.active?support.target:support.exact);
+ const carried=Number.isFinite(previous)?previous-1.2*Math.max(0,dt):desired;
+ const y=Math.max(desired,carried);
+ return !support.active&&y<=baseY+1e-6?null:y;
 }
 // Representative real rest-sole vertices. Cache in bodyAnchors (once per
 // avatar); no posed mesh traversal or allocation of vectors per frame.
@@ -419,7 +433,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
   for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;cameraCut=null;turnFeet={};gaitFeet={};return;}
+  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;cameraCut=null;turnFeet={};gaitFeet={};treadFeet={};return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const cameraReset=cameraCut!==player.teleportId;
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
@@ -428,12 +442,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const steeringYaw=player.keyboardSteering&&!player.swimming&&!player.slide&&Number.isFinite(player.facingYaw)?player.facingYaw+Math.PI:aimYaw;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   gaitSpeed=0;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};
+   gaitSpeed=0;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};treadFeet={};
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;bodyVelocity=0;runHeadState=null;actor._combatStance=null;turnFeet={};gaitFeet={};}
+  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;bodyVelocity=0;runHeadState=null;actor._combatStance=null;turnFeet={};gaitFeet={};treadFeet={};}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
@@ -459,7 +473,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
-   bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};
+   bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};treadFeet={};
    // Keep the eye anchor independent of the actor's floor-clamped render Y.
    const yOffset=cameraY-renderPos.y;
    if(Math.abs(yOffset)>1e-6){
@@ -549,7 +563,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    bodyRootY=renderPos.y;bodyGrounded=grounded;
    actor.group.position.y=bodyY;
    if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt,motion);
-    else {turnFeet={};gaitFeet={};}
+    else {turnFeet={};gaitFeet={};treadFeet={};}
   }
   // Sliding down a steep face: crouched, feet planted on the slope, arms
   // out for balance. Eased in and out over the regular airborne pose.
@@ -593,7 +607,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  // never writes player position/velocity. Preserve the swing phase and lift
  // a foot only when its sole would intersect the actual support surface.
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
- let turnFeet={},gaitFeet={};
+ let turnFeet={},gaitFeet={},treadFeet={};
  const turnNeutral=new T.Vector3(),groundForward=new T.Vector3();
  const authoredHipQ=new T.Quaternion(),authoredKneeQ=new T.Quaternion();
  const hingeScratch={axis:new T.Vector3(),cross:new T.Vector3(),lowerBent:new T.Vector3(),sourceDir:new T.Vector3(),sourcePole:new T.Vector3(),sourceZ:new T.Vector3(),targetZ:new T.Vector3(),matrix:new T.Matrix4(),hip:new T.Quaternion(),knee:new T.Quaternion(),srcQ:new T.Quaternion()};
@@ -601,7 +615,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
   const pivot=motion?.pivotWeight??0;
-  if(pivot<.005)turnFeet={};else gaitFeet={};
+  if(pivot<.005)turnFeet={};else {gaitFeet={};treadFeet={};}
   for(const side of ['left','right']){
    const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
    if(!hip||!knee||!foot)continue;
@@ -627,7 +641,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    if(contact?.state)gaitFeet[side]=contact.state;else delete gaitFeet[side];
    const x=contact?.x??footV.x,z=contact?.z??footV.z;
    const surface=groundSurface(x,z,player.pos.y);
-   if(!Number.isFinite(surface)||Math.abs(surface-player.pos.y)>.5)continue;
+   if(!Number.isFinite(surface)||Math.abs(surface-player.pos.y)>.5){delete treadFeet[side];continue;}
    const delta=surface+sole-footV.y;
    // Swing feet retain lift, except for penetration correction. A supported
    // ankle may follow a bounded world-space anchor, rather than sliding.
@@ -648,9 +662,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    if(!player.slide&&pivot<.005){
     const samples=bodyAnchors().soleOffsets[side],scale=a.units*a.group.scale.x;
     for(let i=0;i<samples.rest.length;i++)samples.world[i].copy(samples.rest[i]).multiplyScalar(scale).applyQuaternion(footWorldQ);
-    const target=footTreadTarget(x,z,surface,player.pos.y,player.vel.x,player.vel.z,samples.world,groundSurface,contact?.weight??0);
-    if(target!==null)vertical=Math.max(vertical,Math.min(.48,target-footV.y));
-   }
+    const tread=footTreadSupport(x,z,surface,player.pos.y,player.vel.x,player.vel.z,samples.world,groundSurface,contact?.weight??0);
+     const target=continueFootTreadTarget(treadFeet[side],tread,footV.y+vertical,dt);
+     if(target!==null){
+      vertical=Math.max(vertical,Math.min(.48,target-footV.y));
+      treadFeet[side]=footV.y+vertical;
+     }else delete treadFeet[side];
+    }else delete treadFeet[side];
    const weight=groundIKWeight(vertical,Math.hypot(x-footV.x,z-footV.z));
    if(!weight)continue;
    goalV.set(x,footV.y+vertical,z);

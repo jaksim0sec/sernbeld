@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep,hingeReachAngle,solveGroundHinge,isFootTreadEdge,footTreadTarget,footSoleOffsets} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep,hingeReachAngle,solveGroundHinge,isFootTreadEdge,footTreadTarget,footTreadSupport,continueFootTreadTarget,footSoleOffsets} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -285,3 +285,31 @@ for(const body of ['male','female']){
  }}finally{actor.dispose();}
 }
 console.log('PASS representative male/female rest sole footprint');
+
+// T3.5 step release: preserve exact clearance and release surplus after stop.
+{
+ const offsets=[{x:.12,y:-.09,z:0},{x:-.10,y:-.09,z:0}];
+ const at=x=>x>=0?.22:0;
+ const before=footTreadSupport(-.2,0,0,0,2.6,0,offsets,at);
+ const stop=footTreadSupport(-.2,0,0,0,0,0,offsets,at);
+ assert(before.active&&!stop.active&&before.target>stop.exact);
+ for(const fps of [30,60,120]){
+  let y=continueFootTreadTarget(null,before,.09,1/fps),start=y;
+  for(let i=0;i<Math.ceil(fps*.5);i++){
+   const next=continueFootTreadTarget(y,stop,.09,1/fps);
+   assert((next??.09)>=stop.exact-1e-9,'do not drop through exact sole');
+   assert(y-(next??.09)<=1.2/fps+1e-9,'bounded step release');
+   y=next??.09;
+  }
+  assert.equal(y,.09);assert(start>.09);
+  const edge=footTreadSupport(-.05,0,0,0,0,0,offsets,at);
+  const top=footTreadSupport(.2,0,.22,.22,0,0,offsets,at);
+  const edgeY=continueFootTreadTarget(null,edge,.09,1/fps);
+  assert(Math.abs(edgeY-.31)<1e-9);
+  assert(Math.abs(continueFootTreadTarget(edgeY,top,.2,1/fps)-.31)<1e-9,'upper tread exact sole after mode exit');
+  assert.equal(continueFootTreadTarget(null,top,.2,1/fps),null,'ordinary flat gait unchanged without step history');
+  assert.equal(continueFootTreadTarget(edgeY,null,.2,1/fps),null,'missing support resets');
+  assert(Math.abs(continueFootTreadTarget(.1,edge,.09,1/fps)-.31)<1e-9,'upward clearance never delayed');
+ }
+ console.log('PASS T3.5 continuous step target release and exact sole priority');
+}

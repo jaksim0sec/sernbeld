@@ -216,3 +216,7 @@ T2: 학습 선례와 제작 표준(원리/실패/예외/평가 방법)을 작성
 ### LIVE-B24/B25 actual hinge result and footprint follow-up
 
 861baaf CI 45979090534 actual male/female hinge PASS; actual stairs maximum knee off-axis component <1.1e-19 but ankle step remains .1036m, local leg step .6168rad, bare-body sole penetration .1609m. Ankle-only surface query misses leading sole across risers; footprint step correction added. Body/pants authored/post-IK edge observations added; actual comparison not yet available. Both OPEN; see task record.
+
+### LIVE-B24/B25 actual footprint result and release follow-up
+
+df44aef CI 46006775897: stair sole penetration observed up to .09471m (previous .1609m), right joint peak worsened to .8511rad at idle. Added continuous footprint release and peak frame telemetry; actual post-change runtime verification pending. Bare-body and pants thigh deformation present in authored pose before IK, larger in pants; shin segments comparatively rigid. No new skin weight changes or visual closure. Both OPEN; see task record.
