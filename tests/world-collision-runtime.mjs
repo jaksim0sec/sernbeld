@@ -551,3 +551,32 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
   env.install(null);
  }
  console.log('PASS T3 triangle mesh support, grade, Player ascent/descent, underside radius and region lifecycle');
+
+ // Existing renderer endpoint and spawn probes must see mesh faces too.
+ {
+  const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('mesh-overlap');env.install(m);
+  const a=[0,0,-2],b=[0,2,-2],c=[0,2,2],d=[0,0,2];
+  const h=m.triangleMesh({collisionId:'mesh:wall',triangles:[[a,b,c],[a,c,d]]});
+  const p=env.playerContacts(.2,0,0);
+  assert(p.length>0,'stationary body must see the same mesh faces as the sweep');
+  assert(p.every(q=>q.instanceId===h.id&&q.nx>.999&&Math.abs(q.depth-.15)<1e-8));
+  assert(env.playerContacts(.25,0,0).some(q=>p.some(k=>q.collider===k.collider&&q.depth<k.depth)),'stable face identity permits decreasing overlap');
+  assert.equal(env.playerContacts(.4,0,0).length,0);
+  assert.equal(env.playerContacts(.2,0,2.1).length,0);
+  assert.equal(env.playerContacts(.2,0,-2).length,0);
+  const spawn=env.playerSafeSpawn(.2,0,0);
+  assert.equal(env.playerContacts(spawn.x,spawn.z,spawn.y).length,0,'spawn search rejects partial mesh intersection');
+  assert(Math.abs(spawn.x-.2)+Math.abs(spawn.z)>.01);
+  const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+   'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+  )(env.playerTerrain,env.playerFloor,()=>null,m,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+  const actor={pos:{x:.2,y:0,z:0},onGround:true,swimming:false,nearby:[],solids:[]};
+  assert.equal(candidate.call(actor,.05,0).contacts.length,0,'actual Player can escape existing shallow overlap');
+  assert(candidate.call(actor,-.05,0).contacts.length>0,'actual Player cannot deepen overlap');
+  m.suspendRegion('mesh-overlap');assert.equal(env.playerContacts(.2,0,0).length,0);
+  m.resumeRegion('mesh-overlap');assert(env.playerContacts(.2,0,0).length>0);
+  assert(m.remove(h.id));assert.equal(env.playerContacts(.2,0,0).length,0);
+  env.install(null);
+ }
+ console.log('PASS T3 mesh endpoint overlap, stable identity, safe spawn and region lifecycle');

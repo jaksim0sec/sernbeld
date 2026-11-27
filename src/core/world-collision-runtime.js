@@ -334,6 +334,18 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    if(collider)found.set(collider,{nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider});
   }
   for(const collider of candidates){const c=found.get(collider);if(c)out.push(c);}
+  // Mesh face overlap uses the same height-clipped projection as the sweep.
+  // Preserve centre-height ground support: a body standing above a walkable
+  // face must not be repelled by the uphill part of its own footprint.
+  eachMeshFace(regionId,{min:[x-radius,y+.002,z-radius],max:[x+radius,y+height-.002,z+radius]},"block",(face,id)=>{
+   if(face.bounds.max[1]<=y+.002||face.bounds.min[1]>=y+height-.002)return;
+   const source=boundarySources.get(regionId).get(id);
+   if(source.policy.support&&face.normal[1]>1e-9&&y>=planeY(face,x,z)-.004)return;
+   const poly=hullXZ(clipY(clipY(face.vertices,y+.002,true),y+height-.002,false));
+   const c=hullContact(poly,x,z,radius,face);
+   // face identity is stable for the existing decreasing-overlap rule.
+   if(c)out.push({...c,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
+  });
   for(const collider of nearby){
    if(collider.top<=y+.002||collider.bot>=y+height-.002)continue;
    const c=playerContact(collider,x,z,radius);if(c)out.push(c);
