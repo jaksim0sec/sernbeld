@@ -49888,6 +49888,7 @@ var STAMINA = { max: 100, drain: 12.5, recovery: 25, delay: .8, restart: 30 };
 // Traversal anchors and body paths share the collision world's metres and surfaces.
 var TRAVERSE_GRADE = WALK_GRADE;
 var TRAVERSE_WALL_GAP = PLAYER.radius + .018;
+var TRAVERSE_ENTRY = { reach:.19, alignment:.65, airRise:.20, intentTime:.60 };
 // One hand-over-hand cycle. Climbing has its own stamina cost: about 15 s
 // (~10 m) from full, so a two-storey wall is reachable and a cliff is not free.
 var CLIMB = { rise: .30, side: .30, duration: .46, drain: 6.5 };
@@ -50154,49 +50155,60 @@ function traversalLedgeAhead(player,dx,dz) {
   return null;
 }
 function traversalStart(player,dx,dz) {
-  const p=player.pos,r=PLAYER.radius+.19;
-  // Geometry-backed mantle is opt-in and uses the existing action/path
-  // validator and pose driver. Legacy surfaces remain the fallback.
-  for(const plan of WorldCollision?.meshMantlePlans?.(p.x,p.z,p.y,dx,dz,{radius:PLAYER.radius,height:PLAYER.body,step:PLAYER.step})??[]){
-    const {stand,nx,nz,over}=plan;
-    const surface={x:p.x,z:p.z,nx,nz,meshId:plan.instanceId,revision:plan.revision};
-    const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(stand.x,stand.y,stand.z),
-      approach:p.clone(),over,hands:plan.hands.map(h=>({point:new Vector3(h.x,h.y,h.z),normal:new Vector3(...h.normal),lip:true})),
-      previous:null,duration:1.02+(stand.y-p.y)*.17,tilt:0,elapsed:0};
-    if(traversalPathClear(action))return action;
+  const p=player.pos,entry=TRAVERSE_ENTRY,r=PLAYER.radius+entry.reach;
+  const mag=Math.hypot(dx,dz);if(mag<1e-8)return null;dx/=mag;dz/=mag;
+  const minRise=player.onGround&&!player.slide?PLAYER.step+.006:entry.airRise;
+  const candidates=[];
+  // All shape-backed candidates share direction, reach and minimum rise.
+  // Candidate geometry is not an accepted action: every path must clear.
+  for(const plan of WorldCollision?.meshMantlePlans?.(p.x,p.z,p.y,dx,dz,{radius:PLAYER.radius,height:PLAYER.body,step:minRise,reach:entry.reach,alignment:entry.alignment})??[]){
+    candidates.push({distance:PLAYER.radius+plan.toi*entry.reach,build:()=>{
+      const {stand,nx,nz,over}=plan;
+      const surface={x:p.x,z:p.z,nx,nz,meshId:plan.instanceId,revision:plan.revision};
+      const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(stand.x,stand.y,stand.z),
+        approach:p.clone(),over,hands:plan.hands.map(h=>({point:new Vector3(h.x,h.y,h.z),normal:new Vector3(...h.normal),lip:true})),
+        previous:null,duration:1.02+(stand.y-p.y)*.17,tilt:0,elapsed:0};
+      return traversalPathClear(action)?action:null;
+    }});
   }
-  let surface=null,nearest=Infinity;
-  for(const box of query(p.x,p.z,r)) {
-    if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=PLAYER.step+.006)continue;
+  for(const box of WorldCollision?.activePrimitives?.(p.x,p.z,r)??query(p.x,p.z,r)){
+    if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=minRise)continue;
     const contact=playerContact(box,p.x,p.z,r);
-    if(!contact||-(dx*contact.nx+dz*contact.nz)<.72)continue;
+    if(!contact||-(dx*contact.nx+dz*contact.nz)<entry.alignment)continue;
     const distance=r-contact.depth;
-    if(distance>=nearest)continue;
-    surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
-    nearest=distance;
+    const surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
+    candidates.push({distance,build:()=>{
+      if(traversalStance(surface).y-p.y<=PLAYER.body){
+        const mantle=traversalMantle(surface,p);if(mantle)return mantle;
+      }
+      if(box.mantleOnly)return null;
+      const to=new Vector3(surface.x+surface.nx*TRAVERSE_WALL_GAP,p.y,surface.z+surface.nz*TRAVERSE_WALL_GAP);
+      const contacts=traversalContacts(surface,to.y,0,1,1);
+      if(!contacts)return null;
+      const action={kind:"latch",surface,from:p.clone(),to,along:0,tilt:0,...contacts,duration:.30,elapsed:0};
+      return traversalPathClear(action)?action:null;
+    }});
   }
-  if(surface&&traversalStance(surface).y-p.y<=PLAYER.body)return traversalMantle(surface,p);
-  if(surface?.box.mantleOnly)return null;
-  let to,tilt=0,along=0;
-  if(surface) {
-    to=new Vector3(surface.x+surface.nx*TRAVERSE_WALL_GAP,p.y,surface.z+surface.nz*TRAVERSE_WALL_GAP);
-  }else{
-    const terrain={x:p.x,z:p.z,nx:-dx,nz:-dz};
-    // Use the actual upward face ahead. Gentle ground and discrete stairs
-    // keep ordinary jump and step-up behavior.
-    along=.16;
-    const grade=traversalTerrainGrade(terrain,along);
-    if(grade<TRAVERSE_GRADE||stairSurface(p.x,p.z,0,true)!==null)return traversalLedgeAhead(player,dx,dz);
-    const foot=traversalAcross(terrain,0,along);
-    const y=playerTerrain(foot.x,foot.z);
-    if(y-p.y<.09||y-p.y>.65)return traversalLedgeAhead(player,dx,dz);
-    surface=terrain;tilt=Math.atan(1/grade);
-    to=new Vector3(foot.x+surface.nx*TRAVERSE_WALL_GAP,y,foot.z+surface.nz*TRAVERSE_WALL_GAP);
+  // Stable ordering retains mesh precedence on equal-distance candidates.
+  for(const candidate of candidates.sort((a,b)=>a.distance-b.distance)){
+    const action=candidate.build();if(action)return action;
   }
-  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),1);
-  if(!contacts)return null;
-  const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
-  return traversalPathClear(action)?action:null;
+  // Specialized terrain/overhead adapters must not mask one another.
+  const surface={x:p.x,z:p.z,nx:-dx,nz:-dz},along=.16;
+  const grade=traversalTerrainGrade(surface,along);
+  if(grade>=TRAVERSE_GRADE&&stairSurface(p.x,p.z,0,true)===null){
+    const foot=traversalAcross(surface,0,along),y=playerTerrain(foot.x,foot.z);
+    if(y-p.y>=.09&&y-p.y<=.65){
+      const tilt=Math.atan(1/grade);
+      const to=new Vector3(foot.x+surface.nx*TRAVERSE_WALL_GAP,y,foot.z+surface.nz*TRAVERSE_WALL_GAP);
+      const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),1);
+      if(contacts){
+        const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
+        if(traversalPathClear(action))return action;
+      }
+    }
+  }
+  return traversalLedgeAhead(player,dx,dz);
 }
 // Continue up a stacked collider (tapered tower segments, a wall standing
 // on a plinth) when the current face ends below the hands.
@@ -50298,6 +50310,7 @@ var Player = class {
     this.staminaDelay = 0;
     this.exhausted = false;
     this.traversal = null;
+    this.grabIntentUntil=0;
     this.renderTraversal = null;
     this.traverseProbe = new Vector3();
     this.slide = null;
@@ -50326,7 +50339,7 @@ var Player = class {
     this.running = false;
     this.landImpact = 0;
     this.moveHeading=null;this.stepRise=0;
-    this.traversal=this.renderTraversal=this.slide=null;
+    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;
     this.resetInterpolation();
     this.teleportId++;
   }
@@ -50409,13 +50422,16 @@ var Player = class {
     const sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
-    if(this.traversal){this.advanceTraversal(dt,dx,dz,jump);return;}
-    // Grab from the ground, while sliding down a steep face, or in the air
-    // against a wall. A failed grab is an ordinary jump only from real ground.
-    if(jump&&!this.swimming&&mv.mag>.24){
+    if(this.traversal){this.grabIntentUntil=0;this.advanceTraversal(dt,dx,dz,jump);return;}
+    // A jump press expresses a bounded grab intent, not a one-tick race.
+    // Retry during the same jump/airborne approach; no automatic wall grab
+    // from ordinary walking, and no retry after landing or entering water.
+    if(this.swimming||(!jump&&this.onGround&&!this.slide)||mv.mag<=.24)this.grabIntentUntil=0;
+    if(jump&&!this.swimming&&mv.mag>.24)this.grabIntentUntil=this.simTime+TRAVERSE_ENTRY.intentTime;
+    if(!this.swimming&&this.grabIntentUntil>this.simTime&&mv.mag>.24){
       const action=traversalStart(this,dx/mv.mag,dz/mv.mag);
       if(action&&(action.kind==="mantle"||!this.exhausted)){
-        this.traversal=action;
+        this.traversal=action;this.grabIntentUntil=0;
         this.vel.set(0,0,0);
         this.running=this.onGround=false;
         this.slide=null;
@@ -50694,7 +50710,7 @@ var Player = class {
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
-    this.traversal=this.renderTraversal=this.slide=null;
+    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;
     this.moveHeading=null;this.facingYaw=null;this.keyboardSteering=false;this.resetInterpolation();this.teleportId++;
   }
 };

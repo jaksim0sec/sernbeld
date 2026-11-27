@@ -420,7 +420,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  }
  // A mantle landing and both hand contacts must belong to the same
  // explicitly enabled mesh. Never infer a circular wall or a flat proxy top.
- function meshMantlePlans(x,z,y,dx,dz,{radius=.35,height=1.72,step=.48,reach=.19,walkMax=50*Math.PI/180}={}){
+ function meshMantlePlans(x,z,y,dx,dz,{radius=.35,height=1.72,step=.48,reach=.19,alignment=.65,walkMax=50*Math.PI/180}={}){
   const len=Math.hypot(dx,dz);if(len<1e-8)return [];
   dx/=len;dz/=len;
   const bounds={min:[Math.min(x,x+dx*reach)-radius,y+.002,Math.min(z,z+dz*reach)-radius],max:[Math.max(x,x+dx*reach)+radius,y+height-.002,Math.max(z,z+dz*reach)+radius]};
@@ -430,7 +430,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    let hit=null;
    visitFaces(source.tree,bounds,face=>{
     const c=sweepFace(face,x,z,y,dx*reach,dz*reach,radius,height);
-    if(c&&-(dx*c.nx+dz*c.nz)>=.65&&(!hit||c.toi<hit.toi))hit=c;
+    if(c&&-(dx*c.nx+dz*c.nz)>=alignment&&(!hit||c.toi<hit.toi))hit=c;
    });
    if(!hit)continue;
    // A conservative whole-source crown bounds the lift path. Large/high
@@ -448,7 +448,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
     return best;
    };
    const walkable=p=>p&&p.normal[1]>=Math.cos(walkMax)-1e-8;
-   const lateral=[dz,-dx];
+   const lateral=[-hit.nz,hit.nx];
    // Keep the nearest geometric candidate first, but offer a bounded set
    // of alternatives on the same source for the existing body path validator.
    let offered=0,lastDistance=-Infinity;
@@ -464,7 +464,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
      if(pair.every(p=>p&&p.normal[1]>.35&&p.y-y<=height)){hands=pair;break;}
     }
     if(!hands)continue;
-    plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:-dx,nz:-dz,stand,hands,over});
+    plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:hit.nx,nz:hit.nz,stand,hands,over});
     lastDistance=d;if(++offered>=3)break;
    }
   }

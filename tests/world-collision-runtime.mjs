@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -863,3 +863,32 @@ console.log('PASS T3 shared mesh body, navigation, recovery and region lifetime'
   playerEnv.install(null);
  }
  console.log('PASS T3 multidirectional curvature, fixed-tick continuity and separated/steep obstacle preservation');
+
+// T4: early one-shot jump reaches both actual primitive and mesh geometry.
+{
+const box=(x,z,h)=>{const a=[x-1.2,0,z-1.2],b=[x+1.2,0,z-1.2],c=[x+1.2,0,z+1.2],d=[x-1.2,0,z+1.2],e=[x-1.2,h,z-1.2],f=[x+1.2,h,z-1.2],g=[x+1.2,h,z+1.2],q=[x-1.2,h,z+1.2];return [[a,b,c],[a,c,d],[e,q,g],[e,g,f],[a,e,f],[a,f,b],[b,f,g],[b,g,c],[c,g,q],[c,q,d],[d,q,e],[d,e,a]];};
+const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+playerEnv.install(m);m.setRegion('t4-entry');
+m.triangleMesh({collisionId:'t4-entry:mesh',triangles:box(120,100,1),support:true,mantle:true});
+playerEnv.addBox({cx:125,cy:.5,cz:100,hx:1.2,hy:.5,hz:1.2});
+playerEnv.addBox({cx:130,cy:.5,cz:100,hx:1.2,hy:.5,hz:1.2,climbable:false});
+const results=[];
+for(const [name,x,z,press,cancel] of [['mesh-early',120,102,true,false],['primitive-early',125,102,true,false],['no-intent',125,102,false,false],['disabled',130,102,true,false],['mesh-close',120,101.56,true,false],['primitive-close',125,101.56,true,false],['release',125,102,true,true]]){
+ const p=new playerEnv.Player();p.teleport(x,z,0,0,0);let first=null;
+ for(let i=0;i<45;i++){
+  p.advance(1/60,{move:()=>cancel&&i>4?{x:0,y:0,mag:0}:{x:0,y:1,mag:1},run:()=>false,consumeJump:()=>i===0&&press});
+  if(p.traversal){first={tick:i,kind:p.traversal.kind};break;}
+ }
+ if(first)for(let i=0;i<150&&p.traversal;i++)p.advance(1/60,{move:()=>({x:0,y:0,mag:0}),run:()=>false,consumeJump:()=>false});
+ results.push({name,first,grounded:p.onGround,y:p.pos.y});
+}
+playerEnv.install(null);
+
+ for(const name of ['mesh-early','primitive-early','mesh-close','primitive-close']){
+  const r=results.find(x=>x.name===name);assert.equal(r.first?.kind,'mantle',name);assert(r.grounded&&Math.abs(r.y-1)<1e-6,'completed mantle '+name);
+ }
+ for(const name of ['no-intent','disabled','release'])assert.equal(results.find(x=>x.name===name).first,null,name);
+ assert(results.find(x=>x.name==='mesh-early').first.tick>0);
+ assert(results.find(x=>x.name==='primitive-early').first.tick>0);
+ console.log('PASS T4 buffered grab admission and completed primitive/mesh mantle '+JSON.stringify(results));
+}

@@ -228,3 +228,7 @@ df44aef CI 46006775897: stair sole penetration observed up to .09471m (previous 
 ### T3.5 사용자 승인 및 T4 진입 (2026-11-28)
 
 사용자 실게임 T3.5 성공 승인. B24 체감 범위 승인 및 직접 회귀 PASS; B25 원본/의상 변형의 정량·원인·최종 게이트는 독립 보존, 원본 가중치 수정 없음. T4 B11~B14 OPEN; 메시 착지 후보 재시도 구현 시작. 기존 영상 증거와 게이트 유지.
+
+### T4 user priority and entry follow-up
+
+User reports bouncing, repeated jump/rubbing, missed plausible holds and inconsistent surfaces. B11 now first priority: standardize trigger, approach and eligible support before pose. Actual fixed-tick isolated early mesh/primitive grab previously missed; now complete after a single press; no-intent/disabled/released-direction preserved. Actual CI/new gameplay and other surface families pending; B11 OPEN.
