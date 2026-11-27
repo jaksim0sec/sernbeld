@@ -53600,6 +53600,36 @@ function motionLabURL(enabled){
 }
 // Developer-only fixtures. Physical dimensions in metres; no normal-world
 // assets, NPCs, inventory mutations or persistent region registrations.
+// Extract collision triangles from the same indexed or non-indexed rendered
+// geometry and its world transform. Ignore zero-area faces produced by
+// procedural clipping; never use interpolated rendering normals.
+function renderedCollisionTriangles(geometry,matrix){
+  const p=geometry.attributes.position,index=geometry.index,e=matrix.elements;
+  const point=i=>{const x=p.getX(i),y=p.getY(i),z=p.getZ(i);return [e[0]*x+e[4]*y+e[8]*z+e[12],e[1]*x+e[5]*y+e[9]*z+e[13],e[2]*x+e[6]*y+e[10]*z+e[14]];};
+  const count=index?index.count:p.count,triangles=[];
+  if(count%3)throw Error("collision geometry must contain triangles");
+  for(let i=0;i<count;i+=3){
+    const t=[0,1,2].map(k=>point(index?index.getX(i+k):i+k)),[a,b,c]=t,u=b.map((v,j)=>v-a[j]),v=c.map((q,j)=>q-a[j]);
+    if(Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])>=1e-9)triangles.push(t);
+  }
+  return triangles;
+}
+function curvedLabGeometry(){
+  // One continuous solid, not separate slope colliders. Gentle, moderate,
+  // steep and flat portions share their vertices and outward winding.
+  const sections=[[0,0],[2,.5],[4,1.6],[6,4.6],[8,4.6]],positions=[],indices=[];
+  for(const [x,y] of sections)positions.push(x,y,-3,x,y,3,x,-.25,-3,x,-.25,3);
+  for(let i=0;i<sections.length-1;i++){
+    const a=i*4,b=a+4;
+    indices.push(a,a+1,b,b,a+1,b+1, // top
+      a,b,a+2,b,b+2,a+2,           // north
+      a+1,a+3,b+1,b+1,a+3,b+3,   // south
+      a+2,b+2,a+3,b+2,b+3,a+3); // bottom
+  }
+  const n=(sections.length-1)*4;
+  indices.push(0,2,1,1,2,3,n,n+1,n+2,n+1,n+3,n+2);
+  const g=new BufferGeometry();g.setAttribute("position",new Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
+}
 function createMotionLabFixtures(scene){
   const root=new Group();root.name="motion-lab-fixtures";scene.add(root);
   const floorMat=new MeshStandardMaterial({color:0x737b82,roughness:1});
@@ -53656,6 +53686,22 @@ function createMotionLabFixtures(scene){
   for(let i=0;i<stairs.count;i++)solid("motion-lab-stair-"+i,stepMat,stairs.x,stairs.z+(i+.5)*stairs.run,stairs.width,stairs.run,(i+1)*stairs.rise,0,false);
   solid("motion-lab-stair-landing",stepMat,stairs.x,stairs.z+stairs.count*stairs.run+2,stairs.width,4,stairs.count*stairs.rise,0,false);
   for(const l of ledges)solid("motion-lab-ledge-"+l.id,ledgeMat,l.x,l.z,l.width,l.depth,l.height);
+  // Real Kael boulder source, with the same nonuniform scale and rotation
+  // convention as Rocks.update, but no approximate cylinder in this lab.
+  const rock={x:26,y:.65,z:4,s:3.2,rot:.65,tilt:.13,v:0,id:"motion-lab:irregular-rock"};
+  const rockObject=mesh(rockGeometry(101+rock.v*17),ledgeMat,rock.x,rock.y,rock.z);
+  rockObject.rotation.set(rock.tilt,rock.rot,rock.tilt*.6);rockObject.scale.set(rock.s*1.15,rock.s,rock.s);
+  rockObject.name="motion-lab-irregular-rock";root.add(rockObject);rockObject.updateWorldMatrix(true,false);
+  const rockTriangles=renderedCollisionTriangles(rockObject.geometry,rockObject.matrixWorld);
+  WorldCollision?.triangleMesh({collisionId:rock.id,triangles:rockTriangles});
+  rock.triangleCount=rockTriangles.length;
+  rock.maxX=Math.max(...rockTriangles.flat().map(v=>v[0]));
+  const curve={x:32,z:0,id:"motion-lab:continuous-curve"};
+  const curveObject=mesh(curvedLabGeometry(),slopeMat,curve.x,0,curve.z);
+  curveObject.name="motion-lab-continuous-curve";root.add(curveObject);curveObject.updateWorldMatrix(true,false);
+  const curveTriangles=renderedCollisionTriangles(curveObject.geometry,curveObject.matrixWorld);
+  WorldCollision?.triangleMesh({collisionId:curve.id,triangles:curveTriangles,support:true});
+  curve.triangleCount=curveTriangles.length;
   const target=new Group();target.name="motion-lab-training-dummy";target.position.set(dummy.x,0,dummy.z);root.add(target);
   const wood=new MeshStandardMaterial({color:0x826248,roughness:1}),pad=new MeshStandardMaterial({color:0xc3a47c,roughness:1});
   const cylinder=(name,r,h,y,mat)=>{
@@ -53679,7 +53725,7 @@ function createMotionLabFixtures(scene){
     }
     return 0;
   };
-  return {root,pool,stairs,ramps,wall,ledges,dummy,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
+  return {root,pool,stairs,ramps,wall,ledges,dummy,rock,curve,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
 }
 async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
@@ -53746,7 +53792,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     add(testSword?"맨손 테스트로 전환":"검 모션 테스트로 전환",()=>{testSword=!testSword;combat.swing=null;view.setWeapon("right",testSword?ITEMS.apprentice_sword:null);ui.close(ui.travel);});
     add("카엘 항구로 돌아가기",()=>location.replace(motionLabURL(false)));
     const note=document.createElement("p");note.className="system-menu-note";
-    note.textContent="북쪽: 30°·45°·60° 경사와 90° 벽 / 서쪽: 수영 연못 / 남쪽: 계단과 높이별 턱 / 동쪽: 더미. 위치와 장비 변경은 저장되지 않습니다.";body.append(note);
+    note.textContent="북쪽: 30°·45°·60° 경사와 90° 벽 / 서쪽: 수영 연못 / 남쪽: 계단과 높이별 턱 / 동쪽: 더미·불규칙 바위·연속 경사. 위치와 장비 변경은 저장되지 않습니다.";body.append(note);
   };
   const resize=()=>{
     const quality=GRAPHICS[graphicsKey(labSave.data.settings.graphics)];
@@ -53796,7 +53842,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     ui.setStamina(player,camera,avatars.mode==="third"&&avatars.bodyRoot.visible,ui.travel.hidden);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev={motionLab:true,motionExperiment,collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}},scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
+  window.__dev={motionLab:true,motionExperiment,collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}},scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,playerContacts,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
 }
 async function boot() {
   const canvas2 = document.getElementById("view");

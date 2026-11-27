@@ -110,6 +110,39 @@ try{
   assert(q.minClear>=.345&&q.clearance<.45,'LIVE-B21 sidewall capsule '+JSON.stringify(q));
   assert(q.escape>q.clearance+.15,'LIVE-B21 release '+JSON.stringify(q));
  }
+ // Visible nonprimitive fixtures: actual Player, same renderer geometry
+ // and runtime bridge, no synthetic collider substituted in the browser.
+ const geometryEvidence=await page.evaluate(()=>{
+  const d=window.__dev,p=d.player,input=d.input,f=d.fixtures;
+  const curve=f.curve,rock=f.rock;
+  const stats=d.collision.stats();
+  if(stats.counts.triangleMesh!==2||!d.scene.getObjectByName('motion-lab-irregular-rock')||!d.scene.getObjectByName('motion-lab-continuous-curve'))throw Error('visible geometry registration');
+  const supports=[[1,.25],[3,1.05],[5,3.1],[7,4.6]].map(([dx,y])=>{
+   const q=d.collision.probe(curve.x+dx,curve.z,y);
+   if(q.hit?.instanceId!==curve.id||Math.abs(q.hit.point[1]-y)>1e-5||Math.abs(q.difference)>1e-5)throw Error('mesh support parity '+JSON.stringify(q));
+   return {x:dx,height:q.hit.point[1],normal:q.hit.geometricNormal};
+  });
+  input.keys.clear();input.setSprint(false);input.independentHeading=true;
+  p.teleport(curve.x+1,curve.z,-Math.PI/2,0,.25);
+  const gentle=p.candidate(.08,0);
+  if(gentle.contacts.length||Math.abs(gentle.y-.27)>1e-5)throw Error('gentle visible ascent '+JSON.stringify(gentle));
+  p.teleport(curve.x+4.2,curve.z,-Math.PI/2,0,1.9);
+  if(!p.candidate(.08,0).contacts.length)throw Error('steep visible ascent accepted');
+  p.teleport(rock.maxX+1,rock.z,Math.PI/2,0,0);
+  const hit=p.candidate(rock.x-p.pos.x,0).contacts.find(c=>c.instanceId===rock.id);
+  if(!hit)throw Error('visible rock does not block actual Player candidate');
+  const start=p.pos.x;
+  window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyW',bubbles:true}));
+  for(let i=0;i<90;i++){p.advance(1/60,input,[]);d.avatars.update(1/60,i/60,{swing:null});}
+  window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyW',bubbles:true}));
+  const stop=p.pos.x,overlap=d.playerContacts(p.pos.x,p.pos.z,p.pos.y).filter(c=>c.instanceId===rock.id);
+  if(!(stop<start-.15&&stop>rock.x)||overlap.length)throw Error('rock fixed-tick collision '+JSON.stringify({start,stop,overlap:overlap.length}));
+  const cam=d.camera;cam.position.set(rock.x+9,5,rock.z+10);cam.lookAt(rock.x+3,1.5,rock.z-2);d.renderer.render(d.scene,cam);
+  return {supports,rock:{triangles:rock.triangleCount,toi:hit.toi,start,stop,overlap:overlap.length},curveTriangles:curve.triangleCount};
+ });
+ console.log('T3 visible geometry evidence '+JSON.stringify(geometryEvidence));
+ await page.screenshot({path:'test-results/physics-t3-irregular-geometry.png'});
+ await page.evaluate(()=>window.__dev.reset());
  const trials=await page.evaluate(async()=>{
   const d=window.__dev,p=d.player,input=d.input;
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);

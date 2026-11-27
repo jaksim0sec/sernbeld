@@ -580,3 +580,20 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
   env.install(null);
  }
  console.log('PASS T3 mesh endpoint overlap, stable identity, safe spawn and region lifecycle');
+
+// Rendered fixture topology, transform and actual Player/renderer support parity.
+{
+ const hs=gameplay.indexOf('function renderedCollisionTriangles('),he=gameplay.indexOf('function createMotionLabFixtures(',hs);
+ class Attr{constructor(a,n){this.a=a;this.count=a.length/n;this.n=n}getX(i){return this.a[i*this.n]}getY(i){return this.a[i*this.n+1]}getZ(i){return this.a[i*this.n+2]}}
+ class Geometry{constructor(){this.attributes={}}setAttribute(k,v){this.attributes[k]=v}setIndex(a){this.index=new Attr(a,1)}computeVertexNormals(){}}
+ const h=Function('BufferGeometry','Float32BufferAttribute',gameplay.slice(hs,he)+'return {renderedCollisionTriangles,curvedLabGeometry};')(Geometry,Attr);
+ const tris=h.renderedCollisionTriangles(h.curvedLabGeometry(),{elements:[1,0,0,0,0,1,0,0,0,0,1,0,32,0,0,1]});
+ assert.equal(tris.length,36);
+ const edges=new Map();for(const t of tris)for(let k=0;k<3;k++){const a=t[k].join(','),b=t[(k+1)%3].join(','),key=[a,b].sort().join('|'),q=edges.get(key)??[0,0];q[0]++;q[1]+=a<b?1:-1;edges.set(key,q);}
+ assert([...edges.values()].every(([n,w])=>n===2&&w===0));
+ const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});m.setRegion('visible-fixture');env.install(m);
+ m.triangleMesh({collisionId:'curve',triangles:tris,support:true});
+ for(const [x,y,k] of [[33,.25,.25],[35,1.05,.55],[37,3.1,1.5],[39,4.6,0]]){const q=m.meshSupport(x,0,10);assert(Math.abs(q.point[1]-y)<1e-8);assert(Math.abs(Math.hypot(q.geometricNormal[0],q.geometricNormal[2])/q.geometricNormal[1]-k)<1e-8);assert(Math.abs(env.playerFloor(x,0,10)-y)<1e-8);}
+ assert(m.surfaceBoundarySweep(37,3.8,0,0,-1.2).length>0);assert.equal(m.surfaceBoundarySweep(37,3.8,5,0,-1.2).length,0);env.install(null);
+}
+console.log('PASS T3 rendered curved geometry topology and runtime support parity');
