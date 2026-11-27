@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: LIVE-B21 generated game.js regenerated from exact source after failed browser repro, zero-return test fixed; verify six side approaches and posed mesh clearance on new SHA, then remaining run/slope and male/female/V01. T3.5 bounded polish only."
+  "next": "MOTION-11261538/T3 priority: geometry-independent curved/irregular solid contact; generic vertical-boundary increment added, validate actual runtime and extend shared support/overlap/sweep to representative nonprimitive geometry before remaining gait/V01. LIVE-B21 stays open."
 }

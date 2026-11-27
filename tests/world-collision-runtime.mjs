@@ -437,3 +437,39 @@ assert.equal(bridge.labSideSweep(50,.5,0,0,-1).length,0);
 bridge.setRegion('lab');
 assert.equal(bridge.labSideSweep(54.3,-3,0,-1.1,0).length,0);
 console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ramp entry');
+
+
+ // T3 geometry generalization: actual terrain registration outside the lab.
+ // A faceted outline supplies world-space boundaries without a ramp category.
+ {
+  const curved=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  curved.setRegion('natural-geometry');
+  const heights=Float64Array.from({length:25},(_,i)=>.55*(i%5-2)**2);
+  const faces=[{a:[0,2,-1],b:[1,2,0],bottom:0},{a:[1,2,0],b:[0,2,1],bottom:0}];
+  const h=curved.terrain({collisionId:'natural:curve',heights,gridN:5,cell:1,half:2,boundaryFaces:faces});
+  env.install(curved);
+  for(const x of [.25,1.25]){
+   const y=env.playerFloor(x,.1,10);
+   const grade=env.playerSteepGround(x,.1,y);
+   if(x<1)assert.equal(grade,null,'gentle segment of curved heightfield');
+   else assert(grade&&Math.abs(grade.k-1.65)<1e-8,'steep segment of the same heightfield');
+  }
+  for(const side of [-1,1]){
+   const n=Math.SQRT1_2,ox=.5+n*.8,oz=side*(.5+n*.8);
+   const hit=curved.surfaceBoundarySweep(ox,oz,0,-n*1.1,-side*n*1.1);
+   assert.equal(hit.length,1,'rotated faceted boundary blocks outside the lab');
+   assert(Math.abs(hit[0].toi-(.8-.348)/1.1)<1e-5);
+   assert(Math.abs(hit[0].nx-n)<1e-6&&Math.abs(hit[0].nz-side*n)<1e-6);
+   assert.equal(curved.labSideSweep(ox,oz,0,-n*1.1,-side*n*1.1).length,1,'existing Player caller consumes generic query');
+   assert.equal(curved.surfaceBoundarySweep(ox,oz,2.1,-n*1.1,-side*n*1.1).length,0,'above face clearance');
+   assert.equal(curved.surfaceBoundarySweep(ox,oz,0,n*.5,side*n*.5).length,0,'outward motion');
+  }
+  curved.suspendRegion('natural-geometry');
+  assert.equal(curved.surfaceBoundarySweep(1.1,-1.1,0,-.8,.8).length,0,'suspended boundary');
+  curved.resumeRegion('natural-geometry');
+  assert(curved.surfaceBoundarySweep(1.1,-1.1,0,-.8,.8).length>0,'resumed boundary');
+  assert(curved.remove(h.id));
+  assert.equal(curved.surfaceBoundarySweep(1.1,-1.1,0,-.8,.8).length,0,'removed boundary');
+  env.install(null);
+ }
+ console.log('PASS T3 natural heightfield grade and oriented vertical boundary lifecycle');
