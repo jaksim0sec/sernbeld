@@ -6,7 +6,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  const registry=createLegacyStaticCollision({query,inside,local,playerContact});
  const roofHelpers={local,roofInFoot,roofInOuter,roofSurfaceLocal};
  let regionId="legacy-world",serial=0;
- const handles=new Map(),records=new Map(),types={box:0,cyl:0,roof:0,stair:0,terrain:0,water:0};
+ const handles=new Map(),records=new Map(),types={box:0,cyl:0,roof:0,stair:0,terrain:0,water:0,labSurface:0};
  const identity={position:[0,0,0],yaw:0,scale:[1,1,1]};
  const roofPolicy=(overhang)=>({id:overhang?"legacy-roof-overhang":"legacy-roof-foot",block:false,support:true,mantle:false,oneWay:overhang,nav:false,camera:false,water:false,climb:"none"});
  const waterPolicy={id:"legacy-water",block:false,support:false,mantle:false,oneWay:false,nav:false,camera:false,water:true,climb:"none"};
@@ -50,6 +50,11 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const id=collisionId??next("terrain"),bounds={min:[-half,-10000,-half],max:[half,10000,half]};
   const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}),{sourceKind:"terrain"});
   types.terrain++;return h;
+ }
+ function labSurface({collisionId,bounds,sample}){
+  if(regionId!=='motion-lab')throw new TypeError('lab-only analytical registration');
+  const h=analytical(collisionId,'heightfield',bounds,roofPolicy(false),sample,{sourceKind:'lab-ground'});
+  types.labSurface++;return h;
  }
  function stair(record){
   const a=record.a,b=record.b,n=record.n;
@@ -119,5 +124,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,stair,water,support,surfaceAt,hasSurfaceKind,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

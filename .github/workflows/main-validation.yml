@@ -31,7 +31,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           result=0
-          for name in world-collision world-collision-legacy world-collision-surfaces world-collision-runtime; do
+          for name in world-collision world-collision-legacy world-collision-surfaces world-collision-runtime motion-experiment; do
             state=success
             node "tests/$name.mjs" > /tmp/physics-single.log 2>&1 || { state=failure; result=1; }
             cat /tmp/physics-single.log

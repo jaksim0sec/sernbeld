@@ -38,8 +38,12 @@ try{
  await page.waitForFunction(()=>window.__dev?.motionLab===true&&!!window.__dev.collision?.stats,{},{timeout:180000});
  const lab=await page.evaluate(()=>{
   const d=window.__dev,s=d.collision.stats(),f=d.fixtures;
-  if(s.regionId!=='motion-lab'||s.counts.box<10||s.counts.cyl<1||s.counts.water!==1||s.counts.terrain!==0)
+  if(s.regionId!=='motion-lab'||s.counts.box<10||s.counts.cyl<1||s.counts.water!==1||s.counts.terrain!==0||s.counts.labSurface!==1)
    throw Error('Lab collision registrations incomplete '+JSON.stringify(s));
+  for(const ramp of f.ramps){
+   const x=ramp.x,z=ramp.z-ramp.run/2,y=ramp.height/2,p=d.collision.probe(x,z,y);
+   if(!p.hit||Math.abs(p.hit.point[1]-y)>1e-6||p.hit.featureId!=='ramp-'+ramp.angle)throw Error('Ramp registration '+JSON.stringify(p));
+  }
   for(const l of f.ledges){
    const p=d.collision.probe(l.x,l.z,l.height);
    if(p.hit?.point[1]!==l.height||Math.abs(p.difference)>1e-6)throw Error('Ledge query parity '+l.id+' '+JSON.stringify(p));
@@ -49,6 +53,10 @@ try{
   if(d.collidersAt(400,-450,10).length)throw Error('Lab world contaminated by Kael colliders');
   return {region:s.regionId,registered:s.registered,types:s.counts,fixtures:f.ledges.length};
  });
+ await page.evaluate(()=>window.__dev.motionExperiment.start());
+ await page.waitForFunction(()=>window.__dev.motionExperiment.read().frames.length>=3,{},{timeout:10000});
+ const trace=await page.evaluate(()=>window.__dev.motionExperiment.stop());
+ assert.equal(trace.error,null);assert(trace.frames.every(f=>f.joints.length===47));
  await page.screenshot({path:'test-results/physics-t1-lab.png'});
  assert.deepEqual(errors,[]);
  console.log('PASS: Kael and motion-lab live collision registration, support parity, PWA and LOD-independent runtime '+JSON.stringify({main,lab}));

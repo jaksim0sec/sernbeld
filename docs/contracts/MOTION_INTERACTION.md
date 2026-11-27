@@ -53,3 +53,7 @@
 - `f3fde2ed817cb02e8f411b5f3f04e6490a7a8db2`의 [CI 45908960059](https://github.com/jaksim0sec/sernbeld/actions/runs/45908960059)에서 공용 등록/실제 소비자 Node 직접 검사, 물리/실월드 Node 회귀, 카엘 및 모션랩 Chromium 직접 회귀 PASS. 전체 CI는 check-infra 및 캐릭터 featureError FAIL이며 실모바일은 NOT RUN.
 - 등록/purpose/region/revision·primitive/analytical의 실제 지원 범위만 T1 계약으로 확정한다. 완전한 sweep/raycast, 미이관된 수역/경사/anchor/nav/camera/actor 및 manifest는 완료된 권위 API로 사용하지 않는다.
 - T2~T8의 미완료 필수 구현과 W01~W12·실모바일 책임은 [T1 종결 및 잔여 책임](../tasks/active/MOTION-11261538.md#t1-종결--공용-물리-기반의-독립-결과-2026-11-27)을 따른다. 기존 수치 및 검증 기준은 유지한다.
+
+## T2 모션 실험 초안 (2026-11-27)
+
+[실험 모듈](../../src/entities/character/motion-experiment.js)과 `window.__dev.motionExperiment`는 모션랩 전용: manifest(), rig(), replay({scenario,strength,scale,frames}), start(), stop(), read(). trace는 최대 600프레임, 명시적 수집만 수행하고 자동 중지한다. replay는 분리 배우에서 기존 driver를 사용하되 물리/IK 완결을 의미하지 않으며, 강도 변화는 중립 대비 상체 채널에만 적용하고 관절 제한 유지. 실제 플레이어 root/기존 모션은 변경하지 않는다. supportCandidate는 판정 후보이지 접지 확정이 아니며 ankleProxyGap은 실제 발바닥 위치가 아니다. contact/transition windows 및 실화면 품질 미확정.

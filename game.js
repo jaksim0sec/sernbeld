@@ -46820,6 +46820,7 @@ import {createStudioGeometry} from './src/entities/character/studio-geometry.js'
 import {createStudioModel} from './src/entities/character/studio-model.js';
 import {resolveNpcAppearance} from './src/entities/character/appearance.js';
 import {createCharacterRuntime} from './src/entities/character/studio-integration.js';
+import {motionManifest,readMotionState,measureRig,capturePose,createMotionTrace,sampleLabGround,replayMotion} from './src/entities/character/motion-experiment.js';
 import {createGameEvents} from './src/core/game-events.js';
 import {createEntityRegistry} from './src/core/entity-registry.js';
 import {createItemRuntime, extendItemDefinitions} from './src/core/shared-items.js';
@@ -53638,6 +53639,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
   WorldCollision?.setRegion('motion-lab');
   const fixtures=createMotionLabFixtures(scene);
+  WorldCollision?.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>sampleLabGround(fixtures,x,z)});
   const pool=fixtures.pool;
   WorldCollision?.water({contains:(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ,surfaceAt:()=>pool.surface,bottomAt:(x,z)=>fixtures.height(x,z),bounds:{center:[(pool.minX+pool.maxX)/2,(pool.bottom+pool.surface)/2,(pool.minZ+pool.maxZ)/2],half:[(pool.maxX-pool.minX)/2,(pool.surface-pool.bottom)/2,(pool.maxZ-pool.minZ)/2]}});
   playerTerrain=fixtures.height;
@@ -53674,6 +53676,8 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     makeWeapon:id=>{const model=ITEMS[id]?.model;if(!model||!MODELS[model])return null;const weapon=new Mesh(MODELS[model](),view.mat);weapon.userData.handleY=-.08;return weapon;},view,height:PLAYER.height,
     attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
   rig.motion=labSave.data.settings.motion;
+  const motionTrace=createMotionTrace();let traceRig=null,traceActor=null;
+  const motionExperiment={manifest:()=>motionManifest(),rig:()=>measureRig(avatars.actor),replay:options=>replayMotion(makeCharacter,avatars.profile,options),start:()=>{traceActor=avatars.actor;traceRig=measureRig(traceActor);motionTrace.start();},stop:()=>motionTrace.stop(),read:()=>motionTrace.read()};
   const reset=()=>{combat.swing=null;player.teleport(0,0,0,-.10);movementCamera.reset(player);};
   reset();
   $("hudMapOpen").style.display="none";
@@ -53731,6 +53735,14 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     rig.update(dt,player);
     if(player.mode==="walk"&&avatars.mode==="first"&&!player.traversal)maktwoAttackCamera(camera,combat.swing,rig.motion);
     avatars.update(dt,t,combat);avatars.applyThirdCamera(dt,rig);avatars.updateTrail(combat);
+    if(motionTrace.active){
+      try{
+        const actor=avatars.actor,root=player.pos;
+        if(actor!==traceActor)throw Error('actor changed; restart trace');
+        const hit=WorldCollision?.support([root.x,root.y,root.z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step,maxDrop:.5});
+        motionTrace.push(capturePose(actor,readMotionState(player,actor,hit),{time:t,groundSurface:playerFootSurface,ankleRest:traceRig.ankleRest}));
+      }catch(e){motionTrace.stop(String(e));}
+    }
     light.target.position.set(player.pos.x,0,player.pos.z);
     light.position.copy(light.target.position).add(new Vector3(5,10,6));
     renderer.shadowMap.needsUpdate=true;
@@ -53738,7 +53750,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
     ui.setStamina(player,camera,avatars.mode==="third"&&avatars.bodyRoot.visible,ui.travel.hidden);
   };
   renderer.setAnimationLoop(tick);
-  window.__dev={motionLab:true,collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}},scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
+  window.__dev={motionLab:true,motionExperiment,collision:{stats:()=>WorldCollision?.debugSnapshot(),probe:(x,z,y)=>{const legacy=playerFloor(x,z,y+PLAYER.step),hit=WorldCollision?.support([x,y,z],{radius:PLAYER.radius,height:PLAYER.body},{maxRise:PLAYER.step});return {legacy,hit,difference:hit?hit.point[1]-legacy:null};}},scene,camera,renderer,player,input,rig,avatars,fixtures,combat,waterLevel,playerTerrain,playerFloor,playerFootSurface,collidersAt,ui,Save:labSave,reset,frame:()=>tick(performance.now())};
 }
 async function boot() {
   const canvas2 = document.getElementById("view");

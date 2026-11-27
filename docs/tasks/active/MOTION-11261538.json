@@ -19,7 +19,9 @@
     "game.js",
     "sw.js",
     ".github/workflows/main-validation.yml",
-    "tests/world-collision-browser.mjs"
+    "tests/world-collision-browser.mjs",
+    "src/entities/character/motion-experiment.js",
+    "tests/motion-experiment.mjs"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -32,5 +34,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T2: T1 scoped foundation DONE; direct Node and Kael/lab Chromium PASS at f3fde2e (45908960059). Lab analytical fixture/contact trace, rig measurements and motion-state adapter, motion expression contract. Remaining W01-W12/consumer/authoring/mobile gates retained in T2-T8."
+  "next": "MOTION-11261538/T2: lab ground registry, live pose/contacts trace, rig measurement and scripted strength experiment implemented; confirm direct Node/Chromium, measure real post-IK support, transition/contact markers and multi-view comparison."
 }
