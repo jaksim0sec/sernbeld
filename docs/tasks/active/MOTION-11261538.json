@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3.5: bounded visual polish and residual triage (reopen T3 if core functional regression is reproduced); then T4 traversal and production rock parity; preserve T2 and final verification gates."
+  "next": "MOTION-11261538/T3.5: 개입필요 — live retest staircase ascent, walking continuity and running head sway; if accepted close T3.5 and proceed T4. Preserve existing functional and final gates."
 }

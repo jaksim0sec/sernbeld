@@ -47,6 +47,26 @@ export function smoothBodyHeight(previous,target,dt,grounded,speed=0){
  return previous+Math.max(-maxDelta,Math.min(maxDelta,delta));
 }
 
+// Presentation-only critically damped body height, retaining vertical velocity.
+export function smoothLocomotionHeight(previous,velocity,target,dt,speed){
+ if(!Number.isFinite(previous))return {y:target,velocity:0};
+ dt=Math.max(0,dt);if(!dt)return {y:previous,velocity};
+ const rate=19+Math.min(7.5,Math.max(0,speed))*.7,decay=Math.exp(-rate*dt);
+ const error=previous-target,term=velocity+rate*error;
+ const next=target+(error+term*dt)*decay,v=(velocity-rate*term*dt)*decay;
+ const limit=Math.max(2.4,speed*.8+.6),delta=Math.max(-limit*dt,Math.min(limit*dt,next-previous));
+ return {y:previous+delta,velocity:Math.max(-limit,Math.min(limit,v))};
+}
+// Filter inherited yaw/roll oscillation in the body frame, preserving turns.
+export function runHeadFilter(previous,yaw,roll,speed,runSpeed,dt){
+ const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+ const weight=clamp01((speed-2.6)/Math.max(.5,runSpeed-2.6));
+ const alpha=1-Math.exp(-Math.max(0,dt)*5);
+ const fy=previous?wrap(previous.yaw+wrap(yaw-previous.yaw)*alpha):yaw;
+ const fr=previous?previous.roll+(roll-previous.roll)*alpha:roll;
+ return {state:{yaw:fy,roll:fr},yaw:wrap(yaw+wrap(fy-yaw)*weight*.85),roll:roll+(fr-roll)*weight*.85};
+}
+
 // Preserve the actual airborne root trajectory: decay only the previous visual
 // offset, not the world height. Ground entry starts from the previous offset
 // relative to the current physical root, so landing cannot snap to IK height.
@@ -92,7 +112,7 @@ export function gaitSupportWeight(phase,side){
 }
 // World-space ankle anchor, owned only by presentation. A vanished support,
 // unreachable target or changed height invalidates this stance until swing.
-export function groundGaitTarget(previous,side,phase,speed,foot,sole,feetY,surfaceAt){
+export function groundGaitTarget(previous,side,phase,speed,foot,sole,feetY,surfaceAt,dt=Infinity){
  const intent=gaitSupportWeight(phase,side),blend=clamp01((speed-.15)/.5);
  const free=state=>({state,weight:0,x:foot.x,z:foot.z});
  if(!intent||!blend)return free(null);
@@ -100,11 +120,14 @@ export function groundGaitTarget(previous,side,phase,speed,foot,sole,feetY,surfa
  const height=surfaceAt(foot.x,foot.z,feetY);
  if(!valid(height))return free({blocked:true});
  let state=previous;
- if(!state&&Math.abs(height+sole-foot.y)<=.10)state={x:foot.x,z:foot.z,y:height};
+ if(!state&&Math.abs(height+sole-foot.y)<=.10)state={x:foot.x,z:foot.z,y:height,age:0};
  if(!state||state.blocked)return free(state);
  const anchorY=surfaceAt(state.x,state.z,feetY),distance=Math.hypot(state.x-foot.x,state.z-foot.z);
  if(!valid(anchorY)||Math.abs(anchorY-state.y)>.04||Math.abs(anchorY-height)>.24||distance>=.32)return free({blocked:true});
- const weight=intent*blend*(1-clamp01((distance-.16)/.16))*(1-clamp01((Math.abs(height+sole-foot.y)-.10)/.12));
+ const age=Math.min(.09,(state.age??.09)+Math.max(0,dt));
+ state={...state,age};
+ const acquisition=clamp01(age/.09),release=(1-clamp01((Math.abs(anchorY-state.y)-.02)/.02))*(1-clamp01((Math.abs(anchorY-height)-.12)/.12));
+ const weight=intent*blend*acquisition*acquisition*(3-2*acquisition)*release*(1-clamp01((distance-.16)/.16))*(1-clamp01((Math.abs(height+sole-foot.y)-.10)/.12));
  return {state,weight,x:foot.x+(state.x-foot.x)*weight,z:foot.z+(state.z-foot.z)*weight};
 }
 
@@ -192,7 +215,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyRootY=null,bodyGrounded=false,gaitSpeed=0,slideWeight=0,lastSlide=null;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyRootY=null,bodyGrounded=false,gaitSpeed=0,slideWeight=0,lastSlide=null,bodyVelocity=0,runHeadState=null;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
  dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
@@ -247,6 +270,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  const headMotion=new T.Vector3(),headTarget=new T.Vector3(),headPivot=new T.Vector3(),headEye=new T.Vector3(),neutralEye=new T.Vector3();
  const yawQ=new T.Quaternion(),headQ=new T.Quaternion(),localHeadQ=new T.Quaternion(),headViewQ=new T.Quaternion();
  const headViewEuler=new T.Euler(0,0,0,'YXZ');
+ const runHeadEuler=new T.Euler(0,0,0,'YXZ'),runHeadLocal=new T.Quaternion(),runHeadParent=new T.Quaternion(),runHeadGroup=new T.Quaternion();
  const eyeBasis=new T.Vector3(0,.065,.038),tmpUp=new T.Vector3();
  let headCut=null,lastHeadMode=null,headRoll=0;
  function bodyAnchors(){
@@ -266,7 +290,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
   for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;turnFeet={};gaitFeet={};return;}
+  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;cameraCut=null;turnFeet={};gaitFeet={};return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const cameraReset=cameraCut!==player.teleportId;
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
@@ -275,12 +299,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const steeringYaw=player.keyboardSteering&&!player.swimming&&!player.slide&&Number.isFinite(player.facingYaw)?player.facingYaw+Math.PI:aimYaw;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   gaitSpeed=0;bodyY=null;bodyGrounded=false;turnFeet={};gaitFeet={};
+   gaitSpeed=0;bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;turnFeet={};gaitFeet={};}
+  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;bodyVelocity=0;runHeadState=null;actor._combatStance=null;turnFeet={};gaitFeet={};}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
@@ -306,7 +330,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
-   bodyY=null;bodyGrounded=false;turnFeet={};gaitFeet={};
+   bodyY=null;bodyGrounded=false;bodyVelocity=0;runHeadState=null;turnFeet={};gaitFeet={};
    // Keep the eye anchor independent of the actor's floor-clamped render Y.
    const yOffset=cameraY-renderPos.y;
    if(Math.abs(yOffset)>1e-6){
@@ -386,7 +410,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
     }
     desired=bodySupportCorrection(errors,support.stepped);
    }
-   bodyY=transitionBodyHeight(bodyY,bodyRootY,renderPos.y,support.y+desired,dt,grounded,bodyGrounded,speed,bodyReset);
+   if(grounded&&bodyGrounded&&!bodyReset&&Number.isFinite(bodyY)){
+    const smooth=smoothLocomotionHeight(bodyY,bodyVelocity,support.y+desired,dt,gaitSpeed);
+    bodyY=smooth.y;bodyVelocity=smooth.velocity;
+   }else{
+    bodyY=transitionBodyHeight(bodyY,bodyRootY,renderPos.y,support.y+desired,dt,grounded,bodyGrounded,speed,bodyReset);
+    bodyVelocity=0;
+   }
    bodyRootY=renderPos.y;bodyGrounded=grounded;
    actor.group.position.y=bodyY;
    if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt,motion);
@@ -398,6 +428,21 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   slideWeight+=((player.slide&&!player.swimming&&!firstPerson?1:0)-slideWeight)*(1-Math.exp(-dt*10));
   if(slideWeight>.01&&!firstPerson&&lastSlide)poseSlide(renderPos,ankleRest,slideWeight);
   actor.group.updateWorldMatrix(true,false);
+  if(grounded&&!player.slide&&!combat.swing&&!actor._combatStance){
+   const head=actor.B.head;
+   actor.group.getWorldQuaternion(runHeadGroup);
+   head.getWorldQuaternion(runHeadLocal).premultiply(runHeadParent.copy(runHeadGroup).invert());
+   runHeadEuler.setFromQuaternion(runHeadLocal,'YXZ');
+   const stabilized=runHeadFilter(runHeadState,runHeadEuler.y,runHeadEuler.z,gaitSpeed,runSpeed,dt);
+   runHeadState=stabilized.state;
+   if(gaitSpeed>2.6){
+    runHeadEuler.y=stabilized.yaw;runHeadEuler.z=stabilized.roll;
+    runHeadLocal.setFromEuler(runHeadEuler).premultiply(runHeadGroup);
+    head.parent.getWorldQuaternion(runHeadParent);
+    head.quaternion.copy(runHeadParent.invert().multiply(runHeadLocal));
+    head.updateWorldMatrix(false,true);
+   }
+  }else runHeadState=null;
   const moving=clamp01(speed/2),base=firstPerson?eye:chest,m=actor.group.matrixWorld;
   for(const side of ['right','left']){
    const weapon=weapons[side];
@@ -447,7 +492,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
     }
    }
    const useGait=pivot<.005&&!player.slide&&gaitSpeed>.15;
-   const contact=useGait?groundGaitTarget(gaitFeet[side],side,a.phase,gaitSpeed,footV,sole,player.pos.y,groundSurface):null;
+   const contact=useGait?groundGaitTarget(gaitFeet[side],side,a.phase,gaitSpeed,footV,sole,player.pos.y,groundSurface,dt):null;
    if(contact?.state)gaitFeet[side]=contact.state;else delete gaitFeet[side];
    const x=contact?.x??footV.x,z=contact?.z??footV.z;
    const surface=groundSurface(x,z,player.pos.y);

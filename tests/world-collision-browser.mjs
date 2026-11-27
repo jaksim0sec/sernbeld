@@ -252,10 +252,11 @@ try{
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
   const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
   const out={};input.independentHeading=true;
-  const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']],['slope',['KeyW']],['blocked',['KeyW']]];
+  const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']],['slope',['KeyW']],['stairs',['KeyW']],['blocked',['KeyW']]];
   for(const [name,codes] of cases){
    input.keys.clear();input.setSprint(false);d.reset();
    if(name==='slope'){const f=d.fixtures.curve;p.teleport(f.x+1,f.z,-Math.PI/2,0,.25);}
+   if(name==='stairs'){const f=d.fixtures.stairs;p.teleport(f.x,f.z-.5,Math.PI,0,0);}
    if(name==='blocked'){const f=d.fixtures.ramps[0];p.teleport(f.x+f.width/2+.45,f.z-f.run/2,Math.PI/2,0,0);}
    const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
    const step=(i,record)=>{
@@ -264,7 +265,9 @@ try{
     if(before.distanceTo(p.pos)>1e-9)throw Error('avatar changed physics root');
     if(record){
      const hit=d.collision.probe(p.pos.x,p.pos.z,p.pos.y).hit;
-     frames.push(m.capturePose(actor,m.readMotionState(p,actor,hit),{time:i/60,groundSurface:d.playerFootSurface,ankleRest:rig.ankleRest}));
+     const frame=m.capturePose(actor,m.readMotionState(p,actor,hit),{time:i/60,groundSurface:d.playerFootSurface,ankleRest:rig.ankleRest});
+     frame.headWorld=actor.B.head.getWorldQuaternion(actor.B.head.quaternion.clone()).toArray();
+     frames.push(frame);
     }
    };
    for(let i=0;i<60;i++)step(i,false);
@@ -279,6 +282,8 @@ try{
  });
  assert(trials.walk.summary.actions.some(a=>a.action==='walk'));
  assert(trials.run.summary.actions.some(a=>a.action==='run'),'actual sprint state did not activate');
+ assert(trials.stairs.frames.some(f=>f.state.root[1]>.5),'actual stair route must ascend');
+ assert(trials.run.frames.every(f=>f.headWorld?.length===4&&f.headWorld.every(Number.isFinite)),'actual head quaternion trace');
  assert(trials.backpedal.summary.actions.some(a=>a.action==='backpedal'));
  assert(trials.pivot.quality.pivotFrames>0);
  assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='leave-ground'));

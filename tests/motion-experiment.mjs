@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -142,3 +142,39 @@ for(let i=0;i<100;i++){
  assert(b>=a&&b-a<.024,'continuous horizontal anchor influence');
 }
 console.log('PASS bounded ground IK influence, no threshold jump, upward clearance priority');
+
+
+for(const fps of [30,60,120]){
+ const dt=1/fps,speed=2.6;let oldY=null,y=null,v=0,oldPrev=null,prev=null,oldV=null,prevV=null,oldJerk=0,jerk=0;
+ for(let i=0;i<fps*3;i++){
+  const x=i*dt*speed,raw=Math.floor(x/.55)*.22;
+  const target=sampleBodySupport({x,y:raw,z:0},raw,speed,0,x=>Math.floor(x/.55)*.22).y;
+  oldY=smoothBodyHeight(oldY,target,dt,true,speed);
+  const next=smoothLocomotionHeight(y,v,target,dt,speed);y=next.y;v=next.velocity;
+  assert(Math.abs(y-raw)<.48,'visual body remains in low-step range');
+  if(prev!==null){
+   const a=(oldY-oldPrev)/dt,b=(y-prev)/dt;
+   assert(Math.abs(b)<=Math.max(2.4,speed*.8+.6)+1e-8);
+   if(prevV!==null&&i>fps/2){oldJerk+=Math.abs(a-oldV);jerk+=Math.abs(b-prevV);}
+   oldV=a;prevV=b;
+  }
+  oldPrev=oldY;prev=y;
+ }
+ console.log('T3.5 stair velocity change',fps,oldJerk,jerk);
+ assert(jerk<oldJerk,'step-height velocity changes should decrease '+[fps,jerk,oldJerk]);
+ let lock=groundGaitTarget(null,'left',Math.PI,2.6,{x:0,y:.08,z:0},.08,0,()=>0,dt);
+ assert(lock.weight>0&&lock.weight<1,'late anchor must blend in');
+ for(let i=0;i<Math.ceil(.1*fps);i++)lock=groundGaitTarget(lock.state,'left',Math.PI,2.6,{x:.1,y:.08,z:0},.08,0,()=>0,dt);
+ assert(Math.abs(lock.weight-1)<1e-9);
+ let state=null,rawPower=0,filteredPower=0;
+ for(let i=0;i<fps*4;i++){
+  const yaw=.15*Math.sin(i*dt*2*Math.PI*2.5)+.3,roll=.08*Math.sin(i*dt*2*Math.PI*2.5);
+  const r=runHeadFilter(state,yaw,roll,7.5,7.5,dt);state=r.state;
+  if(i>=fps){rawPower+=(yaw-.3)**2+roll**2;filteredPower+=(r.yaw-.3)**2+r.roll**2;}
+ }
+ console.log('T3.5 head oscillation power ratio',fps,filteredPower/rawPower);
+ assert(filteredPower<rawPower*.4,'running yaw/roll oscillation should decrease');
+ const walk=runHeadFilter(state,.5,.2,2.6,7.5,dt);
+ assert(Math.abs(walk.yaw-.5)<1e-9&&Math.abs(walk.roll-.2)<1e-9,'walk head pose remains authored');
+}
+console.log('PASS T3.5 visual stair velocity, smooth stance acquisition, running head yaw/roll filter');
