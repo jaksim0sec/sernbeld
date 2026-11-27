@@ -1,3 +1,4 @@
+import {classifySupport} from './world-collision.js';
 import {createLegacyStaticCollision,sampleLegacyRoof,sampleHeightfieldTriangle,sampleLegacyStair,sampleLegacyWater} from './world-collision-legacy.js';
 
 // Bridge for the existing world builder: authoritative geometry stays in the
@@ -80,11 +81,34 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  // Filter by surface class before choosing a hit. Preserve the existing
  // stair declaration order and distinguish solid footprint from one-way eaves.
  function surfaceAt(x,z,kind,maxY=Infinity){
-  if(!["terrain","stair","roof-foot","roof-overhang"].includes(kind))throw new TypeError("invalid surface kind");
+  if(!["terrain","stair","roof-foot","roof-overhang","lab-ground"].includes(kind))throw new TypeError("invalid surface kind");
   const y=Number.isFinite(maxY)?maxY:0;
   return registry.sampleSupport({root:[x,y,z],profile:{radius:0,height:1.72},maxRise:Number.isFinite(maxY)?0:Number.MAX_VALUE,maxDrop:Infinity,analyticalOnly:true,sourceKind:kind,firstAnalytical:kind==="stair"},{regionId,purpose:"support"});
  }
  function hasSurfaceKind(kind){return kind==="terrain"?types.terrain>0:kind==="stair"?types.stair>0:types.roof>0;}
+ // Grounded actor consumers distinguish an exact geometric slope from an
+ // unresolved seam/fallback. Null means known walkable, undefined means
+ // preserve the legacy finite-difference classification.
+ function groundSlope(x,z,floor,walkMax){
+  if(!Number.isFinite(floor))return undefined;
+  const kind=regionId==="motion-lab"?"lab-ground":"terrain";
+  const hit=surfaceAt(x,z,kind);
+  if(!hit||Math.abs(hit.point[1]-floor)>.002||!hit.geometricNormal)return undefined;
+  // A registered level primitive at the actual foot point is a distinct
+  // support, even when its top happens to coincide with the terrain.
+  const solid=staticSupport(x,z,floor,0);
+  if(solid&&Math.abs(solid.point[1]-floor)<=.002)return null;
+  const n=hit.geometricNormal;
+  const state=classifySupport({geometricNormal:n,support:true,footContact:true,walkMax});
+  if(state.kind!=="slide")return state.kind==="walk"?null:undefined;
+  const k=Math.hypot(n[0],n[2])/n[1],h=Math.hypot(n[0],n[2]);
+  return {ux:-n[0]/h,uz:-n[2]/h,k};
+ }
+ // All legacy broadphase consumers share the same registered active region
+ // and block policy; keep their distinct vertical/step tolerances intact.
+ function activePrimitives(x,z,range){
+  return [...query(x,z,range)].filter(record=>registry.activeStatic(record,{regionId,purpose:"block"}));
+ }
  function sampleWater(root,profile,{region=regionId}={}){
   return registry.sampleWater({root,profile},{regionId:region,purpose:"water"});
  }
@@ -124,5 +148,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

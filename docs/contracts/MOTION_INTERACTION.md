@@ -74,3 +74,8 @@
 - `motionPolicy(action)`을 절차적 manifest에 포함한다. 권위 action 전환은 clip 완료를 기다리지 않는다. phase 유지가 기본이며 teleport/actor replacement는 별도 reset 사건이다. idle/social은 양발 지지 후보, walk/run/backpedal은 기존 gait/near-surface 보정 후보(후진 phase 역방향), airborne/swim/fly는 지면 lock 없음. pivot만 기존 pivotFootTarget의 반주기 지지/스윙과 가중치를 명시한다. gait 및 기존 keyframe의 저작 접촉 window는 미작성 null로 유지하며 접지 관측이나 무릎 각도에서 임의 확정하지 않는다. T3는 실제 지지 의도/foot lock, T4~T5는 행동별 접촉 계약, T8은 신규 clip의 저작 marker를 채운다. 이 표준은 런타임 동작 수정이 아니라 이후 단계의 입력/평가 계약이다.
 - 동세 강도 실험은 동일 body/scale/root/phase/timing에서 중립 대비 골반·허리·흉곽·머리·팔 채널 .65/1/1.35배(리그 범위 clamp), 하체 local pose 유지. `compareMotionStrength`로 동일 root/phase/하체 채널 및 상체 회전 차이를 비교한다. 실제 피부 리그를 동일 camera/lighting으로 2개 시점×3방향×3강도 캡처하고 수치/원본 pose를 artifact로 저장한다. detached driver이며 본게임 post-IK 품질·미적 승인을 뜻하지 않는다. 미적 방향은 기준 모션을 기본값으로 보존하고 선택 전 실제 증거를 검토한다.
 - 합격 조건: 직접 실험 재현 PASS, 동일 root/phase/하체 local 차이 0, 상체 표현 차이 관측, 3방향 가독성 평가. 향후 행동 구현 품질 기준은 지지 중 drift 30mm/관통 10mm 목표와 별도 전환 검증을 유지한다. 새 SHA 직접 CI 및 캡처 육안 판독은 아직 미확인.
+
+## T3 지상 소비자 이관 1차 (2026-11-27, PARTIAL)
+
+- 등록된 primitive의 활성 및 지역/block 필터를 bodyBlockedAt/pushOut/occupiedAt에 공통 적용한다. 기존 허용치와 기하 판정은 유지. bridge 없는 legacy fixture fallback 및 stale 등록 비활성 유지.
+- groundSlope는 실제 선택 지지 높이와 일치하는 terrain/lab-ground normal에만 classifySupport를 적용한다. null은 확인된 보행 가능, undefined는 미확정(기존 경로로 복귀)이다. 계단/지붕 분기 및 50° 기준 유지. T3 이동 후보/모션·접지/실화면 검증은 미완료.

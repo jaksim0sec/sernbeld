@@ -1071,6 +1071,12 @@ function playerSteepGround(x,z,floor) {
   const onRoof=Math.abs(floor-roof)<=CONTACT_SKIN;
   if(!onRoof&&Math.abs(floor-playerTerrain(x,z))>CONTACT_SKIN)return null;
   for(const [ox,oz] of [[0,0],[e,0],[-e,0],[0,e],[0,-e]])if(stairSurface(x+ox,z+oz,0,true)!==null)return null;
+  // Prefer the registered exact triangle/ramp normal. Roofs and ambiguous
+  // features keep the legacy seam/overhang path until their own migration.
+  if(!onRoof&&WorldCollision?.groundSlope){
+    const slope=WorldCollision.groundSlope(x,z,floor,50*Math.PI/180);
+    if(slope!==undefined)return slope;
+  }
   // On a roof sample the continuous roof surface across the wall line.
   const H=onRoof?roofOrTerrain:playerTerrain;
   const gx=(H(x+e,z)-H(x-e,z))/(2*e),gz=(H(x,z+e)-H(x,z-e))/(2*e),k=Math.hypot(gx,gz);
@@ -1180,8 +1186,11 @@ function playerFootSurface(x,z,feetY) {
   return Number.isFinite(h)?h:null;
 }
 
+function activeBodyCandidates(x,z,range){
+  return WorldCollision?.activePrimitives?WorldCollision.activePrimitives(x,z,range):query(x,z,range);
+}
 function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
-  for (const o of query(x, z, radius + 1)) {
+  for (const o of activeBodyCandidates(x, z, radius + 1)) {
     if (o.top <= feetY + 0.025 || o.bot >= feetY + height - 0.025) continue;
     if (o.walk && o.top <= feetY + PLAYER.step + 0.025) continue;
     if (o.type === "cyl") {
@@ -1196,7 +1205,7 @@ function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body
 }
 function pushOut(pos, radius, height) {
   const feet = pos.y;
-  for (const o of query(pos.x, pos.z, radius + 1)) {
+  for (const o of activeBodyCandidates(pos.x, pos.z, radius + 1)) {
     if (feet >= o.top - 0.03 || feet + height <= o.bot) continue;
     if (o.walk && o.top - feet <= PLAYER.step) continue;
     if (o.type === "cyl") {
@@ -1230,7 +1239,7 @@ function pushOut(pos, radius, height) {
   }
 }
 function occupiedAt(x, z, g, margin = 0.4) {
-  for (const o of query(x, z, margin + 1)) {
+  for (const o of activeBodyCandidates(x, z, margin + 1)) {
     if (o.top <= g + PLAYER.step || o.bot >= g + 1.7) continue;
     if (inside(o, x, z, margin)) return true;
   }

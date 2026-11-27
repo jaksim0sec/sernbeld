@@ -5,7 +5,7 @@ import {createRuntimeCollisionBridge} from '../src/core/world-collision-runtime.
 // Exercise the actual renderer's existing registration/probe functions, not
 // a lookalike collision implementation.
 const src=readFileSync(new URL('../src/render/world-render.part.js',import.meta.url),'utf8');
-const start=src.indexOf('var CELL = 32;'),end=src.indexOf('function playerSafeSpawn(',start);
+const start=src.indexOf('var CELL = 32;'),end=src.indexOf('function collidersAt(',start);
 assert(start>=0&&end>start,'renderer extraction markers');
 const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={cell:20},GRID_N=3,
   World={H:new Float64Array(9)},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v)),
@@ -13,7 +13,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   ${src.slice(start,end)}
   return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerCeiling,playerContacts,playerContact,
     roofInFoot,roofInOuter,roofSurfaceLocal,roofHeight,roofOverhangTop,playerTerrain,heightfieldTriangle,
-    install(v){WorldCollision=v;}};`)();
+    bodyBlockedAt,pushOut,occupiedAt,playerSteepGround,install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 env.install(bridge);bridge.setRegion('lab');
 const profile={radius:.35,height:1.72};
@@ -153,3 +153,35 @@ diagonalBridge.stair(secondFlight);
 assert.equal(diagonalBridge.surfaceAt(43+d,43-d,'stair')?.instanceId,sh.id,'first authored flight wins as in legacy');
 assert.equal(diagonalBridge.surfaceAt(39,39,'stair'),null);
 console.log('PASS: runtime static, roof, terrain, water, active region, resident render-independence, analytical index, IDs and migrated surface consumers');
+
+// T3: all legacy body probes must respect the same live registration state.
+assert(env.bodyBlockedAt(0,0,0));
+assert(env.occupiedAt(0,0,0));
+const pushed={x:0,y:0,z:0};env.pushOut(pushed,.35,1.72);
+assert(Math.hypot(pushed.x,pushed.z)>0);
+bridge.suspendRegion('lab');
+assert(!env.bodyBlockedAt(0,0,0));
+assert(!env.occupiedAt(0,0,0));
+const suspended={x:0,y:0,z:0};env.pushOut(suspended,.35,1.72);
+assert.deepEqual(suspended,{x:0,y:0,z:0});
+bridge.resumeRegion('lab');
+assert(env.bodyBlockedAt(0,0,0));
+bridge.setRegion('other');
+assert(!env.bodyBlockedAt(0,0,0));
+bridge.setRegion('lab');
+assert(bridge.remove(b.collisionId));
+assert(!env.bodyBlockedAt(0,0,0),'removed registration must not revive through stale grid record');
+const slopeBridge=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+slopeBridge.setRegion('motion-lab');
+slopeBridge.labSurface({collisionId:'motion-lab:test-ground',bounds:{min:[-10,-10,-10],max:[10,10,10]},sample:(x,z)=>{
+ const k=x<0?Math.tan(Math.PI/6):Math.tan(Math.PI/3),n=Math.hypot(1,k);
+ return {point:[x,2,z],featureId:x<0?'walk':'slide',geometricNormal:x===0?null:[-k/n,1/n,0]};
+}});
+assert.equal(slopeBridge.groundSlope(-1,0,2,50*Math.PI/180),null);
+const exact=slopeBridge.groundSlope(1,0,2,50*Math.PI/180);
+assert(Math.abs(exact.k-Math.tan(Math.PI/3))<1e-9&&exact.ux===1);
+assert.equal(slopeBridge.groundSlope(0,0,2,50*Math.PI/180),undefined,'ambiguous seam retains fallback');
+assert.equal(slopeBridge.groundSlope(1,0,3,50*Math.PI/180),undefined,'different support height cannot supply normal');
+slopeBridge.suspendRegion('motion-lab');
+assert.equal(slopeBridge.groundSlope(1,0,2,50*Math.PI/180),undefined);
+console.log('PASS T3 active body probes, exact slope normal and unresolved seam fallback');

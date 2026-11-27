@@ -187,6 +187,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
  // must be reinserted into that grid, then registered again under a fresh
  // revision. Old consumers are unchanged until authority is switched.
  return {registerStatic,registerAnalytical,remove,get:world.get,setActive:world.setActive,suspendRegion:world.suspendRegion,resumeRegion:world.resumeRegion,
+  activeStatic:(record,filter)=>{const link=links.get(record);return Boolean(link&&world.isEligible(link.id,link.shapeId,filter));},
   sampleSupport:world.sampleSupport,sampleCeiling:world.sampleCeiling,sampleWater:world.sampleWater,overlapBody:world.overlapBody,queryAabb:world.queryAabb,resolveShape:world.resolveShape,capabilities:world.capabilities,
   analyticalIndexStats:()=>({cells:analyticalCells.size,largeSources:largeAnalytical.size,sources:analytical.size})};
 }

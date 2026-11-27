@@ -133,6 +133,7 @@ export function createWorldCollision({backend=null}={}){
  }
  return {
   register,get,updateTransform,setActive,remove,
+  isEligible:(instanceId,shapeId,f)=>{filterValid(f);const e=entries.get(instanceId),s=e?.shapes.find(s=>s.id===shapeId);return Boolean(s&&eligible(e,s,f));},
   suspendRegion:id=>regionState(id,false),resumeRegion:id=>regionState(id,true),
   queryAabb,resolveShape,
   capabilities:()=>({referenceAabb:true,productionBroadphase:false,...Object.fromEntries(["raycast","overlapBody","sweepBody","sampleSupport","sampleCeiling","sampleSurface","sampleWater"].map(k=>[k,typeof backend?.[k]==="function"]))}),
