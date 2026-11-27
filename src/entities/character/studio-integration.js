@@ -130,12 +130,20 @@ export function isFootTreadEdge(x,z,h,px,pz,ph,feetY,surfaceAt){
 // Each offset is relative to the ankle in world coordinates, in its actual
 // authored orientation. Preserve the rigid foot orientation and query its
 // footprint, including anticipation from the leading sole, not its pivot.
-export function footTreadSupport(x,z,surface,feetY,vx,vz,offsets,groundSurface,lock=0){
+export function footTreadSupport(x,z,surface,feetY,vx,vz,offsets,groundSurface,lock=0,edgeGuard=false){
  let active=false,target=-Infinity,exact=-Infinity;
  for(const p of offsets){
   const px=x+p.x,pz=z+p.z,h=groundSurface(px,pz,feetY);
   if(!Number.isFinite(h)||Math.abs(h-feetY)>.5||Math.abs(h-surface)>.48)continue;
-  const ahead=anticipateFootStep(px,pz,h,feetY,vx,vz,groundSurface,lock);
+  let ahead=anticipateFootStep(px,pz,h,feetY,vx,vz,groundSurface,lock);
+  // The authored foot can still shift or rotate after root velocity stops.
+  // On a known split-height stance, anticipate outward sole crossings
+  // geometrically rather than relying on root velocity or anchor release.
+  const radial=Math.hypot(p.x,p.z);
+  if(edgeGuard&&radial>.025){
+   const guardSpeed=.26; // .12m spatial reach in anticipateFootStep
+   ahead=Math.max(ahead,anticipateFootStep(px,pz,h,feetY,p.x/radial*guardSpeed,p.z/radial*guardSpeed,groundSurface,0));
+  }
   if(ahead>h+1e-8||isFootTreadEdge(x,z,surface,px,pz,h,feetY,groundSurface))active=true;
   exact=Math.max(exact,h-p.y);
   target=Math.max(target,Math.max(h,ahead)-p.y);
@@ -662,7 +670,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    if(!player.slide&&pivot<.005){
     const samples=bodyAnchors().soleOffsets[side],scale=a.units*a.group.scale.x;
     for(let i=0;i<samples.rest.length;i++)samples.world[i].copy(samples.rest[i]).multiplyScalar(scale).applyQuaternion(footWorldQ);
-    const tread=footTreadSupport(x,z,surface,player.pos.y,player.vel.x,player.vel.z,samples.world,groundSurface,contact?.weight??0);
+    const edgeGuard=player.pos.y-surface>.06||Number.isFinite(treadFeet[side]);
+    const tread=footTreadSupport(x,z,surface,player.pos.y,player.vel.x,player.vel.z,samples.world,groundSurface,contact?.weight??0,edgeGuard);
      const target=continueFootTreadTarget(treadFeet[side],tread,footV.y+vertical,dt);
      if(target!==null){
       vertical=Math.max(vertical,Math.min(.48,target-footV.y));

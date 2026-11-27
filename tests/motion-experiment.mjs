@@ -313,3 +313,26 @@ console.log('PASS representative male/female rest sole footprint');
  }
  console.log('PASS T3.5 continuous step target release and exact sole priority');
 }
+
+// T3.5: the procedural sole can cross a riser at zero root speed.
+{
+ const offsets=[{x:.12,y:-.09,z:0},{x:-.10,y:-.09,z:0}];
+ const at=x=>x>=0?.22:0;
+ let old=null,now=null,oldPeak=0,newPeak=0;
+ for(let i=0;i<=80;i++){
+  const x=-.28+i*.003,h=at(x);
+  const a=footTreadSupport(x,0,h,.22,0,0,offsets,at,0,false);
+  const b=footTreadSupport(x,0,h,.22,0,0,offsets,at,0,true);
+  const raw=a.active?a.target:.09,guarded=b.active?b.target:.09;
+  assert(guarded>=b.exact-1e-9,'exact footprint clearance');
+  if(old!==null){oldPeak=Math.max(oldPeak,Math.abs(raw-old));newPeak=Math.max(newPeak,Math.abs(guarded-now));}
+  old=raw;now=guarded;
+ }
+ assert(oldPeak>.21&&newPeak<.03,'stationary crossing no full tread-height switch');
+ for(const [vx,vz] of [[0,0],[2.6,0],[-2.6,0]]){
+  const flat=footTreadSupport(0,0,0,0,vx,vz,offsets,()=>0,0,true);
+  assert(!flat.active&&Math.abs(flat.exact-.09)<1e-9);
+  assert(!footTreadSupport(0,0,0,0,vx,vz,offsets,x=>x*.5,0,true).active,'continuous slope unchanged');
+ }
+ console.log('T3.5 stationary sole crossing maximum target delta',oldPeak,newPeak);
+}

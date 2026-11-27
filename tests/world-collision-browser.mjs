@@ -297,13 +297,23 @@ try{
      const point=(i,v)=>m.body?o.localToWorld(o.getVertexPosition(i,v)):o.userData.deformGarmentVertex(i,v);
      out[m.name]={};
      for(const [id,edges] of Object.entries(m.groups)){
-      let max=0,sum=0;
+      let max=0,sum=0,peak=null;
       for(const edge of edges){
        const ratio=point(edge.a,a).distanceTo(point(edge.b,b))/(edge.l*scale.x),error=Math.abs(ratio-1);
        if(!Number.isFinite(error))throw Error('nonfinite leg mesh edge');
-       max=Math.max(max,error);sum+=error;
+       if(error>max){
+        max=error;
+        const binding=o.userData.garmentBinding;
+        const influences=i=>{
+         if(m.body){const g=o.geometry.attributes;return ['X','Y','Z','W'].map(k=>({bone:actor.data.bones[g.skinIndex['get'+k](i)]?.id,weight:g.skinWeight['get'+k](i)})).filter(v=>v.weight>0);}
+         if(!binding)return [];
+         return Array.from({length:binding.slots},(_,k)=>({bone:actor.data.bones[binding.actual[i*binding.slots+k]]?.id,weight:binding.skinWeight[i*binding.slots+k]})).filter(v=>v.weight>0);
+        };
+        peak={vertices:[edge.a,edge.b],restLength:edge.l*scale.x,posedLength:ratio*edge.l*scale.x,rest:[edge.a,edge.b].map(i=>[m.rest.getX(i),m.rest.getY(i),m.rest.getZ(i)]),influences:[influences(edge.a),influences(edge.b)]};
+       }
+       sum+=error;
       }
-      out[m.name][id]={samples:edges.length,maxRelativeLengthChange:max,meanRelativeLengthChange:edges.length?sum/edges.length:null};
+      out[m.name][id]={samples:edges.length,maxRelativeLengthChange:max,meanRelativeLengthChange:edges.length?sum/edges.length:null,peak};
      }
     }
     return out;
@@ -398,7 +408,7 @@ try{
   assert(evidence.length>0&&evidence.every(f=>f.authored&&f.postIK),'actual skin mesh comparison coverage');
   const summary={};for(const frame of evidence)for(const stage of ['authored','postIK'])for(const [mesh,parts] of Object.entries(frame[stage]))for(const [part,v] of Object.entries(parts)){
    const key=stage+':'+mesh+':'+part,record=summary[key]??(summary[key]={samples:0,maxRelativeLengthChange:0,peakMeanRelativeLengthChange:0});
-   record.samples+=v.samples;record.maxRelativeLengthChange=Math.max(record.maxRelativeLengthChange,v.maxRelativeLengthChange);record.peakMeanRelativeLengthChange=Math.max(record.peakMeanRelativeLengthChange,v.meanRelativeLengthChange??0);
+   record.samples+=v.samples;if(v.maxRelativeLengthChange>record.maxRelativeLengthChange){record.maxRelativeLengthChange=v.maxRelativeLengthChange;record.peak=v.peak;}record.peakMeanRelativeLengthChange=Math.max(record.peakMeanRelativeLengthChange,v.meanRelativeLengthChange??0);
   }
   assert(Object.entries(summary).filter(([key])=>key.includes(':body:')).every(([,v])=>v.samples>0),'actual body mid-segment sample coverage');
   legMeshEvidence[name]=summary;

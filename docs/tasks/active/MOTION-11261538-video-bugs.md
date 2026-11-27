@@ -220,3 +220,7 @@ T2: 학습 선례와 제작 표준(원리/실패/예외/평가 방법)을 작성
 ### LIVE-B24/B25 actual footprint result and release follow-up
 
 df44aef CI 46006775897: stair sole penetration observed up to .09471m (previous .1609m), right joint peak worsened to .8511rad at idle. Added continuous footprint release and peak frame telemetry; actual post-change runtime verification pending. Bare-body and pants thigh deformation present in authored pose before IK, larger in pants; shin segments comparatively rigid. No new skin weight changes or visual closure. Both OPEN; see task record.
+
+### LIVE-B24/B25 stationary edge follow-up
+
+16909b1 actual stair sole penetration max .01987m, right knee peak .74696rad at idle frame 100 with unchanged root and ankle support. Added geometric anticipation for settling sole on split-height stance; synthetic target jump .22→.01031m. Added peak edge influence/length attribution to actual body/pants diagnostic. New actual checks pending, both OPEN.
