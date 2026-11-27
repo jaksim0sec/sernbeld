@@ -67,6 +67,15 @@ export function groundFootCorrection(delta,stance){
  const t=clamp01((-delta-.045)/.09);
  return Math.max(-.09,delta)*stance*(1-t*t*(3-2*t));
 }
+// Fade ground IK from the authored pose for small target changes. A hard
+// invocation threshold otherwise applies the full knee pole repair to even a
+// millimetre-sized correction. Upward anti-penetration has a shorter fade.
+export function groundIKWeight(vertical,horizontal){
+ const magnitude=Math.hypot(vertical,horizontal);
+ const full=vertical>0?.012:.035;
+ const t=clamp01((magnitude-.002)/(full-.002));
+ return t*t*(3-2*t);
+}
 // The rig's authored maximum knee flexion bounds the reachable ankle sphere.
 export function groundLegDistance(l1,l2,distance,maxFlex){
  const max=l1+l2-.001;
@@ -412,6 +421,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
  let turnFeet={},gaitFeet={};
  const turnNeutral=new T.Vector3(),groundForward=new T.Vector3();
+ const authoredHipQ=new T.Quaternion(),authoredKneeQ=new T.Quaternion();
  function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
   const pivot=motion?.pivotWeight??0;
@@ -448,12 +458,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    const blend=useGait?clamp01((gaitSpeed-.15)/.5):0;
    const stance=1-blend+blend*gaitSupportWeight(a.phase,side);
    const vertical=groundFootCorrection(delta,stance);
-   if(Math.abs(vertical)<.004&&!(contact?.weight>0))continue;
+   const weight=groundIKWeight(vertical,Math.hypot(x-footV.x,z-footV.z));
+   if(!weight)continue;
    goalV.set(x,footV.y+vertical,z);
-   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ),null,bodyAnchors().kneeFlex[side]??135);
+   solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ),null,bodyAnchors().kneeFlex[side]??135,weight);
   }
  }
- function solveFoot(a,side,target,rotation,preferredPole=null,groundFlex=null){
+ function solveFoot(a,side,target,rotation,preferredPole=null,groundFlex=null,weight=1){
   const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
   const scale=a.units*a.group.scale.x;
   hip.getWorldPosition(hipV);knee.getWorldPosition(kneeV);foot.getWorldPosition(footV);
@@ -484,6 +495,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const along=(d*d+l1*l1-l2*l2)/(2*d);
   newKnee.copy(hipV).addScaledVector(dirV,along).addScaledVector(poleV,Math.sqrt(Math.max(0,l1*l1-along*along)));
   goalV.copy(hipV).addScaledVector(dirV,d);
+  if(weight<1){authoredHipQ.copy(hip.quaternion);authoredKneeQ.copy(knee.quaternion);}
   oldDir.copy(kneeV).sub(hipV).normalize();newDir.copy(newKnee).sub(hipV).normalize();
   hip.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
   hip.parent.getWorldQuaternion(qParent);hip.quaternion.copy(qParent.invert().multiply(qA));
@@ -491,6 +503,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   oldDir.copy(footV).sub(kneeV).normalize();newDir.copy(goalV).sub(kneeV).normalize();
   knee.getWorldQuaternion(qA);qA.premultiply(qB.setFromUnitVectors(oldDir,newDir));
   knee.parent.getWorldQuaternion(qParent);knee.quaternion.copy(qParent.invert().multiply(qA));
+  if(weight<1){
+   // Blend both solved local joints against the same pre-IK authored pose.
+   // Recompute the foot's local rotation afterwards to keep its world orientation.
+   hip.quaternion.slerp(authoredHipQ,1-weight);
+   knee.quaternion.slerp(authoredKneeQ,1-weight);
+  }
   foot.parent.getWorldQuaternion(qParent);foot.quaternion.copy(qParent.invert().multiply(rotation));
  }
 

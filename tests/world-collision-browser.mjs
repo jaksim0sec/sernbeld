@@ -226,7 +226,7 @@ try{
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
   const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
   const out={};input.independentHeading=true;
-  const cases=[['idle',[]],['walk',['KeyW']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']]];
+  const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']]];
   for(const [name,codes] of cases){
    input.keys.clear();input.setSprint(false);d.reset();
    const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
@@ -250,6 +250,7 @@ try{
   d.reset();return out;
  });
  assert(trials.walk.summary.actions.some(a=>a.action==='walk'));
+ assert(trials.run.summary.actions.some(a=>a.action==='run'),'actual sprint state did not activate');
  assert(trials.backpedal.summary.actions.some(a=>a.action==='backpedal'));
  assert(trials.pivot.quality.pivotFrames>0);
  assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='leave-ground'));

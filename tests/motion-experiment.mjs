@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -124,3 +124,21 @@ for(const body of ['male','female']){
   assert(d>Math.abs(l1-l2)&&d<l1+l2);
  }}finally{actor.dispose();}
 }
+
+
+assert.equal(groundIKWeight(0,0),0);
+assert.equal(groundIKWeight(.002,0),0);
+assert.equal(groundIKWeight(-.002,0),0);
+assert.equal(groundIKWeight(.012,0),1);
+assert.equal(groundIKWeight(-.035,0),1);
+assert.equal(groundIKWeight(0,.035),1);
+assert(groundIKWeight(.008,0)>groundIKWeight(-.008,0),'prioritize upward clearance');
+for(const direction of [-1,1])for(let i=0;i<1000;i++){
+ const a=groundIKWeight(direction*i*.0001,0),b=groundIKWeight(direction*(i+1)*.0001,0);
+ assert(b>=a-1e-12&&b-a<.016,'continuous ground IK influence');
+}
+for(let i=0;i<100;i++){
+ const a=groundIKWeight(0,i*.0005),b=groundIKWeight(0,(i+1)*.0005);
+ assert(b>=a&&b-a<.024,'continuous horizontal anchor influence');
+}
+console.log('PASS bounded ground IK influence, no threshold jump, upward clearance priority');
