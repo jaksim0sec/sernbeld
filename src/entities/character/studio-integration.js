@@ -63,6 +63,7 @@ export function transitionBodyHeight(previous,previousRoot,root,target,dt,ground
 // 90 mm correction in one frame when the authored foot crosses a threshold.
 export function groundFootCorrection(delta,stance){
  if(delta>=0)return Math.min(.27,delta);
+ if(stance<=0||delta<=-.135)return 0;
  const t=clamp01((-delta-.045)/.09);
  return Math.max(-.09,delta)*stance*(1-t*t*(3-2*t));
 }

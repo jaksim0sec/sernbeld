@@ -50536,6 +50536,9 @@ var Player = class {
   }
   candidate(dx,dz){
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
+    // Vertical triangular wedge faces are distinct from walkable top support.
+    const sideHits=WorldCollision?.labSideSweep?.(p.x,p.z,p.y,x-p.x,z-p.z,PLAYER.radius,PLAYER.body)??[];
+    if(sideHits.length)return {contacts:sideHits};
     const maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
     const limit=p.y+maxRise+CONTACT_SKIN,terrain=playerTerrain(x,z,limit);
     let floor=playerFloor(x,z,limit,PLAYER.radius,this.solids);
@@ -53679,7 +53682,7 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
   WorldCollision?.setRegion('motion-lab');
   const fixtures=createMotionLabFixtures(scene);
-  WorldCollision?.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>sampleLabGround(fixtures,x,z)});
+  WorldCollision?.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>sampleLabGround(fixtures,x,z),ramps:fixtures.ramps});
   const pool=fixtures.pool;
   WorldCollision?.water({contains:(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ,surfaceAt:()=>pool.surface,bottomAt:(x,z)=>fixtures.height(x,z),bounds:{center:[(pool.minX+pool.maxX)/2,(pool.bottom+pool.surface)/2,(pool.minZ+pool.maxZ)/2],half:[(pool.maxX-pool.minX)/2,(pool.surface-pool.bottom)/2,(pool.maxZ-pool.minZ)/2]}});
   playerTerrain=fixtures.height;
