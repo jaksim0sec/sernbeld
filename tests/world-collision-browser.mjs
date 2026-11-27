@@ -194,7 +194,7 @@ try{
   const d=window.__dev,p=d.player,input=d.input,f=d.fixtures;
   const curve=f.curve,rock=f.rock;
   const stats=d.collision.stats();
-  if(stats.counts.triangleMesh!==2||!d.scene.getObjectByName('motion-lab-irregular-rock')||!d.scene.getObjectByName('motion-lab-continuous-curve'))throw Error('visible geometry registration');
+  if(stats.counts.triangleMesh!==3||!d.scene.getObjectByName('motion-lab-irregular-rock')||!d.scene.getObjectByName('motion-lab-continuous-curve'))throw Error('visible geometry registration');
   const supports=[[1,.25],[3,1.05],[5,3.1],[7,4.6]].map(([dx,y])=>{
    const q=d.collision.probe(curve.x+dx,curve.z,y);
    if(q.hit?.instanceId!==curve.id||Math.abs(q.hit.point[1]-y)>1e-5||Math.abs(q.difference)>1e-5)throw Error('mesh support parity '+JSON.stringify(q));
@@ -220,6 +220,19 @@ try{
  });
  console.log('T3 visible geometry evidence '+JSON.stringify(geometryEvidence));
  await page.screenshot({path:'test-results/physics-t3-irregular-geometry.png'});
+ const mantleEvidence=await page.evaluate(()=>{
+  const d=window.__dev,p=d.player,f=d.fixtures.mantle;
+  if(!f||!d.scene.getObjectByName('motion-lab-mesh-mantle'))throw Error('missing rendered mantle mesh');
+  p.teleport(f.x,f.z+1.56,0,0,0);
+  const idle={move:()=>({x:0,y:0,mag:0}),run:()=>false,consumeJump:()=>false};
+  p.advance(1/60,{...idle,move:()=>({x:0,y:1,mag:1}),consumeJump:()=>true});
+  if(p.traversal?.surface.meshId!==f.id)throw Error('actual mesh mantle not selected');
+  const hands=p.traversal.hands.map(h=>h.point.toArray());
+  for(let i=0;i<150&&p.traversal;i++){p.advance(1/60,idle);d.avatars.update(1/60,i/60,{swing:null});if(d.playerContacts(p.pos.x,p.pos.z,p.pos.y).length)throw Error('mesh mantle penetration');}
+  if(!p.onGround||p.traversal||Math.abs(p.pos.y-1)>1e-5)throw Error('mesh mantle landing');
+  return {hands,landing:p.pos.toArray()};
+ });
+ console.log('T3 actual mesh mantle evidence '+JSON.stringify(mantleEvidence));
  await page.evaluate(()=>window.__dev.reset());
  const trials=await page.evaluate(async()=>{
   const d=window.__dev,p=d.player,input=d.input;

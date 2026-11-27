@@ -201,12 +201,12 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   r.collisionId=base;types.roof++;return output;
  }
  // Support is opt-in. Supporting mesh faces must be outward wound.
- function triangleMesh({collisionId,triangles,support=false}){
-  if(typeof support!=="boolean")throw new TypeError("invalid mesh support policy");
+ function triangleMesh({collisionId,triangles,support=false,mantle=false}){
+  if(typeof support!=="boolean"||typeof mantle!=="boolean"||mantle&&!support)throw new TypeError("invalid mesh support/mantle policy");
   if(!Array.isArray(triangles)||!triangles.length)throw new TypeError("empty triangle mesh");
   const faces=triangles.map((v,i)=>triangleFace(v,"triangle:"+i)),raw=mergeBounds(faces);
   const bounds={min:raw.min.map(v=>v-1e-7),max:raw.max.map(v=>v+1e-7)};
-  const policy={id:support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle:false,oneWay:false,nav:false,camera:false,water:false,climb:"none"};
+  const policy={id:mantle?"triangle-mesh-mantle":support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle,oneWay:false,nav:false,camera:false,water:false,climb:mantle?"mantleOnly":"none"};
   const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces});
   types.triangleMesh=(types.triangleMesh??0)+1;
   return h;
@@ -354,6 +354,55 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    if(!best||hit.limitY>best.limitY)best=hit;
   });
   return best;
+ }
+ // A mantle landing and both hand contacts must belong to the same
+ // explicitly enabled mesh. Never infer a circular wall or a flat proxy top.
+ function meshMantlePlans(x,z,y,dx,dz,{radius=.35,height=1.72,step=.48,reach=.19,walkMax=50*Math.PI/180}={}){
+  const len=Math.hypot(dx,dz);if(len<1e-8)return [];
+  dx/=len;dz/=len;
+  const bounds={min:[Math.min(x,x+dx*reach)-radius,y+.002,Math.min(z,z+dz*reach)-radius],max:[Math.max(x,x+dx*reach)+radius,y+height-.002,Math.max(z,z+dz*reach)+radius]};
+  const plans=[];
+  for(const [id,source] of boundaryCandidates(regionId,bounds)){
+   if(!source.policy.mantle||!intersects(source.bounds,bounds)||!registry.get(id)?.effectiveActive)continue;
+   let hit=null;
+   visitFaces(source.tree,bounds,face=>{
+    const c=sweepFace(face,x,z,y,dx*reach,dz*reach,radius,height);
+    if(c&&-(dx*c.nx+dz*c.nz)>=.65&&(!hit||c.toi<hit.toi))hit=c;
+   });
+   if(!hit)continue;
+   // A conservative whole-source crown bounds the lift path. Large/high
+   // compound assets must supply smaller authored mantle parts, not teleport.
+   const over=source.tree.bounds.max[1]+.045;
+   if(over-y>height+.05)continue;
+   const sample=(px,pz)=>{
+    let best=null;
+    visitFaces(source.tree,{min:[px,y+step,pz],max:[px,over,pz]},face=>{
+     if(face.normal[1]<=1e-9)return;
+     const h=facePointY(face,px,pz);
+     if(h===null||h<=y+step||h>over)return;
+     if(!best||h>best.y+1e-8||Math.abs(h-best.y)<=1e-8&&face.normal[1]<best.normal[1])best={x:px,y:h,z:pz,normal:face.normal,featureId:face.featureId};
+    });
+    return best;
+   };
+   const walkable=p=>p&&p.normal[1]>=Math.cos(walkMax)-1e-8;
+   const lateral=[dz,-dx];
+   // First reachable stable stance. All samples refer to real triangles.
+   for(let d=radius+reach+.1;d<=2.4;d+=.08){
+    const tx=x+dx*d,tz=z+dz*d,stand=sample(tx,tz);
+    if(!walkable(stand)||stand.y-y>height)continue;
+    const ring=Array.from({length:8},(_,i)=>sample(tx+Math.cos(i*Math.PI/4)*radius*.8,tz+Math.sin(i*Math.PI/4)*radius*.8));
+    if(ring.some(p=>!walkable(p)||Math.abs(p.y-stand.y)>.24))continue;
+    let hands=null;
+    for(const offset of [radius+.12,radius,.2,.1]){
+     const pair=[-1,1].map(sign=>sample(tx-dx*offset+lateral[0]*sign*.195,tz-dz*offset+lateral[1]*sign*.195));
+     if(pair.every(p=>p&&p.normal[1]>.35&&p.y-y<=height)){hands=pair;break;}
+    }
+    if(!hands)continue;
+    plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:-dx,nz:-dz,stand,hands,over});
+    break;
+   }
+  }
+  return plans.sort((a,b)=>a.toi-b.toi);
  }
  function meshSlope(x,z,floor,walkMax){
   if(!Number.isFinite(floor))return undefined;
@@ -525,5 +574,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates},capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

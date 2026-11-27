@@ -50134,6 +50134,16 @@ function traversalLedgeAhead(player,dx,dz) {
 }
 function traversalStart(player,dx,dz) {
   const p=player.pos,r=PLAYER.radius+.19;
+  // Geometry-backed mantle is opt-in and uses the existing action/path
+  // validator and pose driver. Legacy surfaces remain the fallback.
+  for(const plan of WorldCollision?.meshMantlePlans?.(p.x,p.z,p.y,dx,dz,{radius:PLAYER.radius,height:PLAYER.body,step:PLAYER.step})??[]){
+    const {stand,nx,nz,over}=plan;
+    const surface={x:p.x,z:p.z,nx,nz,meshId:plan.instanceId,revision:plan.revision};
+    const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(stand.x,stand.y,stand.z),
+      approach:p.clone(),over,hands:plan.hands.map(h=>({point:new Vector3(h.x,h.y,h.z),normal:new Vector3(...h.normal),lip:true})),
+      previous:null,duration:1.02+(stand.y-p.y)*.17,tilt:0,elapsed:0};
+    if(traversalPathClear(action))return action;
+  }
   let surface=null,nearest=Infinity;
   for(const box of query(p.x,p.z,r)) {
     if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=PLAYER.step+.006)continue;
@@ -50497,6 +50507,7 @@ var Player = class {
   advanceTraversal(dt,dx,dz,drop) {
     const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
     const {surface}=action;
+    if(surface.meshId){const source=WorldCollision?.get(surface.meshId);if(!source?.effectiveActive||source.revision!==surface.revision){this.traversal=null;this.vel.set(0,-.25,0);return;}}
     if(climbing)this.updateStamina(dt,true,CLIMB.drain);
     if(drop||(climbing&&this.exhausted)){
       this.traversal=null;
@@ -53709,6 +53720,12 @@ function createMotionLabFixtures(scene){
   const curveTriangles=renderedCollisionTriangles(curveObject.geometry,curveObject.matrixWorld);
   WorldCollision?.triangleMesh({collisionId:curve.id,triangles:curveTriangles,support:true});
   curve.triangleCount=curveTriangles.length;
+  // Low mesh-only solid for actual mantle validation. Its geometry is the
+  // authority for approach, landing and hand contacts; no primitive proxy.
+  const mantle={x:32,z:14,id:"motion-lab:mesh-mantle"};
+  const mantleObject=mesh(new BoxGeometry(2.4,1,2.4),ledgeMat,mantle.x,.5,mantle.z);
+  mantleObject.name="motion-lab-mesh-mantle";root.add(mantleObject);mantleObject.updateWorldMatrix(true,false);
+  WorldCollision?.triangleMesh({collisionId:mantle.id,triangles:renderedCollisionTriangles(mantleObject.geometry,mantleObject.matrixWorld),support:true,mantle:true});
   const target=new Group();target.name="motion-lab-training-dummy";target.position.set(dummy.x,0,dummy.z);root.add(target);
   const wood=new MeshStandardMaterial({color:0x826248,roughness:1}),pad=new MeshStandardMaterial({color:0xc3a47c,roughness:1});
   const cylinder=(name,r,h,y,mat)=>{
@@ -53732,7 +53749,7 @@ function createMotionLabFixtures(scene){
     }
     return 0;
   };
-  return {root,pool,stairs,ramps,wall,ledges,dummy,rock,curve,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
+  return {root,pool,stairs,ramps,wall,ledges,dummy,rock,curve,mantle,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
 }
 async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.

@@ -693,3 +693,35 @@ console.log('PASS T3 rendered curved geometry topology and runtime support parit
   assert(b.remove(big.id));assert.equal(b.debugSnapshot().boundaryIndex.large,0);
  }
  console.log('PASS T3 spatial boundary source index, seam, overflow, region and removal');
+
+
+ // Geometry mantle: real support, both hands, actual Player action and
+ // invalidation; an adjacent block-only mesh cannot masquerade as a lip.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('mesh-mantle');playerEnv.install(m);
+  const box=(x,h)=>{const a=[x-1.2,0,-1.2],b=[x+1.2,0,-1.2],c=[x+1.2,0,1.2],d=[x-1.2,0,1.2],e=[x-1.2,h,-1.2],f=[x+1.2,h,-1.2],g=[x+1.2,h,1.2],q=[x-1.2,h,1.2];return [[a,b,c],[a,c,d],[e,q,g],[e,g,f],[a,e,f],[a,f,b],[b,f,g],[b,g,c],[c,g,q],[c,q,d],[d,q,e],[d,e,a]];};
+  const h=m.triangleMesh({collisionId:'mantle:actual',triangles:box(0,1),support:true,mantle:true});
+  m.triangleMesh({collisionId:'mantle:disabled',triangles:box(10,1),support:true});
+  m.triangleMesh({collisionId:'mantle:tall',triangles:box(20,3),support:true,mantle:true});
+  const plans=m.meshMantlePlans(0,1.56,0,0,-1);
+  assert.equal(plans[0]?.instanceId,h.id);assert.equal(plans[0].stand.y,1);
+  assert(plans[0].hands.every(v=>v.y===1&&v.normal[1]===1));
+  assert.equal(m.meshMantlePlans(10,1.56,0,0,-1).length,0);
+  assert.equal(m.meshMantlePlans(20,1.56,0,0,-1).length,0);
+  assert.equal(m.meshMantlePlans(0,1.56,0,0,1).length,0);
+  const actor=new playerEnv.Player();actor.teleport(0,1.56,0,0,0);
+  actor.advance(1/60,{move:()=>({x:0,y:1,mag:1}),run:()=>false,consumeJump:()=>true});
+  assert.equal(actor.traversal?.kind,'mantle','actual Player selects mesh mantle');
+  assert.equal(actor.traversal.surface.meshId,h.id);
+  for(let i=0;i<150&&actor.traversal;i++)actor.advance(1/60,neutral);
+  assert(!actor.traversal&&actor.onGround&&Math.abs(actor.pos.y-1)<1e-6,'actual Player mantle lands on real mesh');
+  actor.teleport(0,1.56,0,0,0);
+  actor.advance(1/60,{move:()=>({x:0,y:1,mag:1}),run:()=>false,consumeJump:()=>true});
+  assert(actor.traversal);
+  m.suspendRegion('mesh-mantle');actor.advance(1/60,neutral);assert(!actor.traversal,'suspension invalidates traversal');
+  assert.equal(m.meshMantlePlans(0,1.56,0,0,-1).length,0);
+  m.resumeRegion('mesh-mantle');assert(m.remove(h.id));assert.equal(m.meshMantlePlans(0,1.56,0,0,-1).length,0);
+  playerEnv.install(null);
+ }
+ console.log('PASS T3 geometry mantle plan, actual Player, opt-in, reach and lifecycle');
