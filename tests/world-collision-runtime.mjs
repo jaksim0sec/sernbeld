@@ -257,3 +257,33 @@ assert.equal(stacked.surfaceAt(62,0,'stair',3),null);
 stacked.resumeRegion('stacked');
 assert.equal(env.playerFloor(62,0,3),low.point[1]);
 console.log('PASS T3 vertically stacked stair support, real candidate step, headroom and active region');
+
+
+// Exercise complete fixed-tick Player, not just the candidate method.
+const readPart=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const slicePart=(s,a,b)=>{const i=s.indexOf(a),j=s.indexOf(b,i);assert(i>=0&&j>i);return s.slice(i,j);};
+const three=new Function(readPart('src/vendor/three-gltf.part.js')+';return three_module_exports;')();
+const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel','normalAt','World','HALF','GRID_N','CFG','clamp2',
+ slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
+ slicePart(src,'var CELL = 32;','function occupiedAt')+
+ slicePart(gameplay,'var _n =','var CameraRig =')+
+ 'return {Player,query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
+)(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
+const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
+liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
+playerEnv.install(liveStack);
+const neutral={move:()=>({x:0,y:0,mag:0}),run:()=>false,consumeJump:()=>false};
+for(const flight of [lower,upper]){
+ const y=liveStack.surfaceAt(62,0,'stair',flight.y1+.1).point[1];
+ const actor=new playerEnv.Player();actor.teleport(62,0,0,0,y);
+ assert.equal(actor.pos.y,y,'explicit saved height keeps the selected flight');
+ assert(actor.onGround);
+ for(let i=0;i<120;i++){
+  actor.advance(1/120,neutral);
+  assert.equal(actor.pos.y,y,'fixed-tick recovery must not switch floors');
+  assert.equal(actor.renderPos.y,y,'rendered actor must remain on actual floor');
+ }
+}
+assert.equal(playerEnv.playerTerrain(62,0,-1,true),0,'unreachable stair is not penetration ground');
+assert.equal(playerEnv.playerTerrain(62,0,-1),high.point[1],'candidate retains legacy rise barrier');
+console.log('PASS T3 saved height, actual fixed ticks and presentation retain stacked flight');

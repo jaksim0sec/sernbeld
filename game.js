@@ -46621,13 +46621,14 @@ function roofOrTerrain(x,z) {
 }
 // Player contacts use the rendered stair treads, not the NPC navigation ramp.
 // The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
-function playerTerrain(x,z,maxY=Infinity) {
+function playerTerrain(x,z,maxY=Infinity,supportOnly=false) {
   // Locomotion picks the highest reachable registered tread. If none is
   // reachable, retain the authored flight as the existing rise barrier.
-  // Unbounded scenery/spawn queries keep their original declaration order.
+  // Unbounded scenery queries keep their original declaration order.
+  // Recovery/presentation must not treat an unreachable upper tread as ground.
   const tread=WorldCollision?.hasSurfaceKind("stair")?(
     WorldCollision.surfaceAt(x,z,"stair",maxY)?.point[1]??
-    (Number.isFinite(maxY)?WorldCollision.surfaceAt(x,z,"stair")?.point[1]:null)??null
+    (Number.isFinite(maxY)&&!supportOnly?WorldCollision.surfaceAt(x,z,"stair")?.point[1]:null)??null
   ):stairSurface(x,z,0,true);
   if(tread!==null)return tread;
   return Math.max(heightfieldTriangle(x,z),roofHeight(x,z));
@@ -46746,7 +46747,7 @@ function playerCeiling(x,z,y,targetY,solids=null) {
 // collision proxy's roof. Invalid positions are repaired locally once.
 function playerSafeSpawn(x,z,y=null) {
   function probe(px,pz) {
-    let h=playerTerrain(px,pz);
+    let h=playerTerrain(px,pz,y==null?Infinity:y+CONTACT_SKIN,y!=null);
     if(y==null){
       for(const o of query(px,pz,0))if(o.walk&&o.type==="box"&&inside(o,px,pz,0)&&o.top>h)h=o.top;
     }else h=Math.max(h,y);
@@ -46762,7 +46763,7 @@ function playerSafeSpawn(x,z,y=null) {
     }
   }
   // Exceptional malformed world geometry: do not start underground.
-  return {x,z,y:Math.max(playerTerrain(x,z),y??-Infinity)};
+  return {x,z,y:Math.max(playerTerrain(x,z,y==null?Infinity:y+CONTACT_SKIN,y!=null),y??-Infinity)};
 }
 function playerFootSurface(x,z,feetY) {
   const h=playerFloor(x,z,feetY+PLAYER.step,0);
@@ -50326,7 +50327,7 @@ var Player = class {
     // tread or terrain. Camera smoothing remains presentation-only.
     if(this.mode==="walk"){
       const ground=playerFloor(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,0);
-      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN),ground);
+      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,true),ground);
       this.visualY=this.renderPos.y;
     }
   }
@@ -50347,7 +50348,7 @@ var Player = class {
     // A restored position or a changed terrain cell may start below the
     // surface. Terrain is solid; the downward-crossing test alone cannot
     // recover from an already invalid starting state.
-    const terrainHere=playerTerrain(this.pos.x,this.pos.z);
+    const terrainHere=playerTerrain(this.pos.x,this.pos.z,this.pos.y+CONTACT_SKIN,true);
     if(this.pos.y<terrainHere-CONTACT_SKIN){
       const safe=playerSafeSpawn(this.pos.x,this.pos.z,terrainHere);
       this.pos.set(safe.x,safe.y,safe.z);this.vel.y=0;this.onGround=true;this.swimming=false;
@@ -54170,7 +54171,7 @@ async function boot() {
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
   if (firstLaunch) teleport({ ...region.arrival });
-  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?Math.max(sp[1],playerTerrain(sp[0],sp[2])):null);
+  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?sp[1]:null);
   else teleport({ ...region.spawn });
   miniMap.update(player, performance.now());
   const persist = () => {

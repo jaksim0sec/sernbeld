@@ -3493,7 +3493,7 @@ var Player = class {
     // tread or terrain. Camera smoothing remains presentation-only.
     if(this.mode==="walk"){
       const ground=playerFloor(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,0);
-      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN),ground);
+      this.renderPos.y=Math.max(this.renderPos.y,playerTerrain(this.renderPos.x,this.renderPos.z,Math.max(this.previousPos.y,this.pos.y)+CONTACT_SKIN,true),ground);
       this.visualY=this.renderPos.y;
     }
   }
@@ -3514,7 +3514,7 @@ var Player = class {
     // A restored position or a changed terrain cell may start below the
     // surface. Terrain is solid; the downward-crossing test alone cannot
     // recover from an already invalid starting state.
-    const terrainHere=playerTerrain(this.pos.x,this.pos.z);
+    const terrainHere=playerTerrain(this.pos.x,this.pos.z,this.pos.y+CONTACT_SKIN,true);
     if(this.pos.y<terrainHere-CONTACT_SKIN){
       const safe=playerSafeSpawn(this.pos.x,this.pos.z,terrainHere);
       this.pos.set(safe.x,safe.y,safe.z);this.vel.y=0;this.onGround=true;this.swimming=false;
@@ -7337,7 +7337,7 @@ async function boot() {
   rig.motion = Save.data.settings.motion;
   const sp = Save.data.pos, firstLaunch = !Save.data.intro;
   if (firstLaunch) teleport({ ...region.arrival });
-  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?Math.max(sp[1],playerTerrain(sp[0],sp[2])):null);
+  else if (sp) player.teleport(sp[0], sp[2], Save.data.yaw,0,Number.isFinite(sp[1])?sp[1]:null);
   else teleport({ ...region.spawn });
   miniMap.update(player, performance.now());
   const persist = () => {

@@ -1045,13 +1045,14 @@ function roofOrTerrain(x,z) {
 }
 // Player contacts use the rendered stair treads, not the NPC navigation ramp.
 // The nearby terrain mesh uses two triangles per grid cell, not a bilinear quad.
-function playerTerrain(x,z,maxY=Infinity) {
+function playerTerrain(x,z,maxY=Infinity,supportOnly=false) {
   // Locomotion picks the highest reachable registered tread. If none is
   // reachable, retain the authored flight as the existing rise barrier.
-  // Unbounded scenery/spawn queries keep their original declaration order.
+  // Unbounded scenery queries keep their original declaration order.
+  // Recovery/presentation must not treat an unreachable upper tread as ground.
   const tread=WorldCollision?.hasSurfaceKind("stair")?(
     WorldCollision.surfaceAt(x,z,"stair",maxY)?.point[1]??
-    (Number.isFinite(maxY)?WorldCollision.surfaceAt(x,z,"stair")?.point[1]:null)??null
+    (Number.isFinite(maxY)&&!supportOnly?WorldCollision.surfaceAt(x,z,"stair")?.point[1]:null)??null
   ):stairSurface(x,z,0,true);
   if(tread!==null)return tread;
   return Math.max(heightfieldTriangle(x,z),roofHeight(x,z));
@@ -1170,7 +1171,7 @@ function playerCeiling(x,z,y,targetY,solids=null) {
 // collision proxy's roof. Invalid positions are repaired locally once.
 function playerSafeSpawn(x,z,y=null) {
   function probe(px,pz) {
-    let h=playerTerrain(px,pz);
+    let h=playerTerrain(px,pz,y==null?Infinity:y+CONTACT_SKIN,y!=null);
     if(y==null){
       for(const o of query(px,pz,0))if(o.walk&&o.type==="box"&&inside(o,px,pz,0)&&o.top>h)h=o.top;
     }else h=Math.max(h,y);
@@ -1186,7 +1187,7 @@ function playerSafeSpawn(x,z,y=null) {
     }
   }
   // Exceptional malformed world geometry: do not start underground.
-  return {x,z,y:Math.max(playerTerrain(x,z),y??-Infinity)};
+  return {x,z,y:Math.max(playerTerrain(x,z,y==null?Infinity:y+CONTACT_SKIN,y!=null),y??-Infinity)};
 }
 function playerFootSurface(x,z,feetY) {
   const h=playerFloor(x,z,feetY+PLAYER.step,0);
