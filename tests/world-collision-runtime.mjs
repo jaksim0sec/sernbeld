@@ -13,7 +13,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   ${src.slice(start,end)}
   return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerCeiling,playerContacts,playerContact,
     roofInFoot,roofInOuter,roofSurfaceLocal,roofHeight,roofOverhangTop,playerTerrain,heightfieldTriangle,
-    bodyBlockedAt,pushOut,occupiedAt,playerSteepGround,playerSweepColliders,install(v){WorldCollision=v;}};`)();
+    bodyBlockedAt,pushOut,occupiedAt,playerSteepGround,playerSweepColliders,playerSafeSpawn,install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 env.install(bridge);bridge.setRegion('lab');
 const profile={radius:.35,height:1.72};
@@ -350,4 +350,28 @@ console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual cand
  const underGrade=env.playerSteepGround(0,0,0);
  assert(underGrade&&Math.abs(underGrade.k-2)<1e-9&&Math.abs(underGrade.ux-1)<1e-9,'unreachable overhead stair cannot make steep terrain walkable');
  console.log('PASS T3 underlying ground landing and slope beneath unreachable flight');
+}
+
+
+// T3: automatic spawn must not choose a stale or inactive walkable proxy.
+{
+ const spawnBridge=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+ spawnBridge.setRegion('spawn-low');env.install(spawnBridge);
+ const low=env.addBox({cx:90,cy:.5,cz:0,hx:1,hy:.5,hz:1,yaw:0,walk:true});
+ spawnBridge.setRegion('spawn-high');
+ env.addBox({cx:90,cy:3.5,cz:0,hx:1,hy:.5,hz:1,yaw:0,walk:true});
+ assert.equal(env.playerSafeSpawn(90,0).y,4,'active upper walkable box supplies automatic spawn');
+ spawnBridge.setRegion('spawn-low');
+ assert.equal(env.playerSafeSpawn(90,0).y,1,'different-region upper box cannot select spawn height');
+ spawnBridge.suspendRegion('spawn-low');
+ assert.equal(env.playerSafeSpawn(90,0).y,0,'suspended region has no walkable spawn box');
+ spawnBridge.resumeRegion('spawn-low');
+ assert.equal(env.playerSafeSpawn(90,0).y,1,'resumed platform is usable again');
+ assert(spawnBridge.remove(low.collisionId));
+ assert.equal(env.playerSafeSpawn(90,0).y,0,'removed proxy cannot select spawn height even if grid still contains it');
+ spawnBridge.setRegion('spawn-high');
+ assert.equal(env.playerSafeSpawn(90,0).y,4,'active upper platform remains usable');
+ env.install(null);
+ assert.equal(env.playerSafeSpawn(90,0).y,4,'legacy extraction retains unregistered behavior');
+ console.log('PASS T3 automatic spawn respects registered region and removed proxy');
 }

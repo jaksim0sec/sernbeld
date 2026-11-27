@@ -1181,7 +1181,8 @@ function playerSafeSpawn(x,z,y=null) {
   function probe(px,pz) {
     let h=playerTerrain(px,pz,y==null?Infinity:y+CONTACT_SKIN,y!=null);
     if(y==null){
-      for(const o of query(px,pz,0))if(o.walk&&o.type==="box"&&inside(o,px,pz,0)&&o.top>h)h=o.top;
+      // A stale or inactive spatial-grid entry cannot supply a spawn floor.
+      for(const o of activeBodyCandidates(px,pz,0))if(o.walk&&o.type==="box"&&inside(o,px,pz,0)&&o.top>h)h=o.top;
     }else h=Math.max(h,y);
     if(!Number.isFinite(h)||playerContacts(px,pz,h).length)return null;
     return {x:px,z:pz,y:h};
