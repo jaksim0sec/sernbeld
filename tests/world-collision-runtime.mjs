@@ -634,3 +634,39 @@ console.log('PASS T3 rendered curved geometry topology and runtime support parit
   assert(m.remove(sheet.id));env.install(null);
  }
  console.log('PASS T3 closed solid interior, seam, recovery, spawn and lifecycle');
+
+ // Downward collision with a non-walkable triangle obstacle, including
+ // radius-only contact and actual fixed-tick Player behavior.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('vertical-mesh');playerEnv.install(m);
+  const top=(x,y)=>[[[x-1,y,-1],[x-1,y,1],[x+1,y,-1]],[[x+1,y,-1],[x-1,y,1],[x+1,y,1]]];
+  const a=m.triangleMesh({collisionId:'vertical:block',triangles:top(10,2.5)});
+  const b=m.triangleMesh({collisionId:'vertical:lower',triangles:top(10,1)});
+  assert.equal(m.meshSupport(10,0,4),null,'block-only does not become support');
+  assert.equal(m.meshDescent(10,0,4,0)?.instanceId,a.id,'first downward hit');
+  assert(Math.abs(m.meshDescent(10,0,4,0).limitY-2.5)<1e-6);
+  assert.equal(m.meshDescent(11.2,0,4,0)?.instanceId,a.id,'footprint intersects beyond center');
+  assert.equal(m.meshDescent(11.4,0,4,0),null,'footprint clear');
+  assert.equal(m.meshDescent(10,0,2.4,2),null,'no retroactive contact above feet');
+  assert.equal(m.meshDescent(10,0,2.5,2.4)?.limitY,2.5,'resting vertical collision');
+  assert.equal(m.meshDescent(10,0,2.5,3),null,'upward motion separate');
+  const actor=new playerEnv.Player();actor.teleport(10,0,0,0,4);
+  actor.onGround=false;actor.vel.y=-12;
+  for(let i=0;i<120;i++)actor.advance(1/120,neutral);
+  assert(Math.abs(actor.pos.y-2.5)<1e-6,'actual Player cannot fall through block-only mesh');
+  assert(!actor.onGround,'blocking-only does not grant a jump');
+  const before=actor.pos.y;actor.advance(1/60,{...neutral,consumeJump:()=>true});
+  assert.equal(actor.pos.y,before,'jump cannot start from block-only contact');
+  const slope=m.triangleMesh({collisionId:'vertical:slope',triangles:[[[20,2,-1],[20,2,1],[22,3,-1]],[[22,3,-1],[20,2,1],[22,3,1]]]});
+  assert(Math.abs(m.meshDescent(21,0,4,0).limitY-2.675)<1e-5,'sloped highest footprint point');
+  const walk=m.triangleMesh({collisionId:'vertical:walk',triangles:top(30,2),support:true});
+  assert.equal(m.meshDescent(30,0,4,0),null,'walkable mesh retains center support');
+  assert.equal(m.meshSupport(30,0,4)?.instanceId,walk.id);
+  m.suspendRegion('vertical-mesh');assert.equal(m.meshDescent(10,0,4,0),null);
+  m.resumeRegion('vertical-mesh');assert.equal(m.meshDescent(10,0,4,0)?.instanceId,a.id);
+  assert(m.remove(a.id));assert.equal(m.meshDescent(10,0,4,0)?.instanceId,b.id);
+  assert(m.remove(b.id));assert.equal(m.meshDescent(10,0,4,0),null);
+  assert(m.remove(slope.id));playerEnv.install(null);
+ }
+ console.log('PASS T3 downward triangle blocking, actual Player, non-walkable policy, footprint and lifecycle');

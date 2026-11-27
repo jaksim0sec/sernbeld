@@ -299,6 +299,25 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   });
   return best;
  }
+ // Downward blocking is distinct from walkable support. Block-only
+ // triangle obstacles must not disappear when gravity crosses their top.
+ // Support-enabled meshes retain centre-height locomotion and grade policy.
+ function meshDescent(x,z,y,targetY,radius=.35,region=regionId){
+  if(targetY>=y)return null;
+  const from=y+.002,to=targetY;let best=null;
+  eachMeshFace(region,{min:[x-radius,to,z-radius],max:[x+radius,from,z+radius]},"block",(face,id,revision,policy)=>{
+   if(policy.support||Math.abs(face.normal[1])<1e-9)return;
+   const poly=clipY(face.vertices,from,false);
+   let lo=Math.max(best?.limitY??to,face.bounds.min[1]),hi=Math.min(from,face.bounds.max[1]);
+   if(hi<lo||!diskPoint(clipY(poly,lo,true),x,z,radius))return;
+   for(let i=0;i<24;i++){const mid=(lo+hi)/2;if(diskPoint(clipY(poly,mid,true),x,z,radius))lo=mid;else hi=mid;}
+   const p=diskPoint(clipY(poly,lo,true),x,z,radius);if(!p)return;
+   const hit=meshHit(face,id,revision,policy,[p[0],planeY(face,p[0],p[1]),p[1]],y);
+   hit.limitY=Math.min(y,lo);
+   if(!best||hit.limitY>best.limitY)best=hit;
+  });
+  return best;
+ }
  function meshSlope(x,z,floor,walkMax){
   if(!Number.isFinite(floor))return undefined;
   const hit=meshSupport(x,z,floor,floor-.002);
@@ -469,5 +488,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

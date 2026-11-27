@@ -50435,8 +50435,9 @@ var Player = class {
       if(next>feet)this.pos.y=playerCeiling(x,z,feet,next,this.solids);
       else{
         const support=playerFloor(x,z,feet+CONTACT_SKIN,PLAYER.radius,this.solids);
-        this.pos.y=Math.max(next,support);
-        if(this.pos.y>next)this.vel.y=0;
+        const obstruction=WorldCollision?.meshDescent?.(x,z,feet,next,PLAYER.radius);
+        this.pos.y=Math.max(next,support,obstruction?.limitY??-Infinity);
+        if(this.pos.y>next||obstruction)this.vel.y=0;
       }
       if(this.pos.y<next-CONTACT_SKIN)this.vel.y=0;
       this.onGround=false;this.slide=null;
@@ -50458,12 +50459,18 @@ var Player = class {
         const steep=playerSteepGround(x,z,floor);
         const gap=feet-floor;
         const snap=wasGround&&!steep&&gap>=-CONTACT_SKIN&&gap<=PLAYER.step;
-        if(snap){
+        const snapBlock=snap?WorldCollision?.meshDescent?.(x,z,feet,floor,PLAYER.radius):null;
+        if(snap&&!(snapBlock&&snapBlock.limitY>floor+CONTACT_SKIN)){
           this.pos.y=floor;this.vel.y=0;this.onGround=true;
         }else{
           if(wasGround)this.vel.y=-PLAYER.gravity*dt;
           const next=feet+this.vel.y*dt;
-          if(Number.isFinite(floor)&&next<=floor&&floor<=feet+CONTACT_SKIN){
+          const obstruction=WorldCollision?.meshDescent?.(x,z,feet,next,PLAYER.radius);
+          if(obstruction&&obstruction.limitY>floor+CONTACT_SKIN){
+            // A blocking-only face arrests descent but does not grant a
+            // walkable grounded state, jump permission, or slope support.
+            this.pos.y=obstruction.limitY;this.vel.y=0;this.onGround=false;
+          }else if(Number.isFinite(floor)&&next<=floor&&floor<=feet+CONTACT_SKIN){
             if(!wasGround&&!wasSliding&&this.vel.y<-4)this.landImpact=Math.min(1,-this.vel.y/16);
             this.pos.y=floor;
             if(steep){

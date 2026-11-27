@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3 priority: verify visible geometry CI, vertical descent and actual Kael proxy comparison; bounded closed-interior recovery implemented; LIVE-B21 remains open."
+  "next": "MOTION-11261538/T3 priority: evaluate visible geometry browser CI, Kael rock proxy/mesh parity and core locomotion/V01; block-only downward mesh collision implemented. LIVE-B21 remains open."
 }
