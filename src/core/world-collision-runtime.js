@@ -322,6 +322,18 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return inside?[x,z]:best<=radius+1e-9?point:null;
  }
+ // Neighboring walkable triangles can meet the footprint before the centre
+ // crosses their edge. Test the real closest point and the local grade,
+ // rather than requiring an identical extended destination plane.
+ function reachableWalkFace(face,x,z,y,radius){
+  if(!Number.isFinite(y)||face.normal[1]<=1e-9)return false;
+  const grade=Math.hypot(face.normal[0],face.normal[2])/face.normal[1];
+  if(grade>Math.tan(50*Math.PI/180)+1e-9)return false;
+  const p=diskPoint(face.vertices,x,z,radius);
+  if(!p)return false;
+  const h=planeY(face,p[0],p[1]),d=Math.hypot(p[0]-x,p[1]-z);
+  return h!==null&&y>=h-grade*d-.004;
+ }
  function meshCeiling(x,z,y,targetY,radius,height,region=regionId){
   const from=y+height-.002,to=targetY+height;let best=null;
   eachMeshFace(region,{min:[x-radius,from,z-radius],max:[x+radius,to,z+radius]},"block",(face,id,revision,policy)=>{
@@ -556,6 +568,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
      const above=from!==null&&y>=from-.004;
      const selected=Number.isFinite(move.floor)&&to!==null&&Math.abs(to-move.floor)<=.004;
      if(above&&((selected&&move.grounded&&slope<=Math.tan(50*Math.PI/180)+1e-9)||to<=from+1e-8))return;
+     const reach=radius+Math.hypot(dx,dz);
+     if(move.grounded&&reachableWalkFace(face,x,z,y,reach)&&reachableWalkFace(face,x+dx,z+dz,move.floor,reach))return;
     }
     const hit=sweepFace(face,x,z,y,dx,dz,radius,height);
     if(hit)hits.push({...hit,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});

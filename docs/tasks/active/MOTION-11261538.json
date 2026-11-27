@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: reproduce LIVE-B22/B23 on existing curved and Kael rock lab fixtures; diagnose fixed-tick support/sweep/vertical and action transitions, fix shared solver and retain LIVE-B21 regression; then production parity and remaining V01 gates."
+  "next": "MOTION-11261538/T3: verify LIVE-B22 continuous fixed-tick and live curve after neighboring walkable face sweep fix; reproduce LIVE-B23 block-only rock support/vertical-state behavior, fix shared policy/solver and preserve LIVE-B21."
 }

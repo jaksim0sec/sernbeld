@@ -594,6 +594,18 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
  const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});m.setRegion('visible-fixture');env.install(m);
  m.triangleMesh({collisionId:'curve',triangles:tris,support:true});
  for(const [x,y,k] of [[33,.25,.25],[35,1.05,.55],[37,3.1,1.5],[39,4.6,0]]){const q=m.meshSupport(x,0,10);assert(Math.abs(q.point[1]-y)<1e-8);assert(Math.abs(Math.hypot(q.geometricNormal[0],q.geometricNormal[2])/q.geometricNormal[1]-k)<1e-8);assert(Math.abs(env.playerFloor(x,0,10)-y)<1e-8);}
+ const seamCandidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+  'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+ )(env.playerTerrain,env.playerFloor,()=>null,m,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+ // LIVE-B22: the capsule reaches the next triangle before its centre.
+ for(const z of [-.9,0,.9])for(let i=3360;i<=3440;i+=4){
+  const x=i/100,y=m.meshSupport(x,z,10).point[1];
+  for(const dx of [-.04,.04]){
+   const c=seamCandidate.call({pos:{x,y,z},onGround:true,swimming:false,nearby:[],solids:[]},dx,0);
+   assert.equal(c.contacts.length,0,'walkable gradient seam '+[x,z,dx]);
+  }
+ }
+ assert(seamCandidate.call({pos:{x:36.2,y:1.9,z:0},onGround:true,swimming:false,nearby:[],solids:[]},.04,0).contacts.length>0,'steep uphill remains blocked');
  assert(m.surfaceBoundarySweep(37,3.8,0,0,-1.2).length>0);assert.equal(m.surfaceBoundarySweep(37,3.8,5,0,-1.2).length,0);env.install(null);
 }
 console.log('PASS T3 rendered curved geometry topology and runtime support parity');
