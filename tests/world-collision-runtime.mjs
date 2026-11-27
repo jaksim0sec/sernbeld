@@ -473,3 +473,43 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
   env.install(null);
  }
  console.log('PASS T3 natural heightfield grade and oriented vertical boundary lifecycle');
+
+
+ // Same runtime candidate, nonprimitive closed obstacle with slanted faces.
+ {
+  const meshBridge=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  meshBridge.setRegion('irregular-solid');env.install(meshBridge);
+  const a=[0,0,-1],b=[0,0,1],c=[1,2,0],d=[-1,0,0];
+  const triangles=[[a,b,c],[a,c,d],[b,d,c],[a,d,b]];
+  // Force multiple BVH leaves while retaining a known local tetrahedron.
+  for(let i=1;i<=20;i++)for(const t of triangles.slice(0,4))triangles.push(t.map(p=>[p[0]+20*i,p[1],p[2]]));
+  const h=meshBridge.triangleMesh({collisionId:'irregular:rock',triangles});
+  assert.equal(meshBridge.get(h.id).shapes[0].type,'triangleMesh');
+  assert.equal(meshBridge.get(h.id).shapes[0].policy.support,false);
+  const hits=meshBridge.surfaceBoundarySweep(1.8,0,0,-2,0);
+  assert(hits.length>0,'slanted solid intersects the upper body before the feet reach it');
+  assert(Math.abs(hits[0].toi-(1.8-.859-.348)/2)<1e-5,'exact horizontal sweep of height-clipped slanted face');
+  assert(hits[0].nx>.999999&&Math.abs(hits[0].nz)<1e-6);
+  assert(hits[0].geometricNormal.every(Number.isFinite));
+  assert.equal(meshBridge.surfaceBoundarySweep(1.8,0,2.1,-2,0).length,0,'above mesh');
+  assert.equal(meshBridge.surfaceBoundarySweep(1.8,0,-2,-2,0).length,0,'below mesh');
+  assert(meshBridge.surfaceBoundarySweep(0,1.6,0,0,-2).length>0,'approach from a different heading');
+  assert(meshBridge.surfaceBoundarySweep(21.8,0,0,-2,0).length>0,'another BVH leaf is queried');
+  assert.equal(meshBridge.surfaceBoundarySweep(1.1,0,0,.4,0).length,0,'existing overlap can escape');
+  assert(meshBridge.surfaceBoundarySweep(1.1,0,0,-.1,0).length>0,'existing overlap cannot deepen');
+  const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+   'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+  )(env.playerTerrain,env.playerFloor,()=>null,meshBridge,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+  const actor={pos:{x:1.8,y:0,z:0},onGround:true,swimming:false,nearby:[],solids:[]};
+  assert(candidate.call(actor,-2,0).contacts.some(q=>q.instanceId===h.id),'actual Player candidate uses the new geometry query');
+  assert.equal(candidate.call(actor,.1,0).contacts.length,0,'outward candidate remains legal');
+  meshBridge.suspendRegion('irregular-solid');
+  assert.equal(meshBridge.surfaceBoundarySweep(1.8,0,0,-2,0).length,0);
+  meshBridge.resumeRegion('irregular-solid');
+  assert(meshBridge.surfaceBoundarySweep(1.8,0,0,-2,0).length>0);
+  assert(meshBridge.remove(h.id));
+  assert.equal(meshBridge.surfaceBoundarySweep(1.8,0,0,-2,0).length,0);
+  assert.throws(()=>meshBridge.triangleMesh({triangles:[[a,a,b]]}),/degenerate/);
+  env.install(null);
+ }
+ console.log('PASS T3 triangle geometry, slanted body contact, BVH, actual Player candidate and lifecycle');

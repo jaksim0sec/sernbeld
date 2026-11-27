@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3 priority: geometry-independent curved/irregular solid contact; generic vertical-boundary increment added, validate actual runtime and extend shared support/overlap/sweep to representative nonprimitive geometry before remaining gait/V01. LIVE-B21 stays open."
+  "next": "MOTION-11261538/T3 priority: triangle-backed horizontal collision implemented; integrate mesh support/vertical clearance and curved locomotion, actual visible irregular lab/Kael fixtures and verify current CI/live body clearance before remaining gait/V01."
 }

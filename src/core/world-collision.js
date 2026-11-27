@@ -24,7 +24,7 @@ export function createWorldCollision({backend=null}={}){
   const t=transform(raw.transform),seen=new Set();
   if((raw.physics==="decorative")!==(raw.shapes.length===0))fail("explicit decorative or nonempty shapes required");
   const shapes=raw.shapes.map(s=>{
-   if(!s||!id(s.id)||seen.has(s.id)||!vec(s.center)||!["box","cylinder","heightfield","roof","water"].includes(s.type))fail("invalid or duplicate shape");
+   if(!s||!id(s.id)||seen.has(s.id)||!vec(s.center)||!["box","cylinder","heightfield","roof","triangleMesh","water"].includes(s.type))fail("invalid or duplicate shape");
    seen.add(s.id);
    const p=policy(s.policy);
    if((raw.physics==="volume")!==p.water||(s.type==="water")!==p.water)fail("inconsistent shape/volume policy");

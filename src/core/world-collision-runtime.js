@@ -23,22 +23,108 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   record.collisionId=id;handles.set(id,h);records.set(id,record);types[kind]++;
   return h;
  }
- // Optional vertical boundary faces belong to the same analytical source.
- // Endpoints are [x,topY,z], ordered so their right-hand XZ normal is outward.
- // This handles linear height profiles and faceted curved outlines; it is not
- // a general triangle-mesh or slanted/overhanging-face narrow phase.
+ // Triangle faces are immutable, world-space collision geometry. The
+ // moving body is still the existing vertical circular cylinder, not a
+ // second character controller. A per-source BVH bounds narrow-phase work.
+ function triangleFace(vertices,featureId,outwardOnly=false){
+  if(!Array.isArray(vertices)||vertices.length!==3||!vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)))throw new TypeError("invalid triangle");
+  const [a,b,c]=vertices.map(p=>[...p]),u=b.map((v,i)=>v-a[i]),v=c.map((v,i)=>v-a[i]);
+  const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],len=Math.hypot(...n);
+  if(len<1e-9)throw new TypeError("degenerate triangle");
+  return {vertices:[a,b,c],featureId,outwardOnly,normal:n.map(q=>q/len),bounds:{min:a.map((_,i)=>Math.min(a[i],b[i],c[i])),max:a.map((_,i)=>Math.max(a[i],b[i],c[i]))}};
+ }
+ function mergeBounds(items){
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+  for(const {bounds:b} of items)for(let i=0;i<3;i++){min[i]=Math.min(min[i],b.min[i]);max[i]=Math.max(max[i],b.max[i]);}
+  return {min,max};
+ }
+ function buildFaceTree(faces){
+  const bounds=mergeBounds(faces);
+  if(faces.length<=8)return {bounds,faces};
+  const axis=[0,1,2].reduce((best,i)=>bounds.max[i]-bounds.min[i]>bounds.max[best]-bounds.min[best]?i:best,0);
+  const sorted=[...faces].sort((a,b)=>(a.bounds.min[axis]+a.bounds.max[axis])-(b.bounds.min[axis]+b.bounds.max[axis]));
+  const mid=sorted.length>>1;
+  return {bounds,left:buildFaceTree(sorted.slice(0,mid)),right:buildFaceTree(sorted.slice(mid))};
+ }
+ const intersects=(a,b)=>a.min.every((v,i)=>v<=b.max[i]&&a.max[i]>=b.min[i]);
+ function visitFaces(node,bounds,visit){
+  if(!intersects(node.bounds,bounds))return;
+  if(node.faces){for(const f of node.faces)if(intersects(f.bounds,bounds))visit(f);return;}
+  visitFaces(node.left,bounds,visit);visitFaces(node.right,bounds,visit);
+ }
  function prepareBoundaryFaces(faces,bounds){
   if(!Array.isArray(faces))throw new TypeError("invalid boundary faces");
-  return faces.map(({a,b,bottom})=>{
+  return faces.flatMap(({a,b,bottom},i)=>{
    if(![a,b].every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite))||!Number.isFinite(bottom)||bottom<bounds.min[1]||a[1]<bottom||b[1]<bottom||Math.max(a[1],b[1])<=bottom||[a,b].some(p=>p.some((v,i)=>v<bounds.min[i]||v>bounds.max[i])))throw new TypeError("invalid boundary face");
-   const dx=b[0]-a[0],dz=b[2]-a[2],length=Math.hypot(dx,dz);
-   if(length<1e-8)throw new TypeError("degenerate boundary face");
-   return {a:[...a],b:[...b],bottom,nx:dz/length,nz:-dx/length};
+   if(Math.hypot(b[0]-a[0],b[2]-a[2])<1e-8)throw new TypeError("degenerate boundary face");
+   const lowA=[a[0],bottom,a[2]],lowB=[b[0],bottom,b[2]],out=[];
+   if(b[1]>bottom)out.push(triangleFace([a,b,lowB],"boundary:"+i+":0",true));
+   if(a[1]>bottom)out.push(triangleFace([a,lowB,lowA],"boundary:"+i+":1",true));
+   return out;
   });
  }
- function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid",sourceKind=type,boundaryFaces=[]}={}){
+ function clipY(poly,y,above){
+  const out=[];
+  for(let i=0;i<poly.length;i++){
+   const a=poly[i],b=poly[(i+1)%poly.length],da=a[1]-y,db=b[1]-y,ina=above?da>=0:da<=0,inb=above?db>=0:db<=0;
+   if(ina)out.push(a);
+   if(ina!==inb){const t=da/(da-db);out.push([a[0]+(b[0]-a[0])*t,y,a[2]+(b[2]-a[2])*t]);}
+  }
+  return out;
+ }
+ // The exact projection of a triangle clipped to the body's height interval
+ // is convex (possibly a line). A circle swept against that projection is
+ // equivalent to the horizontal cylinder sweep against the clipped triangle.
+ function hullXZ(poly){
+  const points=poly.map(p=>[p[0],p[2]]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).filter((p,i,a)=>!i||Math.hypot(p[0]-a[i-1][0],p[1]-a[i-1][1])>1e-9);
+  if(points.length<3)return points;
+  const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  const chain=ps=>{const out=[];for(const p of ps){while(out.length>=2&&cross(out[out.length-2],out[out.length-1],p)<=1e-12)out.pop();out.push(p);}return out;};
+  return [...chain(points).slice(0,-1),...chain([...points].reverse()).slice(0,-1)];
+ }
+ function hullContact(poly,x,z,radius,face){
+  if(!poly.length)return null;
+  let best=Infinity,qx=0,qz=0,edge=null,inside=poly.length>=3;
+  for(let i=0;i<(poly.length===2?1:poly.length);i++){
+   const a=poly[i],b=poly[(i+1)%poly.length],dx=b[0]-a[0],dz=b[1]-a[1],l=dx*dx+dz*dz;
+   const t=l?Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/l)):0,px=a[0]+dx*t,pz=a[1]+dz*t,d=Math.hypot(x-px,z-pz);
+   if(dx*(z-a[1])-dz*(x-a[0])< -1e-10)inside=false;
+   if(d<best){best=d;qx=px;qz=pz;edge=[dx,dz];}
+  }
+  const depth=inside?radius+best:radius-best;
+  if(depth<=.002)return null;
+  let nx,nz;
+  if(best>1e-9){const sign=inside?-1:1;nx=(x-qx)*sign/best;nz=(z-qz)*sign/best;}
+  else{const [a,,b]=face.normal,l=Math.hypot(a,b),e=Math.hypot(...edge);nx=l?a/l:e?edge[1]/e:1;nz=l?b/l:e?-edge[0]/e:0;}
+  return {nx,nz,depth,collider:face};
+ }
+ function sweepFace(face,x,z,y,dx,dz,radius,height){
+  const lo=y+.002,hi=y+height-.002;
+  if(face.bounds.max[1]<=lo||face.bounds.min[1]>=hi)return null;
+  const [nx,,nz]=face.normal,a=face.vertices[0];
+  if(face.outwardOnly&&(x-a[0])*nx+(z-a[2])*nz< -1e-9)return null;
+  const poly=hullXZ(clipY(clipY(face.vertices,lo,true),hi,false));
+  if(!poly.length)return null;
+  const prior=hullContact(poly,x,z,radius,face);
+  if(prior){
+   const end=hullContact(poly,x+dx,z+dz,radius,face);
+   const q=face.outwardOnly?{nx,nz}:prior;
+   if(q.nx*dx+q.nz*dz< -1e-9||end&&end.depth>prior.depth+1e-5)return {...(end??prior),nx:q.nx,nz:q.nz,toi:0,collider:face};
+   return null;
+  }
+  let best=null;
+  for(let i=0;i<(poly.length===2?1:poly.length);i++){
+   const a=poly[i],b=poly[(i+1)%poly.length],ex=b[0]-a[0],ez=b[1]-a[1],l=Math.hypot(ex,ez);
+   // Reuse the existing exact continuous circle/segment primitive query.
+   const o=l<1e-9?{type:"cyl",x:a[0],z:a[1],r:0,bot:lo-1,top:hi+1,walk:false}:{type:"box",cx:(a[0]+b[0])/2,cz:(a[1]+b[1])/2,hx:0,hz:l/2,cos:ez/l,sin:ex/l,bot:lo-1,top:hi+1,walk:false};
+   const hit=registry.sweepPrimitive(o,x,z,y,dx,dz,radius,height);
+   if(hit&&(!best||hit.toi<best.toi))best={...hit,collider:face};
+  }
+  return best;
+ }
+ function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid",sourceKind=type,boundaryFaces=[],triangles=null}={}){
   if(boundaryFaces.length&&type!=="heightfield")throw new TypeError("vertical boundaries require heightfield source");
-  const faces=prepareBoundaryFaces(boundaryFaces,bounds);
+  const faces=triangles??prepareBoundaryFaces(boundaryFaces,bounds);
   if(handles.has(id))throw new TypeError("duplicate analytical collision ID");
   const shape={id:"surface",type,center:[0,0,0],geometryRef:id,bounds,policy};
   if(type==="water"){delete shape.geometryRef;delete shape.bounds;shape.half=bounds.half;shape.center=bounds.center;}
@@ -46,7 +132,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   handles.set(id,h);
   if(faces.length){
    if(!boundarySources.has(regionId))boundarySources.set(regionId,new Map());
-   boundarySources.get(regionId).set(id,{faces,bounds});
+   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds});
   }
   if(type==="water")types.water++;return h;
  }
@@ -67,6 +153,17 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    },{sourceKind:overhang?"roof-overhang":"roof-foot"}));
   }
   r.collisionId=base;types.roof++;return output;
+ }
+ // Explicit static obstacle mesh. Support/vertical motion are not yet
+ // implemented for this geometry; callers cannot silently treat it as floor.
+ function triangleMesh({collisionId,triangles}){
+  if(!Array.isArray(triangles)||!triangles.length)throw new TypeError("empty triangle mesh");
+  const faces=triangles.map((v,i)=>triangleFace(v,"triangle:"+i)),raw=mergeBounds(faces);
+  const bounds={min:raw.min.map(v=>v-1e-7),max:raw.max.map(v=>v+1e-7)};
+  const policy={id:"triangle-mesh-block",block:true,support:false,mantle:false,oneWay:false,nav:false,camera:false,water:false,climb:"none"};
+  const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces});
+  types.triangleMesh=(types.triangleMesh??0)+1;
+  return h;
  }
  function terrain({heights,gridN,cell,half,collisionId,boundaryFaces=[]}){
   const id=collisionId??next("terrain"),bounds={min:[-half,-10000,-half],max:[half,10000,half]};
@@ -182,36 +279,25 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   hits.sort((a,b)=>a.toi-b.toi);
   return hits.filter(h=>h.toi<=hits[0].toi+1e-6);
  }
- // Shared pre-rise sweep for authored vertical surface boundaries. Query
- // geometry in the active region; no motion-lab or ramp shape assumption.
+ // Shared pre-rise horizontal sweep: both authored boundaries and
+ // arbitrary static triangle obstacles use the same geometric narrow phase.
  function surfaceBoundarySweep(x,z,y,dx,dz,radius=.35,height=1.72){
   if(Math.hypot(dx,dz)<1e-9)return [];
-  const hits=[],minX=Math.min(x,x+dx)-radius,maxX=Math.max(x,x+dx)+radius,minZ=Math.min(z,z+dz)-radius,maxZ=Math.max(z,z+dz)+radius;
-  for(const [id,{faces,bounds}] of boundarySources.get(regionId)??[]){
-   if(bounds.min[0]>maxX||bounds.max[0]<minX||bounds.min[2]>maxZ||bounds.max[2]<minZ||!registry.get(id)?.effectiveActive)continue;
-   for(const {a,b,bottom,nx,nz} of faces){
-    if(Math.min(a[0],b[0])>maxX||Math.max(a[0],b[0])<minX||Math.min(a[2],b[2])>maxZ||Math.max(a[2],b[2])<minZ||y+height<=bottom+.002)continue;
-    // Actors on the interior/top may exit; only approach from the exterior.
-    if((x-a[0])*nx+(z-a[2])*nz< -1e-9)continue;
-    const threshold=y+.002,top=Math.max(a[1],b[1]);
-    if(top<=threshold)continue;
-    let lo=0,hi=1;
-    if(a[1]<threshold)lo=(threshold-a[1])/(b[1]-a[1]);
-    if(b[1]<threshold)hi=(threshold-a[1])/(b[1]-a[1]);
-    if(hi-lo<=1e-10)continue;
-    const ax=a[0]+(b[0]-a[0])*lo,az=a[2]+(b[2]-a[2])*lo,bx=a[0]+(b[0]-a[0])*hi,bz=a[2]+(b[2]-a[2])*hi;
-    const o={type:"box",cx:(ax+bx)/2,cz:(az+bz)/2,hx:0,hz:Math.hypot(bx-ax,bz-az)/2,cos:nx,sin:-nz,bot:bottom,top,walk:false};
-    const prior=playerContact(o,x,z,radius),end=playerContact(o,x+dx,z+dz,radius);
-    if(prior){
-     if(end&&(nx*dx+nz*dz< -1e-9||end.depth>prior.depth+1e-5))hits.push({...end,nx,nz,toi:0});
-    }else{
-     const hit=registry.sweepPrimitive(o,x,z,y,dx,dz,radius,height);
-     if(hit)hits.push(hit);
-    }
-   }
+  const hits=[],bounds={min:[Math.min(x,x+dx)-radius,y+.002,Math.min(z,z+dz)-radius],max:[Math.max(x,x+dx)+radius,y+height-.002,Math.max(z,z+dz)+radius]};
+  for(const [id,source] of boundarySources.get(regionId)??[]){
+   if(!intersects(source.bounds,bounds)||!registry.get(id)?.effectiveActive)continue;
+   visitFaces(source.tree,bounds,face=>{
+    const hit=sweepFace(face,x,z,y,dx,dz,radius,height);
+    if(hit)hits.push({...hit,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
+   });
   }
   hits.sort((a,b)=>a.toi-b.toi);
-  return hits.length?hits.filter(h=>h.toi<=hits[0].toi+1e-6):[];
+  const out=[];
+  for(const h of hits){
+   if(h.toi>hits[0].toi+1e-6)break;
+   if(!out.some(q=>q.instanceId===h.instanceId&&Math.hypot(q.nx-h.nx,q.nz-h.nz)<1e-6))out.push(h);
+  }
+  return out;
  }
  // Compatibility name consumed by the generated game.js; the implementation
  // is region/geometry-driven. Rename the caller when rebuilding that bundle.
@@ -224,5 +310,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

@@ -230,7 +230,7 @@ export function createLegacyStaticCollision({query,inside,local,playerContact,sk
  function registerAnalytical(instance,{sample,priority=0,sourceKind="generic"}={}){
   if(typeof sample!=="function"||!Number.isFinite(priority)||instance?.shapes?.length!==1)throw new TypeError("invalid analytical source");
   const shape=instance.shapes[0],kind=instance.physics==="volume"?"water":"surface";
-  if(kind==="surface"&&(!["heightfield","roof"].includes(shape.type)||instance.physics!=="solid"))throw new TypeError("invalid analytical shape");
+  if(kind==="surface"&&(!["heightfield","roof","triangleMesh"].includes(shape.type)||instance.physics!=="solid"))throw new TypeError("invalid analytical shape");
   if(kind==="water"&&shape.type!=="water")throw new TypeError("invalid water shape");
   // World-coordinate sampler must agree with the immutable authoring transform.
   // No analytical transform updates until the sampler/grid is rebuilt.
