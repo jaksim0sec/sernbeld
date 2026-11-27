@@ -52,6 +52,15 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   if(node.faces){for(const f of node.faces)if(intersects(f.bounds,bounds))visit(f);return;}
   visitFaces(node.left,bounds,visit);visitFaces(node.right,bounds,visit);
  }
+ // Only exactly welded, consistently wound closed meshes receive volume semantics.
+ function closedTopology(faces){
+  const edges=new Map();
+  for(const f of faces)for(let i=0;i<3;i++){
+   const a=f.vertices[i].join(","),b=f.vertices[(i+1)%3].join(","),k=a<b?a+"|"+b:b+"|"+a;
+   const e=edges.get(k)??[0,0];e[0]++;e[1]+=a<b?1:-1;edges.set(k,e);
+  }
+  return edges.size>0&&[...edges.values()].every(([n,w])=>n===2&&w===0);
+ }
  function prepareBoundaryFaces(faces,bounds){
   if(!Array.isArray(faces))throw new TypeError("invalid boundary faces");
   return faces.flatMap(({a,b,bottom},i)=>{
@@ -132,7 +141,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   handles.set(id,h);
   if(faces.length){
    if(!boundarySources.has(regionId))boundarySources.set(regionId,new Map());
-   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds,policy,type});
+   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds,policy,type,closed:type==="triangleMesh"&&closedTopology(faces),recoveryKey:{type:"triangleMesh",collisionId:id}});
   }
   if(type==="water")types.water++;return h;
  }
@@ -208,6 +217,41 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const [a,b,c]=face.vertices,side=(p,q)=>(q[0]-p[0])*(z-p[2])-(q[2]-p[2])*(x-p[0]);
   const signs=[side(a,b),side(b,c),side(c,a)];
   return signs.every(v=>v>=-1e-9)||signs.every(v=>v<=1e-9)?y:null;
+ }
+ // Geometric vertical winding, merging coincident seam crossings. Only
+ // run inside the bounds of a validated closed source.
+ function interiorContact(source,x,z,y,radius,height){
+  if(!source.closed)return null;
+  const mid=y+height/2,b=source.bounds;
+  if(x<=b.min[0]||x>=b.max[0]||z<=b.min[2]||z>=b.max[2]||mid<=b.min[1]||mid>=b.max[1])return null;
+  const hits=[];
+  visitFaces(source.tree,{min:[x,mid,z],max:[x,b.max[1],z]},face=>{
+   const h=facePointY(face,x,z);
+   if(h!==null&&h>=mid-1e-8)hits.push({h,sign:Math.sign(face.normal[1])});
+  });
+  hits.sort((a,b)=>a.h-b.h);
+  let winding=0;
+  for(let i=0;i<hits.length;){
+   const h=hits[i].h;if(Math.abs(h-mid)<=1e-8)return null;
+   let positive=false,negative=false;
+   do{positive||=hits[i].sign>0;negative||=hits[i].sign<0;i++;}while(i<hits.length&&Math.abs(hits[i].h-h)<=1e-8);
+   winding+=Number(positive)-Number(negative);
+  }
+  if(!winding)return null;
+  // Nearest boundary of the horizontal cross-section provides a recovery
+  // direction; this is not arbitrary 3D depenetration.
+  let best=null,onBoundary=false;
+  visitFaces(source.tree,{min:[b.min[0],mid,b.min[2]],max:[b.max[0],mid,b.max[2]]},face=>{
+   const poly=hullXZ(clipY(clipY(face.vertices,mid,true),mid,false));
+   for(let i=0;i<poly.length;i++){
+    const a=poly[i],q=poly[(i+1)%poly.length],dx=q[0]-a[0],dz=q[1]-a[1],l=dx*dx+dz*dz;
+    const t=l?Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/l)):0;
+    const vx=a[0]+dx*t-x,vz=a[1]+dz*t-z,dist=Math.hypot(vx,vz);
+    if(dist<=1e-8){onBoundary=true;continue;}
+    if(!best||dist+radius<best.depth)best={nx:vx/dist,nz:vz/dist,depth:dist+radius,collider:source.recoveryKey,featureId:face.featureId,geometricNormal:[...face.normal],interior:true};
+   }
+  });
+  return onBoundary?null:best;
  }
  function eachMeshFace(region,bounds,purpose,visit){
   for(const [id,source] of boundarySources.get(region)??[]){
@@ -337,14 +381,21 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   // Mesh face overlap uses the same height-clipped projection as the sweep.
   // Preserve centre-height ground support: a body standing above a walkable
   // face must not be repelled by the uphill part of its own footprint.
+  const interiorIds=new Set();
+  for(const [id,source] of boundarySources.get(regionId)??[]){
+   if(!registry.get(id)?.effectiveActive)continue;
+   const c=interiorContact(source,x,z,y,radius,height);
+   if(c){interiorIds.add(id);out.push({...c,instanceId:id});}
+  }
   eachMeshFace(regionId,{min:[x-radius,y+.002,z-radius],max:[x+radius,y+height-.002,z+radius]},"block",(face,id)=>{
+   if(interiorIds.has(id))return;
    if(face.bounds.max[1]<=y+.002||face.bounds.min[1]>=y+height-.002)return;
    const source=boundarySources.get(regionId).get(id);
    if(source.policy.support&&face.normal[1]>1e-9&&y>=planeY(face,x,z)-.004)return;
    const poly=hullXZ(clipY(clipY(face.vertices,y+.002,true),y+height-.002,false));
    const c=hullContact(poly,x,z,radius,face);
    // face identity is stable for the existing decreasing-overlap rule.
-   if(c)out.push({...c,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
+   if(c)out.push({...c,collider:source.closed?source.recoveryKey:face,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
   });
   for(const collider of nearby){
    if(collider.top<=y+.002||collider.bot>=y+height-.002)continue;
@@ -373,6 +424,17 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const hits=[],bounds={min:[Math.min(x,x+dx)-radius,y+.002,Math.min(z,z+dz)-radius],max:[Math.max(x,x+dx)+radius,y+height-.002,Math.max(z,z+dz)+radius]};
   for(const [id,source] of boundarySources.get(regionId)??[]){
    if(!intersects(source.bounds,bounds)||!registry.get(id)?.effectiveActive)continue;
+   const prior=interiorContact(source,x,z,y,radius,height);
+   if(prior){
+    const end=interiorContact(source,x+dx,z+dz,y,radius,height);
+    const middle=interiorContact(source,x+dx/2,z+dz/2,y,radius,height);
+    // Only short decreasing-depth steps can recover an invalid interior
+    // position. Exterior sweeps still use every actual face.
+    if(Math.hypot(dx,dz)<=radius&&
+       (middle?middle.depth<prior.depth-1e-5:prior.nx*dx+prior.nz*dz>1e-9)&&
+       (!end||middle&&end.depth<middle.depth-1e-5))continue;
+    hits.push({...prior,instanceId:id,toi:0});continue;
+   }
    visitFaces(source.tree,bounds,face=>{
     // Coplanar triangles adjacent to the selected ground must not snag a
     // body crossing a triangulation seam. Compare the actual plane, not

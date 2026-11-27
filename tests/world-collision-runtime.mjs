@@ -597,3 +597,40 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
  assert(m.surfaceBoundarySweep(37,3.8,0,0,-1.2).length>0);assert.equal(m.surfaceBoundarySweep(37,3.8,5,0,-1.2).length,0);env.install(null);
 }
 console.log('PASS T3 rendered curved geometry topology and runtime support parity');
+
+ // Closed-volume regression: the cylinder can be entirely inside a mesh.
+ {
+  const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('closed-interior');env.install(m);
+  const a=[-3,-1,-3],b=[3,-1,-3],c=[3,-1,3],d=[-3,-1,3],e=[-3,4,-3],f=[3,4,-3],g=[3,4,3],h=[-3,4,3];
+  const tris=[[a,b,c],[a,c,d],[e,h,g],[e,g,f],[a,e,f],[a,f,b],[b,f,g],[b,g,c],[c,g,h],[c,h,d],[d,h,e],[d,e,a]];
+  const mesh=m.triangleMesh({collisionId:'closed:volume',triangles:tris});
+  const at=x=>env.playerContacts(x,0,0),q=at(2)[0];
+  assert(q?.interior&&q.instanceId===mesh.id,'fully enclosed cylinder must report solid contact');
+  assert(Math.abs(q.depth-1.35)<1e-8&&q.nx>.999);
+  assert(at(2.1)[0].depth<q.depth,'inside escape reduces depth');
+  assert.equal(m.surfaceBoundarySweep(2,0,0,.1,0).length,0,'short outward escape');
+  assert(m.surfaceBoundarySweep(2,0,0,-.1,0).length>0,'cannot deepen interior');
+  assert.equal(m.surfaceBoundarySweep(2.95,0,0,.1,0).length,0,'exit through wall from inside');
+  assert(at(3.05).some(c=>c.collider===q.collider&&c.depth<q.depth),'stable recovery identity');
+  assert(m.surfaceBoundarySweep(3.7,0,0,-.6,0).length>0,'outside cannot enter');
+  assert.equal(at(3.5).length,0);assert.equal(env.playerContacts(0,0,4.1).length,0);
+  assert(at(0).some(c=>c.interior),'diagonal seam counts once');
+  assert(at(3).every(c=>!c.interior),'exact side boundary uses ordinary faces');
+  const spawn=env.playerSafeSpawn(2,0,0);
+  assert.equal(env.playerContacts(spawn.x,spawn.z,spawn.y).length,0,'safe spawn rejects enclosed body');
+  const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+   'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+  )(env.playerTerrain,env.playerFloor,()=>null,m,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+  const actor={pos:{x:2,y:0,z:0},onGround:true,swimming:false,nearby:[],solids:[]};
+  assert.equal(candidate.call(actor,.1,0).contacts.length,0);
+  assert(candidate.call(actor,-.1,0).contacts.length>0);
+  actor.pos.x=2.95;assert.equal(candidate.call(actor,.1,0).contacts.length,0);
+  m.suspendRegion('closed-interior');assert.equal(at(2).length,0);
+  m.resumeRegion('closed-interior');assert(at(2).length>0);
+  assert(m.remove(mesh.id));assert.equal(at(2).length,0);
+  const sheet=m.triangleMesh({collisionId:'open:sheet',triangles:tris.slice(2,4)});
+  assert.equal(at(2).length,0,'open mesh does not acquire volume semantics');
+  assert(m.remove(sheet.id));env.install(null);
+ }
+ console.log('PASS T3 closed solid interior, seam, recovery, spawn and lifecycle');
