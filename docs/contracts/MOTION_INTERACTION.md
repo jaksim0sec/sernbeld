@@ -92,3 +92,5 @@
 ## T3 live ground-gait support (2026-11-27, PARTIAL)
 
 `gaitSupportWeight` uses the procedural low-knee half-cycle (cos(phase+sideOffset)<-.12) with a ramp. `groundGaitTarget` anchors the ankle in world XZ only in third-person grounded gait; near-surface acquisition, bounded correction, support revalidation and release preserve authored swing and physics ownership. Reverse playback uses the same windows. Torso support is stance-weighted, penetration correction is retained on swing feet, and pivot/traversal/first-person/slide/combat/airborne paths do not acquire gait anchors. This is authored ankle intent, not verified sole contact; the 30mm/10mm actual posed sole gates and V01 remain unverified.
+
+T3 transition consumer: `transitionBodyHeight` preserves visual offset relative to the physical root at takeoff and ground re-entry. Airborne offset decays at 12/s; landing uses the existing bounded height smoother. Low-speed stance weighting continuously blends bilateral and gait support. Physics root and authoritative events remain unchanged. Actual visual continuity is pending direct verification.

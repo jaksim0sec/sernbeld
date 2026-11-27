@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -76,3 +76,24 @@ assert.equal(groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.1),.08,0,()=>
 const reverse=groundGaitTarget(lock.state,'left',Math.PI-.1,2.6,ankle(-.12),.08,0,flat);
 assert.equal(reverse.x,0);
 console.log('PASS gait support intent, anchor preservation, reverse, release and invalidation');
+
+const close=(a,b)=>assert(Math.abs(a-b)<1e-9);
+for(const fps of [30,60,120]){
+ const dt=1/fps;
+ let y=.12,root=0;
+ for(let i=1;i<=fps;i++){
+  const nextRoot=3*i/fps-3*(i/fps)**2;
+  const next=transitionBodyHeight(y,root,nextRoot,nextRoot,dt,false,false,2.6);
+  close(next-nextRoot,(y-root)*Math.exp(-dt*12));
+  y=next;root=nextRoot;
+ }
+ close(y-root,.12*Math.exp(-12));
+ const landed=transitionBodyHeight(y,root,0,-.12,dt,true,false,2.6);
+ assert(landed<y&&landed>-.12);
+ assert(Math.abs(landed-y)<=Math.max(2.4,2.6*.8+.6)*dt+1e-9);
+}
+close(transitionBodyHeight(.18,0,5,5.12,1/60,true,false,0,true),5.12);
+close(transitionBodyHeight(.18,0,5,5,1/60,false,true,0,true),5);
+close(transitionBodyHeight(null,0,5,5,1/60,false,false,0),5);
+close(transitionBodyHeight(.1,0,.1,.2,0,false,true,0),.2);
+console.log('PASS visual offset continuity through takeoff, flight, landing and teleport at 30/60/120 FPS');

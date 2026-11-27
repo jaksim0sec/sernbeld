@@ -47,6 +47,18 @@ export function smoothBodyHeight(previous,target,dt,grounded,speed=0){
  return previous+Math.max(-maxDelta,Math.min(maxDelta,delta));
 }
 
+// Preserve the actual airborne root trajectory: decay only the previous visual
+// offset, not the world height. Ground entry starts from the previous offset
+// relative to the current physical root, so landing cannot snap to IK height.
+export function transitionBodyHeight(previous,previousRoot,root,target,dt,grounded,wasGrounded,speed,reset=false){
+ if(reset||!Number.isFinite(previous)||!Number.isFinite(previousRoot))return grounded?target:root;
+ if(grounded&&wasGrounded)return smoothBodyHeight(previous,target,dt,true,speed);
+ const offset=previous-previousRoot;
+ const carried=root+offset;
+ if(grounded)return smoothBodyHeight(carried,target,dt,true,speed);
+ return root+offset*Math.exp(-Math.max(0,dt)*12);
+}
+
 // The procedural driver bends the swing knee while cos(phase+offset)>0.
 // Author a conservative support window inside the opposite half-cycle.
 // Reverse playback traverses the same support window in the opposite direction.
@@ -155,7 +167,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  scene.add(actor.group);actor.group.name='SERNBELD Player';
  let third=Save.data.settings.view==='third',open=false,frame=null,first=false;
  let weapons={right:null,left:null},equipped={},boom=3.1,cut=-1,lastMode=null,traversalView=null;
- let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyGrounded=false,gaitSpeed=0,slideWeight=0,lastSlide=null;
+ let bodyYaw=player.yaw+Math.PI,bodyCut=null,bodyY=null,bodyRootY=null,bodyGrounded=false,gaitSpeed=0,slideWeight=0,lastSlide=null;
  const dialog=document.createElement('dialog');dialog.id='character-chooser';
  dialog.style.cssText='position:fixed;inset:0;border:0;padding:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;background:#181818;z-index:1000;';
  dialog.innerHTML='<iframe title="내 캐릭터 만들기" style="display:block;border:0;width:100%;height:100%"></iframe>';
@@ -337,19 +349,19 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    let desired=0;
    if(grounded&&!actor._combatStance){
     const errors=[];
-    const useStance=gaitSpeed>.15&&!player.slide&&(motion?.pivotWeight??0)<.005;
+    const gaitBlend=!player.slide&&(motion?.pivotWeight??0)<.005?clamp01((gaitSpeed-.15)/.5):0;
     for(const side of ['left','right']){
      const foot=actor.B['foot_'+side].getWorldPosition(displacement);
      const surface=groundSurface?.(foot.x,foot.z,player.pos.y)??renderPos.y;
      if(Number.isFinite(surface)&&Math.abs(surface-player.pos.y)<=.5){
-      const weight=useStance?gaitSupportWeight(actor.phase,side):1;
+      const weight=1-gaitBlend+gaitBlend*gaitSupportWeight(actor.phase,side);
       if(weight>0)errors.push((surface+ankleRest*actor.group.scale.y-foot.y)*weight);
      }
     }
     desired=bodySupportCorrection(errors,support.stepped);
    }
-   bodyY=smoothBodyHeight(bodyReset||!bodyGrounded?null:bodyY,support.y+desired,dt,grounded,speed);
-   bodyGrounded=grounded;
+   bodyY=transitionBodyHeight(bodyY,bodyRootY,renderPos.y,support.y+desired,dt,grounded,bodyGrounded,speed,bodyReset);
+   bodyRootY=renderPos.y;bodyGrounded=grounded;
    actor.group.position.y=bodyY;
    if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt,motion);
     else {turnFeet={};gaitFeet={};}
@@ -416,7 +428,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    const delta=surface+sole-footV.y;
    // Swing feet retain lift, except for penetration correction. A supported
    // ankle may follow a bounded world-space anchor, rather than sliding.
-   const stance=useGait?gaitSupportWeight(a.phase,side):1;
+   const blend=useGait?clamp01((gaitSpeed-.15)/.5):0;
+   const stance=1-blend+blend*gaitSupportWeight(a.phase,side);
    const vertical=delta>0?Math.min(.27,delta):delta>=-.09?Math.max(-.09,delta)*stance:0;
    if(Math.abs(vertical)<.004&&!(contact?.weight>0))continue;
    goalV.set(x,footV.y+vertical,z);

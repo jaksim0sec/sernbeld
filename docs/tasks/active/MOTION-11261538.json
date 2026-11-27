@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: actual gait ankle support/stance integration implemented; verify real male/female post-IK drift, slope balance and V01, refine transitions and remaining direct ground-motion work. Directional/compound and relative sweep debt remains tracked; no further infrastructure expansion absent direct blocker."
+  "next": "MOTION-11261538/T3: live gait support and takeoff/landing offset continuity implemented; direct core ground-motion and post-IK male/female/V01 evaluation next. Bounded T3.5 for verified minor independent polish only; retain required evidence and traversal blockers in T3."
 }
