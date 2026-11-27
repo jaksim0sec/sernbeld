@@ -49916,6 +49916,26 @@ function traversalRefActive(ref) {
   const source=WorldCollision?.get(ref.id);
   return !!source?.effectiveActive&&source.revision===ref.revision;
 }
+// Bind the independent registered landing and terrain limb contacts.
+function traversalSupportRef(x,y,z,terrainOnly=false) {
+  if(!WorldCollision?.support)return null;
+  const hit=terrainOnly?
+    ["lab-ground","terrain","roof-foot"].map(kind=>WorldCollision.surfaceAt(x,z,kind,y)).find(h=>h&&Math.abs(h.point[1]-y)<=CONTACT_SKIN):
+    WorldCollision.support([x,y,z],{radius:0,height:PLAYER.body},{maxRise:0,maxDrop:CONTACT_SKIN});
+  return hit&&Math.abs(hit.point[1]-y)<=CONTACT_SKIN?{id:hit.instanceId,revision:hit.revision}:null;
+}
+function traversalLandingValid(action) {
+  const {x,y,z}=action.to;
+  return traversalRefActive(action.landingRef)&&
+    Math.abs(playerFloor(x,z,y+CONTACT_SKIN,0)-y)<=CONTACT_SKIN*2&&
+    !playerSteepGround(x,z,y);
+}
+function traversalAnchorsActive(action) {
+  return traversalSurfaceActive(action.surface)&&
+    !action.sourceRefs?.some(ref=>!traversalRefActive(ref))&&
+    traversalRefActive(action.landingRef)&&
+    ![...(action.hands??[]),...(action.feet??[]),action.oldHand,action.oldFoot].some(hold=>hold&&!traversalRefActive(hold.sourceRef));
+}
 function traversalSurfaceActive(surface) {
   for(let s=surface;s;s=s.lower){
     if(!traversalRefActive(s.sourceRef))return false;
@@ -49983,7 +50003,8 @@ function traversalFaceAt(surface,side,y,hint) {
       const along=(lo+hi)*.5,grade=traversalTerrainGrade(surface,along,side);
       if(grade<TRAVERSE_GRADE-.04)return null;
       const p=traversalAcross(surface,side,along);
-      return {point:new Vector3(p.x,heightAt(along),p.z),normal:new Vector3(surface.nx*grade,1,surface.nz*grade).normalize(),along,grade};
+      const h=heightAt(along);
+      return {point:new Vector3(p.x,h,p.z),normal:new Vector3(surface.nx*grade,1,surface.nz*grade).normalize(),along,grade,sourceRef:traversalSupportRef(p.x,h,p.z,true)};
     }
     lo=hi;low=high;
   }
@@ -50045,6 +50066,11 @@ function traversalClear(pos,nearby) {
 function traversalPathClear(action) {
   const probe=new Vector3(),count=Math.max(16,Math.ceil(action.from.distanceTo(action.to)/.045));
   for(let i=1;i<=count;i++)if(!traversalClear(traversalBody(action,i/count,probe),[]))return false;
+  if(action.kind==="mantle"||action.kind==="crest"){
+    if(!traversalLandingValid(action))return false;
+    const {x,y,z}=action.to;
+    action.landingRef=traversalSupportRef(x,y,z);
+  }
   return true;
 }
 // The real stance beyond a solid lip: its top, or a roof/terrain rising
@@ -50617,7 +50643,7 @@ var Player = class {
   advanceTraversal(dt,dx,dz,drop) {
     const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
     const {surface}=action;
-    if(!traversalSurfaceActive(surface)||action.sourceRefs?.some(ref=>!traversalRefActive(ref))){this.traversal=null;this.vel.set(0,-.25,0);return;}
+    if(!traversalAnchorsActive(action)){this.traversal=null;this.onGround=false;this.vel.set(0,-.25,0);return;}
     if(climbing)this.updateStamina(dt,true,CLIMB.drain);
     if(drop||(climbing&&this.exhausted)){
       this.traversal=null;
@@ -50642,6 +50668,7 @@ var Player = class {
       return;
     }
     this.traversal=null;
+    if(!traversalLandingValid(action)){this.onGround=false;this.vel.set(0,-.25,0);return;}
     this.onGround=true;
     this.previousPos.copy(this.pos);
     this.visualY=this.pos.y;

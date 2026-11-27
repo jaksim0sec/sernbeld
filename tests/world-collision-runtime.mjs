@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -973,3 +973,28 @@ playerEnv.install(null);
   playerEnv.install(null);
   console.log('PASS T4 registered primitive suspend/replacement release');
  }
+
+// Independent landing lifetime: actual Player traversal and support registry.
+{
+ const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+ playerEnv.install(m);m.setRegion('t4-landing');
+ const makeDeck=()=>playerEnv.addBox({cx:630,cy:.5,cz:100,hx:1.2,hz:1.2,hy:.5,collisionId:'t4-landing:deck'});
+ const deck=makeDeck();
+ const hand=playerEnv.addBox({cx:635,cy:.5,cz:100,hx:1.2,hz:1.2,hy:.5,collisionId:'t4-landing:hand'});
+ const actor=new playerEnv.Player();
+ const entry=()=>{
+  actor.teleport(630,102,0,0,1);actor.onGround=false;
+  const action={kind:'crest',surface:{nx:0,nz:1,sourceRef:{id:hand.collisionId,revision:m.get(hand.collisionId).revision}},from:actor.pos.clone(),to:new three.Vector3(630,1,100),duration:.56,elapsed:0};
+  assert(playerEnv.traversalPathClear(action));assert.equal(action.landingRef?.id,deck.collisionId);actor.traversal=action;
+ };
+ entry();for(let i=0;i<6;i++)actor.advanceTraversal(1/60,0,0,false);
+ const before=actor.pos.clone();assert(m.remove(deck.collisionId));makeDeck();
+ actor.advanceTraversal(1/60,0,0,false);assert.equal(actor.traversal,null);assert(!actor.onGround);assert(actor.pos.distanceTo(before)<1e-8);
+ entry();assert(m.remove(deck.collisionId));actor.advanceTraversal(1/60,0,0,false);assert.equal(actor.traversal,null);assert(!actor.onGround);
+ const missing={kind:'crest',surface:{nx:0,nz:1},from:new three.Vector3(630,1,102),to:new three.Vector3(630,1,100),duration:.56,elapsed:0};
+ assert(!playerEnv.traversalPathClear(missing),'no floating landing admission');
+ makeDeck();entry();for(let i=0;i<60&&actor.traversal;i++)actor.advanceTraversal(1/60,0,0,false);
+ assert(actor.onGround&&Math.abs(actor.pos.y-1)<1e-8,'live landing completes');
+ playerEnv.install(null);
+ console.log('PASS T4 distinct landing source replacement/removal and live support');
+}

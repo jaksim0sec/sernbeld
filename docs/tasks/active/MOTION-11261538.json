@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4: 지속가능 — check new direct CI for mesh edge regression; actual Kael traversal/height parity, terrain and roof landing identity, post-IK quality; B11–14 OPEN."
+  "next": "MOTION-11261538/T4: 지속가능 — inspect latest direct CI; actual Kael rock proxy parity, height/roof/terrain and rendered hand/foot quality remain; B11–14 OPEN."
 }
