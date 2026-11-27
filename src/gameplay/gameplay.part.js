@@ -3709,12 +3709,21 @@ var Player = class {
       const rise=floor-y;
       const atStair=stairSurface(x,z,0,true)!==null;
       const currentTerrain=playerTerrain(p.x,p.z);
-      if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04&&rise>Math.hypot(dx,dz)*Math.tan(50*Math.PI/180)+1e-5){
-        // A steep continuous slope is not an auto-step. The threshold is
-        // independent of speed and dt; keep the contour/tangential component.
-        const e=.035,gx=playerTerrain(x-e,z)-playerTerrain(x+e,z),gz=playerTerrain(x,z-e)-playerTerrain(x,z+e),n=Math.hypot(gx,gz);
-        const len=Math.hypot(dx,dz)||1,nx=n>1e-6?gx/n:-dx/len,nz=n>1e-6?gz/n:-dz/len;
-        return {contacts:[{nx,nz,depth:rise}]};
+      if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04){
+        // Uphill admission and landing must agree on the actual geometric
+        // grade. A shallow directional rise can hide a steep diagonal face.
+        const roof=Math.max(roofHeight(x,z),roofOverhangTop(x,z,floor));
+        const exact=Math.abs(floor-roof)<=CONTACT_SKIN?undefined:WorldCollision?.groundSlope?.(x,z,floor,50*Math.PI/180);
+        if(exact&&dx*exact.ux+dz*exact.uz>1e-8)return {contacts:[{nx:-exact.ux,nz:-exact.uz,depth:rise}]};
+        // Preserve discontinuity/legacy rejection across unresolved seams,
+        // including a flat destination separated by an abrupt height change.
+        if(rise>Math.hypot(dx,dz)*Math.tan(50*Math.PI/180)+1e-5){
+          // A steep continuous slope is not an auto-step. The threshold is
+          // independent of speed and dt; keep the contour/tangential component.
+          const e=.035,gx=playerTerrain(x-e,z)-playerTerrain(x+e,z),gz=playerTerrain(x,z-e)-playerTerrain(x,z+e),n=Math.hypot(gx,gz);
+          const len=Math.hypot(dx,dz)||1,nx=n>1e-6?gx/n:-dx/len,nz=n>1e-6?gz/n:-dz/len;
+          return {contacts:[{nx,nz,depth:rise}]};
+        }
       }
       if(playerCeiling(p.x,p.z,y,floor,this.solids)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
       y=floor;

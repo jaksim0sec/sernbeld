@@ -36,5 +36,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: ground normal and active body candidates integrated; finish shared slope/step/sweep and locomotion/contact/transition integration after MOVEMENT-002/NPC scope coordination, then direct tests and V01 evaluation. T2 outstanding evidence remains tracked."
+  "next": "MOTION-11261538/T3: exact slope ascent and active sweep integrated; continue multi-level/step/sweep regression and actual locomotion/contact/transition integration after MOVEMENT-002/NPC scope coordination, then V01 visual evaluation. T2 outstanding evidence remains tracked."
 }

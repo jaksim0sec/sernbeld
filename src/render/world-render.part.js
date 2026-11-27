@@ -1103,7 +1103,8 @@ function playerContact(o,x,z,radius) {
 // The static broad phase is collected once per physics substep. The
 // candidate search never repeats the 32m spatial-grid query for every probe.
 function playerSweepColliders(x,z,range=PLAYER.radius) {
-  return query(x,z,range).filter(o=>playerContact(o,x,z,range+.004));
+  const candidates=WorldCollision?.activePrimitives?WorldCollision.activePrimitives(x,z,range):query(x,z,range);
+  return candidates.filter(o=>playerContact(o,x,z,range+.004));
 }
 function playerFloor(x,z,maxY,radius=PLAYER.radius,solids=null) {
   let h=playerTerrain(x,z);

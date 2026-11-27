@@ -13,7 +13,7 @@ const env=Function(`const PLAYER={radius:.35,body:1.72,step:.48},HALF=20,CFG={ce
   ${src.slice(start,end)}
   return {addBox,addCyl,addRoof,inside,local,query,playerFloor,playerCeiling,playerContacts,playerContact,
     roofInFoot,roofInOuter,roofSurfaceLocal,roofHeight,roofOverhangTop,playerTerrain,heightfieldTriangle,
-    bodyBlockedAt,pushOut,occupiedAt,playerSteepGround,install(v){WorldCollision=v;}};`)();
+    bodyBlockedAt,pushOut,occupiedAt,playerSteepGround,playerSweepColliders,install(v){WorldCollision=v;}};`)();
 const bridge=createRuntimeCollisionBridge({...env,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 env.install(bridge);bridge.setRegion('lab');
 const profile={radius:.35,height:1.72};
@@ -185,3 +185,41 @@ assert.equal(slopeBridge.groundSlope(1,0,3,50*Math.PI/180),undefined,'different 
 slopeBridge.suspendRegion('motion-lab');
 assert.equal(slopeBridge.groundSlope(1,0,2,50*Math.PI/180),undefined);
 console.log('PASS T3 active body probes, exact slope normal and unresolved seam fallback');
+
+ // Actual Player candidate, registered geometric normal and renderer sweep.
+const candidateSrc=gameplay.slice(gameplay.indexOf('  candidate(dx,dz){'),gameplay.indexOf('  blocked(x,z){'));
+assert(candidateSrc.startsWith('  candidate(dx,dz){'));
+const grade=Math.tan(Math.PI/3);
+let registered=true,steep=true,atStair=false,ledge=false;
+const surface=(x,z)=>ledge?(x>0?.3:0):x*(steep?grade:.5);
+const candidateBridge=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+candidateBridge.setRegion('motion-lab');
+candidateBridge.labSurface({collisionId:'motion-lab:candidate-ground',bounds:{min:[-2,-4,-2],max:[2,4,2]},sample:(x,z)=>{
+ const k=ledge?0:steep?grade:.5,n=Math.hypot(1,k);
+ return {point:[x,surface(x,z),z],featureId:'candidate',geometricNormal:registered?[-k/n,1/n,0]:null};
+}});
+const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision',
+ 'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v)),roofHeight=()=>-Infinity,roofOverhangTop=()=>-Infinity,playerCeiling=(x,z,y,target)=>target,playerContacts=()=>[];return ({'+candidateSrc+'}).candidate;'
+)(surface,(x,z)=>surface(x,z),()=>atStair?0:null,candidateBridge);
+const actorOnSlope={pos:{x:0,y:0,z:0},onGround:true,swimming:false,nearby:[],solids:null};
+const diagonalStep=candidate.call(actorOnSlope,.02,.08);
+assert.equal(diagonalStep.contacts.length,1,'diagonal uphill on steep grade must not bypass walk limit');
+assert.equal(diagonalStep.contacts[0].nx,-1);
+assert.equal(Math.abs(diagonalStep.contacts[0].nz),0);
+assert.equal(candidate.call(actorOnSlope,0,.08).contacts.length,0,'contour movement remains legal');
+assert.equal(candidate.call(actorOnSlope,-.02,.08).contacts.length,0,'downhill candidate remains legal');
+steep=false;
+assert.equal(candidate.call(actorOnSlope,.08,0).contacts.length,0,'registered gentle slope remains walkable');
+ledge=true;
+assert.equal(candidate.call(actorOnSlope,.08,0).contacts.length,1,'flat destination does not authorize abrupt terrain rise');
+ledge=false;steep=true;registered=false;
+assert.equal(candidate.call(actorOnSlope,.08,0).contacts.length,1,'legacy steep direct approach still blocked');
+registered=true;atStair=true;
+assert.equal(candidate.call(actorOnSlope,.02,.08).contacts.length,0,'stair branch remains a step, not a slope');
+env.install(bridge);
+assert(env.playerSweepColliders(5,0,.35).includes(c),'active primitive enters sweep');
+bridge.suspendRegion('lab');
+assert(!env.playerSweepColliders(5,0,.35).includes(c),'suspended primitive excluded from sweep');
+bridge.resumeRegion('lab');
+assert(env.playerSweepColliders(5,0,.35).includes(c),'resumed primitive enters sweep');
+console.log('PASS T3 exact uphill slope gate, contour preservation, discontinuity/stair fallback, active sweep candidates');
