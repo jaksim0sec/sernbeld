@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: 개입필요 — user live retest of curved ascent/descent, multidirectional and rock approach/exit after focused continuity pass; if clean, review functional closure without expanding scope; retain outstanding production parity and explicit visual/mobile evidence."
+  "next": "MOTION-11261538/T3.5: bounded visual polish and residual triage (reopen T3 if core functional regression is reproduced); then T4 traversal and production rock parity; preserve T2 and final verification gates."
 }
