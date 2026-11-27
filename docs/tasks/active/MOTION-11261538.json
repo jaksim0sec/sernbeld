@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3 priority: triangle-backed horizontal collision implemented; integrate mesh support/vertical clearance and curved locomotion, actual visible irregular lab/Kael fixtures and verify current CI/live body clearance before remaining gait/V01."
+  "next": "MOTION-11261538/T3 priority: mesh floor and underside clearance integrated into Player; verify visible curved/irregular lab and Kael fixture, overlap/escape and full fixed-tick transitions before gait/V01."
 }

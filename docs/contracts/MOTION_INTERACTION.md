@@ -98,3 +98,7 @@ T3 transition consumer: `transitionBodyHeight` preserves visual offset relative 
 Ground foot IK uses continuous downward correction release and authored shin flexion reach bounds, with anatomical forward fallback for poorly conditioned ground knee poles. This is a presentation safeguard only; actual joint discontinuity and skin contact require direct measurement. Existing pivot and traversal solve paths retain their prior policy.
 
 Motion-lab wedge sidewalls use the existing primitive sweep on an exact horizontal slice of the authored triangular side face at candidate origin feet height, for exterior approaches only. Top support remains analytical; outward exit and front entry are not treated as a sidewall. Capsule clearance and posed-mesh intersection are separate acceptance evidence.
+
+
+## T3 triangle geometry support (PARTIAL)
+- Explicit immutable world-space triangle meshes may opt into support. Outward-wound upward faces supply center-point support and geometric normals; equal-height creases conservatively select the steepest incident face. Block-only remains default. BVH/clipped projection shared by horizontal sweep and circular head-footprint upward clearance; ceiling limitY is consumed by Player. Closed-solid validation, full volume overlap, general 3D sweep and visible asset registration remain pending.

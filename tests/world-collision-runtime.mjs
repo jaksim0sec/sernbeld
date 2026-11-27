@@ -513,3 +513,41 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
   env.install(null);
  }
  console.log('PASS T3 triangle geometry, slanted body contact, BVH, actual Player candidate and lifecycle');
+
+
+ // Continuous nonprimitive support and radius-aware sloped headroom.
+ {
+  const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('mesh-walk');env.install(m);
+  const strip=(x0,y0,x1,y1,z0=-2,z1=2)=>[
+   [[x0,y0,z0],[x0,y0,z1],[x1,y1,z0]],[[x1,y1,z0],[x0,y0,z1],[x1,y1,z1]]
+  ];
+  const h=m.triangleMesh({collisionId:'mesh:continuous',triangles:[...strip(0,0,2,1),...strip(2,1,4,4),...strip(4,4,6,4)],support:true});
+  assert.equal(m.get(h.id).shapes[0].policy.support,true);
+  assert.equal(env.playerFloor(1,.2,2),.5);
+  assert.equal(env.playerFloor(1,.2,.2),0,'unreachable mesh preserves ground');
+  assert.equal(env.playerSteepGround(1,.2,.5),null);
+  const steep=env.playerSteepGround(3,.2,2.5);
+  assert(steep&&Math.abs(steep.k-1.5)<1e-8&&steep.ux>.999);
+  assert(m.meshSlope(2,0,1,50*Math.PI/180)?.k>1.49,'crease retains actual steep incident normal');
+  assert.equal(m.support([1,.5,.2],{radius:.35,height:1.72}).instanceId,h.id);
+  const candidate=Function('playerTerrain','playerFloor','stairSurface','WorldCollision','playerCeiling','playerContacts','roofHeight','roofOverhangTop',
+   'const BOUND=100,CONTACT_SKIN=.002,PLAYER={step:.48,radius:.35,body:1.72},clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));return ({'+candidateSrc+'}).candidate;'
+  )(env.playerTerrain,env.playerFloor,()=>null,m,env.playerCeiling,env.playerContacts,env.roofHeight,env.roofOverhangTop);
+  const actor={pos:{x:1,y:.5,z:.2},onGround:true,swimming:false,nearby:[],solids:[]};
+  const up=candidate.call(actor,.08,0);assert.equal(up.contacts.length,0,'gentle mesh ascent '+JSON.stringify(up));assert(Math.abs(up.y-.54)<1e-8);
+  actor.pos={x:2.2,y:1.3,z:.2};
+  assert(candidate.call(actor,.08,0).contacts.length>0,'steep uphill blocked');
+  actor.onGround=false;
+  assert.equal(candidate.call(actor,-.08,0).contacts.length,0,'steep downhill allowed');
+  const overhead=m.triangleMesh({collisionId:'mesh:overhead',triangles:strip(10,3,12,4).map(t=>[...t].reverse()),support:true});
+  const ceiling=env.playerCeiling(11,0,0,3);
+  assert(Math.abs(ceiling-(3.5-.35*.5-1.72-.002))<1e-5,'sloped underside clearance '+ceiling);
+  assert.equal(env.playerCeiling(13,0,0,3),3);
+  assert.equal(env.playerFloor(11,0,8),0,'underside is not a floor');
+  m.suspendRegion('mesh-walk');assert.equal(env.playerFloor(1,.2,2),0);assert.equal(env.playerCeiling(11,0,0,3),3);
+  m.resumeRegion('mesh-walk');assert.equal(env.playerFloor(1,.2,2),.5);
+  assert(m.remove(overhead.id));assert.equal(env.playerCeiling(11,0,0,3),3);
+  env.install(null);
+ }
+ console.log('PASS T3 triangle mesh support, grade, Player ascent/descent, underside radius and region lifecycle');

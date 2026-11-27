@@ -3693,12 +3693,11 @@ var Player = class {
   }
   candidate(dx,dz){
     const p=this.pos,x=clamp2(p.x+dx,-BOUND,BOUND),z=clamp2(p.z+dz,-BOUND,BOUND);
-    // Vertical triangular wedge faces are distinct from walkable top support.
-    const sideHits=WorldCollision?.labSideSweep?.(p.x,p.z,p.y,x-p.x,z-p.z,PLAYER.radius,PLAYER.body)??[];
-    if(sideHits.length)return {contacts:sideHits};
     const maxRise=this.onGround&&!this.swimming?PLAYER.step:0;
     const limit=p.y+maxRise+CONTACT_SKIN,terrain=playerTerrain(x,z,limit);
     let floor=playerFloor(x,z,limit,PLAYER.radius,this.solids);
+    const sideHits=WorldCollision?.surfaceBoundarySweep?.(p.x,p.z,p.y,x-p.x,z-p.z,PLAYER.radius,PLAYER.body,{grounded:maxRise>0,floor})??[];
+    if(sideHits.length)return {contacts:sideHits};
     if(terrain>limit){
       const len=Math.hypot(dx,dz),ex=.07;
       let nx=playerTerrain(x-ex,z)-playerTerrain(x+ex,z),nz=playerTerrain(x,z-ex)-playerTerrain(x,z+ex),n=Math.hypot(nx,nz);
@@ -3710,6 +3709,8 @@ var Player = class {
     // the origin too; a low ceiling can veto an otherwise climbable step.
     if(maxRise>0&&floor>y+CONTACT_SKIN){
       const rise=floor-y;
+      const meshGrade=WorldCollision?.meshSlope?.(x,z,floor,50*Math.PI/180);
+      if(meshGrade&&dx*meshGrade.ux+dz*meshGrade.uz>1e-8)return {contacts:[{nx:-meshGrade.ux,nz:-meshGrade.uz,depth:rise}]};
       const atStair=stairSurface(x,z,0,true)!==null;
       const currentTerrain=playerTerrain(p.x,p.z,p.y+CONTACT_SKIN);
       if(!atStair&&Math.abs(floor-terrain)<CONTACT_SKIN&&Math.abs(p.y-currentTerrain)<.04){

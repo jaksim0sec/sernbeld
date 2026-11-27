@@ -132,7 +132,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   handles.set(id,h);
   if(faces.length){
    if(!boundarySources.has(regionId))boundarySources.set(regionId,new Map());
-   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds});
+   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds,policy,type});
   }
   if(type==="water")types.water++;return h;
  }
@@ -154,13 +154,13 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   r.collisionId=base;types.roof++;return output;
  }
- // Explicit static obstacle mesh. Support/vertical motion are not yet
- // implemented for this geometry; callers cannot silently treat it as floor.
- function triangleMesh({collisionId,triangles}){
+ // Support is opt-in. Supporting mesh faces must be outward wound.
+ function triangleMesh({collisionId,triangles,support=false}){
+  if(typeof support!=="boolean")throw new TypeError("invalid mesh support policy");
   if(!Array.isArray(triangles)||!triangles.length)throw new TypeError("empty triangle mesh");
   const faces=triangles.map((v,i)=>triangleFace(v,"triangle:"+i)),raw=mergeBounds(faces);
   const bounds={min:raw.min.map(v=>v-1e-7),max:raw.max.map(v=>v+1e-7)};
-  const policy={id:"triangle-mesh-block",block:true,support:false,mantle:false,oneWay:false,nav:false,camera:false,water:false,climb:"none"};
+  const policy={id:support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle:false,oneWay:false,nav:false,camera:false,water:false,climb:"none"};
   const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces});
   types.triangleMesh=(types.triangleMesh??0)+1;
   return h;
@@ -197,8 +197,78 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const id=collisionId??next("water");
   return analytical(id,"water",bounds,waterPolicy,root=>sampleLegacyWater({contains,surfaceAt,bottomAt},root),{priority,physics:"volume"});
  }
+ // Sample geometric collision planes, not rendering normals. At a crease
+ // retain the steepest actual incident face rather than averaging normals.
+ function planeY(face,x,z){
+  const [nx,ny,nz]=face.normal,a=face.vertices[0];
+  return Math.abs(ny)<1e-9?null:a[1]-(nx*(x-a[0])+nz*(z-a[2]))/ny;
+ }
+ function facePointY(face,x,z){
+  const y=planeY(face,x,z);if(y===null)return null;
+  const [a,b,c]=face.vertices,side=(p,q)=>(q[0]-p[0])*(z-p[2])-(q[2]-p[2])*(x-p[0]);
+  const signs=[side(a,b),side(b,c),side(c,a)];
+  return signs.every(v=>v>=-1e-9)||signs.every(v=>v<=1e-9)?y:null;
+ }
+ function eachMeshFace(region,bounds,purpose,visit){
+  for(const [id,source] of boundarySources.get(region)??[]){
+   if(source.type!=="triangleMesh"||!intersects(source.bounds,bounds)||!source.policy[purpose])continue;
+   const record=registry.get(id);if(!record?.effectiveActive)continue;
+   visitFaces(source.tree,bounds,face=>visit(face,id,record.revision,source.policy));
+  }
+ }
+ function meshHit(face,id,revision,policy,point,rootY){
+  return {instanceId:id,shapeId:"surface",surfaceId:JSON.stringify([id,"surface",face.featureId]),featureId:face.featureId,point,geometricNormal:[...face.normal],contactNormal:[...face.normal],separation:rootY-point[1],toi:null,policyId:policy.id,revision};
+ }
+ function meshSupport(x,z,maxY,minY=-Infinity,region=regionId){
+  let best=null;
+  eachMeshFace(region,{min:[x,minY-.002,z],max:[x,maxY+.002,z]},"support",(face,id,revision,policy)=>{
+   if(face.normal[1]<=1e-9)return;
+   const y=facePointY(face,x,z);
+   if(y===null||y>maxY+.002||y<minY-.002)return;
+   if(!best||y>best.point[1]+1e-8||Math.abs(y-best.point[1])<=1e-8&&face.normal[1]<best.geometricNormal[1])best=meshHit(face,id,revision,policy,[x,y,z],maxY);
+  });
+  return best;
+ }
+ // Exact circular footprint against the convex projection of a clipped
+ // face. Return a point within the clipped footprint, including tangency.
+ function diskPoint(poly,x,z,radius){
+  const hull=hullXZ(poly);if(!hull.length)return null;
+  let inside=hull.length>=3,best=Infinity,point=null;
+  for(let i=0;i<hull.length;i++){
+   const a=hull[i],b=hull[(i+1)%hull.length],dx=b[0]-a[0],dz=b[1]-a[1],l=dx*dx+dz*dz,t=l?Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/l)):0,px=a[0]+dx*t,pz=a[1]+dz*t,d=Math.hypot(x-px,z-pz);
+   if(d<best){best=d;point=[px,pz];}
+   if(dx*(z-a[1])-dz*(x-a[0])< -1e-10)inside=false;
+  }
+  return inside?[x,z]:best<=radius+1e-9?point:null;
+ }
+ function meshCeiling(x,z,y,targetY,radius,height,region=regionId){
+  const from=y+height-.002,to=targetY+height;let best=null;
+  eachMeshFace(region,{min:[x-radius,from,z-radius],max:[x+radius,to,z+radius]},"block",(face,id,revision,policy)=>{
+   if(policy.support?face.normal[1]>=-1e-9:Math.abs(face.normal[1])<1e-9)return;
+   const poly=clipY(face.vertices,from,true);
+   let lo=Math.max(from,face.bounds.min[1]),hi=Math.min(best?.limitY??to,face.bounds.max[1]);
+   if(hi<lo||!diskPoint(clipY(poly,hi,false),x,z,radius))return;
+   for(let i=0;i<24;i++){const mid=(lo+hi)/2;if(diskPoint(clipY(poly,mid,false),x,z,radius))hi=mid;else lo=mid;}
+   const p=diskPoint(clipY(poly,hi,false),x,z,radius);if(!p)return;
+   const hit=meshHit(face,id,revision,policy,[p[0],planeY(face,p[0],p[1]),p[1]],y+height);
+   hit.limitY=hi;if(!best||hi<best.limitY)best=hit;
+  });
+  return best;
+ }
+ function meshSlope(x,z,floor,walkMax){
+  if(!Number.isFinite(floor))return undefined;
+  const hit=meshSupport(x,z,floor,floor-.002);
+  if(!hit||Math.abs(hit.point[1]-floor)>.002)return undefined;
+  const n=hit.geometricNormal,state=classifySupport({geometricNormal:n,support:true,footContact:true,walkMax});
+  if(state.kind==="walk")return null;
+  const h=Math.hypot(n[0],n[2]);
+  return state.kind==="slide"&&h>1e-9?{ux:-n[0]/h,uz:-n[2]/h,k:h/n[1]}:undefined;
+ }
  function support(root,profile,{maxRise=0,maxDrop=Infinity,purpose="support",region=regionId}={}){
-  return registry.sampleSupport({root,profile,maxRise,maxDrop},{regionId:region,purpose});
+  const hit=registry.sampleSupport({root,profile,maxRise,maxDrop},{regionId:region,purpose});
+  const mesh=purpose==="support"||purpose==="footIK"?meshSupport(root[0],root[2],root[1]+maxRise,root[1]-maxDrop,region):null;
+  if(mesh&&(!hit||mesh.point[1]>hit.point[1])){mesh.separation=root[1]-mesh.point[1];return mesh;}
+  return hit;
  }
  // Filter by surface class before choosing a hit. Preserve the existing
  // stair declaration order and distinguish solid footprint from one-way eaves.
@@ -213,6 +283,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  // preserve the legacy finite-difference classification.
  function groundSlope(x,z,floor,walkMax){
   if(!Number.isFinite(floor))return undefined;
+  const mesh=meshSlope(x,z,floor,walkMax);if(mesh!==undefined)return mesh;
   const kind=regionId==="motion-lab"?"lab-ground":"terrain";
   const hit=surfaceAt(x,z,kind);
   if(!hit||Math.abs(hit.point[1]-floor)>.002||!hit.geometricNormal)return undefined;
@@ -241,11 +312,15 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  // Terrain, roof and stair policy still use their existing exact legacy path.
  function staticSupport(x,z,maxY,radius,solids=null,height=1.72){
   const candidates=solids??[...query(x,z,radius)];
-  return registry.sampleSupport({root:[x,maxY,z],profile:{radius,height},maxRise:0,maxDrop:Infinity,candidates,staticOnly:true},{regionId,purpose:"support"});
+  const hit=registry.sampleSupport({root:[x,maxY,z],profile:{radius,height},maxRise:0,maxDrop:Infinity,candidates,staticOnly:true},{regionId,purpose:"support"});
+  const mesh=meshSupport(x,z,maxY);
+  return mesh&&(!hit||mesh.point[1]>hit.point[1])?mesh:hit;
  }
  function staticCeiling(x,z,y,targetY,solids=null,radius=.35,height=1.72){
   const candidates=solids??[...query(x,z,radius)];
-  return registry.sampleCeiling({root:[x,y,z],targetY,profile:{radius,height},candidates},{regionId,purpose:"headroom"});
+  const hit=registry.sampleCeiling({root:[x,y,z],targetY,profile:{radius,height},candidates},{regionId,purpose:"headroom"});
+  const mesh=meshCeiling(x,z,y,targetY,radius,height);
+  return mesh&&(!hit||mesh.limitY<hit.point[1])?mesh:hit;
  }
  // Authoritative compatibility consumer for the existing capsule solver.
  // It uses normalized SurfaceContact but returns the legacy objects unchanged.
@@ -281,12 +356,22 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  }
  // Shared pre-rise horizontal sweep: both authored boundaries and
  // arbitrary static triangle obstacles use the same geometric narrow phase.
- function surfaceBoundarySweep(x,z,y,dx,dz,radius=.35,height=1.72){
+ function surfaceBoundarySweep(x,z,y,dx,dz,radius=.35,height=1.72,move=null){
   if(Math.hypot(dx,dz)<1e-9)return [];
   const hits=[],bounds={min:[Math.min(x,x+dx)-radius,y+.002,Math.min(z,z+dz)-radius],max:[Math.max(x,x+dx)+radius,y+height-.002,Math.max(z,z+dz)+radius]};
   for(const [id,source] of boundarySources.get(regionId)??[]){
    if(!intersects(source.bounds,bounds)||!registry.get(id)?.effectiveActive)continue;
    visitFaces(source.tree,bounds,face=>{
+    // Coplanar triangles adjacent to the selected ground must not snag a
+    // body crossing a triangulation seam. Compare the actual plane, not
+    // whether the actor centre lies inside this individual triangle.
+    if(source.type==="triangleMesh"&&source.policy.support&&face.normal[1]>1e-9&&move){
+     const from=planeY(face,x,z),to=planeY(face,x+dx,z+dz);
+     const slope=Math.hypot(face.normal[0],face.normal[2])/face.normal[1];
+     const above=from!==null&&y>=from-.004;
+     const selected=Number.isFinite(move.floor)&&to!==null&&Math.abs(to-move.floor)<=.004;
+     if(above&&((selected&&move.grounded&&slope<=Math.tan(50*Math.PI/180)+1e-9)||to<=from+1e-8))return;
+    }
     const hit=sweepFace(face,x,z,y,dx,dz,radius,height);
     if(hit)hits.push({...hit,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
    });
@@ -310,5 +395,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

@@ -1074,6 +1074,8 @@ var WALK_GRADE=Math.tan(50*Math.PI/180);
 function playerSteepGround(x,z,floor) {
   const e=.04;
   if(!Number.isFinite(floor))return null;
+  const mesh=WorldCollision?.meshSlope?.(x,z,floor,50*Math.PI/180);
+  if(mesh!==undefined)return mesh;
   const roof=Math.max(roofHeight(x,z),roofOverhangTop(x,z,floor));
   const onRoof=Math.abs(floor-roof)<=CONTACT_SKIN;
   if(!onRoof&&Math.abs(floor-playerTerrain(x,z,floor,true))>CONTACT_SKIN)return null;
@@ -1158,7 +1160,7 @@ function playerCeiling(x,z,y,targetY,solids=null) {
   let top=targetY;
   if(WorldCollision?.staticCeiling){
     const hit=WorldCollision.staticCeiling(x,z,y,targetY,solids,PLAYER.radius,PLAYER.body);
-    if(hit)top=Math.min(top,hit.point[1]-PLAYER.body-CONTACT_SKIN);
+    if(hit)top=Math.min(top,(hit.limitY??hit.point[1])-PLAYER.body-CONTACT_SKIN);
   }else{
     for(const o of solids??query(x,z,PLAYER.radius)){
       if(o.bot<y+PLAYER.body-CONTACT_SKIN||o.bot>top+PLAYER.body||!playerContact(o,x,z,PLAYER.radius))continue;
