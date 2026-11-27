@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: inspect latest CI and live curve/rock support retest; investigate remaining B23 horizontal-to-steep/airborne continuity and production mesh parity using shared geometry; resolve remaining functional V01 gates before T3.5."
+  "next": "MOTION-11261538/T3: 개입필요 — user live retest of curved ascent/descent, multidirectional and rock approach/exit after focused continuity pass; if clean, review functional closure without expanding scope; retain outstanding production parity and explicit visual/mobile evidence."
 }

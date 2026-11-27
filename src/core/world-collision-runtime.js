@@ -334,6 +334,57 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const h=planeY(face,p[0],p[1]),d=Math.hypot(p[0]-x,p[1]-z);
   return h!==null&&y>=h-grade*d-.004;
  }
+ // A curved walkable patch is not a collection of independent obstacles.
+ // Trace the actual projected segment over upward triangles, accepting only
+ // intervals joined at the same geometric height. A disconnected shelf or
+ // a steep intervening face cannot supply a continuation.
+ function connectedWalkFace(source,face,x,z,y,radius){
+  const grade=Math.tan(50*Math.PI/180),walkable=f=>f.normal[1]>1e-9&&Math.hypot(f.normal[0],f.normal[2])/f.normal[1]<=grade+1e-9;
+  if(!walkable(face)||!Number.isFinite(y))return false;
+  const p=diskPoint(face.vertices,x,z,radius);if(!p)return false;
+  const dx=p[0]-x,dz=p[1]-z,d=Math.hypot(dx,dz),h=planeY(face,p[0],p[1]);
+  if(h>y+grade*d+.004)return false;
+  const span=grade*d+.004,eps=1e-7,intervals=[];
+  visitFaces(source.tree,{min:[Math.min(x,p[0])-eps,y-span,Math.min(z,p[1])-eps],max:[Math.max(x,p[0])+eps,y+span,Math.max(z,p[1])+eps]},f=>{
+   if(!walkable(f))return;
+   let lo=0,hi=1;
+   for(let i=0;i<3;i++){
+    const a=f.vertices[i],b=f.vertices[(i+1)%3],ex=b[0]-a[0],ez=b[2]-a[2];
+    const c=ex*(z-a[2])-ez*(x-a[0]),v=ex*dz-ez*dx;
+    if(Math.abs(v)<1e-12){if(c>1e-9)return;}
+    else if(v>0)hi=Math.min(hi,(1e-9-c)/v);
+    else lo=Math.max(lo,(1e-9-c)/v);
+    if(lo>hi)return;
+   }
+   const base=planeY(f,x,z),delta=planeY(f,p[0],p[1])-base;
+   intervals.push({f,lo,hi,base,delta,reach:Infinity});
+  });
+  let start=-Infinity;
+  for(const a of intervals)if(a.lo<=eps&&a.base<=y+.004)start=Math.max(start,a.base);
+  if(start<y-span)return false;
+  for(const a of intervals)if(a.lo<=eps&&Math.abs(a.base-start)<=eps)a.reach=0;
+  for(let k=0;k<intervals.length;k++){
+   let changed=false;
+   for(const a of intervals){
+    if(a.reach===Infinity)continue;
+    if(a.f===face&&a.hi>=1-eps)return true;
+    for(const b of intervals){
+     const lo=Math.max(a.reach,a.lo,b.lo),hi=Math.min(a.hi,b.hi,b.reach);
+     if(lo>hi)continue;
+     const offset=a.base-b.base,slope=a.delta-b.delta;
+     let t=lo;
+     if(Math.abs(offset+slope*t)>eps){
+      if(Math.abs(slope)<1e-12)continue;
+      t=-offset/slope;if(t<lo-eps||t>hi+eps)continue;
+      t=Math.max(lo,Math.min(hi,t));
+     }
+     if(t<b.reach-eps){b.reach=t;changed=true;}
+    }
+   }
+   if(!changed)break;
+  }
+  return false;
+ }
  function meshCeiling(x,z,y,targetY,radius,height,region=regionId){
   const from=y+height-.002,to=targetY+height;let best=null;
   eachMeshFace(region,{min:[x-radius,from,z-radius],max:[x+radius,to,z+radius]},"block",(face,id,revision,policy)=>{
@@ -499,7 +550,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    if(interiorIds.has(id))return;
    if(face.bounds.max[1]<=y+.002||face.bounds.min[1]>=y+height-.002)return;
    const source=boundarySources.get(regionId).get(id);
-   if(source.policy.support&&face.normal[1]>1e-9&&y>=planeY(face,x,z)-.004)return;
+   if(source.policy.support&&face.normal[1]>1e-9&&(y>=planeY(face,x,z)-.004||connectedWalkFace(source,face,x,z,y,radius)))return;
    const poly=hullXZ(clipY(clipY(face.vertices,y+.002,true),y+height-.002,false));
    const c=hullContact(poly,x,z,radius,face);
    // face identity is stable for the existing decreasing-overlap rule.
@@ -569,7 +620,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
      const selected=Number.isFinite(move.floor)&&to!==null&&Math.abs(to-move.floor)<=.004;
      if(above&&((selected&&move.grounded&&slope<=Math.tan(50*Math.PI/180)+1e-9)||to<=from+1e-8))return;
      const reach=radius+Math.hypot(dx,dz);
-     if(move.grounded&&reachableWalkFace(face,x,z,y,reach)&&reachableWalkFace(face,x+dx,z+dz,move.floor,reach))return;
+     if(move.grounded&&(reachableWalkFace(face,x,z,y,reach)||connectedWalkFace(source,face,x,z,y,reach))&&(reachableWalkFace(face,x+dx,z+dz,move.floor,reach)||connectedWalkFace(source,face,x+dx,z+dz,move.floor,reach)))return;
     }
     const hit=sweepFace(face,x,z,y,dx,dz,radius,height);
     if(hit)hits.push({...hit,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});

@@ -812,3 +812,47 @@ console.log('PASS T3 real rock support, repeat jump and fixed-tick walkable grad
  env.install(null);
 }
 console.log('PASS T3 shared mesh body, navigation, recovery and region lifetime');
+
+ // T3: dense bidirectionally curved walkable surfaces must not introduce
+ // fictitious walls at triangle edges or reject the actor's own ground.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('curvature-continuity');playerEnv.install(m);
+  const p=(i,j)=>[i*.15,2+.12*Math.sin(i*.65)*Math.cos(j*.65),j*.15],triangles=[];
+  for(let i=0;i<20;i++)for(let j=0;j<20;j++){
+   const a=p(i,j),b=p(i+1,j),c=p(i,j+1),d=p(i+1,j+1);triangles.push([a,c,b],[b,c,d]);
+  }
+  m.triangleMesh({collisionId:'curved:walkable',triangles,support:true});
+  const actor=new playerEnv.Player();
+  // All local face grades are below the shared 50-degree limit.
+  for(let x=.5;x<2.5;x+=.18)for(let z=.5;z<2.5;z+=.18){
+   const y=m.meshSupport(x,z,10).point[1];
+   assert.equal(m.meshContacts(x,z,y).length,0,'walkable curved surface is not a body obstacle');
+   actor.pos.set(x,y,z);actor.onGround=true;
+   for(let i=0;i<8;i++){
+    const dx=.05*Math.cos(i*Math.PI/4),dz=.05*Math.sin(i*Math.PI/4);
+    assert.equal(actor.candidate(dx,dz).contacts.length,0,'continuous walkable path '+[x,z,i]);
+   }
+  }
+  for(const [x,z,yaw] of [[.65,.8,-Math.PI/2],[.8,.65,Math.PI],[.65,.65,-3*Math.PI/4]]){
+   actor.teleport(x,z,yaw,0,m.meshSupport(x,z,10).point[1]);
+   const walk={...neutral,move:()=>({x:0,y:1,mag:1})};
+   for(let i=0;i<35;i++){
+    actor.advance(1/60,walk,[]);
+    assert(actor.onGround,'continuous curved fixed ticks retain support');
+    const ground=m.meshSupport(actor.pos.x,actor.pos.z,10);
+    assert(ground&&Math.abs(actor.pos.y-ground.point[1])<.004,'actual feet follow curved surface');
+   }
+   assert(Math.hypot(actor.pos.x-x,actor.pos.z-z)>1.1,'no artificial stalls in any tested direction');
+  }
+  // A disconnected higher sheet in the same source is not a ground seam.
+  const quad=(a,b,y0,y1)=>[[[a,y0,-1],[a,y0,1],[b,y1,-1]],[[b,y1,-1],[a,y0,1],[b,y1,1]]];
+  m.setRegion('curvature-obstacles');
+  m.triangleMesh({collisionId:'separated',triangles:[...quad(10,11,2,2),...quad(11.08,12,2.25,2.25)],support:true});
+  assert(m.meshContacts(10.9,0,2).length>0,'disconnected elevated sheet still blocks body');
+  assert(m.surfaceBoundarySweep(10.9,0,2,.02,0,.35,1.72,{grounded:true,floor:2}).length>0,'disconnected sheet still blocks approach');
+  m.triangleMesh({collisionId:'steep',triangles:[...quad(20,21,2,2),...quad(21,21.4,2,2.8)],support:true});
+  assert(m.surfaceBoundarySweep(20.8,0,2,.06,0,.35,1.72,{grounded:true,floor:2}).length>0,'steep incident face still blocks approach');
+  playerEnv.install(null);
+ }
+ console.log('PASS T3 multidirectional curvature, fixed-tick continuity and separated/steep obstacle preservation');
