@@ -222,15 +222,15 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   r.collisionId=base;types.roof++;return output;
  }
  // Support is opt-in. Supporting mesh faces must be outward wound.
- function triangleMesh({collisionId,triangles,support=false,mantle=false,bounds:authoredBounds=null}){
-  if(typeof support!=="boolean"||typeof mantle!=="boolean"||mantle&&!support)throw new TypeError("invalid mesh support/mantle policy");
+ function triangleMesh({collisionId,triangles,support=false,mantle=false,climb=false,bounds:authoredBounds=null}){
+  if(typeof support!=="boolean"||typeof mantle!=="boolean"||typeof climb!=="boolean"||mantle&&!support||climb&&!mantle)throw new TypeError("invalid mesh support/mantle policy");
   const factory=typeof triangles==='function'?triangles:null;
   if(!factory&&(!Array.isArray(triangles)||!triangles.length))throw new TypeError("empty triangle mesh");
   const faces=factory?null:triangles.map((v,i)=>triangleFace(v,"triangle:"+i));
   const raw=factory?authoredBounds:mergeBounds(faces);
   if(!raw||!['min','max'].every(k=>Array.isArray(raw[k])&&raw[k].length===3&&raw[k].every(Number.isFinite))||raw.min.some((v,i)=>v>raw.max[i]))throw new TypeError('invalid deferred mesh bounds');
   const bounds={min:raw.min.map(v=>v-1e-7),max:raw.max.map(v=>v+1e-7)};
-  const policy={id:mantle?"triangle-mesh-mantle":support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle,oneWay:false,nav:false,camera:false,water:false,climb:mantle?"mantleOnly":"none"};
+  const policy={id:mantle?"triangle-mesh-mantle":support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle,oneWay:false,nav:false,camera:false,water:false,climb:climb?"face":mantle?"mantleOnly":"none"};
   const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces,triangleFactory:factory});
   types.triangleMesh=(types.triangleMesh??0)+1;
   return h;
@@ -502,6 +502,42 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return plans.sort((a,b)=>a.toi-b.toi);
  }
+ // Face-climb meshes use exact horizontal sections, not bounds.
+ function meshClimbEntries(x,z,y,dx,dz,radius,height,reach,alignment){
+  const bounds={min:[Math.min(x,x+dx*reach)-radius,y+.002,Math.min(z,z+dz*reach)-radius],max:[Math.max(x,x+dx*reach)+radius,y+height-.002,Math.max(z,z+dz*reach)+radius]},out=[];
+  for(const [id,source] of boundaryCandidates(regionId,bounds)){
+   const rec=registry.get(id);
+   if(source.type!=="triangleMesh"||source.policy.climb!=="face"||!rec?.effectiveActive||!intersects(source.bounds,bounds))continue;
+   let best=null;
+   visitFaces(source.tree,bounds,face=>{
+    const c=sweepFace(face,x,z,y,dx*reach,dz*reach,radius,height);
+    if(c&&-(dx*c.nx+dz*c.nz)>=alignment&&(!best||c.toi<best.toi))best=c;
+   });
+   if(best)out.push({id,revision:rec.revision,toi:best.toi});
+  }
+  return out.sort((a,b)=>a.toi-b.toi);
+ }
+ function meshClimbFace(id,revision,x,z,y,dx,dz,lo,hi){
+  const source=boundarySources.get(regionId)?.get(id),rec=registry.get(id);
+  if(!source||source.policy.climb!=="face"||!rec?.effectiveActive||rec.revision!==revision)return null;
+  const ax=x+dx*lo,az=z+dz*lo,bx=x+dx*hi,bz=z+dz*hi;
+  let best=null;
+  visitFaces(source.tree,{min:[Math.min(ax,bx)-1e-7,y-1e-7,Math.min(az,bz)-1e-7],max:[Math.max(ax,bx)+1e-7,y+1e-7,Math.max(az,bz)+1e-7]},face=>{
+   const n=face.normal,a=face.vertices[0],den=n[0]*dx+n[2]*dz;
+   // A rounded side may lean outward; do not use horizontal undersides.
+   if(n[1]<-.65||den>=-.08)return;
+   const t=(n[0]*(a[0]-x)+n[1]*(a[1]-y)+n[2]*(a[2]-z))/den;
+   if(t<lo-1e-8||t>hi+1e-8||best&&t>=best.along)return;
+   const p=[x+dx*t,y,z+dz*t];
+   for(let i=0;i<3;i++){
+    const a=face.vertices[i],b=face.vertices[(i+1)%3],u=b.map((v,j)=>v-a[j]),v=p.map((v,j)=>v-a[j]);
+    const c=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    if(c.reduce((s,v,j)=>s+v*n[j],0)<-1e-7)return;
+   }
+   best={point:p,normal:n,along:t,grade:-den/Math.max(n[1],1e-8)};
+  });
+  return best;
+ }
  function meshSlope(x,z,floor,walkMax){
   if(!Number.isFinite(floor))return undefined;
   const hit=meshSupport(x,z,floor,floor-.002);
@@ -680,5 +716,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates,deferredResident:deferredGeometry.size,deferredLimit:DEFERRED_LIMIT},capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshClimbEntries,meshClimbFace,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

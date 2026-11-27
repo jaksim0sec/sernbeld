@@ -1055,7 +1055,18 @@ playerEnv.install(null);
   for(const r of f.ramps)route('ramp-'+r.angle,r.x,r.z+.7,0,r.angle===60?1000:400,r.height,r.angle===60?'latch':null);
   route('curve-ground-entry',f.curve.x-.7,f.curve.z,-Math.PI/2,150,1.0);
   route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
-  // Diagnostic, not an acceptance pass: irregular rock approach remains open.
-  route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,180,null);
+  // Actual irregular rock: directed input only, a real climb and crown landing.
+  route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,550,1.7,'latch');
+  const climber=new playerEnv.Player();climber.teleport(f.rock.maxX+.7,f.rock.z,Math.PI/2,0,0);
+  for(let i=0;i<120&&!climber.traversal;i++)climber.advance(1/60,forward,[]);
+  assert.equal(climber.traversal?.kind,'latch');
+  const rockRef=climber.traversal.surface;
+  assert.equal(rockRef.meshId,f.rock.id);
+  assert([...climber.traversal.hands,...climber.traversal.feet].every(h=>h.sourceRef.id===f.rock.id&&h.sourceRef.revision===rockRef.revision));
+  m.suspendRegion('motion-lab');
+  climber.advance(1/60,forward,[]);
+  assert.equal(climber.traversal,null,'suspended mesh climb must release');
+  assert.equal(m.meshClimbFace(rockRef.meshId,rockRef.revision,rockRef.x,rockRef.z,.6,-1,0,0,2),null);
+  m.resumeRegion('motion-lab');
   playerEnv.install(null);
  }

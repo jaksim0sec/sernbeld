@@ -2606,7 +2606,7 @@ var Rocks = class {
         for(let k=0;k<16;k++)matrix.elements[k]=Math.fround(matrix.elements[k]);
         const b=geometry.boundingBox.clone().applyMatrix4(matrix);
         r.physicsId='sernbeld:rock:'+i;
-        WorldCollision.triangleMesh({collisionId:r.physicsId,bounds:{min:b.min.toArray(),max:b.max.toArray()},triangles:()=>renderedCollisionTriangles(geometry,matrix),support:true,mantle:true});
+        WorldCollision.triangleMesh({collisionId:r.physicsId,bounds:{min:b.min.toArray(),max:b.max.toArray()},triangles:()=>renderedCollisionTriangles(geometry,matrix),support:true,mantle:true,climb:true});
       }
       addCyl({x:r.x,z:r.z,r:r.s*.8,y0:r.y-1,y1:r.y+r.s*.55,climbable:true,mantleOnly:true,lipInset:r.s*.28,legacyOnly:exact});
     }
@@ -3134,6 +3134,11 @@ function traversalFaceAt(surface,side,y,hint) {
       playerTerrain(p.x+p.nx*.045,p.z+p.nz*.045)>y+.015)return null;
     return {point:new Vector3(p.x,y,p.z),normal:new Vector3(p.nx,0,p.nz),along:0};
   }
+  if(surface.meshId){
+    const q=traversalAcross(surface,side,0);
+    const hit=WorldCollision?.meshClimbFace?.(surface.meshId,surface.revision,q.x,q.z,y,-surface.nx,-surface.nz,hint-.65,hint+1.55);
+    return hit?{...hit,point:new Vector3(...hit.point),normal:new Vector3(...hit.normal),sourceRef:{id:surface.meshId,revision:surface.revision}}:null;
+  }
   // Intersect a horizontal ray with the same piecewise triangular terrain
   // used by the player. A stair tread or a gentler slope is not a handhold.
   const heightAt=along=>{
@@ -3164,7 +3169,7 @@ function traversalFaceAt(surface,side,y,hint) {
 function traversalHold(surface,side,y,along) {
   return traversalFaceAt(surface,side,y,along)??(surface.lower?traversalFaceAt(surface.lower,side,y,along):null);
 }
-function traversalContacts(surface,y,along,scale,lead) {
+function traversalContacts(surface,y,along,scale,lead,root=null) {
   const hands=[],feet=[];
   for(const sign of [-1,1]) {
     const reach=(1.46+(sign===lead?.12:-.10))*scale;
@@ -3174,12 +3179,18 @@ function traversalContacts(surface,y,along,scale,lead) {
     const want=surface.box?Math.min(y+reach,traversalFaceTop(surface.box,traversalSolidPoint(surface,sign*.195))-.03):y+reach;
     for(const drop of [0,.14,.28,.42,.56,.70,.84,.98]) {
       hand=traversalHold(surface,sign*.195,want-drop,along);
-      if(hand)break;
+      if(hand&&(!root||Math.hypot(hand.point.x-root.x,hand.point.z-root.z)<=.85))break;
+      hand=null;
     }
     // A face that starts a little above the ground (a building on its
     // plinth) is stood on at its bottom edge.
     const footY=y+(sign===lead?.15:.36)*scale;
-    const foot=traversalHold(surface,sign*.155,surface.box?Math.max(footY,Math.min(surface.box.bot+.03,footY+.3)):footY,along);
+    let foot=null;
+    for(const offset of root?[0,.12,.24,-.12,.36]:[0]){
+      foot=traversalHold(surface,sign*.155,(surface.box?Math.max(footY,Math.min(surface.box.bot+.03,footY+.3)):footY)+offset,along);
+      if(foot&&(!root||Math.hypot(foot.point.x-root.x,foot.point.z-root.z)<=.85))break;
+      foot=null;
+    }
     if(!hand||!foot)return null;
     hands.push(hand);feet.push(foot);
   }
@@ -3390,6 +3401,16 @@ function traversalEntryBody(action,target,t,out) {
   return t<split?out.copy(from).lerp(entryVia,traversalEase(0,split,t)):
     out.copy(entryVia).lerp(target,traversalEase(split,1,t));
 }
+// Keep the same cylinder collision/path validator for a curved mesh face.
+function* traversalMeshPoses(surface,face,y,lead){
+  const tilt=Math.atan(1/face.grade),along=face.along;
+  for(const gap of [TRAVERSE_WALL_GAP,TRAVERSE_WALL_GAP+.08,TRAVERSE_WALL_GAP+.16,TRAVERSE_WALL_GAP+.24,TRAVERSE_WALL_GAP+.32]){
+    const to=new Vector3(face.point.x+surface.nx*gap,y,face.point.z+surface.nz*gap);
+    if(!traversalClear(to,[]))continue;
+    const contacts=traversalContacts(surface,y,along,Math.cos(tilt),lead,to);
+    if(contacts)yield {to,along,tilt,contacts};
+  }
+}
 function traversalStart(player,dx,dz,automatic=false) {
   const p=player.pos,entry=TRAVERSE_ENTRY,r=PLAYER.radius+entry.reach;
   const mag=Math.hypot(dx,dz);if(mag<1e-8)return null;dx/=mag;dz/=mag;
@@ -3438,6 +3459,20 @@ function traversalStart(player,dx,dz,automatic=false) {
       return null;
     }});
   }
+  for(const hit of WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
+    candidates.push({distance:PLAYER.radius+hit.toi*entry.reach+.001,build:()=>{
+      const surface={x:p.x,z:p.z,nx:-dx,nz:-dz,meshId:hit.id,revision:hit.revision};
+      for(const rise of [.12,.24,.36,.48,.60]){
+        const face=traversalFaceAt(surface,0,p.y+rise,0);
+        if(!face||face.grade<TRAVERSE_GRADE-.04||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
+        for(const {to,along,tilt,contacts} of traversalMeshPoses(surface,face,p.y+rise,1)){
+          const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
+          if(traversalPathClear(action))return action;
+        }
+      }
+      return null;
+    }});
+  }
   // Stable ordering retains mesh precedence on equal-distance candidates.
   for(const candidate of candidates.sort((a,b)=>a.distance-b.distance)){
     const action=candidate.build();if(action)return action;
@@ -3475,7 +3510,7 @@ function traversalHandoff(surface,p) {
   return best?traversalBindFace(best.surface):null;
 }
 function traversalStep(player,old,surface,to,along,tilt,moving,lead) {
-  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),lead);
+  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),lead,surface.meshId?to:null);
   if(!contacts)return null;
   const hands=old.hands.slice(),feet=old.feet.slice();
   hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
@@ -3486,6 +3521,30 @@ function traversalStep(player,old,surface,to,along,tilt,moving,lead) {
 function traversalNext(player,old) {
   let {surface}=old;
   const p=player.pos;
+  if(surface.meshId){
+    const moving=old.moving===0?1:0,lead=moving===0?-1:1;
+    // Leave the face only onto real walkable support on this same mesh.
+    for(const d of [.28,.42,.56,.70,.84,.98,1.12]){
+      const q=traversalAcross(surface,0,old.along+d),hit=WorldCollision?.meshSupport?.(q.x,q.z,p.y+1.2,p.y-.13);
+      if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||playerSteepGround(q.x,q.z,hit.point[1]))continue;
+      const y=hit.point[1];
+      const ring=Array.from({length:8},(_,i)=>WorldCollision.meshSupport(q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,y+.24,y-.24));
+      if(ring.some(h=>h?.instanceId!==surface.meshId||h.geometricNormal[1]<COS_SLIDE))continue;
+      for(const liftFirst of [false,true]){
+        const action={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),previous:old,tilt:0,duration:.72,liftFirst,elapsed:0};
+        if(traversalPathClear(action))return action;
+      }
+    }
+    for(const rise of [CLIMB.rise,.20,.12]){
+      const face=traversalFaceAt(surface,0,p.y+rise,old.along);
+      if(!face)continue;
+      for(const pose of traversalMeshPoses(surface,face,p.y+rise,lead)){
+        const action=traversalStep(player,old,surface,pose.to,pose.along,pose.tilt,moving,lead);
+        if(action)return action;
+      }
+    }
+    return null;
+  }
   if(surface.box && traversalStance(surface).y-p.y<=1.53){
     const mantle=traversalMantle(surface,p,old);
     if(mantle)return mantle;
@@ -7017,7 +7076,7 @@ function createMotionLabFixtures(scene){
   rockObject.rotation.set(rock.tilt,rock.rot,rock.tilt*.6);rockObject.scale.set(rock.s*1.15,rock.s,rock.s);
   rockObject.name="motion-lab-irregular-rock";root.add(rockObject);rockObject.updateWorldMatrix(true,false);
   const rockTriangles=renderedCollisionTriangles(rockObject.geometry,rockObject.matrixWorld);
-  WorldCollision?.triangleMesh({collisionId:rock.id,triangles:rockTriangles,support:true,mantle:true});
+  WorldCollision?.triangleMesh({collisionId:rock.id,triangles:rockTriangles,support:true,mantle:true,climb:true});
   rock.triangleCount=rockTriangles.length;
   rock.maxX=Math.max(...rockTriangles.flat().map(v=>v[0]));
   const curve={x:32,z:0,id:"motion-lab:continuous-curve"};
