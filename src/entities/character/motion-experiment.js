@@ -28,6 +28,77 @@ export function measureRig(actor){
  const box=actor.mesh?.geometry?.boundingBox,ankles=bones.filter(b=>b.id==='foot_left'||b.id==='foot_right');
  return {rigVersion:'studio-v1',body:actor.profile.body,scale,units:actor.units,meshHeight:box?(box.max.y-box.min.y)*actor.units*scale:null,bones,ankleRest:Math.min(...ankles.map(b=>b.pivot[1])),soleAnchorKind:'rest ankle offset proxy; not actual posed mesh sole'};
 }
+// Rest-sole candidates are actual bare-body mesh vertices, selected once per
+// geometry. Sample the posed skin, not the ankle offset or an IK target.
+const soleCache=new WeakMap();
+function soleCandidates(actor){
+ const g=actor.mesh.geometry;
+ let cached=soleCache.get(g);if(cached)return cached;
+ const p=g.attributes.position,indices=g.attributes.skinIndex,weights=g.attributes.skinWeight;
+ cached={};
+ for(const side of ['left','right']){
+  const root='foot_'+side,byId=new Map(actor.data.bones.map(b=>[b.id,b]));
+  const belongs=b=>{for(let n=b;n;n=byId.get(n.parent))if(n.id===root)return true;return false;};
+  const ids=new Set(actor.data.bones.flatMap((b,i)=>belongs(b)?[i]:[]));
+  const candidates=[];let low=Infinity;
+  for(let i=0;i<actor.bodyVertexCount;i++){
+   let w=0;
+   for(const k of ['X','Y','Z','W'])if(ids.has(indices['get'+k](i)))w+=weights['get'+k](i);
+   if(w<.5)continue;
+   const y=p.getY(i);low=Math.min(low,y);candidates.push({i,y});
+  }
+  cached[side]=candidates.filter(v=>(v.y-low)*actor.units<=.025).map(v=>v.i);
+  if(!cached[side].length)throw Error('Missing rest sole vertices: '+side);
+ }
+ soleCache.set(g,cached);return cached;
+}
+export function samplePosedSoles(actor,state,groundSurface){
+ if(!groundSurface)return null;
+ // SkinnedMesh.updateMatrixWorld refreshes its attached bind inverse.
+ actor.group.updateMatrixWorld(true);
+ const ids=soleCandidates(actor),v=actor.group.position.clone();
+ return Object.fromEntries(['left','right'].map(side=>{
+  let minGap=Infinity,lowest=null,valid=0;const contact=[];
+  for(const index of ids[side]){
+   actor.mesh.getVertexPosition(index,v);actor.mesh.localToWorld(v);
+   if(!vec(v))throw Error('nonfinite skinned sole vertex');
+   const surface=groundSurface(v.x,v.z,state.root[1]);
+   if(!finite(surface))continue;
+   valid++;const gap=v.y-surface;
+   if(gap<minGap){minGap=gap;lowest={index,world:vec(v),gap};}
+   if(state.grounded&&Math.abs(gap)<=.015)contact.push({index,world:vec(v),gap});
+  }
+  contact.sort((a,b)=>Math.abs(a.gap)-Math.abs(b.gap)||a.index-b.index);
+  return [side,{candidateCount:ids[side].length,validCount:valid,minGap:valid?minGap:null,lowest,contacts:contact.slice(0,8)}];
+ }));
+}
+// Observations only: these are not authored contact windows or action authority.
+// Compare the same skin vertex continuously; do not mistake rolling contacts
+// or a teleport for drift. A gap in coverage starts a new observation.
+export function summarizeMotionTrace(frames){
+ const actions=[],feet={left:{windows:[],maxDrift:null,maxPenetration:null,comparisons:0},right:{windows:[],maxDrift:null,maxPenetration:null,comparisons:0}};
+ const anchors={left:new Map(),right:new Map()};let previous=null;
+ for(let i=0;i<frames.length;i++){
+  const f=frames[i],s=f.state;if(!s)continue;
+  const reset=!previous||previous.state.teleportId!==s.teleportId||f.time<=previous.time;
+  if(reset||actions.at(-1)?.action!==s.action)actions.push({action:s.action,start:i,end:i});else actions.at(-1).end=i;
+  for(const side of ['left','right']){
+   const m=feet[side],sole=f.soles?.[side],contacts=sole?.contacts??[],old=reset?new Map():anchors[side],next=new Map();
+   if(s.grounded&&finite(sole?.minGap))m.maxPenetration=Math.max(m.maxPenetration??0,-sole.minGap,0);
+   if(contacts.length){
+    if(reset||m.windows.at(-1)?.end!==i-1)m.windows.push({start:i,end:i});else m.windows.at(-1).end=i;
+    for(const c of contacts){
+     const anchor=old.get(c.index)??c.world;
+     if(old.has(c.index)){m.comparisons++;m.maxDrift=Math.max(m.maxDrift??0,Math.hypot(c.world[0]-anchor[0],c.world[2]-anchor[2]));}
+     next.set(c.index,anchor);
+    }
+   }
+   anchors[side]=next;
+  }
+  previous=f;
+ }
+ return {actions,feet,scope:'observed bare-body sole samples; no authored support or pass/fail inference'};
+}
 export function capturePose(actor,state,{time=0,groundSurface=null,ankleRest=null}={}){
  actor.group.updateWorldMatrix(true,true);
  const joints=actor.data.bones.map(b=>{
@@ -40,12 +111,12 @@ export function capturePose(actor,state,{time=0,groundSurface=null,ankleRest=nul
   const gap=finite(surface)&&finite(ankleRest)?p[1]-ankleRest-surface:null;
   return {side,ankle:p,surface:finite(surface)?surface:null,ankleProxyGap:gap,nearSupport:state.grounded&&gap!==null&&Math.abs(gap)<=.03};
  });
- return {time,state,bodyRoot:vec(actor.group.position),joints,feet};
+ return {time,state,bodyRoot:vec(actor.group.position),joints,feet,soles:samplePosedSoles(actor,state,groundSurface)};
 }
 export function createMotionTrace({limit=600}={}){
  if(!Number.isInteger(limit)||limit<1||limit>1800)throw new RangeError('trace limit');
  let active=false,frames=[],error=null;
- const read=()=>({frames:frames.slice(),active,error});
+ const read=()=>({frames:frames.slice(),active,error,...(frames[0]?.state?{summary:summarizeMotionTrace(frames)}:{})});
  return {start(){active=true;frames=[];error=null;},stop(reason=null){active=false;error=reason;return read();},get active(){return active;},push(frame){if(!active)return false;frames.push(frame);if(frames.length===limit)active=false;return true;},read};
 }
 export function sampleLabGround(fixtures,x,z){

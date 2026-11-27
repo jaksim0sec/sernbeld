@@ -4,7 +4,7 @@ import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
 import {createStudioModel} from '../src/entities/character/studio-model.js';
 import {normalizeStudioCharacter} from '../src/entities/character/appearance.js';
-import {motionManifest,createMotionTrace,sampleLabGround,replayMotion} from '../src/entities/character/motion-experiment.js';
+import {motionManifest,createMotionTrace,sampleLabGround,replayMotion,summarizeMotionTrace} from '../src/entities/character/motion-experiment.js';
 const T=new Function(readFileSync('src/vendor/three-gltf.part.js','utf8')+';return three_module_exports;')();
 const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/models/characters/studio-v1.json.gz'))));
 const make=(profile,options)=>createStudioModel(T,factory,normalizeStudioCharacter(profile),options);
@@ -18,6 +18,10 @@ for(const body of ['male','female']){
  const results=['low','baseline','high'].map(strength=>replayMotion(make,{body},{strength,scenario:'walk',frames:90}));
  const base=results[1];assert.equal(base.rig.bones.length,47);assert(Math.abs(base.rig.meshHeight-1.76)<1e-6);
  for(const r of results){assert.equal(r.frames.length,90);assert(r.frames.every((frame,i)=>frame.state.root.every((v,k)=>v===base.frames[i].state.root[k])&&frame.joints.length===47));}
+ for(const r of results)for(const frame of r.frames)for(const side of ['left','right']){
+  const sole=frame.soles[side];assert(sole.candidateCount>0&&sole.validCount===sole.candidateCount);
+  assert(Number.isFinite(sole.minGap)&&sole.lowest.world.every(Number.isFinite));
+ }
  assert.notDeepEqual(results[0].frames[60].joints.find(j=>j.id==='ribcage').rotation,results[2].frames[60].joints.find(j=>j.id==='ribcage').rotation);
  for(const scenario of ['idle','backpedal','pivot','jump']){
   const r=replayMotion(make,{body},{scenario,scale:.85,frames:100});assert.equal(r.rig.scale,.85);
@@ -28,3 +32,8 @@ for(const body of ['male','female']){
  }
 }
 console.log('PASS motion manifest, trace limits, analytical lab samples, real male/female rig scripted driver experiments (no physics/IK)');
+
+const mock=(time,action,x,teleportId=0)=>({time,state:{action,grounded:true,teleportId},soles:{left:{minGap:-.005,contacts:[{index:7,world:[x,0,0]}]}}});
+const summary=summarizeMotionTrace([mock(0,'idle',0),mock(1,'walk',.02),mock(2,'walk',.04),mock(3,'walk',10,1)]);
+assert.equal(summary.feet.left.comparisons,2);assert.equal(summary.feet.left.maxDrift,.04);assert.equal(summary.feet.left.maxPenetration,.005);assert.equal(summary.feet.right.maxDrift,null);assert.equal(summary.actions.length,3);assert.equal(summary.feet.left.windows.length,2);
+console.log('PASS posed bare-body sole samples and trace summary reset/coverage');

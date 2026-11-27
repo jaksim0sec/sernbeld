@@ -55,8 +55,25 @@ try{
  });
  await page.evaluate(()=>window.__dev.motionExperiment.start());
  await page.waitForFunction(()=>window.__dev.motionExperiment.read().frames.length>=3,{},{timeout:10000});
+ await page.evaluate(()=>{window.__dev.input.independentHeading=true;window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyW'}));});
+ await page.waitForFunction(()=>window.__dev.player.pos.z<-.8,{},{timeout:20000});
+ await page.evaluate(()=>window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyW'})));
  const trace=await page.evaluate(()=>window.__dev.motionExperiment.stop());
  assert.equal(trace.error,null);assert(trace.frames.every(f=>f.joints.length===47));
+ assert(trace.frames.some(f=>f.state.action==='walk'||f.state.action==='run'));
+ assert(trace.frames.every(f=>['left','right'].every(side=>f.soles[side].candidateCount>0&&Number.isFinite(f.soles[side].minGap))));
+ assert(trace.summary.actions.length>=2);
+ console.log('T2 actual lab bare-body sole observations '+JSON.stringify(trace.summary));
+ // Render the same post-IK pose from three views without changing the runtime camera policy.
+ await page.evaluate(()=>window.__dev.renderer.setAnimationLoop(null));
+ for(const [name,angle] of [['front',0],['side',Math.PI/2],['three-quarter',Math.PI/4]]){
+  await page.evaluate(angle=>{
+   const d=window.__dev,a=d.avatars.actor.group,cam=d.camera,theta=a.rotation.y+angle;
+   cam.position.set(a.position.x+Math.sin(theta)*3,a.position.y+1.15,a.position.z+Math.cos(theta)*3);
+   cam.lookAt(a.position.x,a.position.y+.88,a.position.z);d.renderer.render(d.scene,cam);
+  },angle);
+  await page.screenshot({path:'test-results/motion-t2-'+name+'.png'});
+ }
  await page.screenshot({path:'test-results/physics-t1-lab.png'});
  assert.deepEqual(errors,[]);
  console.log('PASS: Kael and motion-lab live collision registration, support parity, PWA and LOD-independent runtime '+JSON.stringify({main,lab}));

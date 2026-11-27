@@ -57,3 +57,8 @@
 ## T2 모션 실험 초안 (2026-11-27)
 
 [실험 모듈](../../src/entities/character/motion-experiment.js)과 `window.__dev.motionExperiment`는 모션랩 전용: manifest(), rig(), replay({scenario,strength,scale,frames}), start(), stop(), read(). trace는 최대 600프레임, 명시적 수집만 수행하고 자동 중지한다. replay는 분리 배우에서 기존 driver를 사용하되 물리/IK 완결을 의미하지 않으며, 강도 변화는 중립 대비 상체 채널에만 적용하고 관절 제한 유지. 실제 플레이어 root/기존 모션은 변경하지 않는다. supportCandidate는 판정 후보이지 접지 확정이 아니며 ankleProxyGap은 실제 발바닥 위치가 아니다. contact/transition windows 및 실화면 품질 미확정.
+
+## T2 실제 피부 메시 접촉 관측 보강 (2026-11-27)
+
+- trace/capturePose에 rest sole 하단 25mm의 foot 계열 가중치 0.5 이상인 실제 body vertex를 선별해 posed skin 좌표를 표면과 비교하는 `soles`를 추가한다. 발목 proxy도 보존한다. 의상/신발, 완전한 발 전체 형상, 접촉 권위 및 실제 support window를 대신하지 않는다. 표면 없는 샘플은 null, 재접촉/teleport와 같은 vertex의 연속 관측을 구분한다. 수집은 실험실/분리 replay에 한정된다.
+- `summary`는 action 관찰 구간, ±15mm 내 후보 접촉 구간, 동일 vertex 연속 관측의 최대 수평 drift/비교 수, grounded 최대 관통을 제공한다. 관측이 없으면 null이며 통과로 해석하지 않는다. 기존 제안 30mm drift/10mm penetration 허용치는 변경하지 않는다. Chromium 실제 이동 및 3방향 캡처, 남녀 분리 rig sole 테스트를 추가했으며 신규 SHA CI/시각 판독은 아직 NOT RUN.

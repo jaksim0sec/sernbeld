@@ -34,5 +34,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T2: lab ground registry, live pose/contacts trace, rig measurement and scripted strength experiment implemented; confirm direct Node/Chromium, measure real post-IK support, transition/contact markers and multi-view comparison."
+  "next": "MOTION-11261538/T2: confirm new direct Node/Chromium and actual sole trace/multi-view artifacts; finalize observed contact/transition markers and motion expression criteria."
 }
