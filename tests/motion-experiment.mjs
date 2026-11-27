@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter} from '../src/entities/character/studio-integration.js';
+import {gaitSupportWeight,groundGaitTarget,transitionBodyHeight,groundFootCorrection,groundLegDistance,groundIKWeight,sampleBodySupport,smoothBodyHeight,smoothLocomotionHeight,runHeadFilter,anticipateFootStep} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -178,3 +178,29 @@ for(const fps of [30,60,120]){
  assert(Math.abs(walk.yaw-.5)<1e-9&&Math.abs(walk.roll-.2)<1e-9,'walk head pose remains authored');
 }
 console.log('PASS T3.5 visual stair velocity, smooth stance acquisition, running head yaw/roll filter');
+
+
+ // T3.5 upward tread crossing: compare the actual visual support target
+ // against the original exact-height step; never change collision height.
+ for(const fps of [30,60,120])for(const speed of [1.3,2.6,5.2])for(const lock of [0,1]){
+  const dt=1/fps,stair=x=>x>=0?.22:0;
+  let previous=null,oldPrevious=null,max=0,oldMax=0;
+  for(let i=0;i<fps;i++){
+   const x=-.6+i*dt*speed,exact=stair(x),feetY=exact;
+   const anticipated=anticipateFootStep(x,0,exact,feetY,speed,0,stair,lock);
+   assert(anticipated>=exact-1e-10&&anticipated<=.22+1e-10,'bounded exact support');
+   if(previous!==null){max=Math.max(max,Math.abs(anticipated-previous));oldMax=Math.max(oldMax,Math.abs(exact-oldPrevious));}
+   previous=anticipated;oldPrevious=exact;
+  }
+  assert(oldMax===.22&&max<oldMax,'ascending step target must not snap '+[fps,speed,lock,max]);
+  if(fps===60&&speed===2.6)console.log('T3.5 upward ankle support max delta',lock,oldMax,max);
+ }
+ const riser=(x,z)=>z>=0?.22:0;
+ const smooth=(x,z)=>x*.8;
+ assert(anticipateFootStep(0,-.10,0,0,0,2.6,riser)>0,'rotated stair approach');
+ assert(anticipateFootStep(-.10,0,0,0,2.6,0,x=>x>=0?.8:0)===0,'tall ledge cannot lift the leg');
+ assert(anticipateFootStep(0,0,0,0,2.6,0,smooth)===0,'continuous grade is not a step');
+ assert(anticipateFootStep(.10,0,.22,.22,-2.6,0,x=>x>=0?.22:0)===.22,'descent retains exact support');
+ assert(anticipateFootStep(-.10,0,0,0,0,0,x=>x>=0?.22:0)===0,'idle remains planted');
+ assert(anticipateFootStep(-.10,0,0,0,2.6,0,x=>x>=0?null:0)===0,'missing surface cannot lift leg');
+ console.log('PASS T3.5 upward ankle anticipation, exact tread and non-step preservation');

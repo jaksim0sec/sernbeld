@@ -87,6 +87,33 @@ export function groundFootCorrection(delta,stance){
  const t=clamp01((-delta-.045)/.09);
  return Math.max(-.09,delta)*stance*(1-t*t*(3-2*t));
 }
+// Anticipate a reachable upward tread along the movement direction.
+// The exact support still owns contact and penetration prevention. Only
+// the visual ankle target is raised before the discontinuity is crossed.
+export function anticipateFootStep(x,z,surface,feetY,vx,vz,groundSurface,lock=0){
+ const speed=Math.hypot(vx,vz);
+ if(speed<.15||!Number.isFinite(surface)||!groundSurface)return surface;
+ const reach=.30*clamp01(speed/.65),dx=vx/speed,dz=vz/speed;
+ const at=d=>groundSurface(x+dx*d,z+dz*d,feetY);
+ const valid=h=>Number.isFinite(h)&&Math.abs(h-feetY)<=.5;
+ const end=at(reach);
+ if(!valid(end)||end-surface<.06||end-surface>.48)return surface;
+ // Locate the first actual rise, not a smoothed terrain normal. A gentle
+ // continuous slope has no finite jump across the final narrow bracket.
+ let lo=0,hi=reach,lower=surface,upper=end;
+ for(let i=0;i<6;i++){
+  const mid=(lo+hi)*.5,h=at(mid);
+  if(!valid(h))return surface;
+  if(h>=surface+.06){hi=mid;upper=h;}else{lo=mid;lower=h;}
+ }
+ const rise=upper-lower;
+ if(rise<.06||rise>.48)return surface;
+ const t=clamp01(1-hi/reach),ease=t*t*(3-2*t);
+ // Keep a planted foot longer than a swinging one, converging to the
+ // real upper support at the edge for both. Never lower the exact floor.
+ return surface+Math.max(0,upper-surface)*ease*(1-clamp01(lock)*(1-ease));
+}
+
 // Fade ground IK from the authored pose for small target changes. A hard
 // invocation threshold otherwise applies the full knee pole repair to even a
 // millimetre-sized correction. Upward anti-penetration has a shorter fade.
@@ -502,7 +529,13 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    // ankle may follow a bounded world-space anchor, rather than sliding.
    const blend=useGait?clamp01((gaitSpeed-.15)/.5):0;
    const stance=1-blend+blend*gaitSupportWeight(a.phase,side);
-   const vertical=groundFootCorrection(delta,stance);
+   let vertical=groundFootCorrection(delta,stance);
+   // A swing ankle must start climbing before its sample crosses a riser.
+   // Keep exact tread collision and the existing stance/leg reach policy.
+   if(useGait){
+    const ahead=anticipateFootStep(x,z,surface,player.pos.y,player.vel.x,player.vel.z,groundSurface,contact?.weight??0);
+    if(ahead>surface)vertical=Math.max(vertical,Math.min(.27,ahead+sole-footV.y));
+   }
    const weight=groundIKWeight(vertical,Math.hypot(x-footV.x,z-footV.z));
    if(!weight)continue;
    goalV.set(x,footV.y+vertical,z);

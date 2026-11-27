@@ -289,6 +289,26 @@ try{
  assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='leave-ground'));
  assert(trials.jump.quality.groundTransitions.some(x=>x.kind==='land'));
  for(const trial of Object.values(trials))assert.equal(trial.quality.frames,132);
+ // Isolate the legs instead of treating body/root smoothing as a proxy.
+ const stairLegs={};
+ for(const side of ['left','right']){
+  let maxAnkleStep=0,maxJointStep=0,samples=0,previous=null;
+  for(const f of trials.stairs.frames){
+   if(previous&&f.state.grounded&&previous.state.grounded&&f.state.root[1]>=previous.state.root[1]&&f.state.root[1]>.1){
+    const ankle=f.feet.find(q=>q.side===side).ankle,old=previous.feet.find(q=>q.side===side).ankle;
+    maxAnkleStep=Math.max(maxAnkleStep,Math.abs(ankle[1]-old[1]));
+    for(const id of ['thigh_'+side,'shin_'+side,'foot_'+side]){
+     const q=f.joints.find(j=>j.id===id).rotation,p=previous.joints.find(j=>j.id===id).rotation;
+     maxJointStep=Math.max(maxJointStep,2*Math.acos(Math.min(1,Math.abs(q.reduce((a,v,i)=>a+v*p[i],0)))));
+    }
+    samples++;
+   }
+   previous=f;
+  }
+  assert(samples>0&&Number.isFinite(maxAnkleStep)&&Number.isFinite(maxJointStep),'stair leg trace');
+  stairLegs[side]={samples,maxAnkleStep,maxJointStep};
+ }
+ console.log('T3.5 actual upward stair leg observations '+JSON.stringify(stairLegs));
  const qualitySummary=Object.fromEntries(Object.entries(trials).map(([k,v])=>[k,{summary:v.summary,quality:v.quality}]));
  await writeFile('test-results/motion-t2-fixed-trace.json',JSON.stringify(trials));
  console.log('T2 fixed 60Hz post-IK observations '+JSON.stringify(qualitySummary));
