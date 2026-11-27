@@ -7,7 +7,43 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  const registry=createLegacyStaticCollision({query,inside,local,playerContact});
  const roofHelpers={local,roofInFoot,roofInOuter,roofSurfaceLocal};
  let regionId="legacy-world",serial=0;
- const boundarySources=new Map();
+ const boundarySources=new Map(),boundaryGrids=new Map();
+ const BOUNDARY_CELL=32,BOUNDARY_MAX_CELLS=256;
+ let boundaryOrder=0,lastBoundaryCandidates=0;
+ function boundaryCells(bounds){
+  const x0=Math.floor(bounds.min[0]/BOUNDARY_CELL),x1=Math.floor(bounds.max[0]/BOUNDARY_CELL);
+  const z0=Math.floor(bounds.min[2]/BOUNDARY_CELL),z1=Math.floor(bounds.max[2]/BOUNDARY_CELL);
+  if(![x0,x1,z0,z1].every(Number.isSafeInteger)||(x1-x0+1)*(z1-z0+1)>BOUNDARY_MAX_CELLS)return null;
+  const keys=[];for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++)keys.push(x+":"+z);
+  return keys;
+ }
+ function indexBoundary(region,id,source){
+  let grid=boundaryGrids.get(region);
+  if(!grid){grid={cells:new Map(),large:new Set()};boundaryGrids.set(region,grid);}
+  source.cells=boundaryCells(source.tree.bounds);source.order=boundaryOrder++;
+  if(!source.cells){grid.large.add(id);return;}
+  for(const k of source.cells){
+   let cell=grid.cells.get(k);if(!cell){cell=new Set();grid.cells.set(k,cell);}cell.add(id);
+  }
+ }
+ function unindexBoundary(region,id,source){
+  const grid=boundaryGrids.get(region);if(!grid||!source)return;
+  if(!source.cells)grid.large.delete(id);
+  else for(const k of source.cells){const cell=grid.cells.get(k);cell?.delete(id);if(!cell?.size)grid.cells.delete(k);}
+  if(!grid.cells.size&&!grid.large.size)boundaryGrids.delete(region);
+ }
+ // Index actual triangle extents, not the entire owning terrain.
+ // Preserve original registration order for simultaneous contact ties.
+ function boundaryCandidates(region,bounds){
+  const sources=boundarySources.get(region),grid=boundaryGrids.get(region);
+  if(!sources||!grid){lastBoundaryCandidates=0;return [];}
+  const cells=boundaryCells(bounds);
+  if(!cells){lastBoundaryCandidates=sources.size;return sources;}
+  const ids=new Set(grid.large);
+  for(const k of cells)for(const id of grid.cells.get(k)??[])ids.add(id);
+  const out=[...ids].map(id=>[id,sources.get(id)]).sort((a,b)=>a[1].order-b[1].order);
+  lastBoundaryCandidates=out.length;return out;
+ }
  const handles=new Map(),records=new Map(),types={box:0,cyl:0,roof:0,stair:0,terrain:0,water:0,labSurface:0};
  const identity={position:[0,0,0],yaw:0,scale:[1,1,1]};
  const roofPolicy=(overhang)=>({id:overhang?"legacy-roof-overhang":"legacy-roof-foot",block:false,support:true,mantle:false,oneWay:overhang,nav:false,camera:false,water:false,climb:"none"});
@@ -141,7 +177,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   handles.set(id,h);
   if(faces.length){
    if(!boundarySources.has(regionId))boundarySources.set(regionId,new Map());
-   boundarySources.get(regionId).set(id,{tree:buildFaceTree(faces),bounds,policy,type,closed:type==="triangleMesh"&&closedTopology(faces),recoveryKey:{type:"triangleMesh",collisionId:id}});
+   const source={tree:buildFaceTree(faces),bounds,policy,type,closed:type==="triangleMesh"&&closedTopology(faces),recoveryKey:{type:"triangleMesh",collisionId:id}};
+   boundarySources.get(regionId).set(id,source);indexBoundary(regionId,id,source);
   }
   if(type==="water")types.water++;return h;
  }
@@ -254,7 +291,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return onBoundary?null:best;
  }
  function eachMeshFace(region,bounds,purpose,visit){
-  for(const [id,source] of boundarySources.get(region)??[]){
+  for(const [id,source] of boundaryCandidates(region,bounds)){
    if(source.type!=="triangleMesh"||!intersects(source.bounds,bounds)||!source.policy[purpose])continue;
    const record=registry.get(id);if(!record?.effectiveActive)continue;
    visitFaces(source.tree,bounds,face=>visit(face,id,record.revision,source.policy));
@@ -400,8 +437,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   // Mesh face overlap uses the same height-clipped projection as the sweep.
   // Preserve centre-height ground support: a body standing above a walkable
   // face must not be repelled by the uphill part of its own footprint.
-  const interiorIds=new Set();
-  for(const [id,source] of boundarySources.get(regionId)??[]){
+  const interiorIds=new Set(),bodyBounds={min:[x-radius,y+.002,z-radius],max:[x+radius,y+height-.002,z+radius]};
+  for(const [id,source] of boundaryCandidates(regionId,bodyBounds)){
    if(!registry.get(id)?.effectiveActive)continue;
    const c=interiorContact(source,x,z,y,radius,height);
    if(c){interiorIds.add(id);out.push({...c,instanceId:id});}
@@ -441,7 +478,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function surfaceBoundarySweep(x,z,y,dx,dz,radius=.35,height=1.72,move=null){
   if(Math.hypot(dx,dz)<1e-9)return [];
   const hits=[],bounds={min:[Math.min(x,x+dx)-radius,y+.002,Math.min(z,z+dz)-radius],max:[Math.max(x,x+dx)+radius,y+height-.002,Math.max(z,z+dz)+radius]};
-  for(const [id,source] of boundarySources.get(regionId)??[]){
+  for(const [id,source] of boundaryCandidates(regionId,bounds)){
    if(!intersects(source.bounds,bounds)||!registry.get(id)?.effectiveActive)continue;
    const prior=interiorContact(source,x,z,y,radius,height);
    if(prior){
@@ -484,9 +521,9 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const h=handles.get(id);if(!h)return false;
   const sourceRegion=registry.get(id)?.regionId;
   registry.remove(h);handles.delete(id);records.delete(id);
-  const sources=boundarySources.get(sourceRegion);sources?.delete(id);if(sources&&!sources.size)boundarySources.delete(sourceRegion);
+  const sources=boundarySources.get(sourceRegion);unindexBoundary(sourceRegion,id,sources?.get(id));sources?.delete(id);if(sources&&!sources.size)boundarySources.delete(sourceRegion);
   return true;
  }
- function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
+ function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates},capabilities:registry.capabilities()};}
  return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

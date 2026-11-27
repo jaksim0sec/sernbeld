@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3 priority: evaluate visible geometry browser CI, Kael rock proxy/mesh parity and core locomotion/V01; block-only downward mesh collision implemented. LIVE-B21 remains open."
+  "next": "MOTION-11261538/T3 priority: actual Kael rock proxy/mesh parity and core locomotion/V01; local geometry source indexing implemented; LIVE-B21 visual closure and mobile cost remain open."
 }

@@ -670,3 +670,26 @@ console.log('PASS T3 rendered curved geometry topology and runtime support parit
   assert(m.remove(slope.id));playerEnv.install(null);
  }
  console.log('PASS T3 downward triangle blocking, actual Player, non-walkable policy, footprint and lifecycle');
+
+ // Spatial source broad phase: distant meshes must not enter the local
+ // narrow phase. Check negative cell seam, overflow, region and removal.
+ {
+  const b=createRuntimeCollisionBridge({...env,query:()=>[]});
+  b.setRegion('source-index');
+  const wall=(x,z)=>[[[x,0,z-1],[x,2,z-1],[x,2,z+1]],[[x,0,z-1],[x,2,z+1],[x,0,z+1]]];
+  const near=b.triangleMesh({collisionId:'index-near',triangles:wall(-32,0)});
+  for(let i=0;i<300;i++)b.triangleMesh({collisionId:'index-far-'+i,triangles:wall(100+i*64,100)});
+  const big=b.triangleMesh({collisionId:'index-large',triangles:[[[500,0,500],[500,2,500],[500,2,100000]]]});
+  const sweep=()=>b.surfaceBoundarySweep(-34,0,0,4,0);
+  assert.equal(sweep()[0]?.instanceId,near.id,'local sweep');
+  assert(b.debugSnapshot().boundaryIndex.lastCandidates<=2,'local sweep should not enumerate distant sources');
+  assert(b.contacts(-32.1,0,0).some(c=>c.instanceId===near.id));
+  assert(b.debugSnapshot().boundaryIndex.lastCandidates<=2,'endpoint broad phase');
+  assert.equal(b.surfaceBoundarySweep(498,600,0,4,0)[0]?.instanceId,big.id,'large overflow remains queryable');
+  b.suspendRegion('source-index');assert.equal(sweep().length,0);
+  b.resumeRegion('source-index');assert.equal(sweep()[0]?.instanceId,near.id);
+  b.setRegion('other-index');assert.equal(sweep().length,0);
+  b.setRegion('source-index');assert(b.remove(near.id));assert.equal(sweep().length,0);
+  assert(b.remove(big.id));assert.equal(b.debugSnapshot().boundaryIndex.large,0);
+ }
+ console.log('PASS T3 spatial boundary source index, seam, overflow, region and removal');
