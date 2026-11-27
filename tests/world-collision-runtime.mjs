@@ -415,3 +415,25 @@ console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual cand
  assert.equal(candidate.call(p,dx,0).contacts.length,0,'inactive resident not swept');
  console.log('PASS T3 shared static/resident narrow phase, actual candidate, earliest contact, overlap escape and inactive residents');
 }
+
+// LIVE-B21 triangular sidewall, not the solid landing platform.
+const wedge={x:50,z:0,width:7,height:6,run:6,angle:45};
+bridge.setRegion('motion-lab');
+bridge.labSurface({collisionId:'sidewall-regression',bounds:{min:[45,0,-7],max:[55,6,1]},sample:()=>null,ramps:[wedge]});
+for(const side of [-1,1]){
+ const edge=wedge.x+side*wedge.width/2,from=edge+side*.8;
+ const contact=bridge.labSideSweep(from,-3,0,-side*1.1,0,.35,1.72);
+ assert.equal(contact.length,1);
+ assert(Math.abs(contact[0].toi-(.8-.348)/1.1)<.00001);
+ assert(Math.abs(contact[0].nx-side)<1e-6);
+ assert.equal(bridge.labSideSweep(edge+side*.5,-3,0,side*.4,0).length,0);
+ assert.equal(bridge.labSideSweep(edge+side*.2,-3,0,side*.4,0).length,0);
+ assert(bridge.labSideSweep(edge+side*.2,-3,0,-side*.05,0).length>0);
+ assert.equal(bridge.labSideSweep(edge+side*.8,-3,3.5,-side*1.1,0).length,0);
+ assert.equal(bridge.labSideSweep(edge-side*.1,-3,3,side*.5,0).length,0);
+ assert.equal(bridge.labSideSweep(edge+side*.5,-3,0,0,-.4).length,0);
+}
+assert.equal(bridge.labSideSweep(50,.5,0,0,-1).length,0);
+bridge.setRegion('lab');
+assert.equal(bridge.labSideSweep(54.3,-3,0,-1.1,0).length,0);
+console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ramp entry');

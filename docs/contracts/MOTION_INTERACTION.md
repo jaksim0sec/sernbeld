@@ -96,3 +96,5 @@
 T3 transition consumer: `transitionBodyHeight` preserves visual offset relative to the physical root at takeoff and ground re-entry. Airborne offset decays at 12/s; landing uses the existing bounded height smoother. Low-speed stance weighting continuously blends bilateral and gait support. Physics root and authoritative events remain unchanged. Actual visual continuity is pending direct verification.
 
 Ground foot IK uses continuous downward correction release and authored shin flexion reach bounds, with anatomical forward fallback for poorly conditioned ground knee poles. This is a presentation safeguard only; actual joint discontinuity and skin contact require direct measurement. Existing pivot and traversal solve paths retain their prior policy.
+
+Motion-lab wedge sidewalls use the existing primitive sweep on an exact horizontal slice of the authored triangular side face at candidate origin feet height, for exterior approaches only. Top support remains analytical; outward exit and front entry are not treated as a sidewall. Capsule clearance and posed-mesh intersection are separate acceptance evidence.

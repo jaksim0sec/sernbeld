@@ -6,7 +6,7 @@ import {createLegacyStaticCollision,sampleLegacyRoof,sampleHeightfieldTriangle,s
 export function createRuntimeCollisionBridge({query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,stairUV,stairMinV,stairMaxV}){
  const registry=createLegacyStaticCollision({query,inside,local,playerContact});
  const roofHelpers={local,roofInFoot,roofInOuter,roofSurfaceLocal};
- let regionId="legacy-world",serial=0;
+ let regionId="legacy-world",serial=0,labRamps=[];
  const handles=new Map(),records=new Map(),types={box:0,cyl:0,roof:0,stair:0,terrain:0,water:0,labSurface:0};
  const identity={position:[0,0,0],yaw:0,scale:[1,1,1]};
  const roofPolicy=(overhang)=>({id:overhang?"legacy-roof-overhang":"legacy-roof-foot",block:false,support:true,mantle:false,oneWay:overhang,nav:false,camera:false,water:false,climb:"none"});
@@ -52,9 +52,10 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}),{sourceKind:"terrain"});
   types.terrain++;return h;
  }
- function labSurface({collisionId,bounds,sample}){
+ function labSurface({collisionId,bounds,sample,ramps=[]}){
   if(regionId!=='motion-lab')throw new TypeError('lab-only analytical registration');
   const h=analytical(collisionId,'heightfield',bounds,roofPolicy(false),sample,{sourceKind:'lab-ground'});
+  labRamps=ramps.map(r=>({...r}));
   types.labSurface++;return h;
  }
  function stair(record){
@@ -157,10 +158,36 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   hits.sort((a,b)=>a.toi-b.toi);
   return hits.filter(h=>h.toi<=hits[0].toi+1e-6);
  }
+ // The analytical top cannot block the capsule radius against a vertical
+ // triangular edge. Slice the authored side face at current feet height
+ // and use the existing circle/box sweep on its remaining high segment.
+ function labSideSweep(x,z,y,dx,dz,radius=.35,height=1.72){
+  if(regionId!=="motion-lab"||Math.hypot(dx,dz)<1e-9)return [];
+  const hits=[];
+  for(const r of labRamps){
+   const highStart=r.z-r.run*Math.max(0,y+.002)/r.height,back=r.z-r.run;
+   if(highStart<=back||y+height<=0)continue;
+   for(const side of [-1,1]){
+    const edge=r.x+side*r.width/2;
+    // Top-supported actors can leave the edge; front entry stays analytical.
+    if(side*(x-edge)<0)continue;
+    const o={type:"box",cx:edge,cz:(back+highStart)/2,hx:0,hz:(highStart-back)/2,cos:1,sin:0,bot:0,top:r.height,walk:false};
+    const prior=playerContact(o,x,z,radius),end=playerContact(o,x+dx,z+dz,radius);
+    if(prior){
+     if(end&&(side*dx< -1e-9||end.depth>prior.depth+1e-5))hits.push({...end,nx:side,nz:0,toi:0});
+    }else{
+     const hit=registry.sweepPrimitive(o,x,z,y,dx,dz,radius,height);
+     if(hit)hits.push(hit);
+    }
+   }
+  }
+  hits.sort((a,b)=>a.toi-b.toi);
+  return hits.length?hits.filter(h=>h.toi<=hits[0].toi+1e-6):[];
+ }
  function remove(id){
   const h=handles.get(id);if(!h)return false;
   registry.remove(h);handles.delete(id);records.delete(id);return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,staticSweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

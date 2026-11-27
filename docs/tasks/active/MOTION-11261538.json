@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: prioritize LIVE-B21 major apparent body/sidewall penetration (P0, root cause unconfirmed), then remaining reverse/run/slope and male/female/V01 evaluation. T3.5 bounded polish only."
+  "next": "MOTION-11261538/T3: LIVE-B21 missing wedge side-face collision fixed in code using shared sweep; actual browser sidewall and mesh overlap verification pending. Continue remaining reverse/run/slope and male/female/V01; T3.5 bounded polish only."
 }

@@ -76,6 +76,40 @@ try{
  }
   // Reproducible real-controller/pose fixture. Advance existing Player and
  // avatar update directly at 60 Hz, as in world-playability; no alternate solver.
+ // LIVE-B21 actual player and avatar at each wedge side.
+ const sideEvidence=await page.evaluate(()=>{
+  const d=window.__dev,p=d.player,input=d.input;
+  const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
+  const out=[];input.independentHeading=true;
+  const step=i=>{p.advance(1/60,input,[]);d.avatars.update(1/60,i/60,{swing:null});};
+  for(const ramp of d.fixtures.ramps)for(const side of [-1,1]){
+   input.keys.clear();input.setSprint(false);
+   const edge=ramp.x+side*ramp.width/2,z=ramp.z-ramp.run/2;
+   p.teleport(edge+side*1.2,z,side*Math.PI/2,0,0);
+   for(let i=0;i<12;i++)step(i);
+   key('keydown','KeyW');
+   let minClear=Infinity;
+   for(let i=12;i<102;i++){step(i);minClear=Math.min(minClear,side*(p.pos.x-edge));}
+   key('keyup','KeyW');
+   for(let i=102;i<114;i++)step(i);
+   const clearance=side*(p.pos.x-edge),actor=d.avatars.actor;
+   actor.group.updateMatrixWorld(true);
+   const v=actor.group.position.clone();let meshOverlap=0;
+   for(let i=0;i<actor.mesh.geometry.attributes.position.count;i++){
+    actor.mesh.getVertexPosition(i,v);actor.mesh.localToWorld(v);
+    if(v.z<ramp.z&&v.z>ramp.z-ramp.run&&v.y>0&&v.y<ramp.height*(ramp.z-v.z)/ramp.run&&Math.abs(v.x-ramp.x)<ramp.width/2)
+     meshOverlap=Math.max(meshOverlap,-side*(v.x-edge));
+   }
+   key('keydown','KeyS');for(let i=114;i<150;i++)step(i);key('keyup','KeyS');
+   out.push({angle:ramp.angle,side,clearance,minClear,meshOverlap,escape:side*(p.pos.x-edge)});
+  }
+  d.reset();return out;
+ });
+ console.log('LIVE-B21 actual sidewall clearance and bare-body mesh overlap '+JSON.stringify(sideEvidence));
+ for(const q of sideEvidence){
+  assert(q.minClear>=.345&&q.clearance<.45,'LIVE-B21 sidewall capsule '+JSON.stringify(q));
+  assert(q.escape>q.clearance+.15,'LIVE-B21 release '+JSON.stringify(q));
+ }
  const trials=await page.evaluate(async()=>{
   const d=window.__dev,p=d.player,input=d.input;
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
