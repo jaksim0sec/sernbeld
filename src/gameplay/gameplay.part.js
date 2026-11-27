@@ -6866,7 +6866,7 @@ function createMotionLabFixtures(scene){
   rockObject.rotation.set(rock.tilt,rock.rot,rock.tilt*.6);rockObject.scale.set(rock.s*1.15,rock.s,rock.s);
   rockObject.name="motion-lab-irregular-rock";root.add(rockObject);rockObject.updateWorldMatrix(true,false);
   const rockTriangles=renderedCollisionTriangles(rockObject.geometry,rockObject.matrixWorld);
-  WorldCollision?.triangleMesh({collisionId:rock.id,triangles:rockTriangles});
+  WorldCollision?.triangleMesh({collisionId:rock.id,triangles:rockTriangles,support:true,mantle:true});
   rock.triangleCount=rockTriangles.length;
   rock.maxX=Math.max(...rockTriangles.flat().map(v=>v[0]));
   const curve={x:32,z:0,id:"motion-lab:continuous-curve"};

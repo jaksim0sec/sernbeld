@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: verify LIVE-B22 continuous fixed-tick and live curve after neighboring walkable face sweep fix; reproduce LIVE-B23 block-only rock support/vertical-state behavior, fix shared policy/solver and preserve LIVE-B21."
+  "next": "MOTION-11261538/T3: inspect latest CI and live curve/rock support retest; investigate remaining B23 horizontal-to-steep/airborne continuity and production mesh parity using shared geometry; resolve remaining functional V01 gates before T3.5."
 }

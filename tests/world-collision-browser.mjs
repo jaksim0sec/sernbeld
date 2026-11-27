@@ -210,6 +210,15 @@ try{
   if(gentle.contacts.length||Math.abs(gentle.y-.27)>1e-5)throw Error('gentle visible ascent '+JSON.stringify(gentle));
   p.teleport(curve.x+4.2,curve.z,-Math.PI/2,0,1.9);
   if(!p.candidate(.08,0).contacts.length)throw Error('steep visible ascent accepted');
+  const rockLandings=[];
+  const idle={move:()=>({x:0,y:0,mag:0}),run:()=>false,consumeJump:()=>false};
+  for(const [dx,dz] of [[0,0],[-.5,0],[.5,0],[0,-.5],[0,.5]]){
+   p.teleport(rock.x+dx,rock.z+dz,0,0,5);
+   for(let i=0;i<180;i++)p.advance(1/60,idle,[]);
+   const q=d.collision.probe(p.pos.x,p.pos.z,p.pos.y);
+   if(!p.onGround||q.hit?.instanceId!==rock.id||Math.abs(q.hit.point[1]-p.pos.y)>1e-5)throw Error('visible rock landing '+JSON.stringify({dx,dz,y:p.pos.y,ground:p.onGround,q}));
+   rockLandings.push({dx,dz,y:p.pos.y,ground:p.onGround});
+  }
   p.teleport(rock.maxX+1,rock.z,Math.PI/2,0,0);
   const hit=p.candidate(rock.x-p.pos.x,0).contacts.find(c=>c.instanceId===rock.id);
   if(!hit)throw Error('visible rock does not block actual Player candidate');
@@ -220,7 +229,7 @@ try{
   const stop=p.pos.x,overlap=d.playerContacts(p.pos.x,p.pos.z,p.pos.y).filter(c=>c.instanceId===rock.id);
   if(!(stop<start-.15&&stop>rock.x)||overlap.length)throw Error('rock fixed-tick collision '+JSON.stringify({start,stop,overlap:overlap.length}));
   const cam=d.camera;cam.position.set(rock.x+9,5,rock.z+10);cam.lookAt(rock.x+3,1.5,rock.z-2);d.renderer.render(d.scene,cam);
-  return {supports,rock:{triangles:rock.triangleCount,toi:hit.toi,start,stop,overlap:overlap.length},curveTriangles:curve.triangleCount};
+  return {supports,rock:{triangles:rock.triangleCount,toi:hit.toi,start,stop,overlap:overlap.length,landings:rockLandings},curveTriangles:curve.triangleCount};
  });
  console.log('T3 visible geometry evidence '+JSON.stringify(geometryEvidence));
  await page.screenshot({path:'test-results/physics-t3-irregular-geometry.png'});

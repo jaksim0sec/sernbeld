@@ -610,6 +610,53 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
 }
 console.log('PASS T3 rendered curved geometry topology and runtime support parity');
 
+// LIVE-B23: exact rendered rock and authored collision policy, actual Player
+// falling onto the crown, jumping again, and settling without a false air state.
+{
+ const make=Function('IcosahedronGeometry','Vector3','BufferGeometry','Float32BufferAttribute',
+  slicePart(readPart('src/world/region.part.js'),'function mulberry32','var N3 =')+
+  slicePart(gameplay,'function rockGeometry(','function rockMaterial(')+
+  slicePart(gameplay,'function renderedCollisionTriangles(','function createMotionLabFixtures(')+
+  'return {rockGeometry,renderedCollisionTriangles,curvedLabGeometry};'
+ )(three.IcosahedronGeometry,three.Vector3,three.BufferGeometry,three.Float32BufferAttribute);
+ const rock=Function(slicePart(gameplay,'const rock={','const rockObject=')+'return rock;')();
+ const mat=new three.Matrix4().compose(new three.Vector3(rock.x,rock.y,rock.z),
+  new three.Quaternion().setFromEuler(new three.Euler(rock.tilt,rock.rot,rock.tilt*.6)),
+  new three.Vector3(rock.s*1.15,rock.s,rock.s));
+ const rockTriangles=make.renderedCollisionTriangles(make.rockGeometry(101+rock.v*17),mat);
+ const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+ m.setRegion('motion-lab');playerEnv.install(m);
+ const registration=gameplay.match(/WorldCollision\?\.triangleMesh\(\{collisionId:rock\.id,triangles:rockTriangles[^\n]*\);/);
+ assert(registration,'live rock registration');
+ Function('WorldCollision','rock','rockTriangles',registration[0])(m,rock,rockTriangles);
+ for(const [dx,dz] of [[0,0],[-.5,0],[.5,0],[0,-.5],[0,.5]]){
+  const x=rock.x+dx,z=rock.z+dz,actor=new playerEnv.Player();
+  actor.teleport(x,z,0,0,5);
+  for(let i=0;i<180;i++)actor.advance(1/60,neutral,[]);
+  const y=actor.pos.y,hit=m.meshSupport(x,z,10);
+  assert(actor.onGround&&hit&&Math.abs(y-hit.point[1])<1e-6,'real rock must provide stable ground '+[x,z,y]);
+  assert.equal(m.meshContacts(x,z,y).length,0,'landed body remains clear');
+  actor.advance(1/60,{...neutral,consumeJump:()=>true},[]);
+  assert(!actor.onGround&&actor.vel.y>0,'rock landing grants ordinary jump');
+  for(let i=0;i<180;i++)actor.advance(1/60,neutral,[]);
+  assert(actor.onGround&&Math.abs(actor.pos.y-y)<1e-6,'jump returns to rock support');
+ }
+ // LIVE-B22: full fixed-tick route through the real gradient change.
+ m.triangleMesh({collisionId:'curve',triangles:make.renderedCollisionTriangles(make.curvedLabGeometry(),new three.Matrix4().makeTranslation(32,0,0)),support:true});
+ for(const z of [-.9,0,.9]){
+  const actor=new playerEnv.Player();actor.teleport(33,z,-Math.PI/2,0,.25);
+  const walk={...neutral,move:()=>({x:0,y:1,mag:1})};
+  for(let i=0;i<180;i++){
+   actor.advance(1/60,walk,[]);
+   assert(actor.onGround,'walkable gradient route must retain support');
+  }
+  assert(actor.pos.x>35.5&&actor.pos.x<36.1,'cross moderate seam and stop before steep climb');
+ }
+ playerEnv.install(null);
+}
+console.log('PASS T3 real rock support, repeat jump and fixed-tick walkable gradient route');
+
+
  // Closed-volume regression: the cylinder can be entirely inside a mesh.
  {
   const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
