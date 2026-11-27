@@ -5,11 +5,11 @@ const vec=v=>v&&[v.x,v.y,v.z].every(finite)?[v.x,v.y,v.z]:null;
 const dist=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
 export const MOTION_STRENGTH=Object.freeze({low:.65,baseline:1,high:1.35});
 // Declarative presentation contract, not a replacement for Player or the IK solver.
-// Only pivot has a source-defined phase window; do not invent gait foot locks.
+// Pivot and the T3 ground-gait consumer have explicit presentation windows.
 export function motionPolicy(action){
  const policy={entry:'authoritative action or presentation driver changes',exit:'authoritative action changes; no clip-completion wait',reset:'teleport or actor replacement',contactAuthority:'physical support and explicit IK intent',contactWindows:null,transitionWindows:{kind:'event-driven',interruptible:true,phaseContinuity:'preserve unless explicit reset'}};
  if(action==='idle'||action==='social')return {...policy,contact:{kind:'bilateral-ground-candidate',requires:['grounded','third-person'],authoredLock:false}};
- if(['walk','run','backpedal'].includes(action))return {...policy,contact:{kind:'gait-near-surface-candidate',authoredLock:false,phaseDirection:action==='backpedal'?'reverse':'forward',source:'schoolyard-motion.js gait; studio-integration.js fitFeet'}};
+ if(['walk','run','backpedal'].includes(action))return {...policy,contact:{kind:'gait-ankle-target',authoredLock:true,phaseDirection:action==='backpedal'?'reverse':'forward',source:'studio-integration.js gaitSupportWeight/groundGaitTarget',requires:['grounded','third-person','no slide','no pivot','no combat stance']},contactWindows:{clock:'phase',units:'radian',period:TAU,rule:'cos(phase + sideOffset) < -0.12; left offset 0, right offset PI',weight:'ramped by phase, speed, ankle gap and anchor distance; not a guaranteed sole lock'}};
  if(action==='pivot')return {...policy,contact:{kind:'pivot-ankle-target',requires:['grounded','third-person','pivotWeight>0'],authoredLock:true,source:'pivotFootTarget'},contactWindows:{clock:'pivotPhase',units:'radian',period:TAU,left:{swing:[0,Math.PI],support:[Math.PI,TAU]},right:{support:[0,Math.PI],swing:[Math.PI,TAU]},interval:'start-inclusive/end-exclusive',weight:'blend by pivotWeight; not a guaranteed sole lock'}};
  if(action==='airborne'||action==='swim'||action==='fly')return {...policy,contact:{kind:'no-ground-lock',authoredLock:false}};
  return {...policy,contact:{kind:'external-action-specific',authoredLock:false}};

@@ -4,7 +4,6 @@
   "baseline": "352b593efea0d81fa2c2ebe370ac689ca475ee06",
   "detail": "docs/tasks/active/MOVEMENT-002.md",
   "scope": [
-    "src/entities/character/studio-integration.js",
     "src/entities/character/avatar-motion.js",
     "tests/player-physics.mjs",
     "tests/world-playability.mjs",
@@ -16,5 +15,5 @@
     "docs/validation/VALIDATION_POLICY.md"
   ],
   "dependencies": [],
-  "next": "Chromium 실화면: 처마 스윙/미끄러짐 포즈 시각 확인, 벽 모서리 돌아가기, 나무 줄기 축 기반 등반 면, 남녀 리그 턱 잡기 오차; gameplay/game.js/sw.js 점유는 순차 통합 WORLD-001로 이전. 이동 후속 수정 전 재조정 필요."
+  "next": "Chromium 실화면: 처마 스윙/미끄러짐 포즈 시각 확인, 벽 모서리 돌아가기, 나무 줄기 축 기반 등반 면, 남녀 리그 턱 잡기 오차; gameplay/game.js/sw.js 점유는 순차 통합 WORLD-001로 이전. 이동 후속 수정 전 재조정 필요. Studio-integration.js transferred sequentially to MOTION-11261538/T3; coordinate subsequent edits; all existing visual gates retained."
 }

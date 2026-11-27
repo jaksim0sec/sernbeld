@@ -23,7 +23,8 @@
     "src/entities/character/motion-experiment.js",
     "tests/motion-experiment.mjs",
     "docs/knowledge/MOTION_VIDEO_LESSONS.md",
-    "docs/tasks/active/MOTION-11261538-video-bugs.md"
+    "docs/tasks/active/MOTION-11261538-video-bugs.md",
+    "src/entities/character/studio-integration.js"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -36,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: accurate ambiguous heightfield seam normals implemented; continue directional/compound and relative sweeps, T2 locomotion/contact/transition integration after scope coordination, then V01 evaluation. T2 outstanding evidence remains tracked."
+  "next": "MOTION-11261538/T3: actual gait ankle support/stance integration implemented; verify real male/female post-IK drift, slope balance and V01, refine transitions and remaining direct ground-motion work. Directional/compound and relative sweep debt remains tracked; no further infrastructure expansion absent direct blocker."
 }

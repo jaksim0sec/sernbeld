@@ -67,3 +67,7 @@
 ## MOTION-11261538/T1 순차 파일 이관 (2026-11-26)
 
 기존 플레이어 이동·등반·시각 검증 및 남녀 리그 검증은 MOVEMENT-002 소유로 계속 미완료. 물리 공용 등록 훅 구현을 위해 `src/render/world-render.part.js` 파일 점유만 MOTION-11261538/T1에 순차 이전했다. 기존 등반/지붕/미끄러짐 알고리즘과 테스트 점유는 이전하지 않았다. 추가 편집 전 최신 T1 변경과 조정 필요.
+
+## MOTION-11261538/T3 sequential presentation integration (2026-11-27)
+
+Transferred only `src/entities/character/studio-integration.js` to MOTION-11261538 for ground gait integration. MOVEMENT-002 retains avatar-motion.js, its tests, traversal/camera and real-rig verification obligations; no prior approval or gate is removed. Subsequent changes to the shared runtime must coordinate with MOTION-11261538.

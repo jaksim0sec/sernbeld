@@ -88,3 +88,7 @@
 - Ground support queries use support-only stair selection; an unreachable upper tread remains a horizontal admission barrier but cannot erase the lower landing surface or override its steep-grade classification. Stair seam exemption is bounded to nearby reachable tread heights; legacy no-registry behavior remains.
 
 - Heightfield seams: original interpolated height is unchanged. Noncoplanar diagonal/cell edges and shared vertices return a `seam:` feature with `geometricNormal=null`, while coplanar seams retain their exact normal. Runtime `groundSlope` defers ambiguous normals to the existing fallback. Directional seam traversal and full compound sweep are not established by this change.
+
+## T3 live ground-gait support (2026-11-27, PARTIAL)
+
+`gaitSupportWeight` uses the procedural low-knee half-cycle (cos(phase+sideOffset)<-.12) with a ramp. `groundGaitTarget` anchors the ankle in world XZ only in third-person grounded gait; near-surface acquisition, bounded correction, support revalidation and release preserve authored swing and physics ownership. Reverse playback uses the same windows. Torso support is stance-weighted, penetration correction is retained on swing feet, and pivot/traversal/first-person/slide/combat/airborne paths do not acquire gait anchors. This is authored ankle intent, not verified sole contact; the 30mm/10mm actual posed sole gates and V01 remain unverified.

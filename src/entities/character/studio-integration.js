@@ -47,6 +47,30 @@ export function smoothBodyHeight(previous,target,dt,grounded,speed=0){
  return previous+Math.max(-maxDelta,Math.min(maxDelta,delta));
 }
 
+// The procedural driver bends the swing knee while cos(phase+offset)>0.
+// Author a conservative support window inside the opposite half-cycle.
+// Reverse playback traverses the same support window in the opposite direction.
+export function gaitSupportWeight(phase,side){
+ return clamp01((-Math.cos(phase+(side==='right'?Math.PI:0))-.12)/.5);
+}
+// World-space ankle anchor, owned only by presentation. A vanished support,
+// unreachable target or changed height invalidates this stance until swing.
+export function groundGaitTarget(previous,side,phase,speed,foot,sole,feetY,surfaceAt){
+ const intent=gaitSupportWeight(phase,side),blend=clamp01((speed-.15)/.5);
+ const free=state=>({state,weight:0,x:foot.x,z:foot.z});
+ if(!intent||!blend)return free(null);
+ const valid=y=>Number.isFinite(y)&&Math.abs(y-feetY)<=.5;
+ const height=surfaceAt(foot.x,foot.z,feetY);
+ if(!valid(height))return free({blocked:true});
+ let state=previous;
+ if(!state&&Math.abs(height+sole-foot.y)<=.10)state={x:foot.x,z:foot.z,y:height};
+ if(!state||state.blocked)return free(state);
+ const anchorY=surfaceAt(state.x,state.z,feetY),distance=Math.hypot(state.x-foot.x,state.z-foot.z);
+ if(!valid(anchorY)||Math.abs(anchorY-state.y)>.04||Math.abs(anchorY-height)>.24||distance>=.32)return free({blocked:true});
+ const weight=intent*blend*(1-clamp01((distance-.16)/.16))*(1-clamp01((Math.abs(height+sole-foot.y)-.10)/.12));
+ return {state,weight,x:foot.x+(state.x-foot.x)*weight,z:foot.z+(state.z-foot.z)*weight};
+}
+
 // Presentation-only camera math. No physics or animated bone writes.
 export function smoothCameraHeight(previous,target,dt,grounded){
  if(!Number.isFinite(previous))return target;
@@ -204,7 +228,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const walking=player.mode==='walk',traversal=player.renderTraversal,firstPerson=!third&&walking&&!traversal;
   for(const weapon of Object.values(weapons))if(weapon)weapon.visible=!traversal;
   actor.group.visible=walking;actor.setFirst(firstPerson);actor.setShadow(!firstPerson);
-  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;turnFeet={};return;}
+  if(!walking){bodyCut=null;bodyY=null;bodyGrounded=false;cameraCut=null;turnFeet={};gaitFeet={};return;}
   const pose=attackPose(combat.swing),renderPos=player.renderPos??player.pos;
   const cameraReset=cameraCut!==player.teleportId;
   cameraY=smoothCameraHeight(cameraReset?null:cameraY,renderPos.y,dt,player.onGround&&!player.swimming);
@@ -213,12 +237,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   const steeringYaw=player.keyboardSteering&&!player.swimming&&!player.slide&&Number.isFinite(player.facingYaw)?player.facingYaw+Math.PI:aimYaw;
   if(traversal){
    bodyYaw=Math.atan2(-traversal.action.surface.nx,-traversal.action.surface.nz);
-   gaitSpeed=0;bodyY=null;bodyGrounded=false;turnFeet={};
+   gaitSpeed=0;bodyY=null;bodyGrounded=false;turnFeet={};gaitFeet={};
    poseTraversal(traversal.action,traversal.t,renderPos);
    return;
   }
   const bodyReset=bodyCut!==player.teleportId;
-  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;turnFeet={};}
+  if(bodyReset){bodyYaw=firstPerson?aimYaw:steeringYaw;bodyCut=player.teleportId;gaitSpeed=0;actor._combatStance=null;turnFeet={};gaitFeet={};}
   const grounded=!firstPerson&&player.onGround&&!player.swimming;
   const speed=Math.hypot(player.vel.x,player.vel.z);
   const support=grounded?sampleBodySupport(renderPos,player.pos.y,player.vel.x,player.vel.z,groundSurface):{y:renderPos.y,stepped:false};
@@ -244,7 +268,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
   });
   const {chest,eye,headRest,ankleRest}=bodyAnchors();
   if(firstPerson){
-   bodyY=null;bodyGrounded=false;turnFeet={};
+   bodyY=null;bodyGrounded=false;turnFeet={};gaitFeet={};
    // Keep the eye anchor independent of the actor's floor-clamped render Y.
    const yOffset=cameraY-renderPos.y;
    if(Math.abs(yOffset)>1e-6){
@@ -313,10 +337,14 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    let desired=0;
    if(grounded&&!actor._combatStance){
     const errors=[];
+    const useStance=gaitSpeed>.15&&!player.slide&&(motion?.pivotWeight??0)<.005;
     for(const side of ['left','right']){
      const foot=actor.B['foot_'+side].getWorldPosition(displacement);
      const surface=groundSurface?.(foot.x,foot.z,player.pos.y)??renderPos.y;
-     if(Number.isFinite(surface)&&Math.abs(surface-player.pos.y)<=.5)errors.push(surface+ankleRest*actor.group.scale.y-foot.y);
+     if(Number.isFinite(surface)&&Math.abs(surface-player.pos.y)<=.5){
+      const weight=useStance?gaitSupportWeight(actor.phase,side):1;
+      if(weight>0)errors.push((surface+ankleRest*actor.group.scale.y-foot.y)*weight);
+     }
     }
     desired=bodySupportCorrection(errors,support.stepped);
    }
@@ -324,7 +352,7 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    bodyGrounded=grounded;
    actor.group.position.y=bodyY;
    if(grounded&&!actor._combatStance&&groundSurface)fitFeet(actor,actor.group.position,ankleRest,dt,motion);
-    else turnFeet={};
+    else {turnFeet={};gaitFeet={};}
   }
   // Sliding down a steep face: crouched, feet planted on the slope, arms
   // out for balance. Eased in and out over the regular airborne pose.
@@ -353,12 +381,12 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
  // never writes player position/velocity. Preserve the swing phase and lift
  // a foot only when its sole would intersect the actual support surface.
  const footV=new T.Vector3(),hipV=new T.Vector3(),kneeV=new T.Vector3(),goalV=new T.Vector3(),dirV=new T.Vector3(),poleV=new T.Vector3(),newKnee=new T.Vector3(),oldDir=new T.Vector3(),newDir=new T.Vector3(),qA=new T.Quaternion(),qB=new T.Quaternion(),qParent=new T.Quaternion(),footWorldQ=new T.Quaternion();
- let turnFeet={};
+ let turnFeet={},gaitFeet={};
  const turnNeutral=new T.Vector3();
  function fitFeet(a,root,ankleRest,dt,motion){
   const sole=ankleRest*a.group.scale.y;
   const pivot=motion?.pivotWeight??0;
-  if(pivot<.005)turnFeet={};
+  if(pivot<.005)turnFeet={};else gaitFeet={};
   for(const side of ['left','right']){
    const hip=a.B['thigh_'+side],knee=a.B['shin_'+side],foot=a.B['foot_'+side];
    if(!hip||!knee||!foot)continue;
@@ -379,13 +407,19 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
      delete turnFeet[side];
     }
    }
-   const surface=groundSurface(footV.x,footV.z,player.pos.y);
-   if(surface===null||Math.abs(surface-player.pos.y)>.5)continue;
+   const useGait=pivot<.005&&!player.slide&&gaitSpeed>.15;
+   const contact=useGait?groundGaitTarget(gaitFeet[side],side,a.phase,gaitSpeed,footV,sole,player.pos.y,groundSurface):null;
+   if(contact?.state)gaitFeet[side]=contact.state;else delete gaitFeet[side];
+   const x=contact?.x??footV.x,z=contact?.z??footV.z;
+   const surface=groundSurface(x,z,player.pos.y);
+   if(!Number.isFinite(surface)||Math.abs(surface-player.pos.y)>.5)continue;
    const delta=surface+sole-footV.y;
-   // Do not pin the raised swing foot to the floor. Correct only penetration
-   // or a near-contact foot; airborne legs keep the authored pose.
-   if(delta<-.09||Math.abs(delta)<.004)continue;
-   goalV.copy(footV);goalV.y+=Math.max(-.09,Math.min(.27,delta));
+   // Swing feet retain lift, except for penetration correction. A supported
+   // ankle may follow a bounded world-space anchor, rather than sliding.
+   const stance=useGait?gaitSupportWeight(a.phase,side):1;
+   const vertical=delta>0?Math.min(.27,delta):delta>=-.09?Math.max(-.09,delta)*stance:0;
+   if(Math.abs(vertical)<.004&&!(contact?.weight>0))continue;
+   goalV.set(x,footV.y+vertical,z);
    solveFoot(a,side,goalV,foot.getWorldQuaternion(footWorldQ));
   }
  }

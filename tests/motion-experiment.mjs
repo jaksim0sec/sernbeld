@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {gaitSupportWeight,groundGaitTarget} from '../src/entities/character/studio-integration.js';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createStudioGeometry} from '../src/entities/character/studio-geometry.js';
@@ -10,7 +11,7 @@ const factory=createStudioGeometry(JSON.parse(gunzipSync(readFileSync('assets/mo
 const make=(profile,options)=>createStudioModel(T,factory,normalizeStudioCharacter(profile),options);
 const manifests=motionManifest();assert.equal(new Set(manifests.map(x=>x.id)).size,manifests.length);
 assert(manifests.every(x=>x.rootOwnership==='physics'));
-assert.equal(motionPolicy('walk').contactWindows,null);assert.equal(motionPolicy('backpedal').contact.phaseDirection,'reverse');
+assert.equal(motionPolicy('walk').contactWindows.clock,'phase');assert.equal(motionPolicy('walk').contact.authoredLock,true);assert.equal(motionPolicy('backpedal').contact.phaseDirection,'reverse');
 assert.deepEqual(motionPolicy('pivot').contactWindows.left.support,[Math.PI,2*Math.PI]);assert.equal(motionPolicy('airborne').contact.kind,'no-ground-lock');
 assert(manifests.filter(x=>x.kind==='keyframe').every(x=>x.contactWindows===null&&x.contact.kind==='unannotated-keyframe'));
 const recorder=createMotionTrace({limit:2});assert.equal(recorder.push(0),false);recorder.start();recorder.push(1);recorder.push(2);assert.equal(recorder.push(3),false);assert.deepEqual(recorder.stop(),{frames:[1,2],active:false,error:null});
@@ -49,3 +50,29 @@ const qframe=(i,phase,action,grounded=true)=>({time:i/60,state:{root:[0,0,0],ren
 const quality=motionQuality([qframe(0,6.2,'walk'),qframe(1,.1,'walk'),qframe(2,.2,'backpedal'),qframe(3,.1,'backpedal'),qframe(4,.1,'airborne',false),qframe(5,.1,'idle')]);
 assert.deepEqual(quality.phase,{forward:1,reverse:1,opposite:0});assert.equal(quality.maxLocalJointDeltaRad,0);assert.equal(quality.groundTransitions.length,2);assert.equal(quality.maxRootRenderGap,0);
 console.log('PASS motion quality wrap/reverse, discontinuity and ground event diagnostics');
+
+const flat=()=>0;
+const ankle=(x,y=.08,z=0)=>({x,y,z});
+assert.equal(gaitSupportWeight(0,'left'),0);
+assert.equal(gaitSupportWeight(Math.PI,'left'),1);
+assert.equal(gaitSupportWeight(0,'right'),1);
+assert.equal(gaitSupportWeight(Math.PI,'right'),0);
+for(let i=0;i<64;i++){const phase=i*Math.PI/32;assert(gaitSupportWeight(phase,'left')*gaitSupportWeight(phase,'right')===0);}
+let lock=groundGaitTarget(null,'left',Math.PI,2.6,ankle(0),.08,0,flat);
+assert.equal(lock.weight,1);
+lock=groundGaitTarget(lock.state,'left',Math.PI+.1,2.6,ankle(.12),.08,0,flat);
+assert.equal(lock.x,0);assert.equal(lock.state.x,0);
+let fade=groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.24),.08,0,flat);
+assert(fade.weight>0&&fade.weight<1&&fade.x>0&&fade.x<.24);
+let invalid=groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.33),.08,0,flat);
+assert.equal(invalid.weight,0);assert.equal(invalid.state.blocked,true);
+assert.equal(groundGaitTarget(invalid.state,'left',Math.PI,2.6,ankle(.1),.08,0,flat).weight,0);
+assert.equal(groundGaitTarget(invalid.state,'left',0,2.6,ankle(.1),.08,0,flat).state,null);
+assert.equal(groundGaitTarget(lock.state,'left',Math.PI,0,ankle(.1),.08,0,flat).state,null);
+assert.equal(groundGaitTarget(null,'left',Math.PI,2.6,ankle(0,.3),.08,0,flat).state,null);
+assert.equal(groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.1),.08,0,(x)=>x===0?null:0).state.blocked,true);
+assert.equal(groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.1),.08,0,()=>.08).state.blocked,true);
+assert.equal(groundGaitTarget(lock.state,'left',Math.PI,2.6,ankle(.1),.08,0,()=>undefined).weight,0);
+const reverse=groundGaitTarget(lock.state,'left',Math.PI-.1,2.6,ankle(-.12),.08,0,flat);
+assert.equal(reverse.x,0);
+console.log('PASS gait support intent, anchor preservation, reverse, release and invalidation');
