@@ -1,6 +1,50 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 import {mkdir,writeFile} from 'node:fs/promises';
+
+
+// Extract the exact collision/geometry functions used by the generated game.
+// The isolated comparison must use the same narrow phase, not a second solver.
+const readSource=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
+const section=(source,start,end)=>{
+ const i=source.indexOf(start),j=source.indexOf(end,i);
+ assert(i>=0&&j>i,'Missing comparison source '+start);
+ return source.slice(i,j);
+};
+const rendererSource=readSource('src/render/world-render.part.js');
+const gameplaySource=readSource('src/gameplay/gameplay.part.js');
+const rockComparisonSource=[
+ 'const CONTACT_SKIN=.002,clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));',
+ section(rendererSource,'function local(','function groundAt('),
+ section(rendererSource,'function playerContact(','// The static broad phase'),
+ section(gameplaySource,'function renderedCollisionTriangles(','function curvedLabGeometry('),
+ 'return {local,inside,playerContact,renderedCollisionTriangles};'
+].join('\n');
+
+function compareRockProfiles(createBridge,callbacks,proxy,triangles,ground){
+ const {local,inside,playerContact}=callbacks;
+ const record={...proxy,collisionId:'proxy'};
+ const legacy=createBridge({query:()=>[record],local,inside,playerContact});
+ legacy.setRegion('rock-proxy');legacy.primitive(record);
+ const exact=createBridge({query:()=>[],local,inside,playerContact});
+ exact.setRegion('rock-mesh');exact.triangleMesh({collisionId:'mesh',triangles});
+ const radius=.35,height=1.72,x=record.x,z=record.z;
+ const reach=Math.max(record.r,...triangles.flat().map(v=>Math.hypot(v[0]-x,v[2]-z)))+radius+2;
+ const approaches=[];
+ for(const y of [ground,ground+.5])for(let i=0;i<8;i++){
+  const a=i*Math.PI/4,dx=Math.cos(a),dz=Math.sin(a);
+  const args=[x+dx*reach,z+dz*reach,y,-dx*reach,-dz*reach];
+  const p=legacy.staticSweep(...args,null,radius,height)[0];
+  const m=exact.surfaceBoundarySweep(...args,radius,height)[0];
+  const proxyDistance=p?reach*(1-p.toi):null,meshDistance=m?reach*(1-m.toi):null;
+  approaches.push({angle:i*45,feetY:y,proxyDistance,meshDistance,delta:proxyDistance===null||meshDistance===null?null:meshDistance-proxyDistance});
+ }
+ const lo=Math.min(record.bot,...triangles.flat().map(v=>v[1]))-1;
+ const hi=Math.max(record.top,...triangles.flat().map(v=>v[1]))+1;
+ const crown=exact.meshDescent(x,z,hi,lo,radius);
+ return {proxyTop:record.top,meshFootprintTop:crown?.limitY??null,approaches};
+}
 
 const {chromium}=await import('playwright');
 const port=8796,url='http://127.0.0.1:'+port+'/';
@@ -28,6 +72,39 @@ try{
  });
  await mkdir('test-results',{recursive:true});
  await page.screenshot({path:'test-results/physics-t1-kael.png'});
+
+ // Compare actual Kael rock placements, their live registered mantle proxy,
+ // and the rendered instanced world matrix. Keep production behavior intact.
+ const kaelRocks=await page.evaluate(async({source,compare})=>{
+  const d=window.__dev,{createRuntimeCollisionBridge}=await import(new URL('src/core/world-collision-runtime.js',location.href).href);
+  const callbacks=Function(source)(),compareProfiles=Function('return ('+compare+')')();
+  const p=d.player.pos,original=d.rocks.last.slice(),out=[];
+  d.renderer.setAnimationLoop(null);
+  const selected=[0,1,2,3].map(v=>d.veg.rocks.filter(r=>r.v===v&&r.s>1.2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0]).filter(Boolean);
+  try{
+   for(const r of selected){
+    const proxy=d.playerContacts(r.x,r.z,r.y).map(c=>c.collider).find(c=>c.type==='cyl'&&c.mantleOnly&&Math.abs(c.x-r.x)<1e-6&&Math.abs(c.z-r.z)<1e-6);
+    if(!proxy)throw Error('Kael rock live proxy missing');
+    d.rocks.last=[Infinity,Infinity];d.rocks.update({x:r.x,z:r.z});
+    const mesh=d.rocks.meshes[r.v].m,m=mesh.matrix.clone();let found=false;
+    for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,m);if(Math.hypot(m.elements[12]-r.x,m.elements[14]-r.z)<.001){found=true;break;}}
+    if(!found)throw Error('Kael rock rendered instance missing');
+    mesh.updateWorldMatrix(true,false);m.premultiply(mesh.matrixWorld);
+    const triangles=callbacks.renderedCollisionTriangles(mesh.geometry,m);
+    if(!triangles.length)throw Error('Empty Kael rock mesh');
+    const ground=d.playerTerrain(r.x,r.z);
+    out.push({variant:r.v,x:r.x,z:r.z,size:r.s,triangles:triangles.length,ground,...compareProfiles(createRuntimeCollisionBridge,callbacks,proxy,triangles,ground)});
+   }
+  }finally{
+   d.rocks.last=[Infinity,Infinity];
+   d.rocks.update({x:Number.isFinite(original[0])?original[0]:d.camera.position.x,z:Number.isFinite(original[1])?original[1]:d.camera.position.z});
+  }
+  if(!out.length||!out.some(r=>r.approaches.some(a=>a.meshDistance!==null)))throw Error('No actual Kael rock comparison samples');
+  return out;
+ },{source:rockComparisonSource,compare:compareRockProfiles.toString()});
+ await writeFile('test-results/physics-t3-kael-rock-proxy.json',JSON.stringify(kaelRocks));
+ console.log('T3 actual Kael rock proxy versus rendered mesh '+JSON.stringify(kaelRocks));
+
  await page.evaluate(()=>{
   const d=window.__dev;
   if(d.ui.travel.hidden)d.ui.toggleTravel();
@@ -109,6 +186,7 @@ try{
  for(const q of sideEvidence){
   assert(q.minClear>=.345&&q.clearance<.45,'LIVE-B21 sidewall capsule '+JSON.stringify(q));
   assert(q.escape>q.clearance+.15,'LIVE-B21 release '+JSON.stringify(q));
+  assert(q.meshOverlap<=.002,'LIVE-B21 final bare-body intersection '+JSON.stringify(q));
  }
  // Visible nonprimitive fixtures: actual Player, same renderer geometry
  // and runtime bridge, no synthetic collider substituted in the browser.
