@@ -773,6 +773,27 @@ console.log('PASS T3 real rock support, repeat jump and fixed-tick walkable grad
    assert(plan.hands.every(v=>v.y===1&&v.normal[1]===1));
    if(i)assert(alternatives[i-1].stand.z-plan.stand.z>=.16-1e-8,'nearest first, distinct alternatives');
   }
+  // Near-edge meshes must not require the player to steer inward by hand.
+  // The lateral search is bounded and uses actual same-source support/hands.
+  for(const x of [-1.45,-1.4,-1.3,-1.2,-1.1,-.95,0,.95,1.1,1.2,1.3,1.4,1.45]){
+   for(const dx of (x===0?[0]:[0,-Math.sign(x)*.3,-Math.sign(x)*.707])){
+    const actor=new playerEnv.Player();actor.teleport(x,1.56,0,0,0);
+    const action=playerEnv.traversalStart(actor,dx,-Math.sqrt(1-dx*dx));
+    assert.equal(action?.kind,'mantle','mesh edge/diagonal admission '+[x,dx]);
+    assert.equal(action.surface.meshId,h.id);
+    assert(action.hands.every(v=>Math.abs(v.point.x)<=1.2+1e-8&&Math.abs(v.point.z)<=1.2+1e-8&&v.point.y===1));
+    for(let i=1;i<=40;i++){
+     const p=playerEnv.traversalBody(action,i/40,new three.Vector3());
+     assert.equal(playerEnv.playerContacts(p.x,p.z,p.y,[]).length,0,'mesh edge path clearance');
+    }
+    assert.equal(playerEnv.traversalStart(actor,0,1),null,'away input must not grab');
+   }
+  }
+  const edgeActor=new playerEnv.Player();edgeActor.teleport(1.3,1.56,0,0,0);
+  edgeActor.advance(1/60,{move:()=>({x:0,y:1,mag:1}),run:()=>false,consumeJump:()=>true});
+  assert.equal(edgeActor.traversal?.kind,'mantle','fixed tick near-edge entry');
+  for(let i=0;i<150&&edgeActor.traversal;i++)edgeActor.advance(1/60,neutral);
+  assert(!edgeActor.traversal&&edgeActor.onGround&&Math.abs(edgeActor.pos.y-1)<1e-6,'near-edge landing');
   assert.equal(m.meshMantlePlans(10,1.56,0,0,-1).length,0);
   assert.equal(m.meshMantlePlans(20,1.56,0,0,-1).length,0);
   assert.equal(m.meshMantlePlans(0,1.56,0,0,1).length,0);

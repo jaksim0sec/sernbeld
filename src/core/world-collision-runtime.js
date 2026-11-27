@@ -451,21 +451,29 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    const lateral=[-hit.nz,hit.nx];
    // Keep the nearest geometric candidate first, but offer a bounded set
    // of alternatives on the same source for the existing body path validator.
-   let offered=0,lastDistance=-Infinity;
-   for(let d=radius+reach+.1;d<=2.4;d+=.08){
-    if(d-lastDistance<.16-1e-8)continue;
-    const tx=x+dx*d,tz=z+dz*d,stand=sample(tx,tz);
-    if(!walkable(stand)||stand.y-y>height)continue;
-    const ring=Array.from({length:8},(_,i)=>sample(tx+Math.cos(i*Math.PI/4)*radius*.8,tz+Math.sin(i*Math.PI/4)*radius*.8));
-    if(ring.some(p=>!walkable(p)||Math.abs(p.y-stand.y)>.24))continue;
-    let hands=null;
-    for(const offset of [radius+.12,radius,.2,.1]){
-     const pair=[-1,1].map(sign=>sample(tx-dx*offset+lateral[0]*sign*.195,tz-dz*offset+lateral[1]*sign*.195));
-     if(pair.every(p=>p&&p.normal[1]>.35&&p.y-y<=height)){hands=pair;break;}
+   let offered=0;
+   // Keep the centre ray first. A reachable face near an edge can lack
+   // enough room for both palms along that ray; try bounded side alignment.
+   const shifts=[0];
+   for(let s=.16;s<=radius+.195+reach+1e-8;s+=.16)shifts.push(s,-s);
+   for(const shift of shifts){
+    let lastDistance=-Infinity;
+    for(let d=radius+reach+.1;d<=2.4;d+=.08){
+     if(d-lastDistance<.16-1e-8)continue;
+     const tx=x+dx*d-dz*shift,tz=z+dz*d+dx*shift,stand=sample(tx,tz);
+     if(!walkable(stand)||stand.y-y>height)continue;
+     const ring=Array.from({length:8},(_,i)=>sample(tx+Math.cos(i*Math.PI/4)*radius*.8,tz+Math.sin(i*Math.PI/4)*radius*.8));
+     if(ring.some(p=>!walkable(p)||Math.abs(p.y-stand.y)>.24))continue;
+     let hands=null;
+     for(const offset of [radius+.12,radius,.2,.1]){
+      const pair=[-1,1].map(sign=>sample(tx-dx*offset+lateral[0]*sign*.195,tz-dz*offset+lateral[1]*sign*.195));
+      if(pair.every(p=>p&&p.normal[1]>.35&&p.y-y<=height)){hands=pair;break;}
+     }
+     if(!hands)continue;
+     plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:hit.nx,nz:hit.nz,stand,hands,over});
+     lastDistance=d;if(++offered>=3)break;
     }
-    if(!hands)continue;
-    plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:hit.nx,nz:hit.nz,stand,hands,over});
-    lastDistance=d;if(++offered>=3)break;
+    if(offered)break;
    }
   }
   return plans.sort((a,b)=>a.toi-b.toi);
