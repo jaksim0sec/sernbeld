@@ -21,7 +21,7 @@ let lastZ=0;for(let k=0;k<120;k++){tick(p,diagonal);assert(p.pos.z<=lastZ+1e-7,'
 assert(p.pos.x>1&&p.pos.z<-5.35,'wall slide failed to clear the end');assert(!playerContacts(p.pos.x,p.pos.z,p.pos.y).length);
 clear();box(1.2,0,.35,1.2,3,0,false);p=player();let high=0;for(let k=0;k<70;k++){tick(p,input(1,0));high=Math.max(high,p.pos.y);}
 assert(high>=.35-1e-6,'generic low obstacle not climbable');assert(p.pos.x>2.2,'stuck on low obstacle');
-clear();box(1.2,0,.65,1.2,3);p=player();tick(p,input(1,0),70);assert(p.pos.x<.26&&p.pos.y===0,'high obstacle climbed without jump');
+clear();box(1.2,0,.65,1.2,3);p=player();let climbed=false;for(let k=0;k<180;k++){tick(p,input(1,0));climbed||=p.pos.y>.6&&p.onGround;}assert(climbed,'automatic low mantle did not land');
 clear();box(1.2,0,.35,1.2,3);box(.9,0,2.1,1.8,3,1.85,false);p=player(-.4);tick(p,input(1,0),70);assert(p.pos.y<.05,'step penetrated ceiling');
 clear();p=player();let i=input(1,0,true);i.jump=true;let peak=0;for(let k=0;k<100;k++){tick(p,i);peak=Math.max(peak,p.pos.y);assert(Math.hypot(p.vel.x,p.vel.z)<=PLAYER.run+1e-6);}
 assert(peak>.8&&peak<1.1&&p.onGround&&p.pos.y===0,'jump/landing');
@@ -32,7 +32,7 @@ clear();stairs=(x,z,m,exact)=>x>=0&&x<3&&Math.abs(z)<1?(exact?Math.floor(x/.5)*.
 for(let k=0;k<100;k++){tick(p,input(1,0));if(p.pos.x>=0&&p.pos.x<3){assert(Math.abs(p.pos.y-Math.floor(p.pos.x/.5)*.25)<1e-6,'feet not on rendered tread');high=Math.max(high,p.pos.y);}}
 assert(high>=1.2&&p.pos.x>3);
 clear();terrain=(x,z)=>x*.4;p=player();tick(p,input(1,0),60);assert(p.pos.x>1.8&&p.onGround&&Math.abs(p.pos.y-terrain(p.pos.x,0))<1e-6);
-clear();terrain=(x,z)=>x>0?x*2:0;p=player(-.2);tick(p,input(1,0),60);assert(p.pos.x<.18,'steep cliff climbed');
+clear();terrain=(x,z)=>Math.min(3.1,Math.max(0,x*2));p=player(-.2);let latched=false;for(let k=0;k<360;k++){tick(p,input(1,0));latched||=p.traversal?.kind==='latch';}assert(latched&&p.pos.y>=3.1-.002,'automatic steep slope failed '+JSON.stringify(p.pos));
 clear();terrain=()=>-3;water=()=>0;p=player(0,0,-3);tick(p,input(1,0),180);assert(p.swimming&&Math.abs(p.pos.y+1.32)<.08);
 clear();p=player();const npc={type:'cyl',x:.8,z:0,r:.27,bot:0,top:1.72};tick(p,input(1,0),80,1/60,[npc]);assert(p.pos.x<.2&&Math.hypot(p.vel.x,p.vel.z)<=PLAYER.walk);
 clear();p=player();tick(p,input(1,1),10);p.teleport(50,60,0);assert(p.renderPos.distanceTo(p.pos)===0,'teleport interpolation ghost');

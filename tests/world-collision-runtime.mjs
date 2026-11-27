@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,addCyl,install(v){WorldCollision=v;},lab(f){playerTerrain=f.height;sample=f.height;stairSurface=f.stairHeight;waterLevel=f.waterLevel;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -894,7 +894,7 @@ m.triangleMesh({collisionId:'t4-entry:mesh',triangles:box(120,100,1),support:tru
 playerEnv.addBox({cx:125,cy:.5,cz:100,hx:1.2,hy:.5,hz:1.2});
 playerEnv.addBox({cx:130,cy:.5,cz:100,hx:1.2,hy:.5,hz:1.2,climbable:false});
 const results=[];
-for(const [name,x,z,press,cancel] of [['mesh-early',120,102,true,false],['primitive-early',125,102,true,false],['no-intent',125,102,false,false],['disabled',130,102,true,false],['mesh-close',120,101.56,true,false],['primitive-close',125,101.56,true,false],['release',125,102,true,true]]){
+for(const [name,x,z,press,cancel] of [['mesh-early',120,102,true,false],['primitive-early',125,102,true,false],['primitive-held',125,102,false,false],['mesh-held',120,102,false,false],['disabled-held',130,102,false,false],['disabled',130,102,true,false],['mesh-close',120,101.56,true,false],['primitive-close',125,101.56,true,false],['release',125,102,true,true]]){
  const p=new playerEnv.Player();p.teleport(x,z,0,0,0);let first=null;
  for(let i=0;i<45;i++){
   p.advance(1/60,{move:()=>cancel&&i>4?{x:0,y:0,mag:0}:{x:0,y:1,mag:1},run:()=>false,consumeJump:()=>i===0&&press});
@@ -905,10 +905,10 @@ for(const [name,x,z,press,cancel] of [['mesh-early',120,102,true,false],['primit
 }
 playerEnv.install(null);
 
- for(const name of ['mesh-early','primitive-early','mesh-close','primitive-close']){
+ for(const name of ['mesh-early','primitive-early','mesh-close','primitive-close','primitive-held','mesh-held']){
   const r=results.find(x=>x.name===name);assert.equal(r.first?.kind,'mantle',name);assert(r.grounded&&Math.abs(r.y-1)<1e-6,'completed mantle '+name);
  }
- for(const name of ['no-intent','disabled','release'])assert.equal(results.find(x=>x.name===name).first,null,name);
+ for(const name of ['disabled-held','disabled','release'])assert.equal(results.find(x=>x.name===name).first,null,name);
  assert(results.find(x=>x.name==='mesh-early').first.tick>0);
  assert(results.find(x=>x.name==='primitive-early').first.tick>0);
  console.log('PASS T4 buffered grab admission and completed primitive/mesh mantle '+JSON.stringify(results));
@@ -1024,3 +1024,38 @@ playerEnv.install(null);
  env.install(null);
  console.log('PASS T4 deferred rock source: exact support, retired proxy, bounded cache, lifetime');
 }
+
+ // Full motion-lab fixtures from their exact production constructor, no GPU.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('motion-lab');playerEnv.install(m);
+  const makeLab=Function('T','WorldCollision','addBox','addCyl','clamp2',
+    'const {Vector3,Group,Mesh,MeshStandardMaterial,PlaneGeometry,BoxGeometry,BufferGeometry,Float32BufferAttribute,CylinderGeometry,IcosahedronGeometry,DoubleSide}=T;const PLAYER={body:1.72},boxGeo=new BoxGeometry(1,1,1);'+
+    slicePart(readPart('src/world/region.part.js'),'function mulberry32','var N3 =')+
+    slicePart(gameplay,'function rockGeometry(','function rockMaterial(')+
+    slicePart(gameplay,'function mesh(geo,','function box(g,')+
+    slicePart(gameplay,'function renderedCollisionTriangles(','async function bootMotionLab(')+
+    'return createMotionLabFixtures(new Group());'
+  );
+  const f=makeLab(three,m,playerEnv.addBox,playerEnv.addCyl,(x,a,b)=>Math.max(a,Math.min(b,x)));
+  const labGround=Function(slicePart(readPart('src/entities/character/motion-experiment.js'),'export function sampleLabGround(','// Detached driver experiment').replace('export ','')+'return sampleLabGround;')();
+  m.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>labGround(f,x,z),ramps:f.ramps});
+  playerEnv.lab(f);
+  const forward={...neutral,move:()=>({x:0,y:1,mag:1})};
+  const route=(name,x,z,yaw,frames,target,kind)=>{
+   const p=new playerEnv.Player();p.teleport(x,z,yaw,0,0);
+   let peak=0,land=0;const actions=new Set();
+   for(let i=0;i<frames;i++){p.advance(1/60,forward,[]);peak=Math.max(peak,p.pos.y);if(p.onGround)land=Math.max(land,p.pos.y);if(p.traversal)actions.add(p.traversal.kind);}
+   const result={name,peak,land,pos:p.pos.toArray(),actions:[...actions]};
+   console.log('T4 flat-ground approach '+JSON.stringify(result));
+   if(target!==null)assert(land>=target-.003,name+' failed to reach support');
+   if(kind)assert(actions.has(kind),name+' missing '+kind);else if(target!==null)assert.equal(actions.size,0,name+' incorrectly triggered traversal');
+  };
+  route('stairs',f.stairs.x,f.stairs.z-.7,Math.PI,230,f.stairs.count*f.stairs.rise);
+  for(const r of f.ramps)route('ramp-'+r.angle,r.x,r.z+.7,0,r.angle===60?1000:400,r.height,r.angle===60?'latch':null);
+  route('curve-ground-entry',f.curve.x-.7,f.curve.z,-Math.PI/2,150,1.0);
+  route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
+  // Diagnostic, not an acceptance pass: irregular rock approach remains open.
+  route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,180,null);
+  playerEnv.install(null);
+ }

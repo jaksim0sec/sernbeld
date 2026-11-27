@@ -120,3 +120,8 @@ Motion-lab wedge sidewalls use the existing primitive sweep on an exact horizont
 ## T4 Kael rendered rock authority (PARTIAL)
 
 Player rock support/block/mantle use the same static Float32 transform and exact triangles as the rendered instance. Deferred mesh registration stores conservative bounds and immutable geometry factory; actual BVH and topology are built on query, bounded to 128 resident trees. Cache eviction does not change source identity/revision. Legacy camera/NPC/nav raw cylinder is intentionally not registered for Player. Small decorative rocks remain unchanged. Isolated existing runtime/player-physics regression PASS (26,225 assertions); full Node CLI/Chromium/mobile and performance NOT RUN for this change. See T4 task evidence.
+
+
+## T4 grounded approach and mixed crest support (PARTIAL)
+
+Held directed movement can now initiate a reachable mantle or a steep analytical slope latch only after the ordinary movement solver reports a blocking contact (or uphill slide intent). Tall primitive walls and overhead edges still require explicit grab. An explicit drop suppresses automatic re-entry until direction release; retry interval .12s and automatic slope cap 80° are initial tuning choices. Terrain crest queries actual centre support including flat solid platforms and may retry a lift-first clear body path. Low step and walkable slope remain ordinary locomotion. Irregular rock and tall steep triangle-mesh traversal remain open; no claim of visual or device acceptance.

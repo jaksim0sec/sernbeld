@@ -24,7 +24,8 @@
     "tests/motion-experiment.mjs",
     "docs/knowledge/MOTION_VIDEO_LESSONS.md",
     "docs/tasks/active/MOTION-11261538-video-bugs.md",
-    "src/entities/character/studio-integration.js"
+    "src/entities/character/studio-integration.js",
+    "tests/player-physics.mjs"
   ],
   "contracts": [
     "docs/contracts/CHARACTER_RIG.md",
@@ -37,5 +38,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4: 지속가능 — inspect exact Kael rock direct CI; evaluate post-IK contact/entry/exit/drop; roof/terrain adapter parity and B11–14 visual quality remain open."
+  "next": "MOTION-11261538/T4: 지속가능 — resolve actual irregular rock blocked approach and steep mesh entry; new full-route Node/Chromium/mobile and post-IK quality pending."
 }

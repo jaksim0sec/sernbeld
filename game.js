@@ -50056,8 +50056,8 @@ function traversalContacts(surface,y,along,scale,lead) {
 function traversalBody(action,t,out) {
   const {from,to,kind,approach}=action;
   if(kind==="crest"){
-    out.copy(from).lerp(to,traversalEase(.31,1,t));
-    out.y=from.y+(to.y+.06-from.y)*traversalEase(0,.67,t)-.06*traversalEase(.75,1,t);
+    out.copy(from).lerp(to,traversalEase(action.liftFirst?.53:.31,1,t));
+    out.y=from.y+(to.y+.06-from.y)*traversalEase(0,action.liftFirst?.51:.67,t)-.06*traversalEase(action.liftFirst?.91:.75,1,t);
     return out;
   }
   if(kind==="mantle") {
@@ -50258,7 +50258,7 @@ function traversalEntryBody(action,target,t,out) {
   return t<split?out.copy(from).lerp(entryVia,traversalEase(0,split,t)):
     out.copy(entryVia).lerp(target,traversalEase(split,1,t));
 }
-function traversalStart(player,dx,dz) {
+function traversalStart(player,dx,dz,automatic=false) {
   const p=player.pos,entry=TRAVERSE_ENTRY,r=PLAYER.radius+entry.reach;
   const mag=Math.hypot(dx,dz);if(mag<1e-8)return null;dx/=mag;dz/=mag;
   const minRise=player.onGround&&!player.slide?PLAYER.step+.006:entry.airRise;
@@ -50289,7 +50289,7 @@ function traversalStart(player,dx,dz) {
           const mantle=traversalMantle(face,p);if(mantle)return mantle;
         }
       }
-      if(box.mantleOnly)return null;
+      if(box.mantleOnly||automatic)return null;
       const latchFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,.20):[surface];
       for(const candidate of latchFaces){
         const face=traversalBindFace(candidate);
@@ -50313,7 +50313,7 @@ function traversalStart(player,dx,dz) {
   // Specialized terrain/overhead adapters must not mask one another.
   const surface={x:p.x,z:p.z,nx:-dx,nz:-dz},along=.16;
   const grade=traversalTerrainGrade(surface,along);
-  if(grade>=TRAVERSE_GRADE&&stairSurface(p.x,p.z,0,true)===null){
+  if(grade>=TRAVERSE_GRADE&&(!automatic||grade<Math.tan(80*Math.PI/180))&&stairSurface(p.x,p.z,0,true)===null){
     const foot=traversalAcross(surface,0,along),y=playerTerrain(foot.x,foot.z);
     if(y-p.y>=.09&&y-p.y<=.65){
       const tilt=Math.atan(1/grade);
@@ -50325,7 +50325,7 @@ function traversalStart(player,dx,dz) {
       }
     }
   }
-  return traversalLedgeAhead(player,dx,dz);
+  return automatic?null:traversalLedgeAhead(player,dx,dz);
 }
 // Continue up a stacked collider (tapered tower segments, a wall standing
 // on a plinth) when the current face ends below the hands.
@@ -50367,12 +50367,14 @@ function traversalNext(player,old) {
   if(!surface.box){
     // Step off onto an actual walkable slope/crest within leg reach.
     for(const ahead of [.28,.42,.56,.70,.84,.98]){
-      const at=along+ahead,q=traversalAcross(surface,0,at),top=playerTerrain(q.x,q.z);
-      if(top<p.y-.13||top>p.y+.96||
-        [-.10,0,.10].some(offset=>Math.abs(traversalTerrainGrade(surface,at+offset))>TRAVERSE_GRADE-.06))continue;
+      const at=along+ahead,q=traversalAcross(surface,0,at),top=playerFloor(q.x,q.z,p.y+.96,0);
+      if(!Number.isFinite(top)||top<p.y-.13||top>p.y+.96||playerSteepGround(q.x,q.z,top))continue;
+      const flatSolid=traversalPrimitiveCandidates(q.x,q.z,0).some(o=>inside(o,q.x,q.z,0)&&Math.abs(o.top-top)<=CONTACT_SKIN);
+      if(!flatSolid&&[-.10,0,.10].some(offset=>Math.abs(traversalTerrainGrade(surface,at+offset))>TRAVERSE_GRADE-.06))continue;
       const exit={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,top,q.z),
         previous:old,tilt:0,duration:.56,elapsed:0};
       if(traversalPathClear(exit))return exit;
+      if(flatSolid){exit.liftFirst=true;exit.duration=.72;if(traversalPathClear(exit))return exit;}
     }
     const face=traversalFaceAt(surface,0,y,along);
     if(!face)return null;
@@ -50428,6 +50430,7 @@ var Player = class {
     this.exhausted = false;
     this.traversal = null;
     this.grabIntentUntil=0;
+    this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
     this.renderTraversal = null;
     this.traverseProbe = new Vector3();
     this.slide = null;
@@ -50456,7 +50459,7 @@ var Player = class {
     this.running = false;
     this.landImpact = 0;
     this.moveHeading=null;this.stepRise=0;
-    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;
+    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
     this.resetInterpolation();
     this.teleportId++;
   }
@@ -50539,10 +50542,11 @@ var Player = class {
     const sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
-    if(this.traversal){this.grabIntentUntil=0;this.advanceTraversal(dt,dx,dz,jump);return;}
+    if(mv.mag<=.24){this.autoTraverseSuppressed=false;this.autoTraverseRetry=0;}
+    if(this.traversal){this.grabIntentUntil=0;if(jump)this.autoTraverseSuppressed=true;this.advanceTraversal(dt,dx,dz,jump);return;}
     // A jump press expresses a bounded grab intent, not a one-tick race.
-    // Retry during the same jump/airborne approach; no automatic wall grab
-    // from ordinary walking, and no retry after landing or entering water.
+    // Retry during the same jump/airborne approach. Tall vertical walls and
+    // overhead ledges still require this explicit request.
     if(this.swimming||(!jump&&this.onGround&&!this.slide)||mv.mag<=.24)this.grabIntentUntil=0;
     if(jump&&!this.swimming&&mv.mag>.24)this.grabIntentUntil=this.simTime+TRAVERSE_ENTRY.intentTime;
     if(!this.swimming&&this.grabIntentUntil>this.simTime&&mv.mag>.24){
@@ -50582,7 +50586,20 @@ var Player = class {
     const distance=Math.hypot(this.vel.x,this.vel.z)*dt;
     const count=Math.max(1,Math.ceil(distance/.09));
     this.solids=playerSweepColliders(this.pos.x,this.pos.z,PLAYER.radius+distance+.02);
-    for(let i=0;i<count;i++)this.tryMove(this.vel.x*dt/count,this.vel.z*dt/count);
+    const ux=dx/(mv.mag||1),uz=dz/(mv.mag||1);
+    let directedBlock=false;
+    for(let i=0;i<count;i++)directedBlock=this.tryMove(this.vel.x*dt/count,this.vel.z*dt/count,ux,uz)||directedBlock;
+    // Ordinary step/slope locomotion has priority over automatic traversal.
+    if(!jump&&!this.swimming&&!this.autoTraverseSuppressed&&mv.mag>.24&&
+       (this.onGround||this.slide)&&this.simTime>=this.autoTraverseRetry&&
+       (directedBlock||this.slide&&ux*this.slide.ux+uz*this.slide.uz>=TRAVERSE_ENTRY.alignment)){
+      this.autoTraverseRetry=this.simTime+.12;
+      const action=traversalStart(this,ux,uz,true);
+      if(action&&(action.kind==="mantle"||!this.exhausted)){
+        this.traversal=action;this.grabIntentUntil=0;this.vel.set(0,0,0);
+        this.running=this.onGround=false;this.slide=null;this.stepRise=0;this.solids=null;return;
+      }
+    }
     const x=this.pos.x,z=this.pos.z,feet=this.pos.y;
     const terrain=playerTerrain(x,z),water=waterLevel(x,z,terrain);
     const bottom=playerFloor(x,z,Math.max(feet+CONTACT_SKIN,water-.01),PLAYER.radius,this.solids);
@@ -50766,14 +50783,14 @@ var Player = class {
     return {x,z,y,contacts:[]};
   }
   blocked(x,z){return this.candidate(x-this.pos.x,z-this.pos.z).contacts.length>0;}
-  tryMove(dx,dz){
-    if(Math.hypot(dx,dz)<1e-8)return;
-    let mx=dx,mz=dz;
+  tryMove(dx,dz,ux=0,uz=0){
+    if(Math.hypot(dx,dz)<1e-8)return false;
+    let mx=dx,mz=dz,directedBlock=false;
     for(let pass=0;pass<4;pass++){
       if(Math.hypot(mx,mz)<1e-7)break;
       const c=this.candidate(mx,mz);
       if(!c.contacts.length){
-        this.pos.set(c.x,c.y,c.z);return;
+        this.pos.set(c.x,c.y,c.z);return directedBlock;
       }
       // Advance up to the first contact, then project the remainder onto
       // all contact planes. The projection cannot increase speed.
@@ -50786,6 +50803,7 @@ var Player = class {
       // On a rounded corner the endpoint normal can already point into a
       // different face and repeatedly remove the usable tangential velocity.
       const hit=this.candidate(mx*hi,mz*hi);
+      directedBlock||=hit.contacts.some(q=>-(ux*q.nx+uz*q.nz)>=TRAVERSE_ENTRY.alignment);
       if(lo>1e-4){
         const ok=this.candidate(mx*lo,mz*lo);
         if(!ok.contacts.length)this.pos.set(ok.x,ok.y,ok.z);
@@ -50799,6 +50817,7 @@ var Player = class {
       }
       if(Math.hypot(mx,mz)>=before-1e-7)break;
     }
+    return directedBlock;
   }
   fly(dt, input) {
     const mv = input.move(), u = input.vertical();
@@ -50828,7 +50847,7 @@ var Player = class {
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
-    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;
+    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
     this.moveHeading=null;this.facingYaw=null;this.keyboardSteering=false;this.resetInterpolation();this.teleportId++;
   }
 };
