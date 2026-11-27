@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T3: verify actual mesh mantle CI and representative Kael rock crown/stance compatibility, then migrate production proxy collision; V01 slope/blocked/run and visual/mobile remain."
+  "next": "MOTION-11261538/T3: inspect new real Kael mantle candidate coverage and slope/blocked post-IK results; migrate production rocks only with supported traversal and cost evidence, complete original timeline/profile and V01 visual/mobile gates."
 }

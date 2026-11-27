@@ -725,3 +725,31 @@ console.log('PASS T3 rendered curved geometry topology and runtime support parit
   playerEnv.install(null);
  }
  console.log('PASS T3 geometry mantle plan, actual Player, opt-in, reach and lifecycle');
+
+
+// Shared body/nav queries and bounded depenetration use the same triangle
+// geometry, including closed interiors and active-region lifetime.
+{
+ const m=createRuntimeCollisionBridge({...env,query:()=>[]});m.setRegion('mesh-body');env.install(m);
+ const a=[-3,-1,-3],b=[3,-1,-3],c=[3,-1,3],d=[-3,-1,3],e=[-3,4,-3],f=[3,4,-3],g=[3,4,3],h=[-3,4,3];
+ const tris=[[a,b,c],[a,c,d],[e,h,g],[e,g,f],[a,e,f],[a,f,b],[b,f,g],[b,g,c],[c,g,h],[c,h,d],[d,h,e],[d,e,a]];
+ const mesh=m.triangleMesh({collisionId:'mesh-body:solid',triangles:tris});
+ assert(env.bodyBlockedAt(2,0,0),'body admission cannot ignore enclosed mesh');
+ assert(env.occupiedAt(2,0,0),'navigation cannot ignore enclosed mesh');
+ assert(env.bodyBlockedAt(3.2,0,0),'body radius detects mesh boundary');
+ assert(!env.bodyBlockedAt(3.5,0,0),'clear body');
+ assert(!env.occupiedAt(2,0,4.1),'vertical separation');
+ const p={x:2,y:0,z:0};env.pushOut(p,.35,1.72);
+ assert(p.x>=3.348&&p.y===0&&!m.meshContacts(p.x,p.z,p.y).length,'bounded mesh escape');
+ const p2={x:3.2,y:0,z:0};env.pushOut(p2,.35,1.72);
+ assert(!m.meshContacts(p2.x,p2.z,p2.y).length,'surface penetration resolves');
+ const low=m.triangleMesh({collisionId:'mesh-body:low',triangles:[[[10,.3,-1],[10,.3,1],[12,.3,-1]],[[12,.3,-1],[10,.3,1],[12,.3,1]]]});
+ assert(!env.occupiedAt(11,0,0),'low obstruction does not change nav step contract');
+ assert(m.remove(low.id));
+ m.suspendRegion('mesh-body');assert(!env.bodyBlockedAt(2,0,0));assert(!env.occupiedAt(2,0,0));
+ const inactive={x:2,y:0,z:0};env.pushOut(inactive,.35,1.72);assert.equal(inactive.x,2);
+ m.resumeRegion('mesh-body');assert(env.bodyBlockedAt(2,0,0));
+ assert(m.remove(mesh.id));assert(!env.bodyBlockedAt(2,0,0));assert(!env.occupiedAt(2,0,0));
+ env.install(null);
+}
+console.log('PASS T3 shared mesh body, navigation, recovery and region lifetime');

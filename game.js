@@ -46784,7 +46784,7 @@ function playerFootSurface(x,z,feetY) {
 function activeBodyCandidates(x,z,range){
   return WorldCollision?.activePrimitives?WorldCollision.activePrimitives(x,z,range):query(x,z,range);
 }
-function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
+function primitiveBodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
   for (const o of activeBodyCandidates(x, z, radius + 1)) {
     if (o.top <= feetY + 0.025 || o.bot >= feetY + height - 0.025) continue;
     if (o.walk && o.top <= feetY + PLAYER.step + 0.025) continue;
@@ -46797,6 +46797,10 @@ function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body
     }
   }
   return false;
+}
+function bodyBlockedAt(x, z, feetY, radius = PLAYER.radius, height = PLAYER.body) {
+  if(primitiveBodyBlockedAt(x,z,feetY,radius,height))return true;
+  return height>.05&&!!WorldCollision?.meshContacts?.(x,z,feetY+.025,radius,height-.05).length;
 }
 function pushOut(pos, radius, height) {
   const feet = pos.y;
@@ -46832,13 +46836,30 @@ function pushOut(pos, radius, height) {
     pos.x = o.cx + px2 * o.cos + pz2 * o.sin;
     pos.z = o.cz - px2 * o.sin + pz2 * o.cos;
   }
+  // Use the same actual mesh faces as playerContacts. A correction must
+  // reduce penetration and must not move the actor into a primitive.
+  if(!WorldCollision?.meshContacts||!(radius>0)||!(height>.05))return;
+  const at=(x,z)=>WorldCollision.meshContacts(x,z,feet,radius,height);
+  const score=cs=>cs.reduce((n,c)=>Math.max(n,c.depth),0);
+  for(let i=0;i<8;i++){
+    const contacts=at(pos.x,pos.z);if(!contacts.length)break;
+    const depth=score(contacts);let best=null;
+    for(const c of contacts){
+      const d=Math.min(radius,c.depth+.003),x=pos.x+c.nx*d,z=pos.z+c.nz*d;
+      if(primitiveBodyBlockedAt(x,z,feet,radius,height))continue;
+      const next=score(at(x,z));
+      if(next<depth-1e-5&&(!best||next<best.depth))best={x,z,depth:next};
+    }
+    if(!best)break;
+    pos.x=best.x;pos.z=best.z;
+  }
 }
 function occupiedAt(x, z, g, margin = 0.4) {
   for (const o of activeBodyCandidates(x, z, margin + 1)) {
     if (o.top <= g + PLAYER.step || o.bot >= g + 1.7) continue;
     if (inside(o, x, z, margin)) return true;
   }
-  return false;
+  return !!WorldCollision?.meshContacts?.(x,z,g+PLAYER.step,margin,1.7-PLAYER.step).length;
 }
 function collidersAt(x, z, margin = 0) {
   return query(x, z, margin + 1).filter((o) => inside(o, x, z, margin)).map((o) => ({ type: o.type, top: +o.top.toFixed(2), bot: +o.bot.toFixed(2), walk: o.walk, c: [o.cx ?? o.x, o.cz ?? o.z].map((v) => +v.toFixed(1)) }));

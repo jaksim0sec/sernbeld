@@ -471,18 +471,9 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const mesh=meshCeiling(x,z,y,targetY,radius,height);
   return mesh&&(!hit||mesh.limitY<hit.point[1])?mesh:hit;
  }
- // Authoritative compatibility consumer for the existing capsule solver.
- // It uses normalized SurfaceContact but returns the legacy objects unchanged.
- // The existing cached candidate order must be retained for corner response.
- function contacts(x,z,y,nearby=[],radius=.35,solids=null,height=1.72){
-  const candidates=solids??[...query(x,z,radius)];
-  const hits=registry.overlapBody({root:[x,y,z],profile:{radius,height},candidates},{regionId,purpose:"block"});
-  const found=new Map(),out=[];
-  for(const h of hits){
-   const collider=records.get(h.instanceId);
-   if(collider)found.set(collider,{nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider});
-  }
-  for(const collider of candidates){const c=found.get(collider);if(c)out.push(c);}
+ // All actor/body consumers use the identical geometry contact query.
+ function meshContacts(x,z,y,radius=.35,height=1.72){
+  const out=[];
   // Mesh face overlap uses the same height-clipped projection as the sweep.
   // Preserve centre-height ground support: a body standing above a walkable
   // face must not be repelled by the uphill part of its own footprint.
@@ -502,6 +493,21 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    // face identity is stable for the existing decreasing-overlap rule.
    if(c)out.push({...c,collider:source.closed?source.recoveryKey:face,instanceId:id,featureId:face.featureId,geometricNormal:[...face.normal]});
   });
+  return out;
+ }
+ // Authoritative compatibility consumer for the existing capsule solver.
+ // It uses normalized SurfaceContact but returns the legacy objects unchanged.
+ // The existing cached candidate order must be retained for corner response.
+ function contacts(x,z,y,nearby=[],radius=.35,solids=null,height=1.72){
+  const candidates=solids??[...query(x,z,radius)];
+  const hits=registry.overlapBody({root:[x,y,z],profile:{radius,height},candidates},{regionId,purpose:"block"});
+  const found=new Map(),out=[];
+  for(const h of hits){
+   const collider=records.get(h.instanceId);
+   if(collider)found.set(collider,{nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider});
+  }
+  for(const collider of candidates){const c=found.get(collider);if(c)out.push(c);}
+  out.push(...meshContacts(x,z,y,radius,height));
   for(const collider of nearby){
    if(collider.top<=y+.002||collider.bot>=y+height-.002)continue;
    const c=playerContact(collider,x,z,radius);if(c)out.push(c);
@@ -574,5 +580,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates},capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

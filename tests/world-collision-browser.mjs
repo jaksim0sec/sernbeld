@@ -31,6 +31,8 @@ function compareRockProfiles(createBridge,callbacks,proxy,triangles,ground){
  exact.setRegion('rock-mesh');exact.triangleMesh({collisionId:'mesh',triangles});
  const radius=.35,height=1.72,x=record.x,z=record.z;
  const reach=Math.max(record.r,...triangles.flat().map(v=>Math.hypot(v[0]-x,v[2]-z)))+radius+2;
+ const mantle=createBridge({query:()=>[],local,inside,playerContact});
+ mantle.setRegion('rock-mantle');mantle.triangleMesh({collisionId:'mesh',triangles,support:true,mantle:true});
  const approaches=[];
  for(const y of [ground,ground+.5])for(let i=0;i<8;i++){
   const a=i*Math.PI/4,dx=Math.cos(a),dz=Math.sin(a);
@@ -38,7 +40,9 @@ function compareRockProfiles(createBridge,callbacks,proxy,triangles,ground){
   const p=legacy.staticSweep(...args,null,radius,height)[0];
   const m=exact.surfaceBoundarySweep(...args,radius,height)[0];
   const proxyDistance=p?reach*(1-p.toi):null,meshDistance=m?reach*(1-m.toi):null;
-  approaches.push({angle:i*45,feetY:y,proxyDistance,meshDistance,delta:proxyDistance===null||meshDistance===null?null:meshDistance-proxyDistance});
+  const plans=meshDistance===null?[]:mantle.meshMantlePlans(x+dx*(meshDistance+.025),z+dz*(meshDistance+.025),y,-dx,-dz,{radius,height});
+  const plan=plans[0];
+  approaches.push({angle:i*45,feetY:y,proxyDistance,meshDistance,delta:proxyDistance===null||meshDistance===null?null:meshDistance-proxyDistance,mantleCandidate:plan?{stand:plan.stand,hands:plan.hands,over:plan.over}:null});
  }
  const lo=Math.min(record.bot,...triangles.flat().map(v=>v[1]))-1;
  const hi=Math.max(record.top,...triangles.flat().map(v=>v[1]))+1;
@@ -239,9 +243,11 @@ try{
   const m=await import(new URL('src/entities/character/motion-experiment.js',location.href).href);
   const key=(type,code)=>window.dispatchEvent(new KeyboardEvent(type,{code,bubbles:true,cancelable:true}));
   const out={};input.independentHeading=true;
-  const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']]];
+  const cases=[['idle',[]],['walk',['KeyW']],['run',['KeyW','ShiftLeft']],['backpedal',['KeyS']],['pivot',['KeyA']],['jump',['Space']],['slope',['KeyW']],['blocked',['KeyW']]];
   for(const [name,codes] of cases){
    input.keys.clear();input.setSprint(false);d.reset();
+   if(name==='slope'){const f=d.fixtures.curve;p.teleport(f.x+1,f.z,-Math.PI/2,0,.25);}
+   if(name==='blocked'){const f=d.fixtures.ramps[0];p.teleport(f.x+f.width/2+.45,f.z-f.run/2,Math.PI/2,0,0);}
    const actor=d.avatars.actor,rig=m.measureRig(actor),frames=[];
    const step=(i,record)=>{
     p.advance(1/60,input,[]);
