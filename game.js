@@ -50000,7 +50000,7 @@ function traversalBody(action,t,out) {
   if(kind==="mantle") {
     if(t<.25){
       // Drop clear of an overhang's underside first, then swing out.
-      out.copy(from).lerp(approach,traversalEase(approach.y<from.y?.06:0,.25,t));
+      traversalEntryBody(action,approach,traversalEase(approach.y<from.y?.06:0,.25,t),out);
       out.y=from.y+(approach.y-from.y)*traversalEase(0,.10,t);
       return out;
     }
@@ -50010,6 +50010,7 @@ function traversalBody(action,t,out) {
     out.y=approach.y+(over-approach.y)*lift+(to.y-over)*settle;
     return out;
   }
+  if(kind==="latch"&&action.entryVia)return traversalEntryBody(action,to,t,out);
   return out.copy(from).lerp(to,kind==="climb"?traversalEase(.26,1,t):traversalEase(0,1,t));
 }
 function traversalClear(pos,nearby) {
@@ -50051,7 +50052,7 @@ function traversalMantle(surface,from,previous=null) {
   }
   const action={kind:"mantle",surface,from:from.clone(),to:new Vector3(tx,stand,tz),
     approach:new Vector3(x+nx*TRAVERSE_WALL_GAP,from.y,z+nz*TRAVERSE_WALL_GAP),
-    hands,previous,duration:1.02+rise*.17,tilt:0,elapsed:0};
+    hands,previous,entryVia:traversalEntryVia(surface,from),duration:1.02+rise*.17,tilt:0,elapsed:0};
   return traversalPathClear(action)?action:null;
 }
 // Structure directly above a head: solid colliders and roof/awning slabs
@@ -50154,6 +50155,40 @@ function traversalLedgeAhead(player,dx,dz) {
   }
   return null;
 }
+// Capsule corner response normals do not describe actual flat faces.
+// Resolve incident box faces and reserve the required palm/stance width.
+function traversalBoxFaces(box,p,dx,dz,margin) {
+  const [lx,lz]=local(box,p.x,p.z),faces=[];
+  for(const axis of [0,1]){
+    const normal=axis===0?lx:lz,extent=axis===0?box.hx:box.hz;
+    const tangent=axis===0?lz:lx,half=axis===0?box.hz:box.hx;
+    if(Math.abs(normal)<extent-.002||half<margin)continue;
+    const sign=Math.sign(normal)||1,side=clamp2(tangent,-half+margin,half-margin);
+    const a=axis===0?sign*extent:side,b=axis===0?side:sign*extent;
+    const nx=sign*(axis===0?box.cos:box.sin),nz=sign*(axis===0?-box.sin:box.cos);
+    if(-(dx*nx+dz*nz)<TRAVERSE_ENTRY.alignment)continue;
+    const x=box.cx+a*box.cos+b*box.sin,z=box.cz-a*box.sin+b*box.cos;
+    const travel=Math.hypot(x+nx*TRAVERSE_WALL_GAP-p.x,z+nz*TRAVERSE_WALL_GAP-p.z);
+    if(travel>PLAYER.radius+.195+TRAVERSE_ENTRY.reach)continue;
+    faces.push({surface:{box,nx,nz,x,z},travel});
+  }
+  return faces.sort((a,b)=>a.travel-b.travel).map(f=>f.surface);
+}
+// Move out to the safe face plane before sliding sideways around a corner.
+function traversalEntryVia(surface,from) {
+  if(surface.box?.type!=="box")return null;
+  const {x,z,nx,nz}=surface,px=from.x-x,pz=from.z-z;
+  const lift=TRAVERSE_WALL_GAP-(px*nx+pz*nz);
+  if(lift<=.002||Math.abs(px*nz-pz*nx)<=.002)return null;
+  return new Vector3(from.x+nx*lift,from.y,from.z+nz*lift);
+}
+function traversalEntryBody(action,target,t,out) {
+  const {from,entryVia}=action;
+  if(!entryVia)return out.copy(from).lerp(target,t);
+  const a=from.distanceTo(entryVia),b=entryVia.distanceTo(target),split=a/(a+b);
+  return t<split?out.copy(from).lerp(entryVia,traversalEase(0,split,t)):
+    out.copy(entryVia).lerp(target,traversalEase(split,1,t));
+}
 function traversalStart(player,dx,dz) {
   const p=player.pos,entry=TRAVERSE_ENTRY,r=PLAYER.radius+entry.reach;
   const mag=Math.hypot(dx,dz);if(mag<1e-8)return null;dx/=mag;dz/=mag;
@@ -50178,15 +50213,22 @@ function traversalStart(player,dx,dz) {
     const distance=r-contact.depth;
     const surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
     candidates.push({distance,build:()=>{
-      if(traversalStance(surface).y-p.y<=PLAYER.body){
-        const mantle=traversalMantle(surface,p);if(mantle)return mantle;
+      const mantleFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,PLAYER.radius+.035):[surface];
+      for(const face of mantleFaces){
+        if(traversalStance(face).y-p.y<=PLAYER.body){
+          const mantle=traversalMantle(face,p);if(mantle)return mantle;
+        }
       }
       if(box.mantleOnly)return null;
-      const to=new Vector3(surface.x+surface.nx*TRAVERSE_WALL_GAP,p.y,surface.z+surface.nz*TRAVERSE_WALL_GAP);
-      const contacts=traversalContacts(surface,to.y,0,1,1);
-      if(!contacts)return null;
-      const action={kind:"latch",surface,from:p.clone(),to,along:0,tilt:0,...contacts,duration:.30,elapsed:0};
-      return traversalPathClear(action)?action:null;
+      const latchFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,.20):[surface];
+      for(const face of latchFaces){
+        const to=new Vector3(face.x+face.nx*TRAVERSE_WALL_GAP,p.y,face.z+face.nz*TRAVERSE_WALL_GAP);
+        const contacts=traversalContacts(face,to.y,0,1,1);
+        if(!contacts)continue;
+        const action={kind:"latch",surface:face,from:p.clone(),to,entryVia:traversalEntryVia(face,p),along:0,tilt:0,...contacts,duration:.30,elapsed:0};
+        if(traversalPathClear(action))return action;
+      }
+      return null;
     }});
   }
   // Stable ordering retains mesh precedence on equal-distance candidates.

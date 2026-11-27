@@ -37,5 +37,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4: 지속가능 — verify new direct CI; prioritize consistent grab eligibility/reference/activation across diagonal corners, height, roof/terrain/mesh and Kael proxies before animation polish. B11–14 OPEN."
+  "next": "MOTION-11261538/T4: 지속가능 — verify direct CI and fixed-tick diagonal playback; compare mesh/primitive corner and varied height, anchor lifetime/roof/terrain and Kael proxies; B11–14 OPEN."
 }

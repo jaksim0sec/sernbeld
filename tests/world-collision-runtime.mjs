@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,addBox,query,inside,local,playerContact,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,install(v){WorldCollision=v;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -892,3 +892,36 @@ playerEnv.install(null);
  assert(results.find(x=>x.name==='primitive-early').first.tick>0);
  console.log('PASS T4 buffered grab admission and completed primitive/mesh mantle '+JSON.stringify(results));
 }
+
+ // T4: geometric box faces, not rounded collision normals, own grab anchors.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  playerEnv.install(m);m.setRegion('t4-corner');
+  let count=0;
+  for(const yaw of [0,.47])for(const height of [1,3]){
+   const cx=180+count*10,cz=100;
+   const box=playerEnv.addBox({cx,cz,cy:height/2,hx:1.2,hz:1.2,hy:height/2,yaw});
+   for(const [a,b,dx,dz] of [[1.45,1.45,-1,-1],[1.45,-1.45,-1,1],[-1.45,1.45,1,-1],[-1.45,-1.45,1,1],[0,1.56,0,-1],[1.12,1.56,0,-1],[1.45,1.45,1,1]]){
+    const p=new playerEnv.Player();
+    p.pos.set(cx+a*box.cos+b*box.sin,0,cz-a*box.sin+b*box.cos);p.onGround=true;
+    const action=playerEnv.traversalStart(p,dx*box.cos+dz*box.sin,-dx*box.sin+dz*box.cos);
+    const away=dx===1&&dz===1&&a>0&&b>0;
+    if(away){assert.equal(action,null,'away from corner');count++;continue;}
+    assert.equal(action?.kind,height===1?'mantle':'latch','real face admission '+[yaw,height,a,b]);
+    const {nx,nz}=action.surface;
+    assert(Math.min(Math.abs(nx*box.cos-nz*box.sin),Math.abs(nx*box.sin+nz*box.cos))<1e-8,'axis-aligned geometric face');
+    for(const hand of action.hands){
+     const [u,v]=playerEnv.local(box,hand.point.x,hand.point.z);
+     assert(Math.abs(u)<=box.hx+1e-8&&Math.abs(v)<=box.hz+1e-8);
+     assert(Math.min(Math.abs(Math.abs(u)-box.hx),Math.abs(Math.abs(v)-box.hz))<1e-8,'hand is on the actual face edge');
+    }
+    for(let i=1;i<=240;i++){
+     const q=playerEnv.traversalBody(action,i/240,new three.Vector3());
+     assert.equal(playerEnv.playerContacts(q.x,q.z,q.y,[]).length,0,'clear alignment and ascent');
+    }
+    count++;
+   }
+  }
+  playerEnv.install(null);
+  console.log('PASS T4 28 diagonal, edge, centered and away box entries; real hand anchors and 5760 path samples');
+ }
