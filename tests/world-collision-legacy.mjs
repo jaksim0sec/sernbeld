@@ -42,7 +42,8 @@ function runLegacyTests(source,createLegacyStaticCollision,sampleHeightfieldTria
  world.resumeRegion("lab");check(world.get(b.id).revision!==oldRev&&world.sampleSupport({root:[0,2,0],profile:p,maxRise:.48},filter)!==null,"resume fresh revision");
  world.remove(d);check(world.sampleSupport({root:[0,4.2,0],profile:p,maxRise:.48},filter).instanceId===b.id,"removed near top does not hide farther support");
  check(engine.playerFloor(0,0,4.7,p.radius)>4,"legacy grid unchanged before authority switch");
- check(!world.capabilities().sweepBody&&!world.capabilities().productionBroadphase,"explicit capability");
+ check(world.capabilities().sweepBody&&!world.capabilities().productionBroadphase,"horizontal sweep available; registry broadphase remains reference-only");
+ throws(()=>world.sweepBody({root:[0,2,0],profile:p,delta:[0,1,0]},{...filter,purpose:"block"}),"vertical sweep remains unsupported");
  const H=engine.World.H;
  H.set([0,2,4,4,6,8,8,10,12]);
  for(const [x,z] of [[-1.8,-1.6],[-.1,-.3],[-1,-1],[.1,.2],[1.8,1.8]]){
@@ -53,6 +54,19 @@ function runLegacyTests(source,createLegacyStaticCollision,sampleHeightfieldTria
  H.set([0,0,0,0,4,0,0,0,0]);
  const lo=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x:-1.8,z:-1.8}),hi=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x:-.2,z:-.2});
  check(lo.featureId!==hi.featureId&&lo.geometricNormal[1]===1&&hi.geometricNormal[1]<1,"sharp triangle preserved");
+ for(const [x,z] of [[-1,-1],[0,-1],[-1,0],[0,0]]){
+  const s=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x,z});
+  check(near(s.point[1],engine.heightfieldTriangle(x,z)),"crease height parity");
+  check(s.geometricNormal===null&&s.featureId.startsWith("seam:"),"crease must expose ambiguous normal "+[x,z]);
+ }
+ const left=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x:-1-1e-5,z:-1});
+ const right=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x:-1+1e-5,z:-1});
+ check(left.geometricNormal!==null&&right.geometricNormal!==null&&left.featureId!==right.featureId,"near crease retains actual face");
+ H.set([0,2,4,4,6,8,8,10,12]);
+ for(const [x,z] of [[0,-1],[-1,0],[0,0]]){
+  const s=sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x,z});
+  check(s.geometricNormal?.every((v,i)=>near(v,[-1,1,-2][i]/Math.sqrt(6))),"coplanar grid seam retains exact normal");
+ }
  check(sampleHeightfieldTriangle({heights:H,gridN:3,cell:2,half:2,x:2,z:0})===null,"outside fallback explicit");
  return checks;
 }

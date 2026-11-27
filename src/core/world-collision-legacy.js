@@ -268,7 +268,30 @@ export function sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}){
  const lower=u+v<=1;
  const h=lower?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
  const dx=(lower?b-a:d-c)/cell,dz=(lower?c-a:d-b)/cell,len=Math.hypot(dx,1,dz);
- return {featureId:`${i}:${j}:${lower?0:1}`,point:[x,h,z],geometricNormal:[-dx/len,1/len,-dz/len]};
+ const normal=[-dx/len,1/len,-dz/len];
+ // A crease has multiple geometric normals, unlike a coplanar grid seam.
+ // Keep the legacy height and the fast interior path unchanged.
+ const eps=1e-9,onX=Math.abs(gx-Math.round(gx))<=eps,onZ=Math.abs(gz-Math.round(gz))<=eps;
+ if(onX||onZ||Math.abs(u+v-1)<=eps){
+  const ix=onX?[Math.round(gx)-1,Math.round(gx)]:[i];
+  const iz=onZ?[Math.round(gz)-1,Math.round(gz)]:[j];
+  const faces=[];let ambiguous=false;
+  for(const cj of iz)for(const ci of ix){
+   if(ci<0||cj<0||ci>=gridN-1||cj>=gridN-1)continue;
+   const cu=gx-ci,cv=gz-cj;
+   if(cu<-eps||cv<-eps||cu>1+eps||cv>1+eps)continue;
+   const k2=cj*gridN+ci,A=heights[k2],B=heights[k2+1],C=heights[k2+gridN],D=heights[k2+gridN+1];
+   if(![A,B,C,D].every(Number.isFinite))throw new TypeError("nonfinite heightfield cell");
+   for(const t of [0,1]){
+    if(t===0?cu+cv>1+eps:cu+cv<1-eps)continue;
+    const sx=(t===0?B-A:D-C)/cell,sz=(t===0?C-A:D-B)/cell,n=Math.hypot(sx,1,sz);
+    faces.push(`${ci}:${cj}:${t}`);
+    if(Math.hypot(-sx/n-normal[0],1/n-normal[1],-sz/n-normal[2])>1e-7)ambiguous=true;
+   }
+  }
+  if(ambiguous)return {featureId:"seam:"+faces.join("+"),point:[x,h,z],geometricNormal:null};
+ }
+ return {featureId:`${i}:${j}:${lower?0:1}`,point:[x,h,z],geometricNormal:normal};
 }
 
 
