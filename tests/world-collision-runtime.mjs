@@ -998,3 +998,29 @@ playerEnv.install(null);
  playerEnv.install(null);
  console.log('PASS T4 distinct landing source replacement/removal and live support');
 }
+
+ // Deferred static geometry: exact support, bounded cache and stable revision.
+{
+ const m=createRuntimeCollisionBridge({...env,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+ env.install(m);m.setRegion('deferred-rock-test');
+ let built=0;
+ const top=x=>[[[x-1,1,-1],[x-1,1,1],[x+1,1,-1]],[[x+1,1,-1],[x-1,1,1],[x+1,1,1]]];
+ const register=i=>{const x=2000+i*40;return m.triangleMesh({collisionId:'deferred:'+i,bounds:{min:[x-1,1,-1],max:[x+1,1,1]},triangles:()=>{built++;return top(x);},support:true,mantle:true});};
+ const first=register(0);for(let i=1;i<140;i++)register(i);
+ assert.equal(built,0,'registration does not build rock triangle trees');
+ const legacy=env.addCyl({x:2000,z:0,r:2,y0:0,y1:2,climbable:true,mantleOnly:true,legacyOnly:true});
+ assert(env.query(2000,0,0).includes(legacy),'legacy camera/nav proxy preserved');
+ assert(!m.activePrimitives(2000,0,0).includes(legacy),'legacy proxy excluded from Player registry');
+ assert.equal(env.playerFloor(2000,0,3,0),1,'rendered height wins instead of fake cylinder');
+ assert.equal(built,1);
+ const revision=m.get(first.id).revision;
+ for(let i=1;i<140;i++)assert.equal(m.meshSupport(2000+i*40,0,2)?.point[1],1);
+ assert(m.debugSnapshot().boundaryIndex.deferredResident<=128);
+ assert.equal(m.meshSupport(2000,0,2)?.point[1],1);assert.equal(built,141,'evicted geometry rebuilt');
+ assert.equal(m.get(first.id).revision,revision,'cache eviction is not a geometry revision');
+ m.suspendRegion('deferred-rock-test');assert.equal(m.meshSupport(2000,0,2),null);
+ m.resumeRegion('deferred-rock-test');assert.equal(m.meshSupport(2000,0,2)?.point[1],1);
+ assert(m.remove(first.id));assert.equal(m.meshSupport(2000,0,2),null);
+ env.install(null);
+ console.log('PASS T4 deferred rock source: exact support, retired proxy, bounded cache, lifetime');
+}

@@ -115,3 +115,8 @@ Motion-lab wedge sidewalls use the existing primitive sweep on an exact horizont
 - Opt-in mesh mantle retains the original directed stance search; only if that yields no stance, it searches bounded sideways offsets (.16m increments, no more than radius + .195m + reach), with identical same-source palm/support and path checks. This is mesh edge alignment, not automatic grab or unrestricted sideways reach. Live height, Kael and rig parity remain open.
 
 - Mantle and crest admission require centre support at the actual landing height and non-steep ground; registered landing ID/revision is independent of the wall and checked throughout the action. Terrain limb contacts retain registered analytical source references where present. Completion verifies the floor again instead of unconditionally declaring grounded. Legacy unregistered terrain still uses geometry fallback.
+
+
+## T4 Kael rendered rock authority (PARTIAL)
+
+Player rock support/block/mantle use the same static Float32 transform and exact triangles as the rendered instance. Deferred mesh registration stores conservative bounds and immutable geometry factory; actual BVH and topology are built on query, bounded to 128 resident trees. Cache eviction does not change source identity/revision. Legacy camera/NPC/nav raw cylinder is intentionally not registered for Player. Small decorative rocks remain unchanged. Isolated existing runtime/player-physics regression PASS (26,225 assertions); full Node CLI/Chromium/mobile and performance NOT RUN for this change. See T4 task evidence.

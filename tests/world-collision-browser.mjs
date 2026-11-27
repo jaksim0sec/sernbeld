@@ -64,7 +64,7 @@ try{
  await page.waitForFunction(()=>!!window.__dev?.collision?.stats,{},{timeout:180000});
  const main=await page.evaluate(()=>{
   const d=window.__dev,s=d.collision.stats(),near=(a,b)=>Math.abs(a-b)<=1e-6;
-  if(s.registered<20||!s.counts.box||!s.counts.cyl||!s.counts.roof||s.counts.terrain!==1||s.counts.stair!==d.stairs.length)
+  if(s.registered<20||!s.counts.box||!s.counts.cyl||!s.counts.triangleMesh||!s.counts.roof||s.counts.terrain!==1||s.counts.stair!==d.stairs.length)
    throw Error('Main world collision registrations incomplete '+JSON.stringify(s));
   if(s.regionId!==d.region.id)throw Error('Main collision region mismatch');
   const p=d.player.pos,probe=d.collision.probe(p.x,p.z,p.y);
@@ -77,8 +77,7 @@ try{
  await mkdir('test-results',{recursive:true});
  await page.screenshot({path:'test-results/physics-t1-kael.png'});
 
- // Compare actual Kael rock placements, their live registered mantle proxy,
- // and the rendered instanced world matrix. Keep production behavior intact.
+ // Compare the retired Player proxy against the rendered instance and live exact registration.
  const kaelRocks=await page.evaluate(async({source,compare})=>{
   const d=window.__dev,{createRuntimeCollisionBridge}=await import(new URL('src/core/world-collision-runtime.js',location.href).href);
   const callbacks=Function(source)(),compareProfiles=Function('return ('+compare+')')();
@@ -87,8 +86,9 @@ try{
   const selected=[0,1,2,3].map(v=>d.veg.rocks.filter(r=>r.v===v&&r.s>1.2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0]).filter(Boolean);
   try{
    for(const r of selected){
-    const proxy=d.playerContacts(r.x,r.z,r.y).map(c=>c.collider).find(c=>c.type==='cyl'&&c.mantleOnly&&Math.abs(c.x-r.x)<1e-6&&Math.abs(c.z-r.z)<1e-6);
-    if(!proxy)throw Error('Kael rock live proxy missing');
+    const proxy={type:'cyl',x:r.x,z:r.z,r:r.s*.8,y0:r.y-1,y1:r.y+r.s*.55,bot:r.y-1,top:r.y+r.s*.55,walk:true,climbable:true,mantleOnly:true};
+    if(!r.physicsId)throw Error('Kael rendered rock registration missing');
+    if(d.playerContacts(r.x,r.z,r.y).some(c=>c.collider?.type==='cyl'&&c.collider.mantleOnly&&Math.abs(c.collider.x-r.x)<1e-6&&Math.abs(c.collider.z-r.z)<1e-6))throw Error('retired rock proxy still controls Player');
     d.rocks.last=[Infinity,Infinity];d.rocks.update({x:r.x,z:r.z});
     const mesh=d.rocks.meshes[r.v].m,m=mesh.matrix.clone();let found=false;
     for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,m);if(Math.hypot(m.elements[12]-r.x,m.elements[14]-r.z)<.001){found=true;break;}}
@@ -97,13 +97,26 @@ try{
     const triangles=callbacks.renderedCollisionTriangles(mesh.geometry,m);
     if(!triangles.length)throw Error('Empty Kael rock mesh');
     const ground=d.playerTerrain(r.x,r.z);
-    out.push({variant:r.v,x:r.x,z:r.z,size:r.s,triangles:triangles.length,ground,...compareProfiles(createRuntimeCollisionBridge,callbacks,proxy,triangles,ground)});
+    const comparison=compareProfiles(createRuntimeCollisionBridge,callbacks,proxy,triangles,ground);
+    const expected=createRuntimeCollisionBridge({query:()=>[],local:callbacks.local,inside:callbacks.inside,playerContact:callbacks.playerContact});
+    expected.triangleMesh({collisionId:'reference',triangles,support:true,mantle:true});
+    const supports=[];
+    for(const dx of [-.5,0,.5])for(const dz of [-.5,0,.5]){
+      const x=r.x+dx,z=r.z+dz,h=expected.meshSupport(x,z,Infinity);
+      if(!h||h.point[1]<d.playerTerrain(x,z)+.01)continue;
+      const y=h.point[1],actual=d.playerFloor(x,z,y+.003,0),probe=d.collision.probe(x,z,y);
+      if(Math.abs(actual-y)>.003||probe.hit?.instanceId!==r.physicsId)throw Error('Kael rock support does not match rendered triangle '+JSON.stringify({x,z,y,actual,probe}));
+      supports.push({x,z,y});
+    }
+    out.push({variant:r.v,x:r.x,z:r.z,size:r.s,triangles:triangles.length,ground,physicsId:r.physicsId,supports,...comparison});
    }
   }finally{
    d.rocks.last=[Infinity,Infinity];
    d.rocks.update({x:Number.isFinite(original[0])?original[0]:d.camera.position.x,z:Number.isFinite(original[1])?original[1]:d.camera.position.z});
   }
-  if(!out.length||!out.some(r=>r.approaches.some(a=>a.meshDistance!==null)))throw Error('No actual Kael rock comparison samples');
+  if(!out.length||!out.some(r=>r.supports.length)||!out.some(r=>r.approaches.some(a=>a.meshDistance!==null)))throw Error('No actual Kael rock comparison samples');
+  const cache=d.collision.stats().boundaryIndex;
+  if(cache.deferredResident>cache.deferredLimit)throw Error('unbounded rock BVH cache');
   return out;
  },{source:rockComparisonSource,compare:compareRockProfiles.toString()});
  await writeFile('test-results/physics-t3-kael-rock-proxy.json',JSON.stringify(kaelRocks));

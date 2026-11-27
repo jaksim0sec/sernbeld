@@ -8,6 +8,21 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  const roofHelpers={local,roofInFoot,roofInOuter,roofSurfaceLocal};
  let regionId="legacy-world",serial=0;
  const boundarySources=new Map(),boundaryGrids=new Map();
+ const deferredGeometry=new Map(),DEFERRED_LIMIT=128;
+ function materialize(source){
+  let data=deferredGeometry.get(source);
+  if(data)deferredGeometry.delete(source);
+  else{
+   const triangles=source.factory();
+   if(!Array.isArray(triangles)||!triangles.length)throw new TypeError('empty deferred triangle mesh');
+   const faces=triangles.map((v,i)=>triangleFace(v,'triangle:'+i)),tree=buildFaceTree(faces);
+   if(tree.bounds.min.some((v,i)=>v<source.bounds.min[i]||tree.bounds.max[i]>source.bounds.max[i]))throw new TypeError('deferred mesh outside authored bounds');
+   data={tree,closed:closedTopology(faces)};
+  }
+  deferredGeometry.set(source,data);
+  if(deferredGeometry.size>DEFERRED_LIMIT)deferredGeometry.delete(deferredGeometry.keys().next().value);
+  return data;
+ }
  const BOUNDARY_CELL=32,BOUNDARY_MAX_CELLS=256;
  let boundaryOrder=0,lastBoundaryCandidates=0;
  function boundaryCells(bounds){
@@ -20,7 +35,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function indexBoundary(region,id,source){
   let grid=boundaryGrids.get(region);
   if(!grid){grid={cells:new Map(),large:new Set()};boundaryGrids.set(region,grid);}
-  source.cells=boundaryCells(source.tree.bounds);source.order=boundaryOrder++;
+  source.cells=boundaryCells(source.indexBounds);source.order=boundaryOrder++;
   if(!source.cells){grid.large.add(id);return;}
   for(const k of source.cells){
    let cell=grid.cells.get(k);if(!cell){cell=new Set();grid.cells.set(k,cell);}cell.add(id);
@@ -167,7 +182,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return best;
  }
- function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid",sourceKind=type,boundaryFaces=[],triangles=null}={}){
+ function analytical(id,type,bounds,policy,sample,{priority=0,physics="solid",sourceKind=type,boundaryFaces=[],triangles=null,triangleFactory=null}={}){
   if(boundaryFaces.length&&type!=="heightfield")throw new TypeError("vertical boundaries require heightfield source");
   const faces=triangles??prepareBoundaryFaces(boundaryFaces,bounds);
   if(handles.has(id))throw new TypeError("duplicate analytical collision ID");
@@ -175,9 +190,15 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   if(type==="water"){delete shape.geometryRef;delete shape.bounds;shape.half=bounds.half;shape.center=bounds.center;}
   const h=registry.registerAnalytical({id,regionId,physics,transform:identity,shapes:[shape]},{sample,priority,sourceKind});
   handles.set(id,h);
-  if(faces.length){
+  if(faces.length||triangleFactory){
    if(!boundarySources.has(regionId))boundarySources.set(regionId,new Map());
-   const source={tree:buildFaceTree(faces),bounds,policy,type,closed:type==="triangleMesh"&&closedTopology(faces),recoveryKey:{type:"triangleMesh",collisionId:id}};
+   const source={bounds,policy,type,recoveryKey:{type:"triangleMesh",collisionId:id}};
+   if(triangleFactory){
+    source.factory=triangleFactory;source.indexBounds=bounds;
+    Object.defineProperties(source,{tree:{get:()=>materialize(source).tree},closed:{get:()=>materialize(source).closed}});
+   }else{
+    source.tree=buildFaceTree(faces);source.indexBounds=source.tree.bounds;source.closed=type==="triangleMesh"&&closedTopology(faces);
+   }
    boundarySources.get(regionId).set(id,source);indexBoundary(regionId,id,source);
   }
   if(type==="water")types.water++;return h;
@@ -201,13 +222,16 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   r.collisionId=base;types.roof++;return output;
  }
  // Support is opt-in. Supporting mesh faces must be outward wound.
- function triangleMesh({collisionId,triangles,support=false,mantle=false}){
+ function triangleMesh({collisionId,triangles,support=false,mantle=false,bounds:authoredBounds=null}){
   if(typeof support!=="boolean"||typeof mantle!=="boolean"||mantle&&!support)throw new TypeError("invalid mesh support/mantle policy");
-  if(!Array.isArray(triangles)||!triangles.length)throw new TypeError("empty triangle mesh");
-  const faces=triangles.map((v,i)=>triangleFace(v,"triangle:"+i)),raw=mergeBounds(faces);
+  const factory=typeof triangles==='function'?triangles:null;
+  if(!factory&&(!Array.isArray(triangles)||!triangles.length))throw new TypeError("empty triangle mesh");
+  const faces=factory?null:triangles.map((v,i)=>triangleFace(v,"triangle:"+i));
+  const raw=factory?authoredBounds:mergeBounds(faces);
+  if(!raw||!['min','max'].every(k=>Array.isArray(raw[k])&&raw[k].length===3&&raw[k].every(Number.isFinite))||raw.min.some((v,i)=>v>raw.max[i]))throw new TypeError('invalid deferred mesh bounds');
   const bounds={min:raw.min.map(v=>v-1e-7),max:raw.max.map(v=>v+1e-7)};
   const policy={id:mantle?"triangle-mesh-mantle":support?"triangle-mesh-support":"triangle-mesh-block",block:true,support,mantle,oneWay:false,nav:false,camera:false,water:false,climb:mantle?"mantleOnly":"none"};
-  const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces});
+  const h=analytical(collisionId??next("triangleMesh"),"triangleMesh",bounds,policy,()=>null,{sourceKind:"triangleMesh",triangles:faces,triangleFactory:factory});
   types.triangleMesh=(types.triangleMesh??0)+1;
   return h;
  }
@@ -553,7 +577,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   // face must not be repelled by the uphill part of its own footprint.
   const interiorIds=new Set(),bodyBounds={min:[x-radius,y+.002,z-radius],max:[x+radius,y+height-.002,z+radius]};
   for(const [id,source] of boundaryCandidates(regionId,bodyBounds)){
-   if(!registry.get(id)?.effectiveActive)continue;
+   if(!intersects(source.bounds,bodyBounds)||!registry.get(id)?.effectiveActive)continue;
    const c=interiorContact(source,x,z,y,radius,height);
    if(c){interiorIds.add(id);out.push({...c,instanceId:id});}
   }
@@ -652,9 +676,9 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const h=handles.get(id);if(!h)return false;
   const sourceRegion=registry.get(id)?.regionId;
   registry.remove(h);handles.delete(id);records.delete(id);
-  const sources=boundarySources.get(sourceRegion);unindexBoundary(sourceRegion,id,sources?.get(id));sources?.delete(id);if(sources&&!sources.size)boundarySources.delete(sourceRegion);
+  const sources=boundarySources.get(sourceRegion);deferredGeometry.delete(sources?.get(id));unindexBoundary(sourceRegion,id,sources?.get(id));sources?.delete(id);if(sources&&!sources.size)boundarySources.delete(sourceRegion);
   return true;
  }
- function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates},capabilities:registry.capabilities()};}
+ function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates,deferredResident:deferredGeometry.size,deferredLimit:DEFERRED_LIMIT},capabilities:registry.capabilities()};}
  return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshMantlePlans,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:registry.suspendRegion,resumeRegion:registry.resumeRegion,record:id=>records.get(id)??null,debugSnapshot};
 }

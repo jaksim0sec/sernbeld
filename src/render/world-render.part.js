@@ -883,7 +883,8 @@ function addCyl(c) {
   c.bot = c.y0;
   c.walk = c.walk !== false;
   const record=insert(c, c.x, c.z, c.r);
-  WorldCollision?.primitive(record);
+  // Legacy camera/navigation retain the old proxy; Player uses the registered rendered mesh.
+  if(!c.legacyOnly)WorldCollision?.primitive(record);
   return record;
 }
 var out = [];

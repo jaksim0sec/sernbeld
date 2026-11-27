@@ -2578,6 +2578,11 @@ var _q3 = new Quaternion();
 var _e = new Euler();
 var _p3 = new Vector3();
 var _s3 = new Vector3();
+// Identical instance transform for displayed rock and Player geometry.
+function rockInstanceMatrix(r,out=_m32){
+  _q3.setFromEuler(_e.set(r.tilt,r.rot,r.tilt*.6));
+  return out.compose(_p3.set(r.x,r.y,r.z),_q3,_s3.set(r.s*1.15,r.s,r.s));
+}
 var Rocks = class {
   constructor(scene, rocks) {
     this.grid = new Grid2D(rocks, 64);
@@ -2587,11 +2592,24 @@ var Rocks = class {
       m.castShadow = m.receiveShadow = true;
       m.frustumCulled = false;
       m.count = 0;
+      m.geometry.computeBoundingBox();
       scene.add(m);
       return { m, cap };
     });
-    // Rounded boulders: a pull-up onto the crown, never a wall climb.
-    for (const r of rocks) if (r.s > 0.8) addCyl({ x: r.x, z: r.z, r: r.s * 0.8, y0: r.y - 1, y1: r.y + r.s * 0.55, climbable: true, mantleOnly: true, lipInset: r.s * 0.28 });
+    // Register inexpensive bounds now; materialize exact geometry on query.
+    for (const [i,r] of rocks.entries()) if(r.s>.8){
+      const geometry=this.meshes[r.v].m.geometry;
+      const exact=typeof WorldCollision?.triangleMesh==='function';
+      if(exact){
+        const matrix=rockInstanceMatrix(r,new Matrix4());
+        // InstancedMesh stores Float32 matrices; use those exact values.
+        for(let k=0;k<16;k++)matrix.elements[k]=Math.fround(matrix.elements[k]);
+        const b=geometry.boundingBox.clone().applyMatrix4(matrix);
+        r.physicsId='sernbeld:rock:'+i;
+        WorldCollision.triangleMesh({collisionId:r.physicsId,bounds:{min:b.min.toArray(),max:b.max.toArray()},triangles:()=>renderedCollisionTriangles(geometry,matrix),support:true,mantle:true});
+      }
+      addCyl({x:r.x,z:r.z,r:r.s*.8,y0:r.y-1,y1:r.y+r.s*.55,climbable:true,mantleOnly:true,lipInset:r.s*.28,legacyOnly:exact});
+    }
     this.last = [Infinity, Infinity];
     this.range = RANGE;
   }
@@ -2607,8 +2625,7 @@ var Rocks = class {
       if (r.s < 0.6 && (r.x - cam.x) ** 2 + (r.z - cam.z) ** 2 > 70 * 70) return;
       const o = this.meshes[r.v];
       if (o.m.count >= o.cap) return;
-      _q3.setFromEuler(_e.set(r.tilt, r.rot, r.tilt * 0.6));
-      o.m.setMatrixAt(o.m.count++, _m32.compose(_p3.set(r.x, r.y, r.z), _q3, _s3.set(r.s * 1.15, r.s, r.s)));
+      o.m.setMatrixAt(o.m.count++,rockInstanceMatrix(r));
     });
     for (const o of this.meshes) o.m.instanceMatrix.needsUpdate = true;
   }
