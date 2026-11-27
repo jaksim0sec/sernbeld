@@ -994,7 +994,7 @@ function roofGableTop(x,z) {
   let h=-Infinity;
   if(!b)return h;
   for(const r of b){
-    if(!r.gable)continue;
+    if(!r.gable||WorldCollision&&r.collisionId&&!WorldCollision.get(r.collisionId+":foot")?.effectiveActive)continue;
     const [lx,lz]=local(r,x,z),along=r.acrossX?lz:lx,across=r.acrossX?lx:lz,end=r.acrossX?r.hz:r.hx,side=r.acrossX?r.hx:r.hz;
     if(!roofInFoot(r,lx,lz)||Math.abs(along)<end-.06)continue;
     h=Math.max(h,r.base+.25+(r.rise-.25)*(side-Math.abs(across))/r.half);
@@ -1021,6 +1021,7 @@ function roofSlabsAt(x,z,out=[]) {
   const b=roofRecords(x,z);
   if(!b)return out;
   for(const r of b){
+    if(WorldCollision&&r.collisionId&&!WorldCollision.get(r.collisionId+":overhang")?.effectiveActive)continue;
     const [lx,lz]=local(r,x,z);
     if(roofInFoot(r,lx,lz)||!roofInOuter(r,lx,lz))continue;
     const top=roofSurfaceLocal(r,lx,lz);

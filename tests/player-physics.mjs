@@ -266,9 +266,10 @@ console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head
   addRoof({shape:'shed',cx:0,cz:1,yaw:0,ox:2.5,oz:1,z0:-1,z1:1,base:3.3,rise:-.7,thick:.08});
   p=player(0,3.5);tick(p,input(0,1),90);
   assert(p.onGround&&p.pos.y===0&&p.pos.z<.4,'walking under an awning was blocked');
-  p=player(0,3);move=input(0,1);move.jump=true;tick(p,move);tick(p,input(0,1),12);
-  const reach=input(0,1);reach.jump=true;tick(p,reach);
-  assert(p.traversal?.pull,'awning edge was not grabbed from the air');
+  p=player(0,3);move=input(0,1);move.jump=true;tick(p,move);
+  const reach=input(0,1);
+  for(let k=0;k<36&&!p.traversal;k++)tick(p,reach);
+  assert(p.traversal?.pull,'awning edge was not grabbed from the air with a single jump press');
   for(let k=0;k<200&&p.traversal;k++){tick(p,reach);assert(clean(p.pos));}
   assert(p.onGround&&Math.abs(p.pos.y-(3.3-.7*(p.pos.z-1+1)/2))<1e-6,'did not stand on the awning');
 

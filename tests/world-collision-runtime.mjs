@@ -925,3 +925,30 @@ playerEnv.install(null);
   playerEnv.install(null);
   console.log('PASS T4 28 diagonal, edge, centered and away box entries; real hand anchors and 5760 path samples');
  }
+
+ // T4: actual fixed ticks release stale registered primitive anchors.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  playerEnv.install(m);
+  const input=(x,y,jump=false)=>({move:()=>({x,y,mag:Math.hypot(x,y)}),run:()=>false,consumeJump:()=>jump});
+  const move=input(0,1);
+  for(const [i,height] of [[0,1],[1,3]]){
+   const cx=500+i*12,cz=100;
+   m.setRegion('t4-life-'+i);
+   const box=playerEnv.addBox({cx,cz,cy:height/2,hx:1.2,hz:1.2,hy:height/2,collisionId:'t4-life-box-'+i});
+   const p=new playerEnv.Player();p.teleport(cx,cz+1.56,0,0,0);
+   p.advance(1/60,input(0,1,true));assert.equal(p.traversal?.kind,height===1?'mantle':'latch');
+   for(let k=0;k<6;k++)p.advance(1/60,move);
+   assert(p.traversal?.surface.sourceRef,'registered primitive anchor');
+   const before=p.pos.clone();m.suspendRegion('t4-life-'+i);p.advance(1/60,move);
+   assert.equal(p.traversal,null,'suspended source releases in one tick');
+   assert(p.pos.distanceTo(before)<1e-8,'no stale anchor displacement');
+   m.resumeRegion('t4-life-'+i);p.teleport(cx,cz+1.56,0,0,0);
+   p.advance(1/60,input(0,1,true));assert(p.traversal);
+   assert(m.remove(box.collisionId));
+   playerEnv.addBox({cx,cz,cy:height/2,hx:1.2,hz:1.2,hy:height/2,collisionId:box.collisionId});
+   p.advance(1/60,move);assert.equal(p.traversal,null,'same ID replacement invalidates old revision');
+  }
+  playerEnv.install(null);
+  console.log('PASS T4 registered primitive suspend/replacement release');
+ }

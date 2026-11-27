@@ -46570,7 +46570,7 @@ function roofGableTop(x,z) {
   let h=-Infinity;
   if(!b)return h;
   for(const r of b){
-    if(!r.gable)continue;
+    if(!r.gable||WorldCollision&&r.collisionId&&!WorldCollision.get(r.collisionId+":foot")?.effectiveActive)continue;
     const [lx,lz]=local(r,x,z),along=r.acrossX?lz:lx,across=r.acrossX?lx:lz,end=r.acrossX?r.hz:r.hx,side=r.acrossX?r.hx:r.hz;
     if(!roofInFoot(r,lx,lz)||Math.abs(along)<end-.06)continue;
     h=Math.max(h,r.base+.25+(r.rise-.25)*(side-Math.abs(across))/r.half);
@@ -46597,6 +46597,7 @@ function roofSlabsAt(x,z,out=[]) {
   const b=roofRecords(x,z);
   if(!b)return out;
   for(const r of b){
+    if(WorldCollision&&r.collisionId&&!WorldCollision.get(r.collisionId+":overhang")?.effectiveActive)continue;
     const [lx,lz]=local(r,x,z);
     if(roofInFoot(r,lx,lz)||!roofInOuter(r,lx,lz))continue;
     const top=roofSurfaceLocal(r,lx,lz);
@@ -49899,6 +49900,29 @@ var SLIDE = { accel: .9, max: 8 };
 var OVERHANG = { depth: 1.05, reach: 2.32 };
 // Solid colliders that can be climbed. Boxes opt out; cylinders opt in
 // because most of them are coarse proxies, not the rendered surface.
+function traversalPrimitiveCandidates(x,z,range) {
+  return WorldCollision?.activePrimitives?.(x,z,range)??query(x,z,range);
+}
+function traversalSourceRef(id) {
+  const source=id&&WorldCollision?.get(id);
+  return source?.effectiveActive?{id,revision:source.revision}:null;
+}
+function traversalBindFace(surface) {
+  const ref=traversalSourceRef(surface.box?.collisionId);
+  return ref?{...surface,sourceRef:ref}:surface;
+}
+function traversalRefActive(ref) {
+  if(!ref)return true;
+  const source=WorldCollision?.get(ref.id);
+  return !!source?.effectiveActive&&source.revision===ref.revision;
+}
+function traversalSurfaceActive(surface) {
+  for(let s=surface;s;s=s.lower){
+    if(!traversalRefActive(s.sourceRef))return false;
+    if(s.meshId&&!traversalRefActive({id:s.meshId,revision:s.revision}))return false;
+  }
+  return true;
+}
 function traversalSolid(o) {
   if(o.type==="cyl")return o.climbable===true&&o.r>=.3;
   return o.type==="box"&&o.climbable!==false;
@@ -50060,15 +50084,15 @@ function traversalMantle(surface,from,previous=null) {
 var _overSlabs=[];
 function traversalOverhead(x,z,lo,hi,radius=0) {
   let best=null;
-  for(const o of query(x,z,radius)){
+  for(const o of traversalPrimitiveCandidates(x,z,radius)){
     if(o.bot<lo||o.bot>hi)continue;
     if(radius===0?!inside(o,x,z,0):!playerContact(o,x,z,radius))continue;
-    if(!best||o.bot<best.bottom)best={bottom:o.bot,top:o.top};
+    if(!best||o.bot<best.bottom)best={bottom:o.bot,top:o.top,sourceRef:traversalSourceRef(o.collisionId)};
   }
   const ring=radius===0?[[0,0]]:[[0,0],...ROOF_RING.map(([a,b])=>[a*radius,b*radius])];
   for(const [ox,oz] of ring)for(const s of roofSlabsAt(x+ox,z+oz,_overSlabs)){
     if(s.bottom<lo||s.bottom>hi)continue;
-    if(!best||s.bottom<best.bottom)best={bottom:s.bottom,top:s.top};
+    if(!best||s.bottom<best.bottom)best={bottom:s.bottom,top:s.top,sourceRef:traversalSourceRef(s.record.collisionId?s.record.collisionId+":overhang":null)};
   }
   return best;
 }
@@ -50077,19 +50101,20 @@ function traversalOverhead(x,z,lo,hi,radius=0) {
 function traversalStandAt(x,z,lo,hi) {
   let h=-Infinity;
   for(const y of [playerTerrain(x,z),roofOverhangTop(x,z,hi)])if(y>=lo&&y<=hi&&y>h)h=y;
-  for(const o of query(x,z,0))if(o.top>=lo&&o.top<=hi&&o.top>h&&inside(o,x,z,0))h=o.top;
+  for(const o of traversalPrimitiveCandidates(x,z,0))if(o.top>=lo&&o.top<=hi&&o.top>h&&inside(o,x,z,0))h=o.top;
   return h;
 }
 // Pull over an edge above: from the wall (or from open air for a ledge in
 // front), hands on the edge, body out past it, up and over onto the first
 // real stance behind the edge.
 function traversalPull(from,wall,n,edge,top,previous,swingY=from.y) {
-  const lat={x:n.z,z:-n.x},hands=[];
+  const lat={x:n.z,z:-n.x},hands=[],sourceRefs=[];
   for(const sign of [-1,1]){
     const hx=wall.x+n.x*(edge-.02)+lat.x*sign*.195,hz=wall.z+n.z*(edge-.02)+lat.z*sign*.195;
     const hold=traversalOverhead(hx,hz,top-1.2,top+.05);
     if(!hold||Math.abs(hold.top-top)>.35)return null;
     hands.push({point:new Vector3(hx,hold.top,hz),normal:new Vector3(0,1,0),lip:true});
+    if(hold.sourceRef)sourceRefs.push(hold.sourceRef);
   }
   if(Math.max(hands[0].point.y,hands[1].point.y)-swingY>OVERHANG.reach)return null;
   // Swing out under the edge, low enough to clear its lowest underside.
@@ -50102,7 +50127,7 @@ function traversalPull(from,wall,n,edge,top,previous,swingY=from.y) {
       const over=Math.max(stand,top)+lift,rise=over-from.y;
       const action={kind:"mantle",pull:true,surface:previous?.surface??{x:wall.x,z:wall.z,nx:n.x,nz:n.z},
         from:from.clone(),to:new Vector3(sx,stand,sz),approach,over,
-        hands,previous,duration:1.08+rise*.19,tilt:0,elapsed:0};
+        hands,previous,sourceRefs,duration:1.08+rise*.19,tilt:0,elapsed:0};
       if(traversalPathClear(action))return action;
     }
     return null;
@@ -50206,22 +50231,28 @@ function traversalStart(player,dx,dz) {
       return traversalPathClear(action)?action:null;
     }});
   }
-  for(const box of WorldCollision?.activePrimitives?.(p.x,p.z,r)??query(p.x,p.z,r)){
+  for(const box of traversalPrimitiveCandidates(p.x,p.z,r)){
     if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=minRise)continue;
     const contact=playerContact(box,p.x,p.z,r);
-    if(!contact||-(dx*contact.nx+dz*contact.nz)<entry.alignment)continue;
+    if(!contact||(box.type!=="box"&&-(dx*contact.nx+dz*contact.nz)<entry.alignment))continue;
     const distance=r-contact.depth;
     const surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
     candidates.push({distance,build:()=>{
       const mantleFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,PLAYER.radius+.035):[surface];
-      for(const face of mantleFaces){
+      for(const candidate of mantleFaces){
+        const face=traversalBindFace(candidate);
         if(traversalStance(face).y-p.y<=PLAYER.body){
           const mantle=traversalMantle(face,p);if(mantle)return mantle;
         }
       }
       if(box.mantleOnly)return null;
       const latchFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,.20):[surface];
-      for(const face of latchFaces){
+      for(const candidate of latchFaces){
+        const face=traversalBindFace(candidate);
+        // A failed low mantle is not permission to hang on an obstacle
+        // with no landing depth or headroom. Only a continuing tall face
+        // may use the independent wall-latch path.
+        if(traversalFaceTop(box,traversalSolidPoint(face,0))-p.y<=PLAYER.body+.002)continue;
         const to=new Vector3(face.x+face.nx*TRAVERSE_WALL_GAP,p.y,face.z+face.nz*TRAVERSE_WALL_GAP);
         const contacts=traversalContacts(face,to.y,0,1,1);
         if(!contacts)continue;
@@ -50257,7 +50288,7 @@ function traversalStart(player,dx,dz) {
 function traversalHandoff(surface,p) {
   const {box}=surface;
   let best=null;
-  for(const o of query(p.x,p.z,PLAYER.radius+.6)){
+  for(const o of traversalPrimitiveCandidates(p.x,p.z,PLAYER.radius+.6)){
     if(o===box||!traversalSolid(o)||o.bot<box.top-.06||o.bot>box.top+.12||o.top<=box.top+.3)continue;
     const c=playerContact(o,p.x,p.z,PLAYER.radius+.6);
     if(!c||c.nx*surface.nx+c.nz*surface.nz<.8)continue;
@@ -50265,7 +50296,7 @@ function traversalHandoff(surface,p) {
     if(distance<PLAYER.radius-.02)continue;
     if(!best||distance<best.distance)best={distance,surface:{box:o,nx:c.nx,nz:c.nz,x:p.x-c.nx*distance,z:p.z-c.nz*distance,lower:surface}};
   }
-  return best?.surface??null;
+  return best?traversalBindFace(best.surface):null;
 }
 function traversalStep(player,old,surface,to,along,tilt,moving,lead) {
   const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),lead);
@@ -50586,7 +50617,7 @@ var Player = class {
   advanceTraversal(dt,dx,dz,drop) {
     const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
     const {surface}=action;
-    if(surface.meshId){const source=WorldCollision?.get(surface.meshId);if(!source?.effectiveActive||source.revision!==surface.revision){this.traversal=null;this.vel.set(0,-.25,0);return;}}
+    if(!traversalSurfaceActive(surface)||action.sourceRefs?.some(ref=>!traversalRefActive(ref))){this.traversal=null;this.vel.set(0,-.25,0);return;}
     if(climbing)this.updateStamina(dt,true,CLIMB.drain);
     if(drop||(climbing&&this.exhausted)){
       this.traversal=null;
