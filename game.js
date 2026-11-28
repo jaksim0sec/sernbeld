@@ -50084,15 +50084,18 @@ function traversalFaceAtUncached(surface,side,y,hint) {
 function traversalHold(surface,side,y,along) {
   return traversalFaceAt(surface,side,y,along)??(surface.lower?traversalFaceAt(surface.lower,side,y,along):null);
 }
-function traversalContacts(surface,y,along,scale,lead,root=null) {
+// A latch acquires all four holds. A climb step only searches for its
+// moving hand and opposite foot; the other two are existing anchors.
+function traversalContacts(surface,y,along,scale,lead,root=null,moving=null) {
   const hands=[],feet=[];
   for(const sign of [-1,1]) {
+    const index=sign===-1?0:1,needHand=moving===null||moving===index,needFoot=moving===null||moving!==index;
     const reach=(1.46+(sign===lead?.12:-.10))*scale;
     let hand=null;
     // At a crest, use the last reachable part of the actual face. A wall
     // whose top is within reach is held at its top edge.
     const want=surface.box?Math.min(y+reach,traversalFaceTop(surface.box,traversalSolidPoint(surface,sign*.195))-.03):y+reach;
-    for(const drop of [0,.14,.28,.42,.56,.70,.84,.98]) {
+    for(const drop of needHand?[0,.14,.28,.42,.56,.70,.84,.98]:[]) {
       hand=traversalHold(surface,sign*.195,want-drop,along);
       if(hand&&(!root||Math.hypot(hand.point.x-root.x,hand.point.z-root.z)<=.85))break;
       hand=null;
@@ -50101,12 +50104,12 @@ function traversalContacts(surface,y,along,scale,lead,root=null) {
     // plinth) is stood on at its bottom edge.
     const footY=y+(sign===lead?.15:.36)*scale;
     let foot=null;
-    for(const offset of root?[0,.12,.24,-.12,.36]:[0]){
+    for(const offset of !needFoot?[]:root?[0,.12,.24,-.12,.36]:[0]){
       foot=traversalHold(surface,sign*.155,(surface.box?Math.max(footY,Math.min(surface.box.bot+.03,footY+.3)):footY)+offset,along);
       if(foot&&(!root||Math.hypot(foot.point.x-root.x,foot.point.z-root.z)<=.85))break;
       foot=null;
     }
-    if(!hand||!foot)return null;
+    if(needHand&&!hand||needFoot&&!foot)return null;
     hands.push(hand);feet.push(foot);
   }
   return {hands,feet};
@@ -50333,12 +50336,12 @@ function traversalEntryBody(action,target,t,out) {
     out.copy(entryVia).lerp(target,traversalEase(split,1,t));
 }
 // Keep the same cylinder collision/path validator for a curved mesh face.
-function* traversalMeshPoses(surface,face,y,lead){
+function* traversalMeshPoses(surface,face,y,lead,moving=null){
   const tilt=Math.atan(1/face.grade),along=face.along;
   for(const gap of [TRAVERSE_WALL_GAP,TRAVERSE_WALL_GAP+.08,TRAVERSE_WALL_GAP+.16,TRAVERSE_WALL_GAP+.24,TRAVERSE_WALL_GAP+.32]){
     const to=new Vector3(face.point.x+surface.nx*gap,y,face.point.z+surface.nz*gap);
     if(!traversalClear(to,[]))continue;
-    const contacts=traversalContacts(surface,y,along,Math.cos(tilt),lead,to);
+    const contacts=traversalContacts(surface,y,along,Math.cos(tilt),lead,to,moving);
     if(contacts)yield {to,along,tilt,contacts};
   }
 }
@@ -50451,12 +50454,16 @@ function traversalHandoff(surface,p) {
   return best?traversalBindFace(best.surface):null;
 }
 function traversalStep(player,old,surface,to,along,tilt,moving,lead,knownContacts=null) {
-  const contacts=knownContacts??traversalContacts(surface,to.y,along,Math.cos(tilt),lead,surface.meshId?to:null);
+  const contacts=knownContacts??traversalContacts(surface,to.y,along,Math.cos(tilt),lead,surface.meshId?to:null,moving);
   if(!contacts)return null;
   const hands=old.hands.slice(),feet=old.feet.slice();
   hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
   const action={kind:"climb",surface,from:player.pos.clone(),to,along,tilt,hands,feet,
     oldHand:old.hands[moving],oldFoot:old.feet[1-moving],oldTilt:old.tilt,moving,duration:CLIMB.duration,elapsed:0};
+  // On wall/mesh stances, apply the existing horizontal hold envelope to
+  // retained as well as acquired contacts. Sloped terrain uses a different
+  // tilted body frame; this is not an anatomical IK reach guarantee.
+  if(surface.meshId||surface.box){for(const hold of [hands[1-moving],feet[moving]])if(Math.hypot(hold.point.x-to.x,hold.point.z-to.z)>.85)return null;}
   return traversalPathClear(action)?action:null;
 }
 function traversalNext(player,old) {
@@ -50482,7 +50489,7 @@ function traversalNext(player,old) {
     for(const rise of [CLIMB.rise,.20,.12]){
       const face=traversalFaceAt(surface,0,p.y+rise,old.along);
       if(!face)continue;
-      for(const pose of traversalMeshPoses(surface,face,p.y+rise,lead)){
+      for(const pose of traversalMeshPoses(surface,face,p.y+rise,lead,moving)){
         const action=traversalStep(player,old,surface,pose.to,pose.along,pose.tilt,moving,lead,pose.contacts);
         if(action)return action;
       }
@@ -50547,7 +50554,7 @@ function traversalSide(player,old,dir) {
     const face=traversalFaceAt(next,0,p.y,along);
     if(!face)return null;
     along=face.along;tilt=Math.atan(1/face.grade);
-    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return null;}
+    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1,old.moving===0?1:0)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return null;}
     to=face.point.clone().add(new Vector3(next.nx*TRAVERSE_WALL_GAP,0,next.nz*TRAVERSE_WALL_GAP));
   }
   return traversalStep(player,old,next,to,along,tilt,old.moving===0?1:0,dir>0?1:-1);

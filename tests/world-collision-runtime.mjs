@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,traversalAttempt,traversalMemo,TRAVERSE_QUERY_LIMIT,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,addCyl,install(v){WorldCollision=v;},lab(f){playerTerrain=f.height;sample=f.height;stairSurface=f.stairHeight;waterLevel=f.waterLevel;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalSide,traversalBody,traversalPathClear,traversalAttempt,traversalMemo,TRAVERSE_QUERY_LIMIT,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,addCyl,install(v){WorldCollision=v;},lab(f){playerTerrain=f.height;sample=f.height;stairSurface=f.stairHeight;waterLevel=f.waterLevel;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -954,6 +954,30 @@ playerEnv.install(null);
   console.log('PASS T4 28 diagonal, edge, centered and away box entries; real hand anchors and 5760 path samples');
  }
 
+ // T4-C: a real corner can retain a planted hand even when the next
+ // notional four-contact stance would put that hand outside the wall.
+ {
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  playerEnv.install(m);m.setRegion('t4-retained-holds');
+  const cx=470,cz=100;
+  const box=playerEnv.addBox({cx,cz,cy:2,hx:1,hz:1,hy:2,collisionId:'t4-retained-wall'});
+  const p=new playerEnv.Player();p.pos.set(cx+.52,0,cz+1.368);p.onGround=true;
+  const old=playerEnv.traversalStart(p,0,-1);
+  assert.equal(old?.kind,'latch');
+  p.pos.copy(old.to);old.moving=1;
+  const step=playerEnv.traversalSide(p,old,1);
+  assert(step,'moving pair can reach the actual wall even if a hypothetical four-new-hold pose cannot');
+  assert.equal(step.hands[1],old.hands[1],'planted hand retained');
+  assert.equal(step.feet[0],old.feet[0],'planted foot retained');
+  assert(step.feet[1].point.x<cx+1&&step.hands[0].point.x<cx+1,'new pair stays on actual face');
+  assert(step.to.x>p.pos.x+.29,'requested lateral step, not a new face');
+  const impossible={...old,hands:[old.hands[0],{...old.hands[1],point:old.hands[1].point.clone().add(new three.Vector3(-2,0,0))}]};
+  assert.equal(playerEnv.traversalSide(p,impossible,1),null,'reject retained anchor outside existing horizontal envelope');
+  p.pos.copy(step.to);
+  assert.equal(playerEnv.traversalSide(p,step,1),null,'do not invent another step beyond the physical wall');
+  playerEnv.install(null);
+  console.log('PASS T4-C selected moving pair and planted anchor rejection');
+ }
  // T4: actual fixed ticks release stale registered primitive anchors.
  {
   const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});

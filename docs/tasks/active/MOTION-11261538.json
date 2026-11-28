@@ -38,5 +38,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4-C: 지속가능 — live acceptance FAIL: distorted limbs/air crawling and object-dependent crest failures. Revert unsafe boundary handoff; next verify retained and moving limb reach through full pose against actual rig, then repair geometry-valid lip and walkable support transitions across objects. B11–14 and mobile/integration gates remain open."
+  "next": "MOTION-11261538/T4-C: 지속가능 — fix false four-new-hold requirement and reject overextended retained wall/mesh anchors; remaining actual-rig reach/pose and geometry-valid lip/independent landing repair, especially 60-degree side and object-specific exits. B11–14 and mobile/integration gates open."
 }
