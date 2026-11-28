@@ -267,7 +267,7 @@ const playerEnv=Function('Vector3','Vector2','sample','stairSurface','waterLevel
  slicePart(readPart('src/world/region.part.js'),'var PLAYER =','var ring =')+
  slicePart(src,'var CELL = 32;','function occupiedAt')+
  slicePart(gameplay,'var _n =','var CameraRig =')+
- 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,addCyl,install(v){WorldCollision=v;},lab(f){playerTerrain=f.height;sample=f.height;stairSurface=f.stairHeight;waterLevel=f.waterLevel;}};'
+ 'return {Player,addBox,query,inside,local,playerContact,playerContacts,traversalStart,traversalBody,traversalPathClear,traversalAttempt,traversalMemo,TRAVERSE_QUERY_LIMIT,roofInFoot,roofInOuter,roofSurfaceLocal,playerTerrain,playerSafeSpawn,addCyl,install(v){WorldCollision=v;},lab(f){playerTerrain=f.height;sample=f.height;stairSurface=f.stairHeight;waterLevel=f.waterLevel;}};'
 )(three.Vector3,three.Vector2,()=>0,()=>null,()=>-100,(x,z,v)=>v.set(0,1,0),{},0,0,{cell:2.5,seaLevel:0},(x,a,b)=>Math.max(a,Math.min(b,x)));
 const liveStack=createRuntimeCollisionBridge({...playerEnv,stairUV:(s,x,z)=>[x-s.a[0],z-s.a[1],s.b[0]-s.a[0]],stairMinV:-1,stairMaxV:1});
 liveStack.setRegion('stacked-player');liveStack.stair({...upper});liveStack.stair({...lower});
@@ -1051,9 +1051,10 @@ playerEnv.install(null);
   const forward={...neutral,move:()=>({x:0,y:1,mag:1})};
   const route=(name,x,z,yaw,frames,target,kind)=>{
    const p=new playerEnv.Player();p.teleport(x,z,yaw,0,0);
-   let peak=0,land=0;const actions=new Set();
-   for(let i=0;i<frames;i++){p.advance(1/60,forward,[]);peak=Math.max(peak,p.pos.y);if(p.onGround)land=Math.max(land,p.pos.y);if(p.traversal)actions.add(p.traversal.kind);}
-   const result={name,peak,land,pos:p.pos.toArray(),actions:[...actions]};
+   let peak=0,land=0;const actions=new Set(),tickMs=[];
+   for(let i=0;i<frames;i++){const t0=performance.now();p.advance(1/60,forward,[]);tickMs.push(performance.now()-t0);peak=Math.max(peak,p.pos.y);if(p.onGround)land=Math.max(land,p.pos.y);if(p.traversal)actions.add(p.traversal.kind);}
+   const sorted=tickMs.sort((a,b)=>a-b),pct=q=>sorted[Math.floor((sorted.length-1)*q)];
+   const result={name,peak,land,pos:p.pos.toArray(),actions:[...actions],p50:pct(.50),p95:pct(.95),search:p.traversalSearchStats??null};
    console.log('T4 flat-ground approach '+JSON.stringify(result));
    if(target!==null)assert(land>=target-.003,name+' failed to reach support');
    if(kind)assert(actions.has(kind),name+' missing '+kind);else if(target!==null)assert.equal(actions.size,0,name+' incorrectly triggered traversal');
@@ -1078,3 +1079,37 @@ playerEnv.install(null);
   m.resumeRegion('motion-lab');
   playerEnv.install(null);
  }
+
+{
+  const m=createRuntimeCollisionBridge({...playerEnv,stairUV:()=>[0,0,1],stairMinV:-1,stairMaxV:1});
+  m.setRegion('traversal-budget');playerEnv.install(m);
+  const p=new playerEnv.Player();p.pos.set(0,0,0);
+  const {traversalAttempt:attempt,traversalMemo:memo,TRAVERSE_QUERY_LIMIT:limit}=playerEnv;
+  let reads=0,completed=0;
+  const build=()=>{for(let i=0;i<limit+20;i++)memo(['synthetic-probe',i],()=>++reads);completed++;return null;};
+  assert.equal(attempt(p,'auto',1,0,null,build),null);
+  assert.equal(reads,limit);assert.equal(completed,0);assert(p.traversalSearch.pending);
+  p.simTime+=1/60;
+  assert.equal(attempt(p,'auto',1,0,null,build),null);
+  assert.equal(reads,limit+20,'deferred work reuses exact probe evidence');
+  assert.equal(completed,1);assert.equal(p.traversalSearchStats.maxTick,limit);
+  p.simTime+=1/60;
+  attempt(p,'auto',1,0,null,build);
+  assert.equal(completed,1,'unchanged failed search is cached');
+  assert.equal(p.traversalSearchStats.failedSkips,1);
+  p.simTime+=1/60;attempt(p,'auto',0,1,null,build);
+  assert.equal(reads,2*limit+20,'direction invalidates cached failure');
+  p.simTime+=1/60;p.pos.x=.01;attempt(p,'auto',0,1,null,build);
+  assert.equal(reads,3*limit+20,'position invalidates pending evidence');
+  const rev=m.traversalEpoch();
+  m.suspendRegion('traversal-budget');assert(m.traversalEpoch()>rev);
+  p.simTime+=1/60;attempt(p,'auto',0,1,null,build);
+  assert.equal(reads,4*limit+20,'region revision invalidates pending evidence');
+  p.simTime+=1/60;p.nearby=[{type:'cyl',x:1,z:0,r:.3,bot:0,top:1.72}];
+  attempt(p,'auto',0,1,null,build);
+  assert.equal(reads,5*limit+20,'nearby collision change invalidates pending evidence');
+  p.simTime+=1/60;attempt(p,'auto',0,1,null,build);assert.equal(completed,2);
+  p.teleport(0,0,0);assert.equal(p.traversalSearch,null);
+  playerEnv.install(null);
+  console.log('PASS T4-B exact failure caching, fixed-tick budget, resume and invalidation');
+}

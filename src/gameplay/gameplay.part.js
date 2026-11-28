@@ -3050,8 +3050,51 @@ var SLIDE = { accel: .9, max: 8 };
 var OVERHANG = { depth: 1.05, reach: 2.32 };
 // Solid colliders that can be climbed. Boxes opt out; cylinders opt in
 // because most of them are coarse proxies, not the rendered surface.
+// Exact evidence is reusable only at the same pose and collision revision.
+// An exhausted search must defer, never authorize an untested action.
+var TRAVERSE_QUERY_LIMIT=384,TRAVERSE_MEMO_LIMIT=4096,TRAVERSE_RETRY=.12;
+var traversalWork=null,TRAVERSE_DEFER={};
+function traversalMemo(key,read){
+  const work=traversalWork;if(!work)return read();
+  const k=JSON.stringify(key,(_,v)=>typeof v==="number"&&!Number.isFinite(v)?String(v):v);
+  if(work.memo.has(k)){work.stats.hits++;return work.memo.get(k);}
+  if(work.budget.left<=0)throw TRAVERSE_DEFER;
+  work.budget.left--;work.stats.queries++;
+  const result=read();
+  if(work.memo.size<TRAVERSE_MEMO_LIMIT)work.memo.set(k,result);
+  return result;
+}
+function traversalAttempt(player,kind,dx,dz,old,build){
+  if(!WorldCollision?.traversalEpoch)return build();
+  const p=player.pos,epoch=WorldCollision.traversalEpoch();
+  const key=JSON.stringify([kind,p.x,p.y,p.z,dx,dz,player.onGround,player.slide?.ux,player.slide?.uz,player.exhausted,epoch,
+    player.nearby.map(o=>[o.collisionId,o.type,o.x,o.z,o.cx,o.cz,o.r,o.hx,o.hz,o.bot,o.top,o.sin,o.cos])]);
+  const stats=player.traversalSearchStats??={queries:0,hits:0,deferred:0,failedSkips:0,maxTick:0};
+  let work=player.traversalSearch;
+  if(!work||work.bridge!==WorldCollision||work.key!==key||work.old!==old){
+    work=player.traversalSearch={bridge:WorldCollision,key,old,memo:new Map(),stats};
+  }
+  if(work.failedUntil>player.simTime){stats.failedSkips++;return null;}
+  if(work.failedUntil){work.memo.clear();work.failedUntil=0;}
+  let budget=player.traversalBudget;
+  if(!budget||budget.tick!==player.simTime)budget=player.traversalBudget={tick:player.simTime,left:TRAVERSE_QUERY_LIMIT};
+  work.budget=budget;work.pending=false;
+  const previous=traversalWork;traversalWork=work;
+  try{
+    const action=build();
+    if(action)player.traversalSearch=null;
+    else{work.failedUntil=player.simTime+TRAVERSE_RETRY;work.memo.clear();}
+    return action;
+  }catch(error){
+    if(error!==TRAVERSE_DEFER)throw error;
+    work.pending=true;stats.deferred++;return null;
+  }finally{
+    stats.maxTick=Math.max(stats.maxTick,TRAVERSE_QUERY_LIMIT-budget.left);
+    traversalWork=previous;
+  }
+}
 function traversalPrimitiveCandidates(x,z,range) {
-  return WorldCollision?.activePrimitives?.(x,z,range)??query(x,z,range);
+  return traversalMemo(["primitive",x,z,range],()=>WorldCollision?.activePrimitives?.(x,z,range)??[...query(x,z,range)]);
 }
 function traversalSourceRef(id) {
   const source=id&&WorldCollision?.get(id);
@@ -3128,6 +3171,10 @@ function traversalTerrainGrade(surface,along,lateral=0) {
   return (playerTerrain(far.x,far.z)-playerTerrain(near.x,near.z))/.11;
 }
 function traversalFaceAt(surface,side,y,hint) {
+  const signature=s=>s?[s.box?.collisionId,s.meshId,s.revision,s.x,s.z,s.nx,s.nz,signature(s.lower)]:null;
+  return traversalMemo(["hold",signature(surface),side,y,hint],()=>traversalFaceAtUncached(surface,side,y,hint));
+}
+function traversalFaceAtUncached(surface,side,y,hint) {
   if(surface.box) {
     const {box}=surface,p=traversalSolidPoint(surface,side);
     if(y<box.bot||y>traversalFaceTop(box,p)||!inside(box,p.x-p.nx*.012,p.z-p.nz*.012,0)||
@@ -3220,9 +3267,10 @@ function traversalBody(action,t,out) {
   return out.copy(from).lerp(to,kind==="climb"?traversalEase(.26,1,t):traversalEase(0,1,t));
 }
 function traversalClear(pos,nearby) {
-  return Math.abs(pos.x)<BOUND && Math.abs(pos.z)<BOUND &&
+  const read=()=>Math.abs(pos.x)<BOUND && Math.abs(pos.z)<BOUND &&
     pos.y>=playerTerrain(pos.x,pos.z)-CONTACT_SKIN && !playerContacts(pos.x,pos.z,pos.y,nearby).length &&
     !roofSlabHit(pos.x,pos.z,pos.y);
+  return nearby.length?read():traversalMemo(["clear",pos.x,pos.y,pos.z],read);
 }
 function traversalPathClear(action) {
   const probe=new Vector3(),count=Math.max(16,Math.ceil(action.from.distanceTo(action.to)/.045));
@@ -3238,7 +3286,7 @@ function traversalPathClear(action) {
 // above it, sampled where the feet land after the pull-up.
 function traversalStance(surface) {
   const {box}=surface,target=traversalAcross(surface,0,PLAYER.radius+.035);
-  return {x:target.x,z:target.z,y:Math.max(box.top,playerTerrain(target.x,target.z))};
+  return traversalMemo(["stance",box.collisionId,box.top,target.x,target.z],()=>({x:target.x,z:target.z,y:Math.max(box.top,playerTerrain(target.x,target.z))}));
 }
 function traversalMantle(surface,from,previous=null) {
   const {box,nx,nz,x,z}=surface;
@@ -3251,7 +3299,7 @@ function traversalMantle(surface,from,previous=null) {
   if(stand-top>1.2||playerSteepGround(tx,tz,stand))return null;
   if(!inside(box,tx,tz,-PLAYER.radius+.004)){
     // Adjacent solid treads can jointly provide a real stance; do not require one collider to contain the whole foot ring.
-    if(!Array.from({length:8},(_,i)=>{const a=i*Math.PI/4,sx=tx+Math.cos(a)*PLAYER.radius*.8,sz=tz+Math.sin(a)*PLAYER.radius*.8,h=playerFloor(sx,sz,stand+.24,0);return Number.isFinite(h)&&Math.abs(h-stand)<=.24&&!playerSteepGround(sx,sz,h);}).every(Boolean))return null;
+    for(let i=0;i<8;i++){const a=i*Math.PI/4,sx=tx+Math.cos(a)*PLAYER.radius*.8,sz=tz+Math.sin(a)*PLAYER.radius*.8;const valid=traversalMemo(["box-ring",sx,sz,stand],()=>{const h=playerFloor(sx,sz,stand+.24,0);return Number.isFinite(h)&&Math.abs(h-stand)<=.24&&!playerSteepGround(sx,sz,h);});if(!valid)return null;}
   }
   const hands=[];
   for(const sign of [-1,1]){
@@ -3274,6 +3322,9 @@ function traversalMantle(surface,from,previous=null) {
 // whose underside lies in [lo, hi]. Returns the lowest underside and its top.
 var _overSlabs=[];
 function traversalOverhead(x,z,lo,hi,radius=0) {
+  return traversalMemo(["overhead",x,z,lo,hi,radius],()=>traversalOverheadUncached(x,z,lo,hi,radius));
+}
+function traversalOverheadUncached(x,z,lo,hi,radius=0) {
   let best=null;
   for(const o of traversalPrimitiveCandidates(x,z,radius)){
     if(o.bot<lo||o.bot>hi)continue;
@@ -3290,6 +3341,9 @@ function traversalOverhead(x,z,lo,hi,radius=0) {
 // Highest standing support at a point within [lo, hi]: ground, a roof or
 // eave surface, or a solid top.
 function traversalStandAt(x,z,lo,hi) {
+  return traversalMemo(["stand",x,z,lo,hi],()=>traversalStandAtUncached(x,z,lo,hi));
+}
+function traversalStandAtUncached(x,z,lo,hi) {
   let h=-Infinity;
   for(const y of [playerTerrain(x,z),roofOverhangTop(x,z,hi)])if(y>=lo&&y<=hi&&y>h)h=y;
   for(const o of traversalPrimitiveCandidates(x,z,0))if(o.top>=lo&&o.top<=hi&&o.top>h&&inside(o,x,z,0))h=o.top;
@@ -3427,15 +3481,23 @@ function traversalStart(player,dx,dz,automatic=false) {
   const candidates=[];
   // All shape-backed candidates share direction, reach and minimum rise.
   // Candidate geometry is not an accepted action: every path must clear.
-  for(const plan of WorldCollision?.meshMantlePlans?.(p.x,p.z,p.y,dx,dz,{radius:PLAYER.radius,height:PLAYER.body,step:minRise,reach:entry.reach,alignment:entry.alignment})??[]){
-    candidates.push({distance:PLAYER.radius+plan.toi*entry.reach,build:()=>{
-      const {stand,nx,nz,over}=plan;
-      const surface={x:p.x,z:p.z,nx,nz,meshId:plan.instanceId,revision:plan.revision};
-      const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(stand.x,stand.y,stand.z),
-        approach:p.clone(),over,hands:plan.hands.map(h=>({point:new Vector3(h.x,h.y,h.z),normal:new Vector3(...h.normal),lip:true})),
-        previous:null,duration:1.02+(stand.y-p.y)*.17,tilt:0,elapsed:0};
-      return traversalPathClear(action)?action:null;
+  const options={radius:PLAYER.radius,height:PLAYER.body,step:minRise,reach:entry.reach,alignment:entry.alignment};
+  const meshEntries=WorldCollision?.meshTraversalEntries?.(p.x,p.z,p.y,dx,dz,options,traversalMemo);
+  const mantlePlan=plan=>{
+    const {stand,nx,nz,over}=plan;
+    const surface={x:p.x,z:p.z,nx,nz,meshId:plan.instanceId,revision:plan.revision};
+    const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(stand.x,stand.y,stand.z),
+      approach:p.clone(),over,hands:plan.hands.map(h=>({point:new Vector3(h.x,h.y,h.z),normal:new Vector3(...h.normal),lip:true})),
+      previous:null,duration:1.02+(stand.y-p.y)*.17,tilt:0,elapsed:0};
+    return traversalPathClear(action)?action:null;
+  };
+  if(meshEntries){
+    for(const hit of meshEntries)if(hit.mantles)candidates.push({distance:PLAYER.radius+hit.toi*entry.reach,build:()=>{
+      for(const plan of hit.mantles()){const action=mantlePlan(plan);if(action)return action;}
+      return null;
     }});
+  }else for(const plan of WorldCollision?.meshMantlePlans?.(p.x,p.z,p.y,dx,dz,options)??[]){
+    candidates.push({distance:PLAYER.radius+plan.toi*entry.reach,build:()=>mantlePlan(plan)});
   }
   for(const box of traversalPrimitiveCandidates(p.x,p.z,r)){
     if(!traversalSolid(box)||box.bot>p.y+.42||box.top-p.y<=minRise)continue;
@@ -3445,7 +3507,9 @@ function traversalStart(player,dx,dz,automatic=false) {
     const surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
     candidates.push({distance,build:()=>{
       const mantleFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,PLAYER.radius+.035).concat(traversalBoxFaces(box,p,dx,dz,.20,true)):[surface];
+      const seen=new Set();
       for(const candidate of mantleFaces){
+        const key=[candidate.x,candidate.z,candidate.nx,candidate.nz].join(",");if(seen.has(key))continue;seen.add(key);
         const face=traversalBindFace(candidate);
         if(traversalStance(face).y-p.y<=PLAYER.body){
           const mantle=traversalMantle(face,p);if(mantle)return mantle;
@@ -3468,7 +3532,7 @@ function traversalStart(player,dx,dz,automatic=false) {
       return null;
     }});
   }
-  for(const hit of WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
+  for(const hit of meshEntries?meshEntries.filter(e=>e.climb):WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
     candidates.push({distance:PLAYER.radius+hit.toi*entry.reach+.001,build:()=>{
       const surface={x:p.x,z:p.z,nx:-dx,nz:-dz,meshId:hit.id,revision:hit.revision};
       for(const rise of [.12,.24,.36,.48,.60]){
@@ -3518,8 +3582,8 @@ function traversalHandoff(surface,p) {
   }
   return best?traversalBindFace(best.surface):null;
 }
-function traversalStep(player,old,surface,to,along,tilt,moving,lead) {
-  const contacts=traversalContacts(surface,to.y,along,Math.cos(tilt),lead,surface.meshId?to:null);
+function traversalStep(player,old,surface,to,along,tilt,moving,lead,knownContacts=null) {
+  const contacts=knownContacts??traversalContacts(surface,to.y,along,Math.cos(tilt),lead,surface.meshId?to:null);
   if(!contacts)return null;
   const hands=old.hands.slice(),feet=old.feet.slice();
   hands[moving]=contacts.hands[moving];feet[1-moving]=contacts.feet[1-moving];
@@ -3534,11 +3598,11 @@ function traversalNext(player,old) {
     const moving=old.moving===0?1:0,lead=moving===0?-1:1;
     // Leave the face only onto real walkable support on this same mesh.
     for(const d of [.28,.42,.56,.70,.84,.98,1.12]){
-      const q=traversalAcross(surface,0,old.along+d),hit=WorldCollision?.meshSupport?.(q.x,q.z,p.y+1.2,p.y-.13);
+      const q=traversalAcross(surface,0,old.along+d),hit=traversalMemo(["crest-center",q.x,q.z,p.y],()=>WorldCollision?.meshSupport?.(q.x,q.z,p.y+1.2,p.y-.13));
       if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||playerSteepGround(q.x,q.z,hit.point[1]))continue;
       const y=hit.point[1];
-      const ring=Array.from({length:8},(_,i)=>WorldCollision.meshSupport(q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,y+.24,y-.24));
-      if(ring.some(h=>h?.instanceId!==surface.meshId||h.geometricNormal[1]<COS_SLIDE))continue;
+      let supported=true;for(let i=0;i<8;i++){const x=q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,z=q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,h=traversalMemo(["crest-support",x,z,y],()=>WorldCollision.meshSupport(x,z,y+.24,y-.24));if(h?.instanceId!==surface.meshId||h.geometricNormal[1]<COS_SLIDE){supported=false;break;}}
+      if(!supported)continue;
       for(const liftFirst of [false,true]){
         const action={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),previous:old,tilt:0,duration:.72,liftFirst,elapsed:0};
         if(traversalPathClear(action))return action;
@@ -3548,7 +3612,7 @@ function traversalNext(player,old) {
       const face=traversalFaceAt(surface,0,p.y+rise,old.along);
       if(!face)continue;
       for(const pose of traversalMeshPoses(surface,face,p.y+rise,lead)){
-        const action=traversalStep(player,old,surface,pose.to,pose.along,pose.tilt,moving,lead);
+        const action=traversalStep(player,old,surface,pose.to,pose.along,pose.tilt,moving,lead,pose.contacts);
         if(action)return action;
       }
     }
@@ -3585,9 +3649,12 @@ function traversalNext(player,old) {
   if(!surface.box)return traversalStep(player,old,surface,to,along,tilt,moving,sign);
   // On a solid, close in to the face (a narrower segment above) whenever
   // the body clears whatever is below; otherwise keep the current distance.
-  const next=traversalStep(player,old,surface,to,along,tilt,moving,sign)?null:traversalHandoff(surface,p);
+  const direct=traversalStep(player,old,surface,to,along,tilt,moving,sign);
+  const next=direct?null:traversalHandoff(surface,p);
   const face=next??surface,q=traversalSolidPoint(face,0);
-  for(const target of [new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,y,q.z+q.nz*TRAVERSE_WALL_GAP),to]){
+  const preferred=new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,y,q.z+q.nz*TRAVERSE_WALL_GAP);
+  for(const target of preferred.equals(to)?[to]:[preferred,to]){
+    if(!next&&target.equals(to)&&along===0&&tilt===0) {if(direct)return direct;continue;}
     const step=traversalStep(player,old,face,target,0,0,moving,sign);
     if(step)return step;
   }
@@ -3659,7 +3726,7 @@ var Player = class {
     this.running = false;
     this.landImpact = 0;
     this.moveHeading=null;this.stepRise=0;
-    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
+    this.traversalSearch=null;this.traversalBudget=null;this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
     this.resetInterpolation();
     this.teleportId++;
   }
@@ -3742,6 +3809,7 @@ var Player = class {
     const sy=Math.sin(movementYaw),cy=Math.cos(movementYaw);
     const dx=-sy*mv.y+cy*mv.x,dz=-cy*mv.y-sy*mv.x;
     const jump=input.consumeJump();
+    if(mv.mag<=.24||jump)this.traversalSearch=null;
     if(mv.mag<=.24){this.autoTraverseSuppressed=false;this.autoTraverseRetry=0;}
     if(this.traversal){this.grabIntentUntil=0;if(jump)this.autoTraverseSuppressed=true;this.advanceTraversal(dt,dx,dz,jump);return;}
     // A jump press expresses a bounded grab intent, not a one-tick race.
@@ -3750,7 +3818,7 @@ var Player = class {
     if(this.swimming||(!jump&&this.onGround&&!this.slide)||mv.mag<=.24)this.grabIntentUntil=0;
     if(jump&&!this.swimming&&mv.mag>.24)this.grabIntentUntil=this.simTime+TRAVERSE_ENTRY.intentTime;
     if(!this.swimming&&this.grabIntentUntil>this.simTime&&mv.mag>.24){
-      const action=traversalStart(this,dx/mv.mag,dz/mv.mag);
+      const action=traversalAttempt(this,"grab",dx/mv.mag,dz/mv.mag,null,()=>traversalStart(this,dx/mv.mag,dz/mv.mag));
       if(action&&(action.kind==="mantle"||!this.exhausted)){
         this.traversal=action;this.grabIntentUntil=0;
         this.vel.set(0,0,0);
@@ -3794,7 +3862,8 @@ var Player = class {
        (this.onGround||this.slide)&&this.simTime>=this.autoTraverseRetry&&
        (directedBlock||this.slide&&ux*this.slide.ux+uz*this.slide.uz>=TRAVERSE_ENTRY.alignment)){
       this.autoTraverseRetry=this.simTime+.12;
-      const action=traversalStart(this,ux,uz,true);
+      const action=traversalAttempt(this,"auto",ux,uz,null,()=>traversalStart(this,ux,uz,true));
+      if(this.traversalSearch?.pending)this.autoTraverseRetry=this.simTime;
       if(action&&(action.kind==="mantle"||!this.exhausted)){
         this.traversal=action;this.grabIntentUntil=0;this.vel.set(0,0,0);
         this.running=this.onGround=false;this.slide=null;this.stepRise=0;this.solids=null;return;
@@ -3878,10 +3947,10 @@ var Player = class {
   advanceTraversal(dt,dx,dz,drop) {
     const action=this.traversal,climbing=action.kind==="latch"||action.kind==="climb";
     const {surface}=action;
-    if(!traversalAnchorsActive(action)){this.traversal=null;this.onGround=false;this.vel.set(0,-.25,0);return;}
+    if(!traversalAnchorsActive(action)){this.traversalSearch=null;this.traversal=null;this.onGround=false;this.vel.set(0,-.25,0);return;}
     if(climbing)this.updateStamina(dt,true,CLIMB.drain);
     if(drop||(climbing&&this.exhausted)){
-      this.traversal=null;
+      this.traversalSearch=null;this.traversal=null;
       this.vel.set(surface.nx*.9,-.25,surface.nz*.9);
       return;
     }
@@ -3889,7 +3958,7 @@ var Player = class {
     const progress=action.elapsed/action.duration;
     const probe=traversalBody(action,progress,this.traverseProbe);
     if(!traversalClear(probe,this.nearby)){
-      this.traversal=null;
+      this.traversalSearch=null;this.traversal=null;
       this.vel.set(0,-.25,0);
       return;
     }
@@ -3898,8 +3967,9 @@ var Player = class {
     if(climbing){
       // Into the face climbs up; along it moves sideways.
       const up=-(dx*surface.nx+dz*surface.nz),side=dx*surface.nz-dz*surface.nx;
-      if(Math.abs(side)>.35&&Math.abs(side)>up)this.traversal=traversalSide(this,action,Math.sign(side))??action;
-      else if(up>.20)this.traversal=traversalNext(this,action)??action;
+      if(Math.abs(side)>.35&&Math.abs(side)>up)this.traversal=traversalAttempt(this,"side",dx,dz,action,()=>traversalSide(this,action,Math.sign(side)))??action;
+      else if(up>.20)this.traversal=traversalAttempt(this,"up",dx,dz,action,()=>traversalNext(this,action))??action;
+      else this.traversalSearch=null;
       return;
     }
     this.traversal=null;
@@ -4047,7 +4117,7 @@ var Player = class {
       this.onGround = true;
       this.swimming = false;
     } else {this.pos.y += PLAYER.height;this.onGround=false;}
-    this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
+    this.traversalSearch=null;this.traversalBudget=null;this.traversal=this.renderTraversal=this.slide=null;this.grabIntentUntil=0;this.autoTraverseRetry=0;this.autoTraverseSuppressed=false;
     this.moveHeading=null;this.facingYaw=null;this.keyboardSteering=false;this.resetInterpolation();this.teleportId++;
   }
 };

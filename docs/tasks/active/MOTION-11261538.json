@@ -38,5 +38,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4: 지속가능 — A implemented (direct isolated regressions PASS, live quality pending); next B bounded traversal search and playable build; C user approval required."
+  "next": "MOTION-11261538/T4-C: 개입필요 after Pages deployment — user playback acceptance of stairs/curve/rock/entry/exit; mobile performance and integration gates remain pending."
 }
