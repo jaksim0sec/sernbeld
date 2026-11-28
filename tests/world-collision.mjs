@@ -4,7 +4,7 @@ function runTests(createWorldCollision,legacyCollisionPolicy,classifySupport,slo
  let count=0;const check=(v,msg)=>{if(!v)throw Error(msg);count++},throws=(fn,msg)=>{let ok=false;try{fn()}catch{ok=true}check(ok,msg)},near=(a,b)=>Math.abs(a-b)<1e-9;
  const world=createWorldCollision(),p=legacyCollisionPolicy({walk:false});
  check(p.support&&p.block&&!p.nav&&p.climb==="face","legacy box policy");
- check(legacyCollisionPolicy({shape:"cylinder"}).climb==="none","cylinder opt in");
+ check(legacyCollisionPolicy({shape:"cylinder"}).climb==="face"&&legacyCollisionPolicy({shape:"cylinder",climbable:false}).climb==="none","cylinder default and explicit exclusion");
  check(legacyCollisionPolicy({shape:"cylinder",climbable:true,mantleOnly:true}).climb==="mantleOnly","rounded rock");
  const raw={id:"lab:box",regionId:"lab",physics:"solid",transform:{position:[4,0,0],yaw:Math.PI/2,scale:[2,1,1]},shapes:[{id:"main",type:"box",center:[0,1,0],half:[1,1,.5],policy:p}]};
  const h=world.register(raw),q={min:[3.4,0,-2.1],max:[4.6,2,2.1]},f={regionId:"lab",purpose:"support"};

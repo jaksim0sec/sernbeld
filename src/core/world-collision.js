@@ -149,7 +149,7 @@ export function createWorldCollision({backend=null}={}){
 
 export function legacyCollisionPolicy({id="legacy-solid",walk=true,climbable,shape="box",mantleOnly=false}={}){
  if(!["box","cylinder","roof","heightfield"].includes(shape)||typeof walk!=="boolean"||typeof mantleOnly!=="boolean"||(climbable!==undefined&&typeof climbable!=="boolean"))throw new TypeError("invalid legacy policy");
- const canClimb=shape==="box"?climbable!==false:shape==="cylinder"?climbable===true:false;
+ const canClimb=(shape==="box"||shape==="cylinder")&&climbable!==false;
  return {id,block:true,support:true,mantle:canClimb,oneWay:false,nav:walk,camera:true,water:false,climb:canClimb?(mantleOnly?"mantleOnly":"face"):"none"};
 }
 

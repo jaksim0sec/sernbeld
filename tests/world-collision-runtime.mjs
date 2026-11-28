@@ -646,11 +646,14 @@ console.log('PASS T3 rendered curved geometry topology and runtime support parit
  for(const z of [-.9,0,.9]){
   const actor=new playerEnv.Player();actor.teleport(33,z,-Math.PI/2,0,.25);
   const walk={...neutral,move:()=>({x:0,y:1,mag:1})};
-  for(let i=0;i<180;i++){
+  let latched=false,peak=0,land=0;
+  for(let i=0;i<650;i++){
    actor.advance(1/60,walk,[]);
-   assert(actor.onGround,'walkable gradient route must retain support');
+   if(actor.pos.x<35.5&&!latched)assert(actor.onGround,'walkable gradient route must retain support');
+   latched||=actor.traversal?.kind==='latch';
+   peak=Math.max(peak,actor.pos.y);if(actor.onGround)land=Math.max(land,actor.pos.y);
   }
-  assert(actor.pos.x>35.5&&actor.pos.x<36.1,'cross moderate seam and stop before steep climb');
+  assert(latched&&land>=4.6-.003,'continuous curve must reach the actual summit '+JSON.stringify({z,latched,peak,land,pos:actor.pos.toArray()}));
  }
  playerEnv.install(null);
 }
@@ -761,8 +764,12 @@ console.log('PASS T3 real rock support, repeat jump and fixed-tick walkable grad
   m.setRegion('mesh-mantle');playerEnv.install(m);
   const box=(x,h)=>{const a=[x-1.2,0,-1.2],b=[x+1.2,0,-1.2],c=[x+1.2,0,1.2],d=[x-1.2,0,1.2],e=[x-1.2,h,-1.2],f=[x+1.2,h,-1.2],g=[x+1.2,h,1.2],q=[x-1.2,h,1.2];return [[a,b,c],[a,c,d],[e,q,g],[e,g,f],[a,e,f],[a,f,b],[b,f,g],[b,g,c],[c,g,q],[c,q,d],[d,q,e],[d,e,a]];};
   const h=m.triangleMesh({collisionId:'mantle:actual',triangles:box(0,1),support:true,mantle:true});
-  m.triangleMesh({collisionId:'mantle:disabled',triangles:box(10,1),support:true});
+  m.triangleMesh({collisionId:'mantle:disabled',triangles:box(10,1),support:true,mantle:false});
   m.triangleMesh({collisionId:'mantle:tall',triangles:box(20,3),support:true,mantle:true});
+  const compound=m.triangleMesh({collisionId:'mantle:compound',triangles:[...box(30,1),...box(40,6)],support:true});
+  const localPlans=m.meshMantlePlans(30,1.56,0,0,-1);
+  assert.equal(localPlans[0]?.instanceId,compound.id,'remote high crown cannot reject local low ledge');
+  assert.equal(localPlans[0].stand.y,1);
   const plans=m.meshMantlePlans(0,1.56,0,0,-1);
   assert.equal(plans[0]?.instanceId,h.id);assert.equal(plans[0].stand.y,1);
   assert(plans[0].hands.every(v=>v.y===1&&v.normal[1]===1));
@@ -1053,7 +1060,8 @@ playerEnv.install(null);
   };
   route('stairs',f.stairs.x,f.stairs.z-.7,Math.PI,230,f.stairs.count*f.stairs.rise);
   for(const r of f.ramps)route('ramp-'+r.angle,r.x,r.z+.7,0,r.angle===60?1000:400,r.height,r.angle===60?'latch':null);
-  route('curve-ground-entry',f.curve.x-.7,f.curve.z,-Math.PI/2,150,1.0);
+  route('curve-ground-entry',f.curve.x-.7,f.curve.z,-Math.PI/2,650,4.6,'latch');
+  for(const side of [-1,1])for(const k of [3,5])route('stair-side-'+side+'-'+k,f.stairs.x+side*(f.stairs.width/2+.7),f.stairs.z+(k+.5)*f.stairs.run,side*Math.PI/2,180,(k+1)*f.stairs.rise,'mantle');
   route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
   // Actual irregular rock: directed input only, a real climb and crown landing.
   route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,550,1.7,'latch');

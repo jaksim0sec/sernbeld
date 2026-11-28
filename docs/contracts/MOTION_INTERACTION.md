@@ -125,3 +125,8 @@ Player rock support/block/mantle use the same static Float32 transform and exact
 ## T4 grounded approach and mixed crest support (PARTIAL)
 
 Held directed movement can now initiate a reachable mantle or a steep analytical slope latch only after the ordinary movement solver reports a blocking contact (or uphill slide intent). Tall primitive walls and overhead edges still require explicit grab. An explicit drop suppresses automatic re-entry until direction release; retry interval .12s and automatic slope cap 80° are initial tuning choices. Terrain crest queries actual centre support including flat solid platforms and may retry a lift-first clear body path. Low step and walkable slope remain ordinary locomotion. Irregular rock and tall steep triangle-mesh traversal remain open; no claim of visual or device acceptance.
+
+
+## T4-A geometry-driven eligibility (implementation; live quality pending)
+
+Ordinary solid boxes/cylinders and support-enabled triangle meshes are traversal candidates by default; explicit exclusions and block-only mesh policy remain. A narrow face may use adjacent real support for mantle if both palms fit, the support ring is within .24m of the landing, and existing body-path and landing checks pass. Local reachable mesh stance height, not remote source crown height, bounds the mantle lift. Near-vertical mesh faces retain explicit grab like primitive vertical walls; ordinary walking and directed slope entry remain distinct. Parameters are initial geometric bounds, not visual approval. Search cost and user acceptance belong to T4-B/C.

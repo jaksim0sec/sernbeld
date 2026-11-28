@@ -221,8 +221,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   r.collisionId=base;types.roof++;return output;
  }
- // Support is opt-in. Supporting mesh faces must be outward wound.
- function triangleMesh({collisionId,triangles,support=false,mantle=false,climb=false,bounds:authoredBounds=null}){
+ // Supporting solid meshes are traversal candidates by default; block-only and explicit exclusions stay disabled. Faces must be outward wound.
+ function triangleMesh({collisionId,triangles,support=false,mantle=support,climb=mantle,bounds:authoredBounds=null}){
   if(typeof support!=="boolean"||typeof mantle!=="boolean"||typeof climb!=="boolean"||mantle&&!support||climb&&!mantle)throw new TypeError("invalid mesh support/mantle policy");
   const factory=typeof triangles==='function'?triangles:null;
   if(!factory&&(!Array.isArray(triangles)||!triangles.length))throw new TypeError("empty triangle mesh");
@@ -457,10 +457,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
     if(c&&-(dx*c.nx+dz*c.nz)>=alignment&&(!hit||c.toi<hit.toi))hit=c;
    });
    if(!hit)continue;
-   // A conservative whole-source crown bounds the lift path. Large/high
-   // compound assets must supply smaller authored mantle parts, not teleport.
-   const over=source.tree.bounds.max[1]+.045;
-   if(over-y>height+.05)continue;
+   // Search only within local reach; the real body-path validator rejects intervening higher geometry.
+   const over=Math.min(source.tree.bounds.max[1]+.045,y+height+.045);
    const sample=(px,pz)=>{
     let best=null;
     visitFaces(source.tree,{min:[px,y+step,pz],max:[px,over,pz]},face=>{
@@ -494,7 +492,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
       if(pair.every(p=>p&&p.normal[1]>.35&&p.y-y<=height)){hands=pair;break;}
      }
      if(!hands)continue;
-     plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:hit.nx,nz:hit.nz,stand,hands,over});
+     plans.push({instanceId:id,revision:registry.get(id).revision,toi:hit.toi,nx:hit.nx,nz:hit.nz,stand,hands,over:stand.y+.045});
      lastDistance=d;if(++offered>=3)break;
     }
     if(offered)break;

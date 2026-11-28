@@ -285,16 +285,16 @@ console.log('PASS: fixed-step diagonal movement, wall slide, generic steps, head
 }
 
 {
-  // Cylinders: opt-in only; a tapering tower in stacked segments with a
+  // Cylinders: explicit opt-out; a tapering tower in stacked segments with a
   // gallery ring, and a boulder that is pulled up onto, never climbed.
   clear();
-  addCyl({x:0,z:0,r:1,y0:0,y1:6});
+  addCyl({x:0,z:0,r:1,y0:0,y1:6,climbable:false});
   let p=player(0,1.41),move=input(0,1);move.jump=true;tick(p,move);
   assert.equal(p.traversal,null,'non-opted cylinder proxy was climbed');
   clear();
   for(let k=0;k<5;k++)addCyl({x:0,z:0,r:3.3-.16*k,y0:k*4,y1:4+k*4,climbable:true});
   addCyl({x:0,z:0,r:3.5,y0:20,y1:20.5,climbable:true});
-  addCyl({x:0,z:0,r:1.8,y0:20.5,y1:23});
+  addCyl({x:0,z:0,r:1.8,y0:20.5,y1:23,climbable:false});
   p=player(0,3.3+.41);move=input(0,1);move.jump=true;tick(p,move);
   assert.equal(p.traversal?.kind,'latch');
   const faces=new Set();let pull=null;

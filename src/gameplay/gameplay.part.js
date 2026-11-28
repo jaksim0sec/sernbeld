@@ -1156,7 +1156,7 @@ function lighthouse(G, L) {
   addCyl({ x: L.x, z: L.z, r: 4.5 * facet(14), y0: y - 0.4, y1: y + 1.8, climbable: true });
   for (let k = 0; k < 5; k++) addCyl({ x: L.x, z: L.z, r: (3.4 - 0.8 * (k + 0.5) / 5) * facet(14), y0: y + 1.8 + k * 4, y1: y + 5.8 + k * 4, climbable: true });
   addCyl({ x: L.x, z: L.z, r: 3.6 * facet(14), y0: y + 21.8, y1: y + 22.3, climbable: true });
-  addCyl({ x: L.x, z: L.z, r: 1.8 * facet(10), y0: y + 22.3, y1: y + 24.9 });
+  addCyl({ x: L.x, z: L.z, r: 1.8 * facet(10), y0: y + 22.3, y1: y + 24.9, climbable:false });
   coneSupport(L.x, y + 24.9, L.z, 2.6, 3.4, 10, 0, { foot: "circle", footR: 1.8 });
 }
 function fountain(G, F) {
@@ -2307,7 +2307,7 @@ var Forest = class {
     this.impostors = new Mesh(geo, impostorMaterial(this.bake));
     this.impostors.frustumCulled = false;
     scene.add(this.impostors);
-    for (const t of trees) addCyl({ x: t.x, z: t.z, r: (t.kind === 1 ? 0.26 : 0.34) * t.s + 0.1, y0: t.y - 1, y1: t.y + 5 });
+    for (const t of trees) addCyl({ x: t.x, z: t.z, r: (t.kind === 1 ? 0.26 : 0.34) * t.s + 0.1, y0: t.y - 1, y1: t.y + 5, climbable:false });
     this.last = [Infinity, Infinity];
     this.nearRange = NEAR;
   }
@@ -2357,7 +2357,7 @@ function buildGreatTree(L, leafTex) {
     m.castShadow = m.receiveShadow = true;
     group.add(m);
   }
-  addCyl({ x: L.x, z: L.z, r: 4.3, y0: y - 1, y1: y + 14 });
+  addCyl({ x: L.x, z: L.z, r: 4.3, y0: y - 1, y1: y + 14, climbable:false });
   const N = 320, pos = new Float32Array(N * 3), seed = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) {
     const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 34;
@@ -3094,7 +3094,7 @@ function traversalSurfaceActive(surface) {
   return true;
 }
 function traversalSolid(o) {
-  if(o.type==="cyl")return o.climbable===true&&o.r>=.3;
+  if(o.type==="cyl")return o.climbable!==false&&o.r>=.3;
   return o.type==="box"&&o.climbable!==false;
 }
 function traversalEase(a,b,t) {
@@ -3248,7 +3248,11 @@ function traversalMantle(surface,from,previous=null) {
   if(rise>PLAYER.body+.002||rise<.20)return null;
   // The entire stance fits on a real top, with headroom beyond the lip. A
   // roof above the wall top is accepted when it is standing ground there.
-  if(!inside(box,tx,tz,-PLAYER.radius+.004)||stand-top>1.2||playerSteepGround(tx,tz,stand))return null;
+  if(stand-top>1.2||playerSteepGround(tx,tz,stand))return null;
+  if(!inside(box,tx,tz,-PLAYER.radius+.004)){
+    // Adjacent solid treads can jointly provide a real stance; do not require one collider to contain the whole foot ring.
+    if(!Array.from({length:8},(_,i)=>{const a=i*Math.PI/4,sx=tx+Math.cos(a)*PLAYER.radius*.8,sz=tz+Math.sin(a)*PLAYER.radius*.8,h=playerFloor(sx,sz,stand+.24,0);return Number.isFinite(h)&&Math.abs(h-stand)<=.24&&!playerSteepGround(sx,sz,h);}).every(Boolean))return null;
+  }
   const hands=[];
   for(const sign of [-1,1]){
     const face=traversalFaceAt(surface,sign*.195,traversalFaceTop(box,traversalSolidPoint(surface,sign*.195)),0);
@@ -3369,20 +3373,25 @@ function traversalLedgeAhead(player,dx,dz) {
 }
 // Capsule corner response normals do not describe actual flat faces.
 // Resolve incident box faces and reserve the required palm/stance width.
-function traversalBoxFaces(box,p,dx,dz,margin) {
+function traversalBoxFaces(box,p,dx,dz,margin,alternates=false) {
   const [lx,lz]=local(box,p.x,p.z),faces=[];
   for(const axis of [0,1]){
     const normal=axis===0?lx:lz,extent=axis===0?box.hx:box.hz;
     const tangent=axis===0?lz:lx,half=axis===0?box.hz:box.hx;
     if(Math.abs(normal)<extent-.002||half<margin)continue;
     const sign=Math.sign(normal)||1,side=clamp2(tangent,-half+margin,half-margin);
-    const a=axis===0?sign*extent:side,b=axis===0?side:sign*extent;
     const nx=sign*(axis===0?box.cos:box.sin),nz=sign*(axis===0?-box.sin:box.cos);
     if(-(dx*nx+dz*nz)<TRAVERSE_ENTRY.alignment)continue;
-    const x=box.cx+a*box.cos+b*box.sin,z=box.cz-a*box.sin+b*box.cos;
-    const travel=Math.hypot(x+nx*TRAVERSE_WALL_GAP-p.x,z+nz*TRAVERSE_WALL_GAP-p.z);
-    if(travel>PLAYER.radius+.195+TRAVERSE_ENTRY.reach)continue;
-    faces.push({surface:{box,nx,nz,x,z},travel});
+    // A narrow tread can share support with its lower neighbor, but only a
+    // position near its lower edge may leave the body clear of the higher one.
+    const offsets=alternates?[side,-half+margin,half-margin]:[side];
+    for(const s of new Set(offsets)){
+      const a=axis===0?sign*extent:s,b=axis===0?s:sign*extent;
+      const x=box.cx+a*box.cos+b*box.sin,z=box.cz-a*box.sin+b*box.cos;
+      const travel=Math.hypot(x+nx*TRAVERSE_WALL_GAP-p.x,z+nz*TRAVERSE_WALL_GAP-p.z);
+      if(travel>PLAYER.radius+.195+TRAVERSE_ENTRY.reach)continue;
+      faces.push({surface:{box,nx,nz,x,z},travel});
+    }
   }
   return faces.sort((a,b)=>a.travel-b.travel).map(f=>f.surface);
 }
@@ -3435,7 +3444,7 @@ function traversalStart(player,dx,dz,automatic=false) {
     const distance=r-contact.depth;
     const surface={box,nx:contact.nx,nz:contact.nz,x:p.x-contact.nx*distance,z:p.z-contact.nz*distance};
     candidates.push({distance,build:()=>{
-      const mantleFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,PLAYER.radius+.035):[surface];
+      const mantleFaces=box.type==="box"?traversalBoxFaces(box,p,dx,dz,PLAYER.radius+.035).concat(traversalBoxFaces(box,p,dx,dz,.20,true)):[surface];
       for(const candidate of mantleFaces){
         const face=traversalBindFace(candidate);
         if(traversalStance(face).y-p.y<=PLAYER.body){
@@ -3464,7 +3473,7 @@ function traversalStart(player,dx,dz,automatic=false) {
       const surface={x:p.x,z:p.z,nx:-dx,nz:-dz,meshId:hit.id,revision:hit.revision};
       for(const rise of [.12,.24,.36,.48,.60]){
         const face=traversalFaceAt(surface,0,p.y+rise,0);
-        if(!face||face.grade<TRAVERSE_GRADE-.04||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
+        if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
         for(const {to,along,tilt,contacts} of traversalMeshPoses(surface,face,p.y+rise,1)){
           const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
           if(traversalPathClear(action))return action;
@@ -7066,8 +7075,8 @@ function createMotionLabFixtures(scene){
     solid("motion-lab-landing-"+r.angle,slopeMat,r.x,r.z-L-2,r.width,4,H);
   }
   solid("motion-lab-wall-90",slopeMat,wall.x,wall.z,wall.width,wall.depth,wall.height);
-  for(let i=0;i<stairs.count;i++)solid("motion-lab-stair-"+i,stepMat,stairs.x,stairs.z+(i+.5)*stairs.run,stairs.width,stairs.run,(i+1)*stairs.rise,0,false);
-  solid("motion-lab-stair-landing",stepMat,stairs.x,stairs.z+stairs.count*stairs.run+2,stairs.width,4,stairs.count*stairs.rise,0,false);
+  for(let i=0;i<stairs.count;i++)solid("motion-lab-stair-"+i,stepMat,stairs.x,stairs.z+(i+.5)*stairs.run,stairs.width,stairs.run,(i+1)*stairs.rise);
+  solid("motion-lab-stair-landing",stepMat,stairs.x,stairs.z+stairs.count*stairs.run+2,stairs.width,4,stairs.count*stairs.rise);
   for(const l of ledges)solid("motion-lab-ledge-"+l.id,ledgeMat,l.x,l.z,l.width,l.depth,l.height);
   // Real Kael boulder source, with the same nonuniform scale and rotation
   // convention as Rocks.update, but no approximate cylinder in this lab.
