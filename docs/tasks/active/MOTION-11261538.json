@@ -38,5 +38,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4-C: 개입필요 — both 60-degree side-to-landing routes pass isolated actual runtime; user gameplay acceptance after deployment. Mobile/integration gates and B11–14 remain open."
+  "next": "MOTION-11261538/T4-C: 지속가능 — live acceptance FAIL: distorted limbs/air crawling and object-dependent crest failures. Revert unsafe boundary handoff; next verify retained and moving limb reach through full pose against actual rig, then repair geometry-valid lip and walkable support transitions across objects. B11–14 and mobile/integration gates remain open."
 }
