@@ -38,5 +38,5 @@
     "MOVEMENT-002",
     "NPC-11252115"
   ],
-  "next": "MOTION-11261538/T4-C: 개입필요 after Pages deployment — user playback acceptance of stairs/curve/rock/entry/exit; mobile performance and integration gates remain pending."
+  "next": "MOTION-11261538/T4-C: 지속가능 — user acceptance FAIL; reproduce and fix airborne grab, ramp-side climbing/lateral escape, crest pull-over and jump/drop conflict; retest then return for user acceptance. Mobile/integration gates remain pending."
 }
