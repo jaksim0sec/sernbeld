@@ -50047,7 +50047,7 @@ function traversalFaceAtUncached(surface,side,y,hint) {
     const {box}=surface,p=traversalSolidPoint(surface,side);
     if(y<box.bot||y>traversalFaceTop(box,p)||!inside(box,p.x-p.nx*.012,p.z-p.nz*.012,0)||
       playerTerrain(p.x+p.nx*.045,p.z+p.nz*.045)>y+.015)return null;
-    return {point:new Vector3(p.x,y,p.z),normal:new Vector3(p.nx,0,p.nz),along:0};
+    return {point:new Vector3(p.x,y,p.z),normal:new Vector3(p.nx,0,p.nz),along:0,sourceRef:surface.sourceRef};
   }
   if(surface.meshId){
     const q=traversalAcross(surface,side,0);
@@ -50088,6 +50088,7 @@ function traversalHold(surface,side,y,along) {
 // moving hand and opposite foot; the other two are existing anchors.
 function traversalContacts(surface,y,along,scale,lead,root=null,moving=null) {
   const hands=[],feet=[];
+  const steepSide=surface.steepBoundary||surface.lower?.steepBoundary;
   for(const sign of [-1,1]) {
     const index=sign===-1?0:1,needHand=moving===null||moving===index,needFoot=moving===null||moving!==index;
     const reach=(1.46+(sign===lead?.12:-.10))*scale;
@@ -50096,13 +50097,14 @@ function traversalContacts(surface,y,along,scale,lead,root=null,moving=null) {
     // whose top is within reach is held at its top edge.
     const want=surface.box?Math.min(y+reach,traversalFaceTop(surface.box,traversalSolidPoint(surface,sign*.195))-.03):y+reach;
     for(const drop of needHand?[0,.14,.28,.42,.56,.70,.84,.98]:[]) {
+      if(steepSide&&want-drop<y+.94)break;
       hand=traversalHold(surface,sign*.195,want-drop,along);
       if(hand&&(!root||Math.hypot(hand.point.x-root.x,hand.point.z-root.z)<=.85))break;
       hand=null;
     }
     // A face that starts a little above the ground (a building on its
     // plinth) is stood on at its bottom edge.
-    const footY=y+(sign===lead?.15:.36)*scale;
+    const footY=y+(steepSide?(sign===lead?.46:.52):(sign===lead?.15:.36))*scale;
     let foot=null;
     for(const offset of !needFoot?[]:root?[0,.12,.24,-.12,.36]:[0]){
       foot=traversalHold(surface,sign*.155,(surface.box?Math.max(footY,Math.min(surface.box.bot+.03,footY+.3)):footY)+offset,along);
@@ -50406,6 +50408,11 @@ function traversalStart(player,dx,dz,automatic=false) {
   for(const hit of meshEntries?meshEntries.filter(e=>e.climb):WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
     candidates.push({distance:PLAYER.radius+hit.toi*entry.reach+.001,build:()=>{
       const surface={x:p.x,z:p.z,nx:hit.boundary?hit.nx:-dx,nz:hit.boundary?hit.nz:-dz,meshId:hit.id,revision:hit.revision,boundary:hit.boundary};
+      if(surface.boundary){
+        const q=traversalAcross(surface,0,r+CONTACT_SKIN);
+        const top=WorldCollision.surfaceAt(q.x,q.z,"lab-ground");
+        surface.steepBoundary=top?.instanceId===hit.id&&top.geometricNormal?.[1]<COS_SLIDE;
+      }
       for(const rise of [.12,.24,.36,.48,.60]){
         const face=traversalFaceAt(surface,0,p.y+rise,0);
         if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&!surface.boundary&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
@@ -50463,7 +50470,13 @@ function traversalStep(player,old,surface,to,along,tilt,moving,lead,knownContact
   // On wall/mesh stances, apply the existing horizontal hold envelope to
   // retained as well as acquired contacts. Sloped terrain uses a different
   // tilted body frame; this is not an anatomical IK reach guarantee.
-  if(surface.meshId||surface.box){for(const hold of [hands[1-moving],feet[moving]])if(Math.hypot(hold.point.x-to.x,hold.point.z-to.z)>.85)return null;}
+  if(surface.meshId||surface.box){
+    for(const hold of [hands[1-moving],feet[moving]])if(Math.hypot(hold.point.x-to.x,hold.point.z-to.z)>.85)return null;
+    if(surface.steepBoundary||surface.lower?.steepBoundary){
+      const hold=hands[1-moving].point,across=(hold.x-to.x)*surface.nz-(hold.z-to.z)*surface.nx;
+      if(hold.y<to.y+.91||Math.abs(across-(moving===0?.14:-.14))>.36)return null;
+    }
+  }
   return traversalPathClear(action)?action:null;
 }
 function traversalNext(player,old) {
@@ -50538,23 +50551,67 @@ function traversalNext(player,old) {
   }
   return null;
 }
+// Continue the requested side step across a touching, coplanar face.
+// Check the actual shared edge at body height before using the adjacent solid.
+function traversalBoundarySide(player,old,next,dir,moving,stride) {
+  const {surface,along}=old,p=player.pos;
+  const q=traversalAcross(next,0,along);
+  const tx=surface.nz*dir,tz=-surface.nx*dir;
+  const to=new Vector3(q.x+surface.nx*TRAVERSE_WALL_GAP,p.y,q.z+surface.nz*TRAVERSE_WALL_GAP);
+  for(const box of traversalPrimitiveCandidates(to.x,to.z,Math.hypot(TRAVERSE_WALL_GAP,.195)+.02)){
+    if(box.type!=="box"||!traversalSolid(box)||box.mantleOnly||p.y<box.bot||p.y>=box.top)continue;
+    for(const face of traversalBoxFaces(box,to,-surface.nx,-surface.nz,0)){
+      const ox=face.x-q.x,oz=face.z-q.z;
+      if(face.nx*surface.nx+face.nz*surface.nz<.9999||Math.abs(ox*surface.nx+oz*surface.nz)>CONTACT_SKIN)continue;
+      // A palm may cross the seam before the centre does.
+      const [x,z]=local(box,face.x,face.z);
+      const dx=tx*box.cos-tz*box.sin,dz=tx*box.sin+tz*box.cos;
+      const back=(Math.abs(dx)>Math.abs(dz)?box.hx+x*Math.sign(dx):box.hz+z*Math.sign(dz))-(ox*tx+oz*tz);
+      if(back<-.195||back>stride)continue;
+      const seam={...next,x:next.x-tx*(back+.001),z:next.z-tz*(back+.001)};
+      const lip=traversalFaceAt(seam,0,p.y,along);
+      if(!lip||lip.normal.x*face.nx+lip.normal.z*face.nz<.9999||Math.abs(lip.along-along)>CONTACT_SKIN)continue;
+      const lower={...next,x:q.x,z:q.z};
+      const bridge=traversalBindFace({...face,x:q.x,z:q.z,lower});
+      const contacts=traversalContacts(bridge,p.y,0,1,dir,to,moving);
+      if(!contacts||![contacts.hands[moving],contacts.feet[1-moving]].some(hold=>hold.sourceRef?.id===box.collisionId))continue;
+      const action=traversalStep(player,old,bridge,to,0,0,moving,dir,contacts);
+      if(action)return action;
+    }
+  }
+  return null;
+}
 // Sideways along the face at the same height; stops at a face edge.
 function traversalSide(player,old,dir) {
-  const {surface}=old,p=player.pos,step=CLIMB.side*dir;
+  const {surface}=old;
+  return traversalSideStep(player,old,dir,CLIMB.side)??
+    (surface.steepBoundary||surface.lower?.steepBoundary?traversalSideStep(player,old,dir,.16):null);
+}
+function traversalSideStep(player,old,dir,stride) {
+  const {surface}=old,p=player.pos,step=stride*dir;
   let next,to,along=old.along,tilt=old.tilt;
   if(surface.box){
     if(surface.box.type==="cyl"){
       const q=traversalSolidPoint(surface,step*surface.box.r/(surface.box.r+TRAVERSE_WALL_GAP));
       next={...surface,x:q.x,z:q.z,nx:q.nx,nz:q.nz};
-    }else next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
+    }else{
+      next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
+      if(surface.lower?.boundary)next.lower={...surface.lower,x:surface.lower.x+surface.nz*step,z:surface.lower.z-surface.nx*step};
+    }
     const q=traversalSolidPoint(next,0);
     to=new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,p.y,q.z+q.nz*TRAVERSE_WALL_GAP);
   }else{
     next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
-    const face=traversalFaceAt(next,0,p.y,along);
+    const face=traversalFaceAt(next,0,p.y,along),moving=old.moving===0?1:0;
+    if(surface.meshId){
+      if(face)for(const pose of traversalMeshPoses(next,face,p.y,dir,moving)){
+        const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,moving,dir,pose.contacts);
+        if(action)return action;
+      }
+      return surface.boundary?traversalBoundarySide(player,old,next,dir,moving,stride):null;
+    }
     if(!face)return null;
     along=face.along;tilt=Math.atan(1/face.grade);
-    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1,old.moving===0?1:0)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return null;}
     to=face.point.clone().add(new Vector3(next.nx*TRAVERSE_WALL_GAP,0,next.nz*TRAVERSE_WALL_GAP));
   }
   return traversalStep(player,old,next,to,along,tilt,old.moving===0?1:0,dir>0?1:-1);
