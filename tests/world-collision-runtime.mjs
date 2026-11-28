@@ -1072,6 +1072,24 @@ playerEnv.install(null);
    for(let i=0;i<100;i++)p.advance(1/60,{...neutral,move:()=>({x:side,y:0,mag:1})},[]);
    assert(p.traversal&&p.pos.z<z-.3,'uphill lateral movement '+r.angle+' '+side);
   }
+  // Sideward motion over a boundary seam must reach the independent flat landing.
+  for(const r of f.ramps.filter(r=>r.angle===60))for(const side of [-1,1]){
+    const p=new playerEnv.Player();p.teleport(r.x+side*(r.width/2+.7),r.z-r.run*.6,side*Math.PI/2,0,0);
+    const lateral={...neutral,move:()=>({x:side,y:0,mag:1})};
+    let landed=false,transferred=false;
+    for(let i=0;i<60&&!p.traversal;i++)p.advance(1/60,forward,[]);
+    for(let k=0;k<7&&!landed;k++){
+      for(const [input,n] of [[forward,90],[lateral,45]]){
+        for(let i=0;i<n;i++){
+          p.advance(1/60,input,[]);if(p.traversal?.surface.box)transferred=true;
+          if(p.onGround&&p.pos.y>=r.height-.003){landed=true;break;}
+        }
+        if(landed)break;
+      }
+    }
+    assert(transferred,'ramp side must transfer to real landing face '+side);
+    assert(landed,'ramp side must reach flat landing '+side);
+  }
   route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
   // Actual irregular rock: directed input only, a real climb and crown landing.
   route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,550,1.7,'latch');

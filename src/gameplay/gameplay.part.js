@@ -3663,7 +3663,28 @@ function traversalNext(player,old) {
   }
   return null;
 }
-// Sideways along the face at the same height; stops at a face edge.
+// At a registered boundary's lateral end, continue onto a nearby real
+// solid face, preserving existing holds until the next step replaces them.
+function traversalBoundaryHandoff(player,old,dir){
+  const {surface}=old,p=player.pos,reach=PLAYER.radius+.195+TRAVERSE_ENTRY.reach;
+  const candidates=[];
+  for(const box of traversalPrimitiveCandidates(p.x,p.z,PLAYER.radius+reach)){
+    if(box.type!=="box"||!traversalSolid(box)||box.mantleOnly||box.bot>p.y+.36||box.top<p.y+.55)continue;
+    for(const candidate of traversalBoxFaces(box,p,-surface.nx,-surface.nz,.20)){
+      if(candidate.nx*surface.nx+candidate.nz*surface.nz<.8)continue;
+      const face=traversalBindFace(candidate),to=new Vector3(face.x+face.nx*TRAVERSE_WALL_GAP,p.y,face.z+face.nz*TRAVERSE_WALL_GAP);
+      const travel=(to.x-p.x)*surface.nz-(to.z-p.z)*surface.nx;
+      if(travel*dir<=.002||to.distanceTo(p)>reach)continue;
+      candidates.push({face,to,distance:to.distanceTo(p)});
+    }
+  }
+  for(const {face,to} of candidates.sort((a,b)=>a.distance-b.distance)){
+    const step=traversalStep(player,old,face,to,0,0,old.moving===0?1:0,dir>0?1:-1);
+    if(step)return step;
+  }
+  return null;
+}
+// Sideways along a face; adjacent registered solids may continue it.
 function traversalSide(player,old,dir) {
   const {surface}=old,p=player.pos,step=CLIMB.side*dir;
   let next,to,along=old.along,tilt=old.tilt;
@@ -3677,9 +3698,9 @@ function traversalSide(player,old,dir) {
   }else{
     next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
     const face=traversalFaceAt(next,0,p.y,along);
-    if(!face)return null;
+    if(!face)return surface.boundary?traversalBoundaryHandoff(player,old,dir):null;
     along=face.along;tilt=Math.atan(1/face.grade);
-    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return null;}
+    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return surface.boundary?traversalBoundaryHandoff(player,old,dir):null;}
     to=face.point.clone().add(new Vector3(next.nx*TRAVERSE_WALL_GAP,0,next.nz*TRAVERSE_WALL_GAP));
   }
   return traversalStep(player,old,next,to,along,tilt,old.moving===0?1:0,dir>0?1:-1);
