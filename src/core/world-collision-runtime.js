@@ -481,7 +481,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
     return best;
    });
    const walkCos=Math.cos(walkMax)-1e-8,walkable=p=>p&&p.normal[1]>=walkCos;
-   const lateral=[-hit.nz,hit.nx];
+   // Same surface basis as the Player pose: negative across is the left hand.
+   const lateral=[hit.nz,-hit.nx];
    // Keep the nearest geometric candidate first, but offer a bounded set
    // of alternatives on the same source for the existing body path validator.
    let offered=0;

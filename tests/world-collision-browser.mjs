@@ -257,18 +257,69 @@ try{
   const idle={move:()=>({x:0,y:0,mag:0}),run:()=>false,consumeJump:()=>false};
   p.advance(1/60,{...idle,move:()=>({x:0,y:1,mag:1}),consumeJump:()=>true});
   if(p.traversal?.surface.meshId!==f.id)throw Error('actual mesh mantle not selected');
-  const hands=p.traversal.hands.map(h=>h.point.toArray());
+  const {surface,hands:holds}=p.traversal;
+  const across=holds[1].point.clone().sub(holds[0].point);
+  if(across.x*surface.nz-across.z*surface.nx<=0)throw Error('Mesh mantle crossed the left and right hand targets');
+  const hands=holds.map(h=>h.point.toArray());
   for(let i=0;i<150&&p.traversal;i++){p.advance(1/60,idle);d.avatars.update(1/60,i/60,{swing:null});if(d.playerContacts(p.pos.x,p.pos.z,p.pos.y).length)throw Error('mesh mantle penetration');}
   if(!p.onGround||p.traversal||Math.abs(p.pos.y-1)>1e-5)throw Error('mesh mantle landing');
   return {hands,landing:p.pos.toArray()};
  });
  console.log('T3 actual mesh mantle evidence '+JSON.stringify(mantleEvidence));
- const rampSideEvidence=await page.evaluate(async()=>{
+ const traversalEvidence=await page.evaluate(async()=>{
   const d=window.__dev,p=d.player,input=d.input,ramp=d.fixtures.ramps.find(r=>r.angle===60);
   const {surfaceHandTarget}=await import(new URL('src/entities/character/avatar-motion.js',location.href).href);
   const profile=d.avatars.profile,Vector3=p.pos.constructor,group=d.avatars.actor.group;
   const T={Vector3,Quaternion:group.quaternion.constructor,Matrix4:group.matrix.constructor};
   const routes=[],keyboardSteering=input.keyboardSteering;
+  const contactStats=()=>({planted:0,lip:0,wristGap:0,ankleGap:0,lipGap:0});
+  function measureContacts(actor,render,contacts){
+   if(!render)return;
+   const {action,t}=render;
+   const climbing=action.kind==='climb',mantling=action.kind==='mantle'&&t>=.25&&t<=.59;
+   if(!climbing&&!mantling)return;
+   for(const [i,sideName] of ['left','right'].entries()){
+    const hand=action.hands[i],foot=action.feet?.[i];
+    if(mantling||i!==action.moving||t>=.56){
+     const finger=mantling?new Vector3(-action.surface.nx,0,-action.surface.nz):
+      new Vector3(0,1,0).addScaledVector(hand.normal,-hand.normal.y).normalize();
+     const palm=hand.point.clone().addScaledVector(hand.normal,mantling?.029:.018);
+     if(mantling)palm.addScaledVector(finger,.014);
+     const {wrist}=surfaceHandTarget(T,actor,sideName,palm,hand.normal,finger);
+     const gap=wrist.distanceTo(actor.B['hand_'+sideName].getWorldPosition(new Vector3()));
+     if(mantling){contacts.lip++;contacts.lipGap=Math.max(contacts.lipGap,gap);}
+     else{contacts.planted++;contacts.wristGap=Math.max(contacts.wristGap,gap);}
+    }
+    if(climbing&&(i===action.moving||t>=.95)){
+     const finger=new Vector3(0,1,0).addScaledVector(foot.normal,-foot.normal.y).normalize();
+     const ankle=foot.point.clone().addScaledVector(foot.normal,.115).addScaledVector(finger,-.026);
+     contacts.ankleGap=Math.max(contacts.ankleGap,ankle.distanceTo(actor.B['foot_'+sideName].getWorldPosition(new Vector3())));
+    }
+   }
+  }
+  const rock=d.fixtures.rock,rockRoutes=[];
+  const mesh=d.scene.getObjectByName('motion-lab-irregular-rock'),vertices=mesh.geometry.attributes.position;
+  const inverse=mesh.matrixWorld.clone().invert(),ray=new Vector3(1,.123,.234);
+  const triangles=Array.from({length:vertices.count/3},(_,i)=>{
+   const a=new Vector3().fromBufferAttribute(vertices,i*3);
+   const b=new Vector3().fromBufferAttribute(vertices,i*3+1).sub(a),c=new Vector3().fromBufferAttribute(vertices,i*3+2).sub(a);
+   const cross=ray.clone().cross(c);
+   return {a,b,c,cross,den:b.dot(cross)};
+  });
+  // Ray parity against the rendered boulder, independently of the Player capsule.
+  function insideRock(world){
+   const point=world.clone().applyMatrix4(inverse);
+   let hits=0;
+   for(const {a,b,c,cross,den} of triangles){
+    if(Math.abs(den)<1e-10)continue;
+    const delta=point.clone().sub(a),u=delta.dot(cross)/den;
+    if(u<0||u>1)continue;
+    const q=delta.cross(b),v=ray.dot(q)/den;
+    if(v>=0&&u+v<=1&&c.dot(q)/den>1e-8)hits++;
+   }
+   return hits%2===1;
+  }
+  const torso=['pelvis','waist','ribcage','neck','head','upper_arm_left','upper_arm_right'];
   input.keyboardSteering=false;input.keys.clear();input.setSprint(false);
   for(const body of ['male','female']){
    d.avatars.setProfile({...profile,body});
@@ -276,8 +327,8 @@ try{
     p.stamina=100;p.exhausted=false;p.staminaDelay=0;p.moveBasisYaw=null;
     p.teleport(ramp.x+side*(ramp.width/2+.7),ramp.z-ramp.run*.6,side*Math.PI/2,0,0);
     const actor=d.avatars.actor;
-    let latch=-1,previous=null,seam=0,planted=0,lip=0,jumped=false,landed=false;
-    let wristGap=0,ankleGap=0,lipGap=0;
+    let latch=-1,previous=null,seam=0,jumped=false,landed=false;
+    const contacts=contactStats();
     for(let frame=0;frame<930;frame++){
      const lateral=latch>=0&&(frame-latch)%135>=90;
      input.stick.x=lateral?side:0;input.stick.y=lateral?0:1;
@@ -300,41 +351,41 @@ try{
       previous=current;
      }
      if(p.onGround&&p.pos.y>=ramp.height-.003){landed=true;break;}
-     if(!render)continue;
-     const {action,t}=render;
-     const climbing=action.kind==='climb',mantling=action.kind==='mantle'&&t>=.25&&t<=.59;
-     if(!climbing&&!mantling)continue;
-     for(const [i,sideName] of ['left','right'].entries()){
-      const hand=action.hands[i],foot=action.feet?.[i];
-      if(mantling||i!==action.moving||t>=.56){
-       const finger=mantling?new Vector3(-action.surface.nx,0,-action.surface.nz):
-        new Vector3(0,1,0).addScaledVector(hand.normal,-hand.normal.y).normalize();
-       const palm=hand.point.clone().addScaledVector(hand.normal,mantling?.029:.018);
-       if(mantling)palm.addScaledVector(finger,.014);
-       const {wrist}=surfaceHandTarget(T,actor,sideName,palm,hand.normal,finger);
-       const gap=wrist.distanceTo(actor.B['hand_'+sideName].getWorldPosition(new Vector3()));
-       if(mantling){lip++;lipGap=Math.max(lipGap,gap);}
-       else{planted++;wristGap=Math.max(wristGap,gap);}
-      }
-      if(climbing&&(i===action.moving||t>=.95)){
-       const finger=new Vector3(0,1,0).addScaledVector(foot.normal,-foot.normal.y).normalize();
-       const ankle=foot.point.clone().addScaledVector(foot.normal,.115).addScaledVector(finger,-.026);
-       ankleGap=Math.max(ankleGap,ankle.distanceTo(actor.B['foot_'+sideName].getWorldPosition(new Vector3())));
-      }
-     }
+     measureContacts(actor,render,contacts);
     }
-    const route={body,side,seam,landed,jumped,planted,lip,wristGap,ankleGap,lipGap};
-    if(!landed||!jumped||seam!==1||!planted||!lip||Math.max(wristGap,ankleGap,lipGap)>.03)
+    const route={body,side,seam,landed,jumped,...contacts};
+    if(!landed||!jumped||seam!==1||!contacts.planted||!contacts.lip||
+       Math.max(contacts.wristGap,contacts.ankleGap,contacts.lipGap)>.03)
      throw Error('Ramp side traversal or posed contact regression '+JSON.stringify(route));
     routes.push(route);
+   }
+   input.stick.x=0;input.stick.y=1;
+   for(let angle=0;angle<360;angle+=45){
+    p.stamina=100;p.exhausted=false;p.staminaDelay=0;p.moveBasisYaw=null;
+    const yaw=(90-angle)*Math.PI/180;
+    p.teleport(rock.x+Math.sin(yaw)*5,rock.z+Math.cos(yaw)*5,yaw,0,0);
+    const actor=d.avatars.actor,contacts=contactStats();
+    let landed=false,overlaps=0;
+    for(let frame=0;frame<550;frame++){
+     p.advance(1/60,input,[]);
+     d.avatars.update(1/60,frame/60,{swing:null});
+     if(p.onGround&&p.pos.y>=1.7){landed=true;break;}
+     if(!p.renderTraversal)continue;
+     measureContacts(actor,p.renderTraversal,contacts);
+     for(const joint of torso)if(insideRock(actor.B[joint].getWorldPosition(new Vector3())))overlaps++;
+    }
+    const route={body,angle,landed,overlaps,...contacts};
+    if(!landed||overlaps||angle===0&&(!contacts.planted||Math.max(contacts.wristGap,contacts.ankleGap)>.03))
+     throw Error('Boulder traversal or posed contact regression '+JSON.stringify(route));
+    rockRoutes.push(route);
    }
   }
   input.stick.x=input.stick.y=0;input.jumpQueued=false;input.keyboardSteering=keyboardSteering;
   p.stamina=100;p.exhausted=false;p.staminaDelay=0;
   d.avatars.setProfile(profile);
-  return routes;
+  return {ramps:routes,rock:rockRoutes};
  });
- console.log('T4 ramp side, jump at lip and posed contact evidence '+JSON.stringify(rampSideEvidence));
+ console.log('T4 ramp side, jump at lip and boulder posed contact evidence '+JSON.stringify(traversalEvidence));
  await page.evaluate(()=>window.__dev.reset());
  const trials=await page.evaluate(async()=>{
   const d=window.__dev,p=d.player,input=d.input;

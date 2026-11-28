@@ -3471,10 +3471,32 @@ function traversalEntryBody(action,target,t,out) {
 }
 // Keep the same cylinder collision/path validator for a curved mesh face.
 function* traversalMeshPoses(surface,face,y,lead,moving=null){
-  const tilt=Math.atan(1/face.grade),along=face.along;
+  const along=face.along,baseTilt=Math.atan(1/face.grade);
+  let profileTilt=baseTilt;
+  // A curved face can recede above the feet even when the lowest facet is vertical.
+  if(!surface.boundary)for(const height of [1.26,1.10,.94]){
+    const upper=traversalFaceAt(surface,0,y+height,along);
+    if(!upper)continue;
+    profileTilt=clamp2(Math.atan2(upper.along-along,height),-.38,.75);
+    break;
+  }
   for(const gap of [TRAVERSE_WALL_GAP,TRAVERSE_WALL_GAP+.08,TRAVERSE_WALL_GAP+.16,TRAVERSE_WALL_GAP+.24,TRAVERSE_WALL_GAP+.32]){
     const to=new Vector3(face.point.x+surface.nx*gap,y,face.point.z+surface.nz*gap);
     if(!traversalClear(to,[]))continue;
+    let tilt=baseTilt;
+    if(profileTilt!==baseTilt){
+      // Limit the extra lean against the actual solids from hips to head.
+      // Use the common probe budget so a failed shape search can resume.
+      for(const mix of [1,.75,.50,.25]){
+        const candidate=baseTilt+mix*(profileTilt-baseTilt);
+        const safe=[.63,.91,1.19,1.48,1.63].every(h=>{
+          const rise=h*Math.cos(candidate),lean=h*Math.sin(candidate);
+          const x=to.x-surface.nx*lean,z=to.z-surface.nz*lean,bot=to.y+rise-.12;
+          return traversalMemo(["lean-clear",x,z,bot],()=>!WorldCollision.meshContacts(x,z,bot,.15,.24).length);
+        });
+        if(safe){tilt=candidate;break;}
+      }
+    }
     const contacts=traversalContacts(surface,y,along,Math.cos(tilt),lead,to,moving);
     if(contacts)yield {to,along,tilt,contacts};
   }

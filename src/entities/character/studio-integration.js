@@ -858,7 +858,8 @@ export function createCharacterRuntime({T,scene,camera,player,Save,getEquipped,m
    }
    limbs.push({i,side,sign,hand,foot,handWeight,footWeight,fingers,palm,pole});
   }
-  if(mantle||climbing&&(surface.steepBoundary||surface.lower?.steepBoundary)){
+  const fitClimb=climbing&&(surface.meshId&&!surface.boundary||surface.steepBoundary||surface.lower?.steepBoundary);
+  if(mantle||fitClimb){
    // Fit from the same anatomical targets used by IK before solving any limb.
    actor.group.position.add(fitSurfaceHandReach(T,actor,limbs,outward));
    actor.group.updateWorldMatrix(true,false);
