@@ -1063,6 +1063,15 @@ playerEnv.install(null);
   for(const r of f.ramps)route('ramp-'+r.angle,r.x,r.z+.7,0,r.angle===60?1000:400,r.height,r.angle===60?'latch':null);
   route('curve-ground-entry',f.curve.x-.7,f.curve.z,-Math.PI/2,650,4.6,'latch');
   for(const side of [-1,1])for(const k of [3,5])route('stair-side-'+side+'-'+k,f.stairs.x+side*(f.stairs.width/2+.7),f.stairs.z+(k+.5)*f.stairs.run,side*Math.PI/2,180,(k+1)*f.stairs.rise,'mantle');
+  for(const r of f.ramps)for(const side of [-1,1]){
+   route('ramp-side-'+r.angle+'-'+side,r.x+side*(r.width/2+.7),r.z-r.run*.6,side*Math.PI/2,500,r.angle<60?r.height*.6:null,'latch');
+   const p=new playerEnv.Player();p.teleport(r.x+side*(r.width/2+.7),r.z-r.run*.6,side*Math.PI/2,0,0);
+   for(let i=0;i<60&&!p.traversal;i++)p.advance(1/60,forward,[]);
+   assert(p.traversal?.surface.boundary,'ramp side uses registered boundary');
+   const z=p.pos.z;
+   for(let i=0;i<100;i++)p.advance(1/60,{...neutral,move:()=>({x:side,y:0,mag:1})},[]);
+   assert(p.traversal&&p.pos.z<z-.3,'uphill lateral movement '+r.angle+' '+side);
+  }
   route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
   // Actual irregular rock: directed input only, a real climb and crown landing.
   route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,550,1.7,'latch');

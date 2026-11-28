@@ -247,6 +247,8 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    {a:[r.x+r.width/2,r.height,r.z-r.run],b:[r.x+r.width/2,0,r.z],bottom:0}
   ]);
   const h=analytical(collisionId,'heightfield',bounds,roofPolicy(false),sample,{sourceKind:'lab-ground',boundaryFaces});
+  // Reuse the registered side triangles for traversal without changing analytical top support.
+  const source=boundarySources.get(regionId)?.get(h.id);if(source)source.boundaryClimb=true;
   types.labSurface++;return h;
  }
  function stair(record){
@@ -447,7 +449,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function meshTraversalHits(x,z,y,dx,dz,radius,height,reach,alignment,memo=(key,read)=>read()){
   const bounds={min:[Math.min(x,x+dx*reach)-radius,y+.002,Math.min(z,z+dz*reach)-radius],max:[Math.max(x,x+dx*reach)+radius,y+height-.002,Math.max(z,z+dz*reach)+radius]},out=[];
   for(const [id,source] of boundaryCandidates(regionId,bounds)){
-   if(source.type!=="triangleMesh"||(!source.policy.mantle&&source.policy.climb!=="face")||!intersects(source.bounds,bounds))continue;
+   if((!source.boundaryClimb&&(source.type!=="triangleMesh"||(!source.policy.mantle&&source.policy.climb!=="face")))||!intersects(source.indexBounds,bounds))continue;
    const rec=registry.get(id);if(!rec?.effectiveActive)continue;
    const hit=memo(["mesh-entry",id,rec.revision,x,z,y,dx,dz,radius,height,reach,alignment],()=>{
     let best=null;
@@ -514,7 +516,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const {radius=.35,height=1.72,reach=.19,alignment=.65}=options;
   const len=Math.hypot(dx,dz);if(len<1e-8)return [];dx/=len;dz/=len;
   return meshTraversalHits(x,z,y,dx,dz,radius,height,reach,alignment,memo).map(entry=>({
-   id:entry.id,revision:entry.revision,toi:entry.hit.toi,climb:entry.source.policy.climb==="face",
+   id:entry.id,revision:entry.revision,toi:entry.hit.toi,climb:entry.source.boundaryClimb||entry.source.policy.climb==="face",boundary:!!entry.source.boundaryClimb,nx:entry.hit.nx,nz:entry.hit.nz,
    mantles:entry.source.policy.mantle?()=>meshMantleCandidates(x,z,y,dx,dz,options,[entry],memo):null
   }));
  }
@@ -523,7 +525,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  }
  function meshClimbFace(id,revision,x,z,y,dx,dz,lo,hi){
   const source=boundarySources.get(regionId)?.get(id),rec=registry.get(id);
-  if(!source||source.policy.climb!=="face"||!rec?.effectiveActive||rec.revision!==revision)return null;
+  if(!source||(!source.boundaryClimb&&source.policy.climb!=="face")||!rec?.effectiveActive||rec.revision!==revision)return null;
   const ax=x+dx*lo,az=z+dz*lo,bx=x+dx*hi,bz=z+dz*hi;
   let best=null;
   visitFaces(source.tree,{min:[Math.min(ax,bx)-1e-7,y-1e-7,Math.min(az,bz)-1e-7],max:[Math.max(ax,bx)+1e-7,y+1e-7,Math.max(az,bz)+1e-7]},face=>{

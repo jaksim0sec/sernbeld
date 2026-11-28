@@ -50402,10 +50402,10 @@ function traversalStart(player,dx,dz,automatic=false) {
   }
   for(const hit of meshEntries?meshEntries.filter(e=>e.climb):WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
     candidates.push({distance:PLAYER.radius+hit.toi*entry.reach+.001,build:()=>{
-      const surface={x:p.x,z:p.z,nx:-dx,nz:-dz,meshId:hit.id,revision:hit.revision};
+      const surface={x:p.x,z:p.z,nx:hit.boundary?hit.nx:-dx,nz:hit.boundary?hit.nz:-dz,meshId:hit.id,revision:hit.revision,boundary:hit.boundary};
       for(const rise of [.12,.24,.36,.48,.60]){
         const face=traversalFaceAt(surface,0,p.y+rise,0);
-        if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
+        if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&!surface.boundary&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
         for(const {to,along,tilt,contacts} of traversalMeshPoses(surface,face,p.y+rise,1)){
           const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
           if(traversalPathClear(action))return action;
@@ -50464,12 +50464,15 @@ function traversalNext(player,old) {
   const p=player.pos;
   if(surface.meshId){
     const moving=old.moving===0?1:0,lead=moving===0?-1:1;
-    // Leave the face only onto real walkable support on this same mesh.
+    // Boundary triangles and their analytical top share the registered source.
+    const support=(x,z,hi,lo)=>surface.boundary?WorldCollision.surfaceAt(x,z,"lab-ground",hi):WorldCollision.meshSupport(x,z,hi,lo);
+    const spread=surface.boundary?PLAYER.radius*.8*Math.tan(50*Math.PI/180)+.005:.24;
+    // Leave the face only onto real walkable support on this same source.
     for(const d of [.28,.42,.56,.70,.84,.98,1.12]){
-      const q=traversalAcross(surface,0,old.along+d),hit=traversalMemo(["crest-center",q.x,q.z,p.y],()=>WorldCollision?.meshSupport?.(q.x,q.z,p.y+1.2,p.y-.13));
-      if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||playerSteepGround(q.x,q.z,hit.point[1]))continue;
+      const q=traversalAcross(surface,0,old.along+d),hit=traversalMemo(["crest-center",q.x,q.z,p.y],()=>support(q.x,q.z,p.y+1.2,p.y-.13));
+      if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||hit.point[1]<p.y-.13||surface.boundary&&!hit.featureId?.startsWith("ramp-")||playerSteepGround(q.x,q.z,hit.point[1]))continue;
       const y=hit.point[1];
-      let supported=true;for(let i=0;i<8;i++){const x=q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,z=q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,h=traversalMemo(["crest-support",x,z,y],()=>WorldCollision.meshSupport(x,z,y+.24,y-.24));if(h?.instanceId!==surface.meshId||h.geometricNormal[1]<COS_SLIDE){supported=false;break;}}
+      let supported=true;for(let i=0;i<8;i++){const x=q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,z=q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,h=traversalMemo(["crest-support",x,z,y],()=>support(x,z,y+spread,y-spread));if(h?.instanceId!==surface.meshId||Math.abs(h.point[1]-y)>spread||surface.boundary&&h.featureId!==hit.featureId||!(h.geometricNormal?.[1]>=COS_SLIDE)){supported=false;break;}}
       if(!supported)continue;
       for(const liftFirst of [false,true]){
         const action={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),previous:old,tilt:0,duration:.72,liftFirst,elapsed:0};
@@ -50544,6 +50547,7 @@ function traversalSide(player,old,dir) {
     const face=traversalFaceAt(next,0,p.y,along);
     if(!face)return null;
     along=face.along;tilt=Math.atan(1/face.grade);
+    if(surface.meshId){for(const pose of traversalMeshPoses(next,face,p.y,dir>0?1:-1)){const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,old.moving===0?1:0,dir>0?1:-1,pose.contacts);if(action)return action;}return null;}
     to=face.point.clone().add(new Vector3(next.nx*TRAVERSE_WALL_GAP,0,next.nz*TRAVERSE_WALL_GAP));
   }
   return traversalStep(player,old,next,to,along,tilt,old.moving===0?1:0,dir>0?1:-1);
