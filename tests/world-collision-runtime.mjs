@@ -1066,6 +1066,16 @@ playerEnv.install(null);
   route('mesh-mantle',f.mantle.x,f.mantle.z+2,0,130,1,'mantle');
   // Actual irregular rock: directed input only, a real climb and crown landing.
   route('rock',f.rock.maxX+.7,f.rock.z,Math.PI/2,550,1.7,'latch');
+
+  // T4-C: step-off airborne contact and directional jump while latched.
+  const air=new playerEnv.Player();air.teleport(f.wall.x,f.wall.z+f.wall.depth/2+.52,0,0,0);
+  air.pos.y=1.2;air.onGround=false;air.vel.y=-.2;
+  for(let i=0;i<60&&!air.traversal;i++)air.advance(1/60,forward,[]);
+  assert(air.traversal,"directed airborne wall contact without fresh jump");
+  air.advance(1/60,{...forward,consumeJump:()=>true},[]);
+  assert(air.traversal,"toward-wall jump must not drop");
+  air.advance(1/60,{...neutral,consumeJump:()=>true},[]);
+  assert(!air.traversal,"neutral jump deliberately releases");
   const climber=new playerEnv.Player();climber.teleport(f.rock.maxX+.7,f.rock.z,Math.PI/2,0,0);
   for(let i=0;i<120&&!climber.traversal;i++)climber.advance(1/60,forward,[]);
   assert.equal(climber.traversal?.kind,'latch');

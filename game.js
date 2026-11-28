@@ -50679,7 +50679,14 @@ var Player = class {
     const jump=input.consumeJump();
     if(mv.mag<=.24||jump)this.traversalSearch=null;
     if(mv.mag<=.24){this.autoTraverseSuppressed=false;this.autoTraverseRetry=0;}
-    if(this.traversal){this.grabIntentUntil=0;if(jump)this.autoTraverseSuppressed=true;this.advanceTraversal(dt,dx,dz,jump);return;}
+    if(this.traversal){
+      this.grabIntentUntil=0;
+      const {surface}=this.traversal,up=-(dx*surface.nx+dz*surface.nz);
+      // Jump toward the face requests continuation; neutral/away jump releases.
+      const drop=jump&&up<=.20;
+      if(drop)this.autoTraverseSuppressed=true;
+      this.advanceTraversal(dt,dx,dz,drop);return;
+    }
     // A jump press expresses a bounded grab intent, not a one-tick race.
     // Retry during the same jump/airborne approach. Tall vertical walls and
     // overhead ledges still require this explicit request.
@@ -50727,10 +50734,11 @@ var Player = class {
     for(let i=0;i<count;i++)directedBlock=this.tryMove(this.vel.x*dt/count,this.vel.z*dt/count,ux,uz)||directedBlock;
     // Ordinary step/slope locomotion has priority over automatic traversal.
     if(!jump&&!this.swimming&&!this.autoTraverseSuppressed&&mv.mag>.24&&
-       (this.onGround||this.slide)&&this.simTime>=this.autoTraverseRetry&&
+       this.simTime>=this.autoTraverseRetry&&
        (directedBlock||this.slide&&ux*this.slide.ux+uz*this.slide.uz>=TRAVERSE_ENTRY.alignment)){
       this.autoTraverseRetry=this.simTime+.12;
-      const action=traversalAttempt(this,"auto",ux,uz,null,()=>traversalStart(this,ux,uz,true));
+      const airborne=!this.onGround&&!this.slide;
+      const action=traversalAttempt(this,airborne?"air-contact":"auto",ux,uz,null,()=>traversalStart(this,ux,uz,!airborne));
       if(this.traversalSearch?.pending)this.autoTraverseRetry=this.simTime;
       if(action&&(action.kind==="mantle"||!this.exhausted)){
         this.traversal=action;this.grabIntentUntil=0;this.vel.set(0,0,0);
