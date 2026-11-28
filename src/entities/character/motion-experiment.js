@@ -194,13 +194,6 @@ export function sampleLabGround(fixtures,x,z){
   return {point:[x,fixtures.height(x,z),z],featureId:entry?'pool-entry':'pool-bottom',geometricNormal:Math.abs(u-1)<1e-8?null:[-dx/n,1/n,0]};
  }
  if(Math.abs(x-s.x)<=s.width/2&&z>=s.z&&z<=s.z+s.run*s.count)return null;
- for(const r of fixtures.ramps){
-  const u=r.z-z;
-  if(Math.abs(x-r.x)<=r.width/2&&u>=0&&u<=r.run){
-   const k=r.height/r.run,n=Math.hypot(1,k);
-   return {point:[x,fixtures.height(x,z),z],featureId:'ramp-'+r.angle,geometricNormal:[0,1/n,k/n]};
-  }
- }
  return {point:[x,0,z],featureId:'floor',geometricNormal:[0,1,0]};
 }
 // Detached driver experiment only: scripted roots, no physics/foot IK.

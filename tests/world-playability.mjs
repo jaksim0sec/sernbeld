@@ -210,7 +210,7 @@ async function checkBrowser() {
    const f=d.fixtures,near=(a,b)=>Math.abs(a-b)<1e-5;
    if(!f||f.ramps.length!==3||f.wall.angle!==90||f.ledges.length!==4)throw Error("Lab fixtures missing");
    for(const r of f.ramps){
-    if(!near(d.playerTerrain(r.x,r.z-r.run/2),r.height/2)||!near(Math.atan(r.height/r.run)*180/Math.PI,r.angle))throw Error("Ramp surface mismatch "+r.angle);
+    if(!near(d.playerFloor(r.x,r.z-r.run/2,7,0),r.height/2)||!near(Math.atan(r.height/r.run)*180/Math.PI,r.angle))throw Error("Ramp surface mismatch "+r.angle);
    }
    if(!near(d.playerFloor(f.wall.x,f.wall.z,7,0),f.wall.height))throw Error("Wall collider missing");
    for(const l of f.ledges)if(!near(d.playerFloor(l.x,l.z,3,0),l.height))throw Error("Ledge collider mismatch "+l.id);

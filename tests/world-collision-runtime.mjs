@@ -419,23 +419,27 @@ console.log('PASS T3 continuous static cylinder/rotated-box grazing, actual cand
 // LIVE-B21 triangular sidewall, not the solid landing platform.
 const wedge={x:50,z:0,width:7,height:6,run:6,angle:45};
 bridge.setRegion('motion-lab');
-bridge.labSurface({collisionId:'sidewall-regression',bounds:{min:[45,0,-7],max:[55,6,1]},sample:()=>null,ramps:[wedge]});
+const {x,z,width,height,run}=wedge,left=x-width/2,right=x+width/2;
+bridge.terrain({collisionId:'sidewall-regression',half:100,gridN:2,cell:200,heights:new Float64Array(4),boundaryFaces:[
+ {a:[left,0,z],b:[left,height,z-run],bottom:0},
+ {a:[right,height,z-run],b:[right,0,z],bottom:0}
+]});
 for(const side of [-1,1]){
  const edge=wedge.x+side*wedge.width/2,from=edge+side*.8;
- const contact=bridge.labSideSweep(from,-3,0,-side*1.1,0,.35,1.72);
+ const contact=bridge.surfaceBoundarySweep(from,-3,0,-side*1.1,0,.35,1.72);
  assert.equal(contact.length,1);
  assert(Math.abs(contact[0].toi-(.8-.348)/1.1)<.00001);
  assert(Math.abs(contact[0].nx-side)<1e-6);
- assert.equal(bridge.labSideSweep(edge+side*.5,-3,0,side*.4,0).length,0);
- assert.equal(bridge.labSideSweep(edge+side*.2,-3,0,side*.4,0).length,0);
- assert(bridge.labSideSweep(edge+side*.2,-3,0,-side*.05,0).length>0);
- assert.equal(bridge.labSideSweep(edge+side*.8,-3,3.5,-side*1.1,0).length,0);
- assert.equal(bridge.labSideSweep(edge-side*.1,-3,3,side*.5,0).length,0);
- assert.equal(bridge.labSideSweep(edge+side*.5,-3,0,0,-.4).length,0);
+ assert.equal(bridge.surfaceBoundarySweep(edge+side*.5,-3,0,side*.4,0).length,0);
+ assert.equal(bridge.surfaceBoundarySweep(edge+side*.2,-3,0,side*.4,0).length,0);
+ assert(bridge.surfaceBoundarySweep(edge+side*.2,-3,0,-side*.05,0).length>0);
+ assert.equal(bridge.surfaceBoundarySweep(edge+side*.8,-3,3.5,-side*1.1,0).length,0);
+ assert.equal(bridge.surfaceBoundarySweep(edge-side*.1,-3,3,side*.5,0).length,0);
+ assert.equal(bridge.surfaceBoundarySweep(edge+side*.5,-3,0,0,-.4).length,0);
 }
-assert.equal(bridge.labSideSweep(50,.5,0,0,-1).length,0);
+assert.equal(bridge.surfaceBoundarySweep(50,.5,0,0,-1).length,0);
 bridge.setRegion('lab');
-assert.equal(bridge.labSideSweep(54.3,-3,0,-1.1,0).length,0);
+assert.equal(bridge.surfaceBoundarySweep(54.3,-3,0,-1.1,0).length,0);
 console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ramp entry');
 
 
@@ -460,7 +464,6 @@ console.log('PASS LIVE-B21 triangular sidewall radius, clearance, escape and ram
    assert.equal(hit.length,1,'rotated faceted boundary blocks outside the lab');
    assert(Math.abs(hit[0].toi-(.8-.348)/1.1)<1e-5);
    assert(Math.abs(hit[0].nx-n)<1e-6&&Math.abs(hit[0].nz-side*n)<1e-6);
-   assert.equal(curved.labSideSweep(ox,oz,0,-n*1.1,-side*n*1.1).length,1,'existing Player caller consumes generic query');
    assert.equal(curved.surfaceBoundarySweep(ox,oz,2.1,-n*1.1,-side*n*1.1).length,0,'above face clearance');
    assert.equal(curved.surfaceBoundarySweep(ox,oz,0,n*.5,side*n*.5).length,0,'outward motion');
   }
@@ -1070,7 +1073,7 @@ playerEnv.install(null);
   );
   const f=makeLab(three,m,playerEnv.addBox,playerEnv.addCyl,(x,a,b)=>Math.max(a,Math.min(b,x)));
   const labGround=Function(slicePart(readPart('src/entities/character/motion-experiment.js'),'export function sampleLabGround(','// Detached driver experiment').replace('export ','')+'return sampleLabGround;')();
-  m.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>labGround(f,x,z),ramps:f.ramps});
+  m.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>labGround(f,x,z)});
   playerEnv.lab(f);
   const forward={...neutral,move:()=>({x:0,y:1,mag:1})};
   const route=(name,x,z,yaw,frames,target,kind)=>{
@@ -1091,7 +1094,7 @@ playerEnv.install(null);
    route('ramp-side-'+r.angle+'-'+side,r.x+side*(r.width/2+.7),r.z-r.run*.6,side*Math.PI/2,500,r.angle<60?r.height*.6:null,'latch');
    const p=new playerEnv.Player();p.teleport(r.x+side*(r.width/2+.7),r.z-r.run*.6,side*Math.PI/2,0,0);
    for(let i=0;i<60&&!p.traversal;i++)p.advance(1/60,forward,[]);
-   assert(p.traversal?.surface.boundary,'ramp side uses registered boundary');
+   assert.equal(p.traversal?.surface.meshId,r.id,'ramp side uses the same registered mesh as the top');
    const z=p.pos.z;
    for(let i=0;i<100;i++)p.advance(1/60,{...neutral,move:()=>({x:side,y:0,mag:1})},[]);
    assert(p.traversal&&p.pos.z<z-.3,'uphill lateral movement '+r.angle+' '+side);

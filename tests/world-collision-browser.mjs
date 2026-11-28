@@ -18,7 +18,7 @@ const rockComparisonSource=[
  'const CONTACT_SKIN=.002,clamp2=(v,a,b)=>Math.max(a,Math.min(b,v));',
  section(rendererSource,'function local(','function groundAt('),
  section(rendererSource,'function playerContact(','// The static broad phase'),
- section(gameplaySource,'function renderedCollisionTriangles(','function curvedLabGeometry('),
+ section(gameplaySource,'function renderedCollisionTriangles(','function labProfileGeometry('),
  'return {local,inside,playerContact,renderedCollisionTriangles};'
 ].join('\n');
 
@@ -136,7 +136,7 @@ try{
    throw Error('Lab collision registrations incomplete '+JSON.stringify(s));
   for(const ramp of f.ramps){
    const x=ramp.x,z=ramp.z-ramp.run/2,y=ramp.height/2,p=d.collision.probe(x,z,y);
-   if(!p.hit||Math.abs(p.hit.point[1]-y)>1e-6||p.hit.featureId!=='ramp-'+ramp.angle)throw Error('Ramp registration '+JSON.stringify(p));
+   if(!p.hit||Math.abs(p.hit.point[1]-y)>1e-6||p.hit.instanceId!==ramp.id)throw Error('Ramp registration '+JSON.stringify(p));
   }
   for(const l of f.ledges){
    const p=d.collision.probe(l.x,l.z,l.height);
@@ -209,13 +209,35 @@ try{
   assert(q.escape>q.clearance+.15,'LIVE-B21 release '+JSON.stringify(q));
   assert(q.meshOverlap<=.002,'LIVE-B21 final bare-body intersection '+JSON.stringify(q));
  }
+ // Walk sideways off the sloped part, where the same side triangle has
+ // a higher uphill corner inside the capsule radius.
+ const exits=await page.evaluate(()=>{
+  const d=window.__dev,p=d.player,curve=d.fixtures.curve;
+  const routes=[];
+  for(const side of [-1,1]){
+   const x=curve.x+3.5,z=curve.z+side*2.5,height=d.playerFloor(x,z,5,0);
+   p.teleport(x,z,side>0?Math.PI:0,0,height);
+   const outward={move:()=>({x:0,y:1,mag:1}),run:()=>false,consumeJump:()=>false};
+   let fell=false;
+   for(let frame=0;frame<60;frame++){
+    p.advance(1/60,outward,[]);
+    fell||=!p.onGround&&p.pos.y<height;
+    if(p.traversal)throw Error('Leaving the ramp started a climb');
+   }
+   if(!fell||!p.onGround||Math.abs(p.pos.y)>1e-6||side*(p.pos.z-curve.z)<4)
+    throw Error('Curved ramp side trapped outward movement '+side+' '+p.pos.toArray());
+   routes.push({side,height,end:p.pos.toArray()});
+  }
+  d.reset();return routes;
+ });
+ console.log('Curved ramp side exit evidence '+JSON.stringify(exits));
  // Visible nonprimitive fixtures: actual Player, same renderer geometry
  // and runtime bridge, no synthetic collider substituted in the browser.
  const geometryEvidence=await page.evaluate(()=>{
   const d=window.__dev,p=d.player,input=d.input,f=d.fixtures;
   const curve=f.curve,rock=f.rock;
   const stats=d.collision.stats();
-  if(stats.counts.triangleMesh!==3||!d.scene.getObjectByName('motion-lab-irregular-rock')||!d.scene.getObjectByName('motion-lab-continuous-curve'))throw Error('visible geometry registration');
+  if(stats.counts.triangleMesh!==6||!d.scene.getObjectByName('motion-lab-irregular-rock')||!d.scene.getObjectByName('motion-lab-continuous-curve'))throw Error('visible geometry registration');
   const supports=[[1,.25],[3,1.05],[5,3.1],[7,4.6]].map(([dx,y])=>{
    const q=d.collision.probe(curve.x+dx,curve.z,y);
    if(q.hit?.instanceId!==curve.id||Math.abs(q.hit.point[1]-y)>1e-5||Math.abs(q.difference)>1e-5)throw Error('mesh support parity '+JSON.stringify(q));
@@ -332,7 +354,7 @@ try{
     for(let frame=0;frame<930;frame++){
      const lateral=latch>=0&&(frame-latch)%135>=90;
      input.stick.x=lateral?side:0;input.stick.y=lateral?0:1;
-     if(!jumped&&!lateral&&p.traversal?.surface.box&&p.pos.y>=ramp.height-1.5){
+     if(!jumped&&!lateral&&p.traversal?.surface.meshId===ramp.id&&p.pos.y>=ramp.height-1.5&&p.pos.z<ramp.z-ramp.run-.22){
       input.jumpQueued=true;jumped=true;
      }
      p.advance(1/60,input,[]);
@@ -341,7 +363,7 @@ try{
      if(latch<0&&current)latch=frame;
      for(const root of [p.pos,p.renderPos])if(d.playerContacts(root.x,root.z,root.y).length)throw Error('Ramp side capsule overlap '+body+' '+side);
      if(current&&current!==previous){
-      if(current.kind==='climb'&&current.surface.lower?.boundary&&!previous?.surface.box){
+      if(current.kind==='climb'&&current.to.z<ramp.z-ramp.run&&current.from.z>=ramp.z-ramp.run){
        const {moving,from,to,hands,feet}=current;
        if(!lateral||Math.abs(from.y-to.y)>1e-6||from.distanceTo(to)>.301||
           hands[1-moving]!==previous.hands[1-moving]||feet[moving]!==previous.feet[moving])

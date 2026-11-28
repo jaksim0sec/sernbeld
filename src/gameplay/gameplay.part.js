@@ -3220,7 +3220,7 @@ function traversalHold(surface,side,y,along) {
 // moving hand and opposite foot; the other two are existing anchors.
 function traversalContacts(surface,y,along,scale,lead,root=null,moving=null) {
   const hands=[],feet=[];
-  const steepSide=surface.steepBoundary||surface.lower?.steepBoundary;
+  const steepSide=surface.steepSide;
   for(const sign of [-1,1]) {
     const index=sign===-1?0:1,needHand=moving===null||moving===index,needFoot=moving===null||moving!==index;
     const reach=(1.46+(sign===lead?.12:-.10))*scale;
@@ -3252,7 +3252,8 @@ function traversalBody(action,t,out) {
   const {from,to,kind,approach}=action;
   if(kind==="crest"){
     out.copy(from).lerp(to,traversalEase(action.liftFirst?.53:.31,1,t));
-    out.y=from.y+(to.y+.06-from.y)*traversalEase(0,action.liftFirst?.51:.67,t)-.06*traversalEase(action.liftFirst?.91:.75,1,t);
+    const over=action.over??to.y+.06;
+    out.y=from.y+(over-from.y)*traversalEase(0,action.liftFirst?.51:.67,t)-(over-to.y)*traversalEase(action.liftFirst?.91:.75,1,t);
     return out;
   }
   if(kind==="mantle") {
@@ -3474,7 +3475,7 @@ function* traversalMeshPoses(surface,face,y,lead,moving=null){
   const along=face.along,baseTilt=Math.atan(1/face.grade);
   let profileTilt=baseTilt;
   // A curved face can recede above the feet even when the lowest facet is vertical.
-  if(!surface.boundary)for(const height of [1.26,1.10,.94]){
+  if(!surface.steepSide)for(const height of [1.26,1.10,.94]){
     const upper=traversalFaceAt(surface,0,y+height,along);
     if(!upper)continue;
     profileTilt=clamp2(Math.atan2(upper.along-along,height),-.38,.75);
@@ -3561,15 +3562,20 @@ function traversalStart(player,dx,dz,automatic=false) {
   }
   for(const hit of meshEntries?meshEntries.filter(e=>e.climb):WorldCollision?.meshClimbEntries?.(p.x,p.z,p.y,dx,dz,PLAYER.radius,PLAYER.body,entry.reach,entry.alignment)??[]){
     candidates.push({distance:PLAYER.radius+hit.toi*entry.reach+.001,build:()=>{
-      const surface={x:p.x,z:p.z,nx:hit.boundary?hit.nx:-dx,nz:hit.boundary?hit.nz:-dz,meshId:hit.id,revision:hit.revision,boundary:hit.boundary};
-      if(surface.boundary){
+      const vertical=Math.abs(hit.normal?.[1]??1)<1e-8;
+      const surface={x:p.x,z:p.z,nx:vertical?hit.normal[0]:-dx,nz:vertical?hit.normal[2]:-dz,meshId:hit.id,revision:hit.revision};
+      let slopedTop=false;
+      if(vertical){
         const q=traversalAcross(surface,0,r+CONTACT_SKIN);
-        const top=WorldCollision.surfaceAt(q.x,q.z,"lab-ground");
-        surface.steepBoundary=top?.instanceId===hit.id&&top.geometricNormal?.[1]<COS_SLIDE;
+        const top=WorldCollision.meshSupport(q.x,q.z,Infinity,-Infinity);
+        if(top?.instanceId===hit.id){
+          slopedTop=top.geometricNormal[1]<.9999;
+          surface.steepSide=top.geometricNormal[1]<COS_SLIDE;
+        }
       }
       for(const rise of [.12,.24,.36,.48,.60]){
         const face=traversalFaceAt(surface,0,p.y+rise,0);
-        if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&!surface.boundary&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
+        if(!face||face.grade<TRAVERSE_GRADE-.04||automatic&&!slopedTop&&Math.abs(face.normal.y)<Math.cos(80*Math.PI/180)||face.along<0||face.along>PLAYER.radius+entry.reach+.3)continue;
         for(const {to,along,tilt,contacts} of traversalMeshPoses(surface,face,p.y+rise,1)){
           const action={kind:"latch",surface,from:p.clone(),to,along,tilt,...contacts,duration:.30,elapsed:0};
           if(traversalPathClear(action))return action;
@@ -3626,9 +3632,9 @@ function traversalStep(player,old,surface,to,along,tilt,moving,lead,knownContact
   // tilted body frame; this is not an anatomical IK reach guarantee.
   if(surface.meshId||surface.box){
     for(const hold of [hands[1-moving],feet[moving]])if(Math.hypot(hold.point.x-to.x,hold.point.z-to.z)>.85)return null;
-    if(surface.steepBoundary||surface.lower?.steepBoundary){
+    if(surface.steepSide){
       const hold=hands[1-moving].point,across=(hold.x-to.x)*surface.nz-(hold.z-to.z)*surface.nx;
-      if(hold.y<to.y+.91||Math.abs(across-(moving===0?.14:-.14))>.36)return null;
+      if(hold.y<to.y+.91||Math.abs(across-(moving===0?.14:-.14))>.31)return null;
     }
   }
   return traversalPathClear(action)?action:null;
@@ -3638,18 +3644,39 @@ function traversalNext(player,old) {
   const p=player.pos;
   if(surface.meshId){
     const moving=old.moving===0?1:0,lead=moving===0?-1:1;
-    // Boundary triangles and their analytical top share the registered source.
-    const support=(x,z,hi,lo)=>surface.boundary?WorldCollision.surfaceAt(x,z,"lab-ground",hi):WorldCollision.meshSupport(x,z,hi,lo);
-    const spread=surface.boundary?PLAYER.radius*.8*Math.tan(50*Math.PI/180)+.005:.24;
+    const support=(x,z,hi,lo)=>WorldCollision.meshSupport(x,z,hi,lo);
+    const spread=PLAYER.radius*.8*TRAVERSE_GRADE+.005;
     // Leave the face only onto real walkable support on this same source.
     for(const d of [.28,.42,.56,.70,.84,.98,1.12]){
       const q=traversalAcross(surface,0,old.along+d),hit=traversalMemo(["crest-center",q.x,q.z,p.y],()=>support(q.x,q.z,p.y+1.2,p.y-.13));
-      if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||hit.point[1]<p.y-.13||surface.boundary&&!hit.featureId?.startsWith("ramp-")||playerSteepGround(q.x,q.z,hit.point[1]))continue;
+      if(hit?.instanceId!==surface.meshId||hit.revision!==surface.revision||hit.point[1]<p.y-.13||playerSteepGround(q.x,q.z,hit.point[1]))continue;
       const y=hit.point[1];
-      let supported=true;for(let i=0;i<8;i++){const x=q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,z=q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8,h=traversalMemo(["crest-support",x,z,y],()=>support(x,z,y+spread,y-spread));if(h?.instanceId!==surface.meshId||Math.abs(h.point[1]-y)>spread||surface.boundary&&h.featureId!==hit.featureId||!(h.geometricNormal?.[1]>=COS_SLIDE)){supported=false;break;}}
+      const grade=h=>Math.hypot(h.geometricNormal[0],h.geometricNormal[2])/h.geometricNormal[1];
+      let high=y,maxGrade=grade(hit),supported=true;
+      for(let i=0;i<8;i++){
+        const x=q.x+Math.cos(i*Math.PI/4)*PLAYER.radius*.8,z=q.z+Math.sin(i*Math.PI/4)*PLAYER.radius*.8;
+        const h=traversalMemo(["crest-support",x,z,y],()=>support(x,z,y+spread,y-spread));
+        if(h?.instanceId!==surface.meshId||Math.abs(h.point[1]-y)>spread||!(h.geometricNormal?.[1]>=COS_SLIDE)){supported=false;break;}
+        high=Math.max(high,h.point[1]);maxGrade=Math.max(maxGrade,grade(h));
+      }
       if(!supported)continue;
+      if(hit.geometricNormal[1]>=.9999&&y-p.y>=.20&&y-p.y<=1.53){
+        const hands=[];
+        for(const side of [-.195,.195]){
+          const hold=traversalFaceAt(surface,side,y-.003,old.along);
+          if(!hold||Math.abs(hold.normal.y)>1e-8)break;
+          const top=WorldCollision.meshSupport(hold.point.x-surface.nx*.02,hold.point.z-surface.nz*.02,y+.008,y-.008);
+          if(top?.instanceId!==surface.meshId||top.geometricNormal[1]<.9999)break;
+          hands.push({...hold,point:new Vector3(hold.point.x,top.point[1],hold.point.z),normal:new Vector3(...top.geometricNormal),lip:true});
+        }
+        if(hands.length===2){
+          const action={kind:"mantle",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),approach:p.clone(),
+            hands,previous:old,over:y+.045,tilt:0,duration:1.02+(y-p.y)*.17,elapsed:0};
+          if(traversalPathClear(action))return action;
+        }
+      }
       for(const liftFirst of [false,true]){
-        const action={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),previous:old,tilt:0,duration:.72,liftFirst,elapsed:0};
+        const action={kind:"crest",surface,from:p.clone(),to:new Vector3(q.x,y,q.z),previous:old,over:(liftFirst?high+PLAYER.radius*.2*maxGrade:y)+.06,tilt:0,duration:.72,liftFirst,elapsed:0};
         if(traversalPathClear(action))return action;
       }
     }
@@ -3705,41 +3732,11 @@ function traversalNext(player,old) {
   }
   return null;
 }
-// Continue the requested side step across a touching, coplanar face.
-// Check the actual shared edge at body height before using the adjacent solid.
-function traversalBoundarySide(player,old,next,dir,moving,stride) {
-  const {surface,along}=old,p=player.pos;
-  const q=traversalAcross(next,0,along);
-  const tx=surface.nz*dir,tz=-surface.nx*dir;
-  const to=new Vector3(q.x+surface.nx*TRAVERSE_WALL_GAP,p.y,q.z+surface.nz*TRAVERSE_WALL_GAP);
-  for(const box of traversalPrimitiveCandidates(to.x,to.z,Math.hypot(TRAVERSE_WALL_GAP,.195)+.02)){
-    if(box.type!=="box"||!traversalSolid(box)||box.mantleOnly||p.y<box.bot||p.y>=box.top)continue;
-    for(const face of traversalBoxFaces(box,to,-surface.nx,-surface.nz,0)){
-      const ox=face.x-q.x,oz=face.z-q.z;
-      if(face.nx*surface.nx+face.nz*surface.nz<.9999||Math.abs(ox*surface.nx+oz*surface.nz)>CONTACT_SKIN)continue;
-      // A palm may cross the seam before the centre does.
-      const [x,z]=local(box,face.x,face.z);
-      const dx=tx*box.cos-tz*box.sin,dz=tx*box.sin+tz*box.cos;
-      const back=(Math.abs(dx)>Math.abs(dz)?box.hx+x*Math.sign(dx):box.hz+z*Math.sign(dz))-(ox*tx+oz*tz);
-      if(back<-.195||back>stride)continue;
-      const seam={...next,x:next.x-tx*(back+.001),z:next.z-tz*(back+.001)};
-      const lip=traversalFaceAt(seam,0,p.y,along);
-      if(!lip||lip.normal.x*face.nx+lip.normal.z*face.nz<.9999||Math.abs(lip.along-along)>CONTACT_SKIN)continue;
-      const lower={...next,x:q.x,z:q.z};
-      const bridge=traversalBindFace({...face,x:q.x,z:q.z,lower});
-      const contacts=traversalContacts(bridge,p.y,0,1,dir,to,moving);
-      if(!contacts||![contacts.hands[moving],contacts.feet[1-moving]].some(hold=>hold.sourceRef?.id===box.collisionId))continue;
-      const action=traversalStep(player,old,bridge,to,0,0,moving,dir,contacts);
-      if(action)return action;
-    }
-  }
-  return null;
-}
 // Sideways along the face at the same height; stops at a face edge.
 function traversalSide(player,old,dir) {
   const {surface}=old;
   return traversalSideStep(player,old,dir,CLIMB.side)??
-    (surface.steepBoundary||surface.lower?.steepBoundary?traversalSideStep(player,old,dir,.16):null);
+    (surface.steepSide?traversalSideStep(player,old,dir,.16):null);
 }
 function traversalSideStep(player,old,dir,stride) {
   const {surface}=old,p=player.pos,step=stride*dir;
@@ -3750,7 +3747,6 @@ function traversalSideStep(player,old,dir,stride) {
       next={...surface,x:q.x,z:q.z,nx:q.nx,nz:q.nz};
     }else{
       next={...surface,x:surface.x+surface.nz*step,z:surface.z-surface.nx*step};
-      if(surface.lower?.boundary)next.lower={...surface.lower,x:surface.lower.x+surface.nz*step,z:surface.lower.z-surface.nx*step};
     }
     const q=traversalSolidPoint(next,0);
     to=new Vector3(q.x+q.nx*TRAVERSE_WALL_GAP,p.y,q.z+q.nz*TRAVERSE_WALL_GAP);
@@ -3762,7 +3758,7 @@ function traversalSideStep(player,old,dir,stride) {
         const action=traversalStep(player,old,next,pose.to,pose.along,pose.tilt,moving,dir,pose.contacts);
         if(action)return action;
       }
-      return surface.boundary?traversalBoundarySide(player,old,next,dir,moving,stride):null;
+      return null;
     }
     if(!face)return null;
     along=face.along;tilt=Math.atan(1/face.grade);
@@ -4135,7 +4131,7 @@ var Player = class {
       if(playerCeiling(p.x,p.z,y,floor,this.solids)<floor-CONTACT_SKIN)return {contacts:[{nx:-dx/(Math.hypot(dx,dz)||1),nz:-dz/(Math.hypot(dx,dz)||1),depth:rise}]};
       y=floor;
     }
-    const contacts=playerContacts(x,z,y,this.nearby,PLAYER.radius,this.solids);
+    const contacts=playerContacts(x,z,y,this.nearby,PLAYER.radius,this.solids,p);
     // Existing overlap may only decrease. This permits walking away from a
     // moving NPC or a bad save position without adding energy to the player.
     if(contacts.length){
@@ -7174,11 +7170,10 @@ function renderedCollisionTriangles(geometry,matrix){
   }
   return triangles;
 }
-function curvedLabGeometry(){
-  // One continuous solid, not separate slope colliders. Gentle, moderate,
-  // steep and flat portions share their vertices and outward winding.
-  const sections=[[0,0],[2,.5],[4,1.6],[6,4.6],[8,4.6]],positions=[],indices=[];
-  for(const [x,y] of sections)positions.push(x,y,-3,x,y,3,x,-.25,-3,x,-.25,3);
+function labProfileGeometry(sections,width){
+  // Slope and landing share their vertices and outward winding.
+  const half=width/2,positions=[],indices=[];
+  for(const [x,y] of sections)positions.push(x,y,-half,x,y,half,x,-.25,-half,x,-.25,half);
   for(let i=0;i<sections.length-1;i++){
     const a=i*4,b=a+4;
     indices.push(a,a+1,b,b,a+1,b+1, // top
@@ -7189,6 +7184,9 @@ function curvedLabGeometry(){
   const n=(sections.length-1)*4;
   indices.push(0,2,1,1,2,3,n,n+1,n+2,n+1,n+3,n+2);
   const g=new BufferGeometry();g.setAttribute("position",new Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
+}
+function curvedLabGeometry(){
+  return labProfileGeometry([[0,0],[2,.5],[4,1.6],[6,4.6],[8,4.6]],6);
 }
 function createMotionLabFixtures(scene){
   const root=new Group();root.name="motion-lab-fixtures";scene.add(root);
@@ -7232,15 +7230,14 @@ function createMotionLabFixtures(scene){
   const water=plane("motion-lab-water",waterMat,midX,pool.surface,midZ,pool.maxX-pool.minX,pool.maxZ-pool.minZ);
   water.renderOrder=2;water.receiveShadow=false;
   const inPool=(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ;
+  const rampMeshes=[];
   for(const r of ramps){
-    // The wedge top is analytical terrain (same surface used by physics,
-    // climbing, foot IK and camera rays). A real box forms its level landing.
-    const a=-r.width/2,b=r.width/2,L=r.run,H=r.height;
-    const vertices=[a,0,0,b,0,0,a,H,-L,b,H,-L,a,0,-L,b,0,-L];
-    const g=new BufferGeometry();g.setAttribute("position",new Float32BufferAttribute(vertices,3));
-    g.setIndex([0,1,2,1,3,2,0,2,4,1,5,3,2,3,4,3,5,4,0,4,1,1,4,5]);g.computeVertexNormals();
-    const wedge=mesh(g,slopeMat,r.x,0,r.z);wedge.name="motion-lab-slope-"+r.angle;root.add(wedge);
-    solid("motion-lab-landing-"+r.angle,slopeMat,r.x,r.z-L-2,r.width,4,H);
+    const g=labProfileGeometry([[0,0],[r.run,r.height],[r.run+4,r.height]],r.width);
+    const wedge=mesh(g,slopeMat,r.x,0,r.z);wedge.name="motion-lab-slope-"+r.angle;
+    wedge.rotation.y=Math.PI/2;root.add(wedge);wedge.updateWorldMatrix(true,false);
+    r.id="motion-lab:ramp-"+r.angle;
+    WorldCollision?.triangleMesh({collisionId:r.id,triangles:renderedCollisionTriangles(g,wedge.matrixWorld),support:true});
+    rampMeshes.push(wedge);
   }
   solid("motion-lab-wall-90",slopeMat,wall.x,wall.z,wall.width,wall.depth,wall.height);
   for(let i=0;i<stairs.count;i++)solid("motion-lab-stair-"+i,stepMat,stairs.x,stairs.z+(i+.5)*stairs.run,stairs.width,stairs.run,(i+1)*stairs.rise);
@@ -7262,6 +7259,7 @@ function createMotionLabFixtures(scene){
   const curveTriangles=renderedCollisionTriangles(curveObject.geometry,curveObject.matrixWorld);
   WorldCollision?.triangleMesh({collisionId:curve.id,triangles:curveTriangles,support:true});
   curve.triangleCount=curveTriangles.length;
+  rampMeshes.push(curveObject);
   // Low mesh-only solid for actual mantle validation. Its geometry is the
   // authority for approach, landing and hand contacts; no primitive proxy.
   const mantle={x:32,z:14,id:"motion-lab:mesh-mantle"};
@@ -7285,19 +7283,15 @@ function createMotionLabFixtures(scene){
   const height=(x,z)=>{
     if(inPool(x,z))return pool.bottom*Math.min(1,(pool.maxX-x)/pool.entry);
     const step=stairHeight(x,z,0,true);if(step!==null)return step;
-    for(const r of ramps){
-      const u=r.z-z;
-      if(Math.abs(x-r.x)<=r.width/2&&u>=0&&u<=r.run)return r.height*u/r.run;
-    }
     return 0;
   };
-  return {root,pool,stairs,ramps,wall,ledges,dummy,rock,curve,mantle,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
+  return {root,pool,stairs,ramps,rampMeshes,wall,ledges,dummy,rock,curve,mantle,height,stairHeight,waterLevel:(x,z)=>inPool(x,z)?pool.surface:-1e6};
 }
 async function bootMotionLab({renderer,scene,camera,canvas2}){
   // The page is disposable. Normal-world collision registrations are never built.
   WorldCollision?.setRegion('motion-lab');
   const fixtures=createMotionLabFixtures(scene);
-  WorldCollision?.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>sampleLabGround(fixtures,x,z),ramps:fixtures.ramps});
+  WorldCollision?.labSurface({collisionId:'motion-lab:ground',bounds:{min:[-10000,-4,-10000],max:[10000,7,10000]},sample:(x,z)=>sampleLabGround(fixtures,x,z)});
   const pool=fixtures.pool;
   WorldCollision?.water({contains:(x,z)=>x>pool.minX&&x<pool.maxX&&z>pool.minZ&&z<pool.maxZ,surfaceAt:()=>pool.surface,bottomAt:(x,z)=>fixtures.height(x,z),bounds:{center:[(pool.minX+pool.maxX)/2,(pool.bottom+pool.surface)/2,(pool.minZ+pool.maxZ)/2],half:[(pool.maxX-pool.minX)/2,(pool.surface-pool.bottom)/2,(pool.maxZ-pool.minZ)/2]}});
   playerTerrain=fixtures.height;
@@ -7328,11 +7322,17 @@ async function bootMotionLab({renderer,scene,camera,canvas2}){
   const player=new Player(),rig=new CameraRig(camera),movementCamera=new MovementCameraFollow(),ui=new GameUI();
   const input=new Input(canvas2,{stickEl:hud.el.stick,jumpEl:hud.el.jump,atkEl:$("atk"),sprintEl:$("sprint"),onAnyInput:()=>hud.hideHint()});
   const view=new ViewModel(camera),combat={swing:null};
+  const ray=new Raycaster(),originV=new Vector3(),directionV=new Vector3();
+  const labRay=(origin,dir,limit)=>{
+    ray.set(originV.copy(origin),directionV.copy(dir));
+    ray.far=maktwoWorldRay(origin,dir,limit);
+    return ray.intersectObjects(fixtures.rampMeshes,false)[0]?.distance??ray.far;
+  };
   let testSword=false,nextHand="right";
   const avatars=createCharacterRuntime({T:characterTypes,scene,camera,player,Save:labSave,
     getEquipped:side=>testSword&&side==="right"?{definitionId:"apprentice_sword",wear:0}:null,makeCharacter,
     makeWeapon:id=>{const model=ITEMS[id]?.model;if(!model||!MODELS[model])return null;const weapon=new Mesh(MODELS[model](),view.mat);weapon.userData.handleY=-.08;return weapon;},view,height:PLAYER.height,
-    attackPose:maktwoAttackPose,worldRay:maktwoWorldRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
+    attackPose:maktwoAttackPose,worldRay:labRay,groundSurface:playerFootSurface,runSpeed:PLAYER.run});
   rig.motion=labSave.data.settings.motion;
   const motionTrace=createMotionTrace();let traceRig=null,traceActor=null;
   const motionExperiment={manifest:()=>motionManifest(),rig:()=>measureRig(avatars.actor),replay:options=>replayMotion(makeCharacter,avatars.profile,options),start:()=>{traceActor=avatars.actor;traceRig=measureRig(traceActor);motionTrace.start();},stop:()=>motionTrace.stop(),read:()=>motionTrace.read()};

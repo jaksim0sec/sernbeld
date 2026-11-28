@@ -16,7 +16,7 @@ assert.deepEqual(motionPolicy('pivot').contactWindows.left.support,[Math.PI,2*Ma
 assert(manifests.filter(x=>x.kind==='keyframe').every(x=>x.contactWindows===null&&x.contact.kind==='unannotated-keyframe'));
 const recorder=createMotionTrace({limit:2});assert.equal(recorder.push(0),false);recorder.start();recorder.push(1);recorder.push(2);assert.equal(recorder.push(3),false);assert.deepEqual(recorder.stop(),{frames:[1,2],active:false,error:null});
 const f={pool:{minX:-56,maxX:-26,minZ:-13,maxZ:13,entry:6,bottom:-3},stairs:{x:-12,z:12,width:4,run:.55,count:12},ramps:[{angle:45,x:0,z:-16,width:7,run:6,height:6}],height:(x,z)=>x<-26?-3*Math.min(1,(-26-x)/6):Math.max(0,-16-z)};
-assert.equal(sampleLabGround(f,0,-19).point[1],3);assert(Math.abs(sampleLabGround(f,0,-19).geometricNormal[2]-Math.SQRT1_2)<1e-12);
+assert.deepEqual(sampleLabGround(f,0,-19),{point:[0,0,-19],featureId:'floor',geometricNormal:[0,1,0]});
 assert.equal(sampleLabGround(f,-12,13),null);assert.equal(sampleLabGround(f,-29,0).point[1],-1.5);
 for(const body of ['male','female']){
  const results=['low','baseline','high'].map(strength=>replayMotion(make,{body},{strength,scenario:'walk',frames:90}));

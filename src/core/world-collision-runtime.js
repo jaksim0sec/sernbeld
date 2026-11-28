@@ -240,16 +240,10 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const h=analytical(id,"heightfield",bounds,roofPolicy(false),(x,z)=>sampleHeightfieldTriangle({heights,gridN,cell,half,x,z}),{sourceKind:"terrain",boundaryFaces});
   types.terrain++;return h;
  }
- function labSurface({collisionId,bounds,sample,ramps=[]}){
+ function labSurface({collisionId,bounds,sample}){
   if(regionId!=='motion-lab')throw new TypeError('lab-only analytical registration');
-  const boundaryFaces=ramps.flatMap(r=>[
-   {a:[r.x-r.width/2,0,r.z],b:[r.x-r.width/2,r.height,r.z-r.run],bottom:0},
-   {a:[r.x+r.width/2,r.height,r.z-r.run],b:[r.x+r.width/2,0,r.z],bottom:0}
-  ]);
-  const h=analytical(collisionId,'heightfield',bounds,roofPolicy(false),sample,{sourceKind:'lab-ground',boundaryFaces});
-  // Reuse the registered side triangles for traversal without changing analytical top support.
-  const source=boundarySources.get(regionId)?.get(h.id);if(source)source.boundaryClimb=true;
-  types.labSurface++;return h;
+  const handle=analytical(collisionId,'heightfield',bounds,roofPolicy(false),sample,{sourceKind:'lab-ground'});
+  types.labSurface++;return handle;
  }
  function stair(record){
   const a=record.a,b=record.b,n=record.n;
@@ -449,13 +443,13 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  function meshTraversalHits(x,z,y,dx,dz,radius,height,reach,alignment,memo=(key,read)=>read()){
   const bounds={min:[Math.min(x,x+dx*reach)-radius,y+.002,Math.min(z,z+dz*reach)-radius],max:[Math.max(x,x+dx*reach)+radius,y+height-.002,Math.max(z,z+dz*reach)+radius]},out=[];
   for(const [id,source] of boundaryCandidates(regionId,bounds)){
-   if((!source.boundaryClimb&&(source.type!=="triangleMesh"||(!source.policy.mantle&&source.policy.climb!=="face")))||!intersects(source.indexBounds,bounds))continue;
+   if((source.type!=="triangleMesh"||(!source.policy.mantle&&source.policy.climb!=="face"))||!intersects(source.indexBounds,bounds))continue;
    const rec=registry.get(id);if(!rec?.effectiveActive)continue;
    const hit=memo(["mesh-entry",id,rec.revision,x,z,y,dx,dz,radius,height,reach,alignment],()=>{
     let best=null;
     visitFaces(source.tree,bounds,face=>{
      const c=sweepFace(face,x,z,y,dx*reach,dz*reach,radius,height);
-     if(c&&-(dx*c.nx+dz*c.nz)>=alignment&&(!best||c.toi<best.toi))best=c;
+     if(c&&-(dx*c.nx+dz*c.nz)>=alignment&&(!best||c.toi<best.toi))best={...c,normal:face.normal};
     });
     return best;
    });
@@ -517,7 +511,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const {radius=.35,height=1.72,reach=.19,alignment=.65}=options;
   const len=Math.hypot(dx,dz);if(len<1e-8)return [];dx/=len;dz/=len;
   return meshTraversalHits(x,z,y,dx,dz,radius,height,reach,alignment,memo).map(entry=>({
-   id:entry.id,revision:entry.revision,toi:entry.hit.toi,climb:entry.source.boundaryClimb||entry.source.policy.climb==="face",boundary:!!entry.source.boundaryClimb,nx:entry.hit.nx,nz:entry.hit.nz,
+   id:entry.id,revision:entry.revision,toi:entry.hit.toi,climb:entry.source.policy.climb==="face",normal:entry.hit.normal,
    mantles:entry.source.policy.mantle?()=>meshMantleCandidates(x,z,y,dx,dz,options,[entry],memo):null
   }));
  }
@@ -526,7 +520,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  }
  function meshClimbFace(id,revision,x,z,y,dx,dz,lo,hi){
   const source=boundarySources.get(regionId)?.get(id),rec=registry.get(id);
-  if(!source||(!source.boundaryClimb&&source.policy.climb!=="face")||!rec?.effectiveActive||rec.revision!==revision)return null;
+  if(!source||source.policy.climb!=="face"||!rec?.effectiveActive||rec.revision!==revision)return null;
   const ax=x+dx*lo,az=z+dz*lo,bx=x+dx*hi,bz=z+dz*hi;
   let best=null;
   visitFaces(source.tree,{min:[Math.min(ax,bx)-1e-7,y-1e-7,Math.min(az,bz)-1e-7],max:[Math.max(ax,bx)+1e-7,y+1e-7,Math.max(az,bz)+1e-7]},face=>{
@@ -612,8 +606,16 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   const mesh=meshCeiling(x,z,y,targetY,radius,height);
   return mesh&&(!hit||mesh.limitY<hit.point[1])?mesh:hit;
  }
+ // The side of a closed solid blocks entry from outside. An actor moving
+ // out from its upper surface must be able to cross the same edge and fall.
+ function leavingClosedSide(source,face,x,z,dx,dz){
+  const [nx,ny,nz]=face.normal;
+  if(!source.closed||!source.policy.support||Math.abs(ny)>1e-8||nx*dx+nz*dz<=1e-9)return false;
+  const [ax,,az]=face.vertices[0];
+  return nx*(x-ax)+nz*(z-az)<=.002;
+ }
  // All actor/body consumers use the identical geometry contact query.
- function meshContacts(x,z,y,radius=.35,height=1.72){
+ function meshContacts(x,z,y,radius=.35,height=1.72,from=null){
   const out=[];
   // Mesh face overlap uses the same height-clipped projection as the sweep.
   // Preserve centre-height ground support: a body standing above a walkable
@@ -628,6 +630,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    if(interiorIds.has(id))return;
    if(face.bounds.max[1]<=y+.002||face.bounds.min[1]>=y+height-.002)return;
    const source=boundarySources.get(regionId).get(id);
+   if(from&&leavingClosedSide(source,face,from.x,from.z,x-from.x,z-from.z))return;
    if(source.policy.support&&face.normal[1]>1e-9&&(y>=planeY(face,x,z)-.004||connectedWalkFace(source,face,x,z,y,radius)))return;
    const poly=hullXZ(clipY(clipY(face.vertices,y+.002,true),y+height-.002,false));
    const c=hullContact(poly,x,z,radius,face);
@@ -639,7 +642,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
  // Authoritative compatibility consumer for the existing capsule solver.
  // It uses normalized SurfaceContact but returns the legacy objects unchanged.
  // The existing cached candidate order must be retained for corner response.
- function contacts(x,z,y,nearby=[],radius=.35,solids=null,height=1.72){
+ function contacts(x,z,y,nearby=[],radius=.35,solids=null,height=1.72,from=null){
   const candidates=solids??[...query(x,z,radius)];
   const hits=registry.overlapBody({root:[x,y,z],profile:{radius,height},candidates},{regionId,purpose:"block"});
   const found=new Map(),out=[];
@@ -648,7 +651,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
    if(collider)found.set(collider,{nx:h.contactNormal[0],nz:h.contactNormal[2],depth:-h.separation,collider});
   }
   for(const collider of candidates){const c=found.get(collider);if(c)out.push(c);}
-  out.push(...meshContacts(x,z,y,radius,height));
+  out.push(...meshContacts(x,z,y,radius,height,from));
   for(const collider of nearby){
    if(collider.top<=y+.002||collider.bot>=y+height-.002)continue;
    const c=playerContact(collider,x,z,radius);if(c)out.push(c);
@@ -688,6 +691,7 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
     hits.push({...prior,instanceId:id,toi:0});continue;
    }
    visitFaces(source.tree,bounds,face=>{
+    if(leavingClosedSide(source,face,x,z,dx,dz))return;
     // Coplanar triangles adjacent to the selected ground must not snag a
     // body crossing a triangulation seam. Compare the actual plane, not
     // whether the actor centre lies inside this individual triangle.
@@ -712,9 +716,6 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   }
   return out;
  }
- // Compatibility name consumed by the generated game.js; the implementation
- // is region/geometry-driven. Rename the caller when rebuilding that bundle.
- const labSideSweep=surfaceBoundarySweep;
  function remove(id){
   const h=handles.get(id);if(!h)return false;
   const sourceRegion=registry.get(id)?.regionId;
@@ -723,5 +724,5 @@ export function createRuntimeCollisionBridge({query,inside,local,playerContact,r
   return true;
  }
  function debugSnapshot(){return {regionId,counts:{...types},registered:handles.size,analyticalIndex:registry.analyticalIndexStats(),boundaryIndex:{regions:boundaryGrids.size,cells:[...boundaryGrids.values()].reduce((n,g)=>n+g.cells.size,0),large:[...boundaryGrids.values()].reduce((n,g)=>n+g.large.size,0),lastCandidates:lastBoundaryCandidates,deferredResident:deferredGeometry.size,deferredLimit:DEFERRED_LIMIT},capabilities:registry.capabilities()};}
- return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshTraversalEntries,meshMantlePlans,meshClimbEntries,meshClimbFace,meshSlope,staticSweep,surfaceBoundarySweep,labSideSweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:id=>{const changed=registry.suspendRegion(id);traversalEpoch++;return changed;},resumeRegion:id=>{const changed=registry.resumeRegion(id);traversalEpoch++;return changed;},traversalEpoch:()=>traversalEpoch,record:id=>records.get(id)??null,debugSnapshot};
+ return {setRegion,primitive,roof,terrain,triangleMesh,labSurface,stair,water,support,surfaceAt,hasSurfaceKind,groundSlope,activePrimitives,sampleWater,staticSupport,staticCeiling,meshSupport,meshDescent,meshTraversalEntries,meshMantlePlans,meshClimbEntries,meshClimbFace,meshSlope,staticSweep,surfaceBoundarySweep,overlap,contacts,meshContacts,remove,get:registry.get,suspendRegion:id=>{const changed=registry.suspendRegion(id);traversalEpoch++;return changed;},resumeRegion:id=>{const changed=registry.resumeRegion(id);traversalEpoch++;return changed;},traversalEpoch:()=>traversalEpoch,record:id=>records.get(id)??null,debugSnapshot};
 }
